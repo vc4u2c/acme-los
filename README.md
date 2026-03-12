@@ -9,6 +9,21 @@ Current workspace apps:
 - `apps/mobile-app` - Expo application
 - `apps/mobile-app-e2e` - Playwright mobile-web e2e tests for the Expo app
 
+Current shared libraries:
+
+- `libs/core/types`
+- `libs/core/utils`
+- `libs/core/config`
+- `libs/core/logger`
+- `libs/domain/loan`
+- `libs/domain/borrower`
+- `libs/domain/application`
+- `libs/domain/underwriting`
+- `libs/api/client`
+- `libs/api/contracts`
+- `libs/ui/web`
+- `libs/ui/mobile`
+
 Package manager:
 
 - `npm`
@@ -85,7 +100,7 @@ acme-los/
   tsconfig.base.json
 ```
 
-`libs/` is configured but currently empty.
+`libs/` now contains the initial shared backbone for core, domain, api, and ui modules.
 
 ## Prerequisites
 
@@ -312,11 +327,9 @@ Note:
 - `mobile-app-e2e` is not native-device Detox coverage
 - it is browser-based e2e for the Expo app rendered on web with mobile device profiles
 
-## Planned Shared Libraries
+## Shared Libraries
 
-The workspace is prepared for `libs/` but shared libraries have not been generated yet.
-
-Recommended future structure:
+Current structure:
 
 ```text
 libs/
@@ -344,7 +357,13 @@ Recommended import paths:
 
 - `@acme-los/core/types`
 - `@acme-los/core/utils`
+- `@acme-los/core/config`
+- `@acme-los/core/logger`
 - `@acme-los/domain/loan`
+- `@acme-los/domain/borrower`
+- `@acme-los/domain/application`
+- `@acme-los/domain/underwriting`
+- `@acme-los/api/client`
 - `@acme-los/api/contracts`
 - `@acme-los/ui-web`
 - `@acme-los/ui-mobile`
@@ -369,6 +388,11 @@ Avoid:
 Prefer package imports such as:
 
 - `@acme-los/domain/loan`
+
+Architecture docs:
+
+- [Domain Boundaries](c:/Users/vc4u2/Documents/Source/Repos/acme-los/docs/architecture/domain-boundaries.md)
+- [Auth and API Contracts](c:/Users/vc4u2/Documents/Source/Repos/acme-los/docs/architecture/auth-and-api-contracts.md)
 
 ## Observability and Logging
 
@@ -480,8 +504,7 @@ Husky hooks in this repo:
 
 ## Suggested Next Steps
 
-- generate shared libraries under `libs/`
-- define domain module boundaries for LOS workflows
-- add auth and API contract documentation
-- add lint tag constraints for shared library boundaries
+- add concrete models and DTOs inside the generated shared libraries
+- enforce tag usage on future projects as they are added
+- add auth and request-context shared libraries when implementation starts
 - pin Node 24 in `.nvmrc` if you want repo-level enforcement

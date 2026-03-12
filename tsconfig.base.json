@@ -14,7 +14,22 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
-    "paths": {}
+    "paths": {
+      "@acme-los/core/types": ["libs/core/types/src/index.ts"],
+      "@acme-los/core/utils": ["libs/core/utils/src/index.ts"],
+      "@acme-los/core/config": ["libs/core/config/src/index.ts"],
+      "@acme-los/core/logger": ["libs/core/logger/src/index.ts"],
+      "@acme-los/domain/loan": ["libs/domain/loan/src/index.ts"],
+      "@acme-los/domain/borrower": ["libs/domain/borrower/src/index.ts"],
+      "@acme-los/domain/application": ["libs/domain/application/src/index.ts"],
+      "@acme-los/domain/underwriting": [
+        "libs/domain/underwriting/src/index.ts"
+      ],
+      "@acme-los/api/client": ["libs/api/client/src/index.ts"],
+      "@acme-los/api/contracts": ["libs/api/contracts/src/index.ts"],
+      "@acme-los/ui-web": ["libs/ui/web/src/index.ts"],
+      "@acme-los/ui-mobile": ["libs/ui/mobile/src/index.ts"]
+    }
   },
   "exclude": ["node_modules", "tmp"]
 }
