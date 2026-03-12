@@ -1,96 +1,487 @@
-# AcmeLos
+# ACME LOS
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+Nx monorepo backbone for a Loan Origination System.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+Current workspace apps:
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+- `apps/web-app` - Next.js web application
+- `apps/web-app-e2e` - Playwright e2e tests for the web app
+- `apps/mobile-app` - Expo application
+- `apps/mobile-app-e2e` - Playwright mobile-web e2e tests for the Expo app
 
-## Run tasks
+Package manager:
 
-To run tasks with Nx use:
+- `npm`
 
-```sh
-npx nx <target> <project-name>
+Runtime baseline:
+
+- Node.js 24 LTS
+
+## Repo-Specific Corrections
+
+This repository does not follow the generic sample names from older Nx walkthroughs.
+
+Use these values for this repo:
+
+- repo/workspace: `acme-los`
+- package manager: `npm`
+- web app: `web-app`
+- mobile app: `mobile-app`
+
+Not used here:
+
+- `pnpm`
+- `yarn`
+- `los-monorepo`
+- `los-web`
+- `los-mobile`
+
+Also note:
+
+- this workspace uses `nx.json`, not an older `workspace.json` layout
+- the Next.js app uses Jest, not Vitest
+- mobile e2e is Playwright against Expo Web, not native-device Detox
+- on Windows, `npx.cmd nx ...` or `node .\node_modules\nx\bin\nx.js ...` is safer than plain `npx` in restricted PowerShell setups
+
+## Naming
+
+Recommended project naming in this repo:
+
+- workspace/repo: `acme-los`
+- web app: `web-app`
+- mobile app: `mobile-app`
+- package scope: `@acme-los/*`
+
+General conventions:
+
+- apps and files: `kebab-case`
+- variables and functions: `camelCase`
+- types and interfaces: `PascalCase`
+- constants: `UPPER_SNAKE_CASE`
+
+Examples:
+
+- `@acme-los/core/types`
+- `@acme-los/domain/loan`
+- `@acme-los/ui-web`
+- `@acme-los/ui-mobile`
+
+## Workspace Layout
+
+This workspace uses the standard Nx `apps/` and `libs/` layout.
+
+```text
+acme-los/
+  apps/
+    web-app/
+    web-app-e2e/
+    mobile-app/
+    mobile-app-e2e/
+  libs/
+  tools/
+  package.json
+  package-lock.json
+  nx.json
+  tsconfig.base.json
 ```
 
-For example:
+`libs/` is configured but currently empty.
 
-```sh
-npx nx build myproject
+## Prerequisites
+
+- Node.js 24 LTS
+- npm
+- VS Code recommended
+
+Recommended VS Code extensions:
+
+- Nx Console
+- ESLint
+- Prettier - Code formatter
+- Tailwind CSS IntelliSense
+- GitLens
+- EditorConfig for VS Code
+- Expo Tools
+
+## Verify Your Environment
+
+```powershell
+node -v
+npm -v
+node .\node_modules\nx\bin\nx.js --version
 ```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+If you use `nvm-windows`, a valid Node 24 flow is:
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Add new projects
-
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
-
-To install a new plugin you can use the `nx add` command. Here's an example of adding the React plugin:
-```sh
-npx nx add @nx/react
+```powershell
+nvm install 24.14.0
+nvm use 24.14.0
+node -v
 ```
 
-Use the plugin's generator to create new projects. For example, to create a new React app or library:
+## Install Dependencies
 
-```sh
-# Generate an app
-npx nx g @nx/react:app demo
-
-# Generate a library
-npx nx g @nx/react:lib some-lib
+```powershell
+npm install
 ```
 
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
+## PowerShell Nx Commands
 
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Preferred on Windows PowerShell:
 
-## Set up CI!
-
-### Step 1
-
-To connect to Nx Cloud, run the following command:
-
-```sh
-npx nx connect
+```powershell
+npx.cmd nx <target> <project>
 ```
 
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
+Equivalent direct Node form:
 
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-### Step 2
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
+```powershell
+node .\node_modules\nx\bin\nx.js run <project>:<target>
 ```
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Examples:
 
-## Install Nx Console
+```powershell
+npx.cmd nx run web-app:dev
+npx.cmd nx run mobile-app:start
+npx.cmd nx graph
+```
 
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
+## Web App Commands
 
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Run app:
 
-## Useful links
+```powershell
+npx.cmd nx run web-app:dev
+node .\node_modules\nx\bin\nx.js run web-app:dev
+```
 
-Learn more:
+Build app:
 
-- [Learn more about this workspace setup](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+```powershell
+npx.cmd nx run web-app:build
+node .\node_modules\nx\bin\nx.js run web-app:build
+```
 
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+Lint app:
+
+```powershell
+npx.cmd nx run web-app:lint
+node .\node_modules\nx\bin\nx.js run web-app:lint
+```
+
+Test app:
+
+```powershell
+npx.cmd nx run web-app:test
+node .\node_modules\nx\bin\nx.js run web-app:test
+```
+
+Run e2e:
+
+```powershell
+npx.cmd nx run web-app-e2e:e2e
+node .\node_modules\nx\bin\nx.js run web-app-e2e:e2e
+```
+
+Check dependency graph:
+
+```powershell
+npx.cmd nx graph
+node .\node_modules\nx\bin\nx.js graph
+```
+
+Show web app project details:
+
+```powershell
+npx.cmd nx show project web-app --web
+node .\node_modules\nx\bin\nx.js show project web-app --web
+```
+
+## Mobile App Commands
+
+Run app in Expo dev server:
+
+```powershell
+npx.cmd nx run mobile-app:start
+node .\node_modules\nx\bin\nx.js run mobile-app:start
+```
+
+Run app in browser:
+
+```powershell
+npx.cmd nx run mobile-app:serve
+node .\node_modules\nx\bin\nx.js run mobile-app:serve
+```
+
+Run app on Android:
+
+```powershell
+npx.cmd nx run mobile-app:run-android
+node .\node_modules\nx\bin\nx.js run mobile-app:run-android
+```
+
+Run app on iOS:
+
+```powershell
+npx.cmd nx run mobile-app:run-ios
+node .\node_modules\nx\bin\nx.js run mobile-app:run-ios
+```
+
+Lint app:
+
+```powershell
+npx.cmd nx run mobile-app:lint
+node .\node_modules\nx\bin\nx.js run mobile-app:lint
+```
+
+Test app:
+
+```powershell
+npx.cmd nx run mobile-app:test
+node .\node_modules\nx\bin\nx.js run mobile-app:test
+```
+
+Run e2e:
+
+```powershell
+npx.cmd nx run mobile-app-e2e:e2e
+node .\node_modules\nx\bin\nx.js run mobile-app-e2e:e2e
+```
+
+Check dependency graph:
+
+```powershell
+npx.cmd nx graph
+node .\node_modules\nx\bin\nx.js graph
+```
+
+Show mobile app project details:
+
+```powershell
+npx.cmd nx show project mobile-app --web
+node .\node_modules\nx\bin\nx.js show project mobile-app --web
+```
+
+## Workspace Commands
+
+Lint everything:
+
+```powershell
+npx.cmd nx run-many -t lint
+node .\node_modules\nx\bin\nx.js run-many -t lint
+```
+
+Test everything:
+
+```powershell
+npx.cmd nx run-many -t test
+node .\node_modules\nx\bin\nx.js run-many -t test
+```
+
+Run all e2e:
+
+```powershell
+npx.cmd nx run-many -t e2e
+node .\node_modules\nx\bin\nx.js run-many -t e2e
+```
+
+Run lint and test together:
+
+```powershell
+npx.cmd nx run-many -t lint,test
+node .\node_modules\nx\bin\nx.js run-many -t lint,test
+```
+
+## Current Testing Setup
+
+Web:
+
+- app framework: Next.js
+- unit tests: Jest
+- e2e: Playwright
+
+Mobile:
+
+- app framework: Expo
+- unit tests: Jest
+- e2e: Playwright against Expo Web
+
+Note:
+
+- `mobile-app-e2e` is not native-device Detox coverage
+- it is browser-based e2e for the Expo app rendered on web with mobile device profiles
+
+## Planned Shared Libraries
+
+The workspace is prepared for `libs/` but shared libraries have not been generated yet.
+
+Recommended future structure:
+
+```text
+libs/
+  core/
+    types/
+    utils/
+    config/
+    logger/
+    observability/
+    request-context/
+  domain/
+    loan/
+    borrower/
+    application/
+    underwriting/
+  api/
+    client/
+    contracts/
+  ui/
+    web/
+    mobile/
+```
+
+Recommended import paths:
+
+- `@acme-los/core/types`
+- `@acme-los/core/utils`
+- `@acme-los/domain/loan`
+- `@acme-los/api/contracts`
+- `@acme-los/ui-web`
+- `@acme-los/ui-mobile`
+
+## Boundary Rules
+
+Recommended dependency direction:
+
+- apps can depend on libs
+- `ui` can depend on `core` and `domain`
+- `api` can depend on `core` and `domain`
+- `domain` can depend on `core`
+- `core` should stay app-agnostic
+
+Avoid:
+
+- web importing mobile UI
+- mobile importing web UI
+- domain code depending on app code
+- deep relative imports across projects
+
+Prefer package imports such as:
+
+- `@acme-los/domain/loan`
+
+## Observability and Logging
+
+Recommended default stack for this LOS backbone:
+
+- OpenTelemetry for traces, metrics, and correlation context
+- Pino for structured application logs in Node.js and Next.js server/runtime code
+
+Do not log:
+
+- SSN
+- bank account numbers
+- full DOB
+- tax identifiers
+- raw document payloads
+- access tokens
+- passwords
+
+Prefer:
+
+- masked identifiers
+- internal entity IDs
+- correlation IDs
+- event names
+- latency and status metadata
+
+Suggested future shared packages:
+
+- `@acme-los/logger`
+- `@acme-los/telemetry`
+- `@acme-los/observability`
+
+## Notes
+
+- This repo currently uses `npm`, not `pnpm`
+- React and React DOM are pinned to `19.1.0` for Expo compatibility
+- Playwright output folders are ignored in `.gitignore`
+- if `3000` is busy, Next may choose another port when running `web-app:dev`
+- commands like `npx create-nx-workspace@latest los` are historical bootstrap commands, not something you should run inside this existing repo
+
+## Git Hooks and Commit Format
+
+This repo uses Husky hooks.
+
+Pre-commit:
+
+- runs `lint-staged`
+- fixes/lints staged source files before commit
+
+Commit message:
+
+- enforced by `commitlint`
+- must follow Conventional Commits
+
+Recommended format:
+
+```text
+type(scope): subject
+```
+
+Common types:
+
+- `feat`
+- `fix`
+- `docs`
+- `refactor`
+- `test`
+- `chore`
+- `ci`
+- `build`
+
+Examples:
+
+```text
+feat(web-app): add borrower dashboard shell
+fix(mobile-app): handle expired session
+docs(readme): add Nx PowerShell commands
+chore(repo): add husky and commitlint
+```
+
+This will fail:
+
+```text
+updated stuff
+```
+
+### Windows Husky Note
+
+If `git commit` fails before the hook logic runs, make sure you are committing from your local terminal with Git for Windows installed correctly.
+
+Typical local commit flow:
+
+```powershell
+git add .
+git commit -m "feat(repo): bootstrap Nx apps, hooks, and docs"
+```
+
+If hook execution fails on Windows:
+
+- confirm `git --version` works in the same terminal
+- use a fresh PowerShell or Git Bash session
+- rerun `npm install`
+- rerun `npm run prepare`
+
+Husky hooks in this repo:
+
+- [pre-commit](c:/Users/vc4u2/Documents/Source/Repos/acme-los/.husky/pre-commit)
+- [commit-msg](c:/Users/vc4u2/Documents/Source/Repos/acme-los/.husky/commit-msg)
+
+## Suggested Next Steps
+
+- generate shared libraries under `libs/`
+- define domain module boundaries for LOS workflows
+- add auth and API contract documentation
+- add lint tag constraints for shared library boundaries
+- pin Node 24 in `.nvmrc` if you want repo-level enforcement
