@@ -743,22 +743,34 @@ gh auth status
 Environment setup helper:
 
 - this workspace keeps operational scripts under `tools/scripts/`
-- use `tools/scripts/setup-github-environments.ps1` to create one or more GitHub environments from the current repo
+- use `tools/scripts/setup-github-environments.ps1` to create or recreate GitHub environments from the current repo and optionally set repository secrets
 - it will:
-  - use the local portable `gh` binary from `.tools/bin/gh.exe` if present, otherwise use system `gh`
+  - use `gh` from your shell `PATH`
   - check `gh auth status` and launch `gh auth login` if needed
-  - target the configured repository owner/name
-  - create or update each environment you pass in
+  - read defaults from `tools/scripts/setup-github-environments.config.psd1`
+  - let explicit PowerShell parameters override config values
+  - delete an existing environment first, then create it fresh
   - optionally attach one required reviewer user to non-`dev` environments while leaving `dev` ungated
+  - optionally create or update repository secrets when values are provided
 
-Example:
+Manual step that still must happen in GitHub:
+
+- create a fine-grained personal access token in the GitHub web UI
+- limit it to the `acme-los` repository
+- grant `Contents: Read and write`
+- copy the token value once
+
+PowerShell step after the token exists:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\tools\scripts\setup-github-environments.ps1 `
-  -Owner vc4u2c `
-  -Repo acme-los `
-  -Environments dev,qa,stg,prod `
-  -RequiredReviewerUser your-github-username
+  -ReleasePushToken '<fine-grained-pat>'
+```
+
+If you only want to refresh environments and reviewers, run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\scripts\setup-github-environments.ps1
 ```
 
 How the GitHub process works end to end:
