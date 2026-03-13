@@ -638,6 +638,37 @@ Validate project tags:
 npm run validate:tags
 ```
 
+## GitHub Integration
+
+This repository now includes first-party GitHub automation under `.github/`.
+
+Current workflows:
+
+- `CI` runs on pushes to `main` and pull requests targeting `main`
+- `Commitlint` runs on pull requests and validates commit messages across the PR range
+- `Release` is a manual GitHub Actions workflow that runs Nx Release for `web`, `mobile`, or both
+
+Current GitHub files:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/commitlint.yml`
+- `.github/workflows/release.yml`
+- `.github/pull_request_template.md`
+
+Recommended repository settings:
+
+- require the `CI` check before merging to `main`
+- require the `Commitlint` check before merging to `main`
+- keep GitHub Actions enabled for the repository
+- allow the default `GITHUB_TOKEN` to create tags and releases for the release workflow
+
+Release workflow behavior:
+
+- it is triggered manually with `workflow_dispatch`
+- it can run for `web`, `mobile`, or `all`
+- it supports dry-run mode for verification before cutting a real release
+- real releases use the Nx Release config in `nx.json` and create project-level GitHub releases
+
 ## Release Model
 
 Nx Release is configured for application releases, not library package publishing.

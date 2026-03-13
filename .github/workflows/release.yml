@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      group:
+        description: Release scope to run
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - web
+          - mobile
+      dry_run:
+        description: Run Nx Release in dry-run mode
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.inputs.group || 'all' }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run Nx Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [[ "${{ github.event.inputs.group }}" == "web" ]]; then
+            if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+              npm run release:web:dry-run
+            else
+              npm run release:web
+            fi
+          elif [[ "${{ github.event.inputs.group }}" == "mobile" ]]; then
+            if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+              npm run release:mobile:dry-run
+            else
+              npm run release:mobile
+            fi
+          else
+            if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+              npm run release:dry-run
+            else
+              npm run release
+            fi
+          fi

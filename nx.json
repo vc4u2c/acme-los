@@ -95,7 +95,9 @@
     },
     "changelog": {
       "workspaceChangelog": false,
-      "projectChangelogs": true,
+      "projectChangelogs": {
+        "createRelease": "github"
+      },
       "automaticFromRef": true
     },
     "version": {
