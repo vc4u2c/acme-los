@@ -786,6 +786,7 @@ Environment deployment workflow behavior:
 - `CD / Deploy To QA`, `CD / Deploy To Staging`, and `CD / Deploy To Production` should each use GitHub environment reviewers so the single CD run pauses for approval at each stage
 - `deploy-dev.yml`, `deploy-qa.yml`, `deploy-stg.yml`, and `deploy-prod.yml` are reusable environment workflows called by `cd.yml`
 - `qa`, `stg`, and `prod` approvals should be configured through GitHub environments so the same workflow run pauses on the approval boxes
+- each environment deploy job logs the packaged commit SHA and the friendly web/mobile release asset names before the deploy step runs
 - all environment deploy workflows are scaffolds right now and need the real platform-specific deployment commands
 
 ## Release Model
