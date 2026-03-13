@@ -50,6 +50,9 @@ export const App = () => {
             <Text className="mt-2 text-xs text-info-700">
               GitHub release setup branch active
             </Text>
+            <Text className="mt-2 text-xs text-typography-600">
+              Deploy artifact label update ready
+            </Text>
 
             <View className="mt-8 gap-3">
               {checklist.map((item) => (
