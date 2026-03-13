@@ -44,13 +44,14 @@ jobs:
         run: |
           mkdir -p dist/deployable/extracted
           tar -xzf dist/deployable/${{ inputs.artifact_name }}.tgz -C dist/deployable/extracted
-          web_version="$(node -p "require('./dist/deployable/extracted/web-app.package.json').version")"
-          mobile_version="$(node -p "require('./dist/deployable/extracted/mobile-app.package.json').version")"
           commit_sha="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').commitSha")"
+          web_version="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').webVersion")"
+          mobile_version="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').mobileVersion")"
           echo "Deploy artifact bundle: ${{ inputs.artifact_name }}.tgz"
           echo "Artifact commit SHA: ${commit_sha}"
-          echo "Friendly web release asset: acme-los-web-app-${web_version}-release-bundle.tgz"
-          echo "Friendly mobile release asset: acme-los-mobile-app-${mobile_version}-release-bundle.tgz"
+          echo "Deploy artifact web package version: ${web_version}"
+          echo "Deploy artifact mobile package version: ${mobile_version}"
+          echo "Friendly deploy artifact label: acme-los-deployable-web-${web_version}-mobile-${mobile_version}-${commit_sha}.tgz"
 
       - name: Placeholder deploy
         run: |

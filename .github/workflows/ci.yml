@@ -82,6 +82,8 @@ jobs:
         shell: bash
         run: |
           bundle_name="acme-los-deployable-${GITHUB_SHA}"
+          web_version="$(node -p "require('./apps/web-app/package.json').version")"
+          mobile_version="$(node -p "require('./apps/mobile-app/package.json').version")"
           mkdir -p dist/deployable
           cp apps/web-app/package.json dist/deployable/web-app.package.json
           cp apps/mobile-app/package.json dist/deployable/mobile-app.package.json
@@ -89,14 +91,16 @@ jobs:
           {
             "commitSha": "${GITHUB_SHA}",
             "workflowRunId": "${GITHUB_RUN_ID}",
-            "workflow": "${GITHUB_WORKFLOW}"
+            "workflow": "${GITHUB_WORKFLOW}",
+            "webVersion": "${web_version}",
+            "mobileVersion": "${mobile_version}"
           }
           EOF
           mkdir -p dist/artifacts
           tar -czf dist/artifacts/${bundle_name}.tgz -C dist/deployable .
 
       - name: Upload deployable artifact bundle
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: acme-los-deployable-${{ github.sha }}
           path: dist/artifacts/acme-los-deployable-${{ github.sha }}.tgz
@@ -201,7 +205,7 @@ jobs:
 
       - name: Upload release asset bundle
         if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: acme-los-release-assets-${{ github.sha }}
           path: dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz

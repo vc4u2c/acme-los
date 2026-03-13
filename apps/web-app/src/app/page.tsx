@@ -38,6 +38,9 @@ export default function Index() {
             <p className="mt-2 text-xs text-cyan-300/80">
               GitHub release setup branch active
             </p>
+            <p className="mt-2 text-xs text-slate-500">
+              Deploy artifact label update ready
+            </p>
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <Button
