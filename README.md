@@ -647,6 +647,8 @@ Current workflows:
 - `CI` runs on pull requests targeting `main` and on pushes to `main`
 - `Commitlint` runs on pull requests and validates commit messages across the PR range
 - `CI` also performs application release automation on pushes to `main`
+- `CI` uploads a release asset bundle to GitHub Actions for each actual release run
+- `CI` also attaches that same bundle to the matching GitHub Release entries
 - `CD` is the top-level deployment workflow
 - `CD` builds one deployable artifact after successful `CI` on `main`
 - `CD` automatically deploys that artifact to `dev`
@@ -730,6 +732,8 @@ How the GitHub process works end to end:
 - the release commit updates app version files in source control
 - the release commit message includes `[skip ci]` so the bot-written commit does not trigger a second CI loop
 - git tags and GitHub Releases are created directly by the release step in `CI`
+- a release asset bundle is uploaded to the GitHub Actions run
+- that same bundle is attached to the matching GitHub Release entries
 
 5. Deployment
 
@@ -745,6 +749,8 @@ CI workflow behavior:
 - it runs `npx nx affected -t lint`
 - it runs `npx nx affected -t test --runInBand`
 - on pushes to `main`, it also runs `CI / Release Apps`
+- after an actual release, it uploads `release-assets-<commitSha>.tgz` as a GitHub Actions artifact
+- after an actual release, it also attaches that asset bundle to the corresponding GitHub Releases
 - `CI / Release Apps` uses `GITHUB_TOKEN` and a `[skip ci]` release commit message to avoid recursive workflow runs
 - `nx fix-ci` is not enabled yet because that is only useful after connecting the workspace to Nx Cloud
 
@@ -759,6 +765,9 @@ Release automation behavior:
 - the release step lives inside `CI` instead of a separate release workflow
 - it only runs on pushes to `main`
 - it uses Nx Release to update app manifests, create the release commit, create tags, and publish GitHub Releases
+- it skips Nx package publishing because this repo releases applications, not publishable npm packages
+- it also uploads a release asset bundle for that workflow run
+- it attaches that same asset bundle to each app release that actually changed
 - it skips Nx package publishing because this repo releases applications, not publishable npm packages
 - the release commit message is `chore(release): publish [skip ci]`
 - because the release commit is pushed back to `main`, GitHub branch protection must allow the GitHub Actions release actor to perform that push
@@ -809,6 +818,8 @@ What that means in practice:
 
 - after a successful release on `main`, source control and the release tags should agree on the released version
 - if the applications need to display the true release version at runtime, the committed manifest is again a valid source after the release step
+- the GitHub Actions run for the release retains a downloadable release asset bundle
+- the GitHub Release page for each changed app also carries that bundle as a release asset
 - deployment environments (`dev`, `qa`, `stg`, `prod`) are separate from semantic release versioning and should be promoted intentionally
 - higher environments should promote the same built artifact that was already deployed to `dev`
 
