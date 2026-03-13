@@ -81,10 +81,11 @@
   "release": {
     "projectsRelationship": "independent",
     "git": {
-      "stageChanges": false,
-      "commit": false,
-      "tag": false,
-      "push": false
+      "stageChanges": true,
+      "commit": true,
+      "tag": true,
+      "push": true,
+      "commitMessage": "chore(release): publish [skip ci]"
     },
     "releaseTag": {
       "pattern": "{projectName}@{version}"
@@ -108,7 +109,7 @@
     "changelog": {
       "workspaceChangelog": false,
       "projectChangelogs": {
-        "createRelease": false,
+        "createRelease": "github",
         "file": false
       },
       "automaticFromRef": true

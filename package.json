@@ -7,8 +7,8 @@
     "lint-staged": "lint-staged",
     "commitlint": "commitlint --edit",
     "validate:tags": "node tools/scripts/validate-project-tags.mjs",
-    "release:prepare": "nx release version --git-commit=false --git-tag=false --git-push=false --stage-changes=false",
-    "release:prepare:dry-run": "nx release version --git-commit=false --git-tag=false --git-push=false --stage-changes=false --dry-run"
+    "release": "nx release --yes",
+    "release:dry-run": "nx release --dry-run"
   },
   "private": true,
   "lint-staged": {

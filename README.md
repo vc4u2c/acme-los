@@ -646,8 +646,7 @@ Current workflows:
 
 - `CI` runs on pull requests targeting `main` and on pushes to `main`
 - `Commitlint` runs on pull requests and validates commit messages across the PR range
-- `Prepare Release PR` runs after successful `CI` on `main` and opens or updates the release PR
-- `Publish Release` runs on pushes to `main` when an app `package.json` changed and publishes tags and GitHub Releases
+- `CI` also performs application release automation on pushes to `main`
 - `CD` is the top-level deployment workflow
 - `CD` builds one deployable artifact after successful `CI` on `main`
 - `CD` automatically deploys that artifact to `dev`
@@ -658,8 +657,7 @@ Current GitHub checks:
 
 - `CI / Lint And Test`
 - `Commitlint / Validate PR Commits`
-- `Prepare Release PR / Prepare Release Versions`
-- `Publish Release / Publish App Releases`
+- `CI / Release Apps`
 - `CD / Build Release Artifact`
 - `CD / Deploy To Dev`
 - `CD / Deploy To QA`
@@ -670,8 +668,6 @@ Current GitHub files:
 
 - `.github/workflows/ci.yml`
 - `.github/workflows/commitlint.yml`
-- `.github/workflows/prepare-release-pr.yml`
-- `.github/workflows/publish-release.yml`
 - `.github/workflows/cd.yml`
 - `.github/workflows/deploy-dev.yml`
 - `.github/workflows/deploy-qa.yml`
@@ -683,6 +679,7 @@ Recommended repository settings:
 
 - require the `CI / Lint And Test` check before merging to `main`
 - require the `Commitlint / Validate PR Commits` check before merging to `main`
+- allow the GitHub Actions release job to bypass direct-push restrictions on `main`, or allow GitHub Actions to push release commits to `main`
 - keep GitHub Actions enabled for the repository
 - allow the default `GITHUB_TOKEN` to create tags and releases for the release workflow
 - create GitHub environments named `dev`, `qa`, `stg`, and `prod`
@@ -697,17 +694,18 @@ GitHub updates to make now:
 - `CI / Lint And Test`
 - `Commitlint / Validate PR Commits`
 
-4. Keep pull request merging required for `main`.
-5. Go to `Settings -> Actions -> General`.
-6. Set `Workflow permissions` to `Read and write permissions`.
-7. Go to `Settings -> Environments` and create:
+4. Allow GitHub Actions to push the release commit to `main` for the automated release step.
+5. Keep pull request merging required for `main` for human changes.
+6. Go to `Settings -> Actions -> General`.
+7. Set `Workflow permissions` to `Read and write permissions`.
+8. Go to `Settings -> Environments` and create:
 
 - `dev`
 - `qa`
 - `stg`
 - `prod`
 
-8. On the `prod` environment, add required reviewers so production deployment is gated.
+9. On the `prod` environment, add required reviewers so production deployment is gated.
 
 How the GitHub process works end to end:
 
@@ -724,14 +722,13 @@ How the GitHub process works end to end:
 3. Merge to `main`
 
 - `CI / Lint And Test` runs again on the merged commit
-- after successful CI on `main`, `Prepare Release PR / Prepare Release Versions` opens or updates the release PR when a new app version is warranted
+- `CI / Release Apps` runs on `main`, bumps app versions when warranted, writes the release commit with `[skip ci]`, pushes tags, and creates GitHub Releases
 
 4. Release output
 
-- the release PR updates app version files in source control
-- you merge that release PR only when you are ready to cut a release
-- after the release PR merge, `Publish Release / Publish App Releases` runs because one or both app `package.json` files changed on `main`
-- `Publish Release / Publish App Releases` creates git tags and GitHub Releases from that merged release commit
+- the release commit updates app version files in source control
+- the release commit message includes `[skip ci]` so the bot-written commit does not trigger a second CI loop
+- git tags and GitHub Releases are created directly by the release step in `CI`
 
 5. Deployment
 
@@ -746,6 +743,8 @@ CI workflow behavior:
 - it runs `npm run validate:tags` across the workspace
 - it runs `npx nx affected -t lint`
 - it runs `npx nx affected -t test --runInBand`
+- on pushes to `main`, it also runs `CI / Release Apps`
+- `CI / Release Apps` uses `GITHUB_TOKEN` and a `[skip ci]` release commit message to avoid recursive workflow runs
 - `nx fix-ci` is not enabled yet because that is only useful after connecting the workspace to Nx Cloud
 
 Commitlint workflow behavior:
@@ -754,24 +753,13 @@ Commitlint workflow behavior:
 - it checks the PR commit range, not just the PR title
 - local Husky commitlint remains the first enforcement layer on developer machines
 
-Prepare Release PR workflow behavior:
+Release automation behavior:
 
-- it runs after successful `CI` on `main`
-- it can also be triggered manually with `workflow_dispatch`
-- it calculates the next application versions using Nx Release
-- it updates app version files on a release branch
-- it opens or updates a PR named `chore(release): prepare app releases`
-- it skips creating another release PR when the most recent merge was already a release-only merge
-- you can choose not to merge that PR if you are not ready to release
-
-Publish Release workflow behavior:
-
-- it runs on pushes to `main` that change one or both app `package.json` version files
-- it can also be triggered manually with `workflow_dispatch`
-- it only publishes when a merge to `main` changed one or both app `package.json` version files
-- it reads the release version from the merged app manifests
-- it creates the git tag through Nx Release and then creates the GitHub Release entry for that tag
-- it does not push a new commit back to protected `main`
+- the release step lives inside `CI` instead of a separate release workflow
+- it only runs on pushes to `main`
+- it uses Nx Release to update app manifests, create the release commit, create tags, and publish GitHub Releases
+- the release commit message is `chore(release): publish [skip ci]`
+- because the release commit is pushed back to `main`, GitHub branch protection must allow the GitHub Actions release actor to perform that push
 
 Environment deployment workflow behavior:
 
@@ -812,14 +800,13 @@ Current version sources:
 - Expo reads the mobile version through `apps/mobile-app/app.config.js`
 - native build numbers remain separate operational values and are not the same as semver
 - until the first real release tags exist, Nx Release falls back to those app manifests to bootstrap the initial release
-- release PRs update the committed app manifests before a release is published
+- CI now writes the committed app manifests forward during the automated release step
 - git tags and GitHub Releases remain the durable release artifacts
 
 What that means in practice:
 
-- after the release PR is merged, source control and the release tags should agree on the released version
-- before the release PR is merged, the app manifests on `main` still show the previously released version
-- if the applications need to display the true release version at runtime, the committed manifest is again a valid source after the release PR merge
+- after a successful release on `main`, source control and the release tags should agree on the released version
+- if the applications need to display the true release version at runtime, the committed manifest is again a valid source after the release step
 - deployment environments (`dev`, `qa`, `stg`, `prod`) are separate from semantic release versioning and should be promoted intentionally
 - higher environments should promote the same built artifact that was already deployed to `dev`
 
@@ -827,15 +814,13 @@ Recommended release flow:
 
 ```powershell
 merge feature PRs to main
-wait for or trigger the release PR
-review the generated version bump PR
-merge the release PR when ready
+let CI publish the release commit, tags, and GitHub Releases
 ```
 
 Operational summary:
 
 ```powershell
-feature PR -> Commitlint + CI -> merge to main -> CI on main -> CD builds artifact and deploys dev -> Prepare Release PR -> merge release PR -> Publish Release on main -> run CD manually with artifact_name + artifact_run_id to promote qa/stg/prod
+feature PR -> Commitlint + CI -> merge to main -> CI on main -> CI releases apps with [skip ci] -> CD builds artifact and deploys dev -> run CD manually with artifact_name + artifact_run_id to promote qa/stg/prod
 ```
 
 Practical mental model:
