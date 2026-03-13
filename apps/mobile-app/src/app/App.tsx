@@ -2,12 +2,15 @@ import { StatusBar } from 'expo-status-bar';
 import { Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, ButtonText, GluestackUIProvider } from '@acme-los/ui-mobile';
+import mobileAppPackage from '../../package.json';
 
 const checklist = [
   'Expo app bootstraps through Nx',
   'Tailwind classes compile through NativeWind',
   'Shared UI can move into libs/ui/mobile once the base works',
 ];
+
+const mobileAppVersion = mobileAppPackage.version;
 
 export const App = () => {
   return (
@@ -35,6 +38,12 @@ export const App = () => {
               using token-driven Tailwind classes. Once this renders correctly
               in Expo, the mobile theming base is working.
             </Text>
+
+            <View className="mt-4 self-start rounded-full bg-info-100 px-3 py-1">
+              <Text className="text-xs font-semibold uppercase tracking-[2px] text-info-700">
+                Mobile release marker v{mobileAppVersion}
+              </Text>
+            </View>
 
             <View className="mt-8 gap-3">
               {checklist.map((item) => (

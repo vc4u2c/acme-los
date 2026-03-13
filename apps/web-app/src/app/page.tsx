@@ -29,6 +29,9 @@ export default function Index() {
               shared LOS domain modules, API contracts, and platform-specific UI
               packages.
             </p>
+            <p className="mt-4 text-sm font-medium text-amber-300">
+              Release marker: web shell refreshed
+            </p>
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <Button

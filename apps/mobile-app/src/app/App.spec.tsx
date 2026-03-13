@@ -4,8 +4,9 @@ import { render } from '@testing-library/react-native';
 import App from './App';
 
 test('renders correctly', () => {
-  const { getByTestId } = render(<App />);
+  const { getByTestId, getByText } = render(<App />);
   expect(getByTestId('heading')).toHaveTextContent(
     /NativeWind plus gluestack are wired/i,
   );
+  expect(getByText(/Mobile release marker v1\.0\.2/i)).toBeTruthy();
 });
