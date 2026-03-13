@@ -77,5 +77,32 @@
         "unitTestRunner": "none"
       }
     }
+  },
+  "release": {
+    "projectsRelationship": "independent",
+    "releaseTag": {
+      "pattern": "{projectName}@{version}"
+    },
+    "groups": {
+      "web": {
+        "projects": ["web-app"],
+        "projectsRelationship": "fixed"
+      },
+      "mobile": {
+        "projects": ["mobile-app"],
+        "projectsRelationship": "fixed"
+      }
+    },
+    "changelog": {
+      "workspaceChangelog": false,
+      "projectChangelogs": true,
+      "automaticFromRef": true
+    },
+    "version": {
+      "specifierSource": "conventional-commits",
+      "currentVersionResolver": "git-tag",
+      "fallbackCurrentVersionResolver": "disk",
+      "manifestRootsToUpdate": ["{projectRoot}"]
+    }
   }
 }

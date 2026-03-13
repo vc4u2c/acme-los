@@ -6,7 +6,13 @@
     "prepare": "husky",
     "lint-staged": "lint-staged",
     "commitlint": "commitlint --edit",
-    "validate:tags": "node tools/scripts/validate-project-tags.mjs"
+    "validate:tags": "node tools/scripts/validate-project-tags.mjs",
+    "release": "nx release",
+    "release:dry-run": "nx release --dry-run",
+    "release:web": "nx release --groups web",
+    "release:web:dry-run": "nx release --groups web --dry-run",
+    "release:mobile": "nx release --groups mobile",
+    "release:mobile:dry-run": "nx release --groups mobile --dry-run"
   },
   "private": true,
   "lint-staged": {
