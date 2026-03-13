@@ -35,6 +35,9 @@ export default function Index() {
             <p className="mt-2 text-xs uppercase tracking-[0.25em] text-emerald-400/80">
               Sync marker: branch refresh ready
             </p>
+            <p className="mt-2 text-xs text-cyan-300/80">
+              GitHub release setup branch active
+            </p>
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <Button
