@@ -78,7 +78,7 @@ jobs:
       - name: Create deployable artifact bundle
         shell: bash
         run: |
-          bundle_name="deployable-${GITHUB_SHA}"
+          bundle_name="acme-los-deployable-${GITHUB_SHA}"
           mkdir -p dist/deployable
           cp apps/web-app/package.json dist/deployable/web-app.package.json
           cp apps/mobile-app/package.json dist/deployable/mobile-app.package.json
@@ -95,8 +95,8 @@ jobs:
       - name: Upload deployable artifact bundle
         uses: actions/upload-artifact@v4
         with:
-          name: deployable-${{ github.sha }}
-          path: dist/artifacts/deployable-${{ github.sha }}.tgz
+          name: acme-los-deployable-${{ github.sha }}
+          path: dist/artifacts/acme-los-deployable-${{ github.sha }}.tgz
           if-no-files-found: error
           retention-days: 30
 
@@ -171,7 +171,6 @@ jobs:
         if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true'
         shell: bash
         run: |
-          bundle_name="release-assets-${{ github.sha }}"
           mkdir -p dist/release-assets
           cp apps/web-app/package.json dist/release-assets/web-app.package.json
           cp apps/mobile-app/package.json dist/release-assets/mobile-app.package.json
@@ -185,14 +184,16 @@ jobs:
           }
           EOF
           mkdir -p dist/artifacts
-          tar -czf dist/artifacts/${bundle_name}.tgz -C dist/release-assets .
+          tar -czf dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz -C dist/release-assets .
+          cp dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz dist/artifacts/acme-los-web-app-release-assets-${{ github.sha }}.tgz
+          cp dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz dist/artifacts/acme-los-mobile-app-release-assets-${{ github.sha }}.tgz
 
       - name: Upload release asset bundle
         if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: release-assets-${{ github.sha }}
-          path: dist/artifacts/release-assets-${{ github.sha }}.tgz
+          name: acme-los-release-assets-${{ github.sha }}
+          path: dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz
           if-no-files-found: error
           retention-days: 30
 
@@ -201,7 +202,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: web-app@${{ steps.versions_after.outputs.web }}
-          files: dist/artifacts/release-assets-${{ github.sha }}.tgz
+          files: dist/artifacts/acme-los-web-app-release-assets-${{ github.sha }}.tgz
           append_body: true
           fail_on_unmatched_files: true
 
@@ -210,6 +211,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: mobile-app@${{ steps.versions_after.outputs.mobile }}
-          files: dist/artifacts/release-assets-${{ github.sha }}.tgz
+          files: dist/artifacts/acme-los-mobile-app-release-assets-${{ github.sha }}.tgz
           append_body: true
           fail_on_unmatched_files: true

@@ -750,9 +750,9 @@ CI workflow behavior:
 - it runs `npm run validate:tags` across the workspace
 - it runs `npx nx affected -t lint`
 - it runs `npx nx affected -t test --runInBand`
-- on pushes to `main`, it uploads `deployable-<commitSha>.tgz` as the artifact CD will deploy
+- on pushes to `main`, it uploads `acme-los-deployable-<commitSha>.tgz` as the artifact CD will deploy
 - on pushes to `main`, it also runs `CI / Release Apps`
-- after an actual release, it uploads `release-assets-<commitSha>.tgz` as a GitHub Actions artifact
+- after an actual release, it uploads `acme-los-release-assets-<commitSha>.tgz` as a GitHub Actions artifact
 - after an actual release, it also attaches that asset bundle to the corresponding GitHub Releases
 - `CI / Release Apps` uses `GITHUB_TOKEN` and a `[skip ci]` release commit message to avoid recursive workflow runs
 - `nx fix-ci` is not enabled yet because that is only useful after connecting the workspace to Nx Cloud
@@ -778,7 +778,7 @@ Environment deployment workflow behavior:
 
 - `CD` is the only top-level deployment workflow shown in GitHub Actions
 - `CD` is triggered only after completed `CI` runs for `main`
-- `CD / Deploy To Dev` runs automatically after successful `CI` on `main` and deploys the `deployable-<commitSha>` artifact from that CI run to `dev`
+- `CD / Deploy To Dev` runs automatically after successful `CI` on `main` and deploys the `acme-los-deployable-<commitSha>` artifact from that CI run to `dev`
 - `CD / Deploy To QA` depends on successful `CD / Deploy To Dev` and promotes the same artifact into `qa`
 - `CD / Deploy To Staging` depends on successful `CD / Deploy To QA` and promotes the same artifact into `stg`
 - `CD / Deploy To Production` depends on successful `CD / Deploy To Staging` and promotes the same artifact into `prod`

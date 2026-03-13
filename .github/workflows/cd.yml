@@ -26,7 +26,7 @@ jobs:
     uses: ./.github/workflows/deploy-dev.yml
     secrets: inherit
     with:
-      artifact_name: deployable-${{ github.event.workflow_run.head_sha }}
+      artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
       artifact_run_id: ${{ github.event.workflow_run.id }}
       source_ref: ${{ github.event.workflow_run.head_sha }}
 
@@ -37,7 +37,7 @@ jobs:
     uses: ./.github/workflows/deploy-qa.yml
     secrets: inherit
     with:
-      artifact_name: deployable-${{ github.event.workflow_run.head_sha }}
+      artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
       artifact_run_id: ${{ github.event.workflow_run.id }}
 
   deploy_stg:
@@ -47,7 +47,7 @@ jobs:
     uses: ./.github/workflows/deploy-stg.yml
     secrets: inherit
     with:
-      artifact_name: deployable-${{ github.event.workflow_run.head_sha }}
+      artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
       artifact_run_id: ${{ github.event.workflow_run.id }}
 
   deploy_prod:
@@ -57,5 +57,5 @@ jobs:
     uses: ./.github/workflows/deploy-prod.yml
     secrets: inherit
     with:
-      artifact_name: deployable-${{ github.event.workflow_run.head_sha }}
+      artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
       artifact_run_id: ${{ github.event.workflow_run.id }}
