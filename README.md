@@ -662,6 +662,43 @@ Recommended repository settings:
 - keep GitHub Actions enabled for the repository
 - allow the default `GITHUB_TOKEN` to create tags and releases for the release workflow
 
+How the GitHub process works end to end:
+
+1. Local development
+
+- Husky `commit-msg` runs local commitlint when you make a commit
+- Husky `pre-commit` runs `lint-staged` and project tag validation
+
+2. Pull request
+
+- `Commitlint` validates the commits included in the PR
+- `CI` validates the affected projects in the PR
+
+3. Merge to `main`
+
+- `CI` runs again on the merged commit
+- `Release` runs automatically on the merged commit
+
+4. Release output
+
+- Nx Release calculates the next version for `web-app` and `mobile-app`
+- it creates git tags and GitHub Releases
+- it does not push a new version/changelog commit back to protected `main`
+
+CI workflow behavior:
+
+- it uses `nrwl/nx-set-shas@v4` to resolve the correct base and head commits in GitHub Actions
+- it runs `npm run validate:tags` across the workspace
+- it runs `npx nx affected -t lint`
+- it runs `npx nx affected -t test --runInBand`
+- `nx fix-ci` is not enabled yet because that is only useful after connecting the workspace to Nx Cloud
+
+Commitlint workflow behavior:
+
+- it runs on pull requests targeting `main`
+- it checks the PR commit range, not just the PR title
+- local Husky commitlint remains the first enforcement layer on developer machines
+
 Release workflow behavior:
 
 - it runs automatically on pushes to `main`
@@ -673,14 +710,6 @@ Release workflow behavior:
 - it validates tags, lint, and tests before versioning
 - real releases use the Nx Release config in `nx.json` and create project-level GitHub releases
 - releases are created from the merged `main` commit without pushing a new version/changelog commit back to the protected branch
-
-CI workflow behavior:
-
-- it uses `nrwl/nx-set-shas@v4` to resolve the correct base and head commits in GitHub Actions
-- it runs `npm run validate:tags` across the workspace
-- it runs `npx nx affected -t lint`
-- it runs `npx nx affected -t test --runInBand`
-- `nx fix-ci` is not enabled yet because that is only useful after connecting the workspace to Nx Cloud
 
 ## Release Model
 
@@ -708,6 +737,13 @@ Current version sources:
 - until the first real release tags exist, Nx Release falls back to those app manifests to bootstrap the initial release
 - protected-branch-safe automation means release version bumps are not committed back to `main`; tags and GitHub Releases are the durable release artifacts
 
+What that means in practice:
+
+- source files may still show `1.0.0` while the latest release tag is `1.0.1`
+- the committed app manifests are the bootstrap baseline, not always the latest released version
+- the actual released version is represented by git tags and GitHub Releases
+- if the applications need to display the true release version at runtime, that should be injected from CI/CD rather than read only from the committed manifest
+
 Recommended release flow:
 
 ```powershell
@@ -730,6 +766,13 @@ Practical mental model:
 - use git tags and generated changelogs as the release history
 - keep internal libs versionless from a product perspective until one actually needs to be published on its own
 - in this repository, protected `main` is the source of deployable code and GitHub Releases are the source of release notes
+
+Release decision examples:
+
+- change only in `apps/web-app/src/**` with a `feat(web-app): ...` commit: expect `web-app` to bump
+- change only in `apps/mobile-app/src/**` with a `fix(mobile-app): ...` commit: expect `mobile-app` to bump
+- change in shared `libs/**`: one or both apps may bump depending on relevance
+- `docs`, `chore`, `ci`, and most non-user-facing repo changes do not normally create semver bumps
 
 ## Observability And Logging
 
