@@ -89,13 +89,14 @@ jobs:
             "workflow": "${GITHUB_WORKFLOW}"
           }
           EOF
-          tar -czf dist/deployable/${bundle_name}.tgz -C dist/deployable .
+          mkdir -p dist/artifacts
+          tar -czf dist/artifacts/${bundle_name}.tgz -C dist/deployable .
 
       - name: Upload deployable artifact bundle
         uses: actions/upload-artifact@v4
         with:
           name: deployable-${{ github.sha }}
-          path: dist/deployable/deployable-${{ github.sha }}.tgz
+          path: dist/artifacts/deployable-${{ github.sha }}.tgz
           if-no-files-found: error
           retention-days: 30
 
@@ -183,14 +184,15 @@ jobs:
             "mobileVersion": "${{ steps.versions_after.outputs.mobile }}"
           }
           EOF
-          tar -czf dist/release-assets/${bundle_name}.tgz -C dist/release-assets .
+          mkdir -p dist/artifacts
+          tar -czf dist/artifacts/${bundle_name}.tgz -C dist/release-assets .
 
       - name: Upload release asset bundle
         if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: release-assets-${{ github.sha }}
-          path: dist/release-assets/release-assets-${{ github.sha }}.tgz
+          path: dist/artifacts/release-assets-${{ github.sha }}.tgz
           if-no-files-found: error
           retention-days: 30
 
@@ -199,7 +201,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: web-app@${{ steps.versions_after.outputs.web }}
-          files: dist/release-assets/release-assets-${{ github.sha }}.tgz
+          files: dist/artifacts/release-assets-${{ github.sha }}.tgz
           append_body: true
           fail_on_unmatched_files: true
 
@@ -208,6 +210,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: mobile-app@${{ steps.versions_after.outputs.mobile }}
-          files: dist/release-assets/release-assets-${{ github.sha }}.tgz
+          files: dist/artifacts/release-assets-${{ github.sha }}.tgz
           append_body: true
           fail_on_unmatched_files: true
