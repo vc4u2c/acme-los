@@ -647,20 +647,21 @@ Current workflows:
 - `CI` runs on pull requests targeting `main` and on pushes to `main`
 - `Commitlint` runs on pull requests and validates commit messages across the PR range
 - `CI` also performs application release automation on pushes to `main`
+- `CI` builds and uploads the deployable artifact for every push to `main`
 - `CI` uploads a release asset bundle to GitHub Actions for each actual release run
 - `CI` also attaches that same bundle to the matching GitHub Release entries
 - `CD` is the top-level deployment workflow
-- `CD` builds one deployable artifact after successful `CI` on `main`
-- `CD` automatically deploys that artifact to `dev`
+- `CD` runs only after successful `CI` on `main`
+- `CD` automatically deploys the CI-built artifact to `dev`
 - `CD` also handles manual promotion of that same artifact to `qa`, `stg`, or `prod`
 - the environment-specific deploy files remain separate reusable workflows called by `CD`
 
 Current GitHub checks:
 
 - `CI / Lint And Test`
+- `CI / Build Deployable Artifact`
 - `Commitlint / Validate PR Commits`
 - `CI / Release Apps`
-- `CD / Build Release Artifact`
 - `CD / Deploy To Dev`
 - `CD / Deploy To QA`
 - `CD / Deploy To Staging`
@@ -725,6 +726,7 @@ How the GitHub process works end to end:
 3. Merge to `main`
 
 - `CI / Lint And Test` runs again on the merged commit
+- `CI / Build Deployable Artifact` creates the deployable artifact for that exact `main` commit
 - `CI / Release Apps` runs on `main`, bumps app versions when warranted, writes the release commit with `[skip ci]`, pushes tags, and creates GitHub Releases
 
 4. Release output
@@ -737,8 +739,7 @@ How the GitHub process works end to end:
 
 5. Deployment
 
-- `CD / Build Release Artifact` builds one deployment artifact from the merged `main` commit
-- `CD / Deploy To Dev` deploys that same built artifact into the development environment automatically after successful `CI` on `main`
+- `CD / Deploy To Dev` deploys the deployable artifact produced by `CI` for that same `main` commit
 - `CD` can also be run manually to promote that same artifact into `qa`, `stg`, or `prod`
 - `prod` deployment remains gated by the GitHub `prod` environment approval rules
 
@@ -748,6 +749,7 @@ CI workflow behavior:
 - it runs `npm run validate:tags` across the workspace
 - it runs `npx nx affected -t lint`
 - it runs `npx nx affected -t test --runInBand`
+- on pushes to `main`, it uploads `deployable-<commitSha>.tgz` as the artifact CD will deploy
 - on pushes to `main`, it also runs `CI / Release Apps`
 - after an actual release, it uploads `release-assets-<commitSha>.tgz` as a GitHub Actions artifact
 - after an actual release, it also attaches that asset bundle to the corresponding GitHub Releases
@@ -768,15 +770,14 @@ Release automation behavior:
 - it skips Nx package publishing because this repo releases applications, not publishable npm packages
 - it also uploads a release asset bundle for that workflow run
 - it attaches that same asset bundle to each app release that actually changed
-- it skips Nx package publishing because this repo releases applications, not publishable npm packages
 - the release commit message is `chore(release): publish [skip ci]`
 - because the release commit is pushed back to `main`, GitHub branch protection must allow the GitHub Actions release actor to perform that push
 
 Environment deployment workflow behavior:
 
 - `CD` is the only top-level deployment workflow shown in GitHub Actions
-- `CD / Build Release Artifact` packages one deployable artifact from the merged `main` commit
-- `CD / Deploy To Dev` runs automatically after successful `CI` on `main` and deploys that artifact to `dev`
+- `CD` is triggered only after completed `CI` runs for `main`
+- `CD / Deploy To Dev` runs automatically after successful `CI` on `main` and deploys the `deployable-<commitSha>` artifact from that CI run to `dev`
 - `CD / Deploy To QA` is a manual promotion path for QA deployment of the same artifact
 - `CD / Deploy To Staging` is a manual promotion path for staging deployment of the same artifact
 - `CD / Deploy To Production` is a manual promotion path for production deployment of the same artifact
@@ -818,6 +819,7 @@ What that means in practice:
 
 - after a successful release on `main`, source control and the release tags should agree on the released version
 - if the applications need to display the true release version at runtime, the committed manifest is again a valid source after the release step
+- every push to `main` produces a deployable Actions artifact for CD promotion
 - the GitHub Actions run for the release retains a downloadable release asset bundle
 - the GitHub Release page for each changed app also carries that bundle as a release asset
 - deployment environments (`dev`, `qa`, `stg`, `prod`) are separate from semantic release versioning and should be promoted intentionally
@@ -833,7 +835,7 @@ let CI publish the release commit, tags, and GitHub Releases without package pub
 Operational summary:
 
 ```powershell
-feature PR -> Commitlint + CI -> merge to main -> CI on main -> CI releases apps with [skip ci] -> CD builds artifact and deploys dev -> run CD manually with artifact_name + artifact_run_id to promote qa/stg/prod
+feature PR -> Commitlint + CI -> merge to main -> CI on main -> CI builds deployable artifact -> CI releases apps with [skip ci] -> CD deploys that artifact to dev -> run CD manually with artifact_name + artifact_run_id to promote qa/stg/prod
 ```
 
 Practical mental model:
@@ -842,7 +844,7 @@ Practical mental model:
 - use git tags and generated changelogs as the release history
 - keep internal libs versionless from a product perspective until one actually needs to be published on its own
 - in this repository, protected `main` is the reviewed source of truth for app versions and GitHub Releases are the published release notes
-- environment deployment is a separate concern from semantic versioning: `dev` builds once from `main`, and `qa`, `stg`, and `prod` should promote that same artifact with gated approvals rather than rebuilding from refs
+- environment deployment is a separate concern from semantic versioning: `CI` builds once from `main`, `dev` deploys that artifact automatically, and `qa`, `stg`, and `prod` should promote that same artifact with gated approvals rather than rebuilding from refs
 
 Release decision examples:
 

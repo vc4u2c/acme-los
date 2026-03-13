@@ -6,6 +6,8 @@ on:
       - CI
     types:
       - completed
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       environment:
@@ -35,72 +37,17 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build_release_artifact:
-    name: Build Release Artifact
-    if: >
-      github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
-    runs-on: ubuntu-latest
-    outputs:
-      artifact_name: ${{ steps.artifact_metadata.outputs.artifact_name }}
-      source_ref: ${{ steps.artifact_metadata.outputs.source_ref }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Create artifact metadata
-        id: artifact_metadata
-        shell: bash
-        run: |
-          source_sha="${{ github.event.workflow_run.head_sha }}"
-          artifact_name="release-bundle-${source_sha}"
-          mkdir -p dist/release-bundle
-          cat <<EOF > dist/release-bundle/metadata.json
-          {
-            "commitSha": "${source_sha}",
-            "sourceRef": "${source_sha}",
-            "ciRunId": "${{ github.event.workflow_run.id }}",
-            "cdRunId": "${GITHUB_RUN_ID}"
-          }
-          EOF
-          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
-          echo "source_ref=${source_sha}" >> "$GITHUB_OUTPUT"
-
-      - name: Upload release artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.artifact_metadata.outputs.artifact_name }}
-          path: dist/release-bundle
-          if-no-files-found: error
-          retention-days: 30
-
   deploy_dev:
     name: Deploy To Dev
     if: >
       github.event_name == 'workflow_run' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'main'
-    needs:
-      - build_release_artifact
+      github.event.workflow_run.conclusion == 'success'
     uses: ./.github/workflows/deploy-dev.yml
     secrets: inherit
     with:
-      artifact_name: ${{ needs.build_release_artifact.outputs.artifact_name }}
-      artifact_run_id: ${{ github.run_id }}
-      source_ref: ${{ needs.build_release_artifact.outputs.source_ref }}
+      artifact_name: deployable-${{ github.event.workflow_run.head_sha }}
+      artifact_run_id: ${{ github.event.workflow_run.id }}
+      source_ref: ${{ github.event.workflow_run.head_sha }}
 
   deploy_qa:
     name: Deploy To QA
