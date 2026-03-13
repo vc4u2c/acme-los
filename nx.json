@@ -80,6 +80,12 @@
   },
   "release": {
     "projectsRelationship": "independent",
+    "git": {
+      "stageChanges": false,
+      "commit": false,
+      "tag": true,
+      "push": true
+    },
     "releaseTag": {
       "pattern": "{projectName}@{version}"
     },
@@ -102,7 +108,8 @@
     "changelog": {
       "workspaceChangelog": false,
       "projectChangelogs": {
-        "createRelease": "github"
+        "createRelease": "github",
+        "file": false
       },
       "automaticFromRef": true
     },
