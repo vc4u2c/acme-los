@@ -262,7 +262,7 @@ npm.cmd install @radix-ui/react-slot --legacy-peer-deps
 Nx Release setup for independent app versioning:
 
 ```powershell
-npx.cmd nx release --dry-run
+npx.cmd nx release --dry-run --skip-publish
 ```
 
 Tag validation and governance:
@@ -759,6 +759,7 @@ Release automation behavior:
 - the release step lives inside `CI` instead of a separate release workflow
 - it only runs on pushes to `main`
 - it uses Nx Release to update app manifests, create the release commit, create tags, and publish GitHub Releases
+- it skips Nx package publishing because this repo releases applications, not publishable npm packages
 - the release commit message is `chore(release): publish [skip ci]`
 - because the release commit is pushed back to `main`, GitHub branch protection must allow the GitHub Actions release actor to perform that push
 
@@ -815,7 +816,7 @@ Recommended release flow:
 
 ```powershell
 merge feature PRs to main
-let CI publish the release commit, tags, and GitHub Releases
+let CI publish the release commit, tags, and GitHub Releases without package publishing
 ```
 
 Operational summary:

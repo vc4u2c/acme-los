@@ -89,4 +89,4 @@ jobs:
       - name: Release versions, tags, and GitHub releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx nx release --yes
+        run: npx nx release --skip-publish
