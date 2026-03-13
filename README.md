@@ -646,13 +646,23 @@ Current workflows:
 
 - `CI` runs on pushes to `main` and pull requests targeting `main`
 - `Commitlint` runs on pull requests and validates commit messages across the PR range
-- `Release` runs automatically on pushes to `main` and can also be triggered manually for `web`, `mobile`, or both
+- `Prepare Release PR` opens or updates a release PR after successful CI on `main`
+- `Publish Release` publishes tags and GitHub Releases after a release PR is merged to `main`
+- `Deploy Dev` is the initial CD placeholder for the development environment
+- `Deploy QA` is the initial CD placeholder for the QA environment
+- `Deploy Staging` is the initial CD placeholder for the staging environment
+- `Deploy Production` is the initial CD placeholder for the production environment
 
 Current GitHub files:
 
 - `.github/workflows/ci.yml`
 - `.github/workflows/commitlint.yml`
-- `.github/workflows/release.yml`
+- `.github/workflows/prepare-release-pr.yml`
+- `.github/workflows/publish-release.yml`
+- `.github/workflows/deploy-dev.yml`
+- `.github/workflows/deploy-qa.yml`
+- `.github/workflows/deploy-stg.yml`
+- `.github/workflows/deploy-prod.yml`
 - `.github/pull_request_template.md`
 
 Recommended repository settings:
@@ -661,6 +671,8 @@ Recommended repository settings:
 - require the `Commitlint` check before merging to `main`
 - keep GitHub Actions enabled for the repository
 - allow the default `GITHUB_TOKEN` to create tags and releases for the release workflow
+- create GitHub environments named `dev`, `qa`, `stg`, and `prod`
+- configure required reviewers on the `prod` environment so production deployment is gated
 
 How the GitHub process works end to end:
 
@@ -677,13 +689,20 @@ How the GitHub process works end to end:
 3. Merge to `main`
 
 - `CI` runs again on the merged commit
-- `Release` runs automatically on the merged commit
+- after successful CI on `main`, `Prepare Release PR` opens or updates a release PR when a new app version is warranted
 
 4. Release output
 
-- Nx Release calculates the next version for `web-app` and `mobile-app`
-- it creates git tags and GitHub Releases
-- it does not push a new version/changelog commit back to protected `main`
+- the release PR updates app version files in source control
+- you merge that release PR only when you are ready to cut a release
+- after the release PR merge, `Publish Release` creates git tags and GitHub Releases from that merged commit
+
+5. Deployment
+
+- `Deploy Dev` can deploy the current `main` state into the development environment
+- `Deploy QA` can deploy a selected ref into QA
+- `Deploy Staging` can deploy a selected ref into staging
+- `Deploy Production` can deploy a selected ref or release tag into production after environment approval
 
 CI workflow behavior:
 
@@ -699,17 +718,31 @@ Commitlint workflow behavior:
 - it checks the PR commit range, not just the PR title
 - local Husky commitlint remains the first enforcement layer on developer machines
 
-Release workflow behavior:
+Prepare Release PR workflow behavior:
 
-- it runs automatically on pushes to `main`
+- it runs after successful `CI` on `main`
 - it can also be triggered manually with `workflow_dispatch`
-- it can run for `web`, `mobile`, or `all`
-- it supports dry-run mode for verification before cutting a real release
-- it supports a `first_release` toggle for the initial tagged release of a project or group
-- it automatically treats the run as a first release if neither app has a release tag yet
-- it validates tags, lint, and tests before versioning
-- real releases use the Nx Release config in `nx.json` and create project-level GitHub releases
-- releases are created from the merged `main` commit without pushing a new version/changelog commit back to the protected branch
+- it calculates the next application versions using Nx Release
+- it updates app version files on a release branch
+- it opens or updates a PR named `chore(release): prepare app releases`
+- you can choose not to merge that PR if you are not ready to release
+
+Publish Release workflow behavior:
+
+- it runs after successful `CI` on `main`
+- it can also be triggered manually with `workflow_dispatch`
+- it only publishes when a merge to `main` changed one or both app `package.json` version files
+- it creates git tags and GitHub Releases from the merged release PR commit
+- it does not push a new commit back to protected `main`
+
+Environment deployment workflow behavior:
+
+- `Deploy Dev` runs automatically after successful `CI` on `main` and can also be triggered manually
+- `Deploy QA` is a manual placeholder workflow for QA deployment
+- `Deploy Staging` is a manual placeholder workflow for staging deployment
+- `Deploy Production` is a manual placeholder workflow for production deployment
+- `Deploy Production` uses the GitHub `prod` environment and is intended to be gated with required reviewers
+- all four deployment workflows are scaffolds right now and need the real platform-specific deployment commands
 
 ## Release Model
 
@@ -735,29 +768,29 @@ Current version sources:
 - Expo reads the mobile version through `apps/mobile-app/app.config.js`
 - native build numbers remain separate operational values and are not the same as semver
 - until the first real release tags exist, Nx Release falls back to those app manifests to bootstrap the initial release
-- protected-branch-safe automation means release version bumps are not committed back to `main`; tags and GitHub Releases are the durable release artifacts
+- release PRs update the committed app manifests before a release is published
+- git tags and GitHub Releases remain the durable release artifacts
 
 What that means in practice:
 
-- source files may still show `1.0.0` while the latest release tag is `1.0.1`
-- the committed app manifests are the bootstrap baseline, not always the latest released version
-- the actual released version is represented by git tags and GitHub Releases
-- if the applications need to display the true release version at runtime, that should be injected from CI/CD rather than read only from the committed manifest
+- after the release PR is merged, source control and the release tags should agree on the released version
+- before the release PR is merged, the app manifests on `main` still show the previously released version
+- if the applications need to display the true release version at runtime, the committed manifest is again a valid source after the release PR merge
+- deployment environments (`dev`, `qa`, `stg`, `prod`) are separate from semantic release versioning and should be promoted intentionally
 
 Recommended release flow:
 
 ```powershell
-npm run release:dry-run
-npm run release:web:dry-run
-npm run release:mobile:dry-run
+merge feature PRs to main
+wait for or trigger the release PR
+review the generated version bump PR
+merge the release PR when ready
 ```
 
-When ready for a real release instead of a dry run:
+Operational summary:
 
 ```powershell
-npm run release
-npm run release:web
-npm run release:mobile
+feature PR merge -> CI on main -> Prepare Release PR -> merge release PR -> CI on main -> Publish Release -> deploy chosen ref/tag to dev/qa/stg/prod
 ```
 
 Practical mental model:
@@ -765,7 +798,8 @@ Practical mental model:
 - use semantic versions for what product teams and users recognize as a release
 - use git tags and generated changelogs as the release history
 - keep internal libs versionless from a product perspective until one actually needs to be published on its own
-- in this repository, protected `main` is the source of deployable code and GitHub Releases are the source of release notes
+- in this repository, protected `main` is the reviewed source of truth for app versions and GitHub Releases are the published release notes
+- environment deployment is a separate concern from semantic versioning: `dev`, `qa`, and `stg` can follow selected refs, while `prod` should follow reviewed releases and gated approvals
 
 Release decision examples:
 
