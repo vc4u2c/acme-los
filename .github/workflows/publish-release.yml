@@ -96,7 +96,6 @@ jobs:
         with:
           tag_name: web-app@${{ steps.web_version.outputs.version }}
           generate_release_notes: true
-
       - name: Publish mobile release
         if: steps.release_merge.outputs.mobile_changed == 'true'
         env:
