@@ -86,11 +86,17 @@
     "groups": {
       "web": {
         "projects": ["web-app"],
-        "projectsRelationship": "fixed"
+        "projectsRelationship": "fixed",
+        "releaseTag": {
+          "pattern": "web-app@{version}"
+        }
       },
       "mobile": {
         "projects": ["mobile-app"],
-        "projectsRelationship": "fixed"
+        "projectsRelationship": "fixed",
+        "releaseTag": {
+          "pattern": "mobile-app@{version}"
+        }
       }
     },
     "changelog": {
