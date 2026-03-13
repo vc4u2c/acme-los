@@ -1,11 +1,19 @@
 import { Button } from '@acme-los/ui-web';
+import webAppPackage from '../../package.json';
+
+const webAppVersion = webAppPackage.version;
 
 export default function Index() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-50">
       <section className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-16 lg:px-10">
-        <div className="mb-8 inline-flex w-fit items-center rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-200">
-          ACME LOS backbone
+        <div className="mb-8 flex flex-wrap items-center gap-3">
+          <div className="inline-flex w-fit items-center rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-200">
+            ACME LOS backbone
+          </div>
+          <div className="inline-flex w-fit items-center rounded-full border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-200">
+            Web version {webAppVersion}
+          </div>
         </div>
 
         <div className="grid gap-10 lg:grid-cols-[1.4fr_0.9fr] lg:items-end">
