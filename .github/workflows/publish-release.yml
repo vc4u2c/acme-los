@@ -84,6 +84,19 @@ jobs:
 
           npx nx release changelog "$version" --groups web --git-commit=false --git-tag=true --git-push=true $first_release_flag
 
+      - name: Resolve web version
+        if: steps.release_merge.outputs.web_changed == 'true'
+        id: web_version
+        shell: bash
+        run: echo "version=$(node -p "require('./apps/web-app/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Create web GitHub Release
+        if: steps.release_merge.outputs.web_changed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: web-app@${{ steps.web_version.outputs.version }}
+          generate_release_notes: true
+
       - name: Publish mobile release
         if: steps.release_merge.outputs.mobile_changed == 'true'
         env:
@@ -98,3 +111,16 @@ jobs:
           fi
 
           npx nx release changelog "$version" --groups mobile --git-commit=false --git-tag=true --git-push=true $first_release_flag
+
+      - name: Resolve mobile version
+        if: steps.release_merge.outputs.mobile_changed == 'true'
+        id: mobile_version
+        shell: bash
+        run: echo "version=$(node -p "require('./apps/mobile-app/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Create mobile GitHub Release
+        if: steps.release_merge.outputs.mobile_changed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mobile-app@${{ steps.mobile_version.outputs.version }}
+          generate_release_notes: true
