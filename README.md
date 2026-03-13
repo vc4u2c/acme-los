@@ -671,8 +671,8 @@ Release workflow behavior:
 - it supports a `first_release` toggle for the initial tagged release of a project or group
 - it automatically treats the run as a first release if neither app has a release tag yet
 - it validates tags, lint, and tests before versioning
-- it skips re-triggering when the release bot pushes the generated release commit
 - real releases use the Nx Release config in `nx.json` and create project-level GitHub releases
+- releases are created from the merged `main` commit without pushing a new version/changelog commit back to the protected branch
 
 CI workflow behavior:
 
@@ -696,7 +696,7 @@ Versioning model:
 - web and mobile release independently
 - internal libraries under `libs/` are not independently versioned
 - release tags use the pattern `{projectName}@{version}`
-- per-app changelogs are written to `{projectRoot}/CHANGELOG.md`
+- per-app GitHub Releases are the release notes source of truth
 - workspace-level changelog generation is disabled
 
 Current version sources:
@@ -706,6 +706,7 @@ Current version sources:
 - Expo reads the mobile version through `apps/mobile-app/app.config.js`
 - native build numbers remain separate operational values and are not the same as semver
 - until the first real release tags exist, Nx Release falls back to those app manifests to bootstrap the initial release
+- protected-branch-safe automation means release version bumps are not committed back to `main`; tags and GitHub Releases are the durable release artifacts
 
 Recommended release flow:
 
@@ -728,6 +729,7 @@ Practical mental model:
 - use semantic versions for what product teams and users recognize as a release
 - use git tags and generated changelogs as the release history
 - keep internal libs versionless from a product perspective until one actually needs to be published on its own
+- in this repository, protected `main` is the source of deployable code and GitHub Releases are the source of release notes
 
 ## Observability And Logging
 
