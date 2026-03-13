@@ -1,20 +1,23 @@
 name: Deploy Dev
 
 on:
-  workflow_run:
-    workflows:
-      - CI
-    types:
-      - completed
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      ref:
-        description: Git ref to deploy
+      artifact_name:
+        description: Artifact name to deploy
         required: true
-        default: main
+        type: string
+      artifact_run_id:
+        description: Workflow run ID that produced the artifact
+        required: true
+        type: string
+      source_ref:
+        description: Source ref recorded for the artifact
+        required: true
         type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -22,34 +25,25 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    if: >
-      github.event_name == 'workflow_dispatch' ||
-      (
-        github.event.workflow_run.conclusion == 'success' &&
-        github.event.workflow_run.head_branch == 'main'
-      )
+  deploy_dev:
+    name: Deploy To Dev
     runs-on: ubuntu-latest
     environment:
       name: dev
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v5
+      - name: Download build artifact
+        uses: actions/download-artifact@v5
         with:
-          ref: ${{ github.event.inputs.ref || 'main' }}
-          fetch-depth: 0
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: 24
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.artifact_run_id }}
+          name: ${{ inputs.artifact_name }}
+          path: dist/deployable
 
       - name: Placeholder deploy
         run: |
-          echo "Deploying commit to dev environment"
+          echo "Deploying artifact to dev environment"
+          echo "Artifact name: ${{ inputs.artifact_name }}"
+          echo "Artifact run ID: ${{ inputs.artifact_run_id }}"
+          echo "Source ref: ${{ inputs.source_ref }}"
           echo "Replace this step with the real dev deployment command"

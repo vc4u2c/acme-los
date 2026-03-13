@@ -1,0 +1,136 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to deploy
+        required: true
+        default: qa
+        type: choice
+        options:
+          - qa
+          - stg
+          - prod
+      artifact_name:
+        description: Artifact name to promote
+        required: true
+        type: string
+      artifact_run_id:
+        description: GitHub Actions run ID that produced the artifact
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build_release_artifact:
+    name: Build Release Artifact
+    if: >
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.artifact_metadata.outputs.artifact_name }}
+      source_ref: ${{ steps.artifact_metadata.outputs.source_ref }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create artifact metadata
+        id: artifact_metadata
+        shell: bash
+        run: |
+          source_sha="${{ github.event.workflow_run.head_sha }}"
+          artifact_name="release-bundle-${source_sha}"
+          mkdir -p dist/release-bundle
+          cat <<EOF > dist/release-bundle/metadata.json
+          {
+            "commitSha": "${source_sha}",
+            "sourceRef": "${source_sha}",
+            "ciRunId": "${{ github.event.workflow_run.id }}",
+            "cdRunId": "${GITHUB_RUN_ID}"
+          }
+          EOF
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+          echo "source_ref=${source_sha}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artifact_metadata.outputs.artifact_name }}
+          path: dist/release-bundle
+          if-no-files-found: error
+          retention-days: 30
+
+  deploy_dev:
+    name: Deploy To Dev
+    if: >
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+    needs:
+      - build_release_artifact
+    uses: ./.github/workflows/deploy-dev.yml
+    secrets: inherit
+    with:
+      artifact_name: ${{ needs.build_release_artifact.outputs.artifact_name }}
+      artifact_run_id: ${{ github.run_id }}
+      source_ref: ${{ needs.build_release_artifact.outputs.source_ref }}
+
+  deploy_qa:
+    name: Deploy To QA
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'qa'
+    uses: ./.github/workflows/deploy-qa.yml
+    secrets: inherit
+    with:
+      artifact_name: ${{ github.event.inputs.artifact_name }}
+      artifact_run_id: ${{ github.event.inputs.artifact_run_id }}
+
+  deploy_stg:
+    name: Deploy To Staging
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'stg'
+    uses: ./.github/workflows/deploy-stg.yml
+    secrets: inherit
+    with:
+      artifact_name: ${{ github.event.inputs.artifact_name }}
+      artifact_run_id: ${{ github.event.inputs.artifact_run_id }}
+
+  deploy_prod:
+    name: Deploy To Production
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'prod'
+    uses: ./.github/workflows/deploy-prod.yml
+    secrets: inherit
+    with:
+      artifact_name: ${{ github.event.inputs.artifact_name }}
+      artifact_run_id: ${{ github.event.inputs.artifact_run_id }}
