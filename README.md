@@ -713,6 +713,7 @@ How the GitHub process works end to end:
 
 - Husky `commit-msg` runs local commitlint when you make a commit
 - Husky `pre-commit` runs `lint-staged` and project tag validation
+- Husky `pre-commit` blocks direct commits on `main` unless `ALLOW_MAIN_COMMIT=1` is set explicitly
 
 2. Pull request
 
@@ -926,6 +927,12 @@ Husky hooks in this repo:
 
 - [pre-commit](c:/Users/vc4u2/Documents/Source/Repos/acme-los/.husky/pre-commit)
 - [commit-msg](c:/Users/vc4u2/Documents/Source/Repos/acme-los/.husky/commit-msg)
+
+Branching note:
+
+- day-to-day changes should start from a branch, not `main`
+- local direct commits to `main` are blocked by the Husky pre-commit hook
+- if you intentionally need an exception, run the commit with `ALLOW_MAIN_COMMIT=1`
 
 ## Development Notes
 
