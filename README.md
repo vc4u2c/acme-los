@@ -671,6 +671,14 @@ Release workflow behavior:
 - it validates tags, lint, and tests before versioning
 - real releases use the Nx Release config in `nx.json` and create project-level GitHub releases
 
+CI workflow behavior:
+
+- it uses `nrwl/nx-set-shas@v4` to resolve the correct base and head commits in GitHub Actions
+- it runs `npm run validate:tags` across the workspace
+- it runs `npx nx affected -t lint`
+- it runs `npx nx affected -t test --runInBand`
+- `nx fix-ci` is not enabled yet because that is only useful after connecting the workspace to Nx Cloud
+
 ## Release Model
 
 Nx Release is configured for application releases, not library package publishing.

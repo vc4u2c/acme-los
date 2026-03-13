@@ -24,6 +24,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          filter: tree:0
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -34,11 +35,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Set Nx SHAs
+        uses: nrwl/nx-set-shas@v4
+
       - name: Validate project tags
         run: npm run validate:tags
 
-      - name: Lint workspace
-        run: npx nx run-many -t lint
+      - name: Lint affected projects
+        run: npx nx affected -t lint
 
-      - name: Test workspace
-        run: npx nx run-many -t test --runInBand
+      - name: Test affected projects
+        run: npx nx affected -t test --runInBand
+
+      # Optional once the workspace is connected to Nx Cloud.
+      # - name: Self-heal CI
+      #   if: always()
+      #   run: npx nx fix-ci
