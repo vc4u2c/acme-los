@@ -53,11 +53,58 @@ jobs:
       #   if: always()
       #   run: npx nx fix-ci
 
+  build_deployable_artifact:
+    name: Build Deployable Artifact
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs:
+      - lint_test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Create deployable artifact bundle
+        shell: bash
+        run: |
+          bundle_name="deployable-${GITHUB_SHA}"
+          mkdir -p dist/deployable
+          cp apps/web-app/package.json dist/deployable/web-app.package.json
+          cp apps/mobile-app/package.json dist/deployable/mobile-app.package.json
+          cat <<EOF > dist/deployable/deploy-metadata.json
+          {
+            "commitSha": "${GITHUB_SHA}",
+            "workflowRunId": "${GITHUB_RUN_ID}",
+            "workflow": "${GITHUB_WORKFLOW}"
+          }
+          EOF
+          tar -czf dist/deployable/${bundle_name}.tgz -C dist/deployable .
+
+      - name: Upload deployable artifact bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployable-${{ github.sha }}
+          path: dist/deployable/deployable-${{ github.sha }}.tgz
+          if-no-files-found: error
+          retention-days: 30
+
   release_apps:
     name: Release Apps
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
     needs:
       - lint_test
+      - build_deployable_artifact
     runs-on: ubuntu-latest
     permissions:
       contents: write
