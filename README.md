@@ -710,6 +710,55 @@ GitHub updates to make now:
 
 9. On the `qa`, `stg`, and `prod` environments, add required reviewers so the CD workflow pauses for approval from QA onward.
 
+GitHub CLI installation options:
+
+- install with `winget`:
+
+```powershell
+winget install --id GitHub.cli
+```
+
+- install with Chocolatey:
+
+```powershell
+choco install gh -y
+```
+
+- install from the official GitHub CLI releases page:
+
+```text
+https://github.com/cli/cli/releases
+```
+
+After installation, verify and authenticate:
+
+```powershell
+gh --version
+gh auth login
+gh auth status
+```
+
+Environment setup helper:
+
+- this workspace keeps operational scripts under `tools/scripts/`
+- use `tools/scripts/setup-github-environments.ps1` to create one or more GitHub environments from the current repo
+- it will:
+  - use the local portable `gh` binary from `.tools/bin/gh.exe` if present, otherwise use system `gh`
+  - check `gh auth status` and launch `gh auth login` if needed
+  - target the configured repository owner/name
+  - create or update each environment you pass in
+  - optionally attach one required reviewer user to non-`dev` environments while leaving `dev` ungated
+
+Example:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\scripts\setup-github-environments.ps1 `
+  -Owner vc4u2c `
+  -Repo acme-los `
+  -Environments dev,qa,stg,prod `
+  -RequiredReviewerUser your-github-username
+```
+
 How the GitHub process works end to end:
 
 1. Local development
