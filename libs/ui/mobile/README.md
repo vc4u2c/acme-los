@@ -1,7 +1,20 @@
-# mobile
+# ui-mobile
 
-This library was generated with [Nx](https://nx.dev).
+Shared mobile UI primitives for the Expo app.
 
-## Running unit tests
+Current exports:
 
-Run `nx test mobile` to execute the unit tests via [Jest](https://jestjs.io).
+- `GluestackUIProvider`
+- `Button`
+- `ButtonText`
+- `ButtonSpinner`
+- `ButtonIcon`
+- `ButtonGroup`
+
+Import from:
+
+```ts
+import { Button, ButtonText, GluestackUIProvider } from '@acme-los/ui-mobile';
+```
+
+This library is intended for React Native and Expo consumers in this workspace.

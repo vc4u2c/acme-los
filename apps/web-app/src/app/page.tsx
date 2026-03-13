@@ -1,3 +1,5 @@
+import { Button } from '@acme-los/ui-web';
+
 export default function Index() {
   return (
     <main className="min-h-screen bg-slate-950 text-slate-50">
@@ -21,20 +23,23 @@ export default function Index() {
             </p>
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
-              <a
-                href="#commands"
-                className="inline-flex items-center justify-center rounded-xl bg-emerald-400 px-6 py-3 text-sm font-semibold text-slate-950 transition hover:bg-emerald-300"
+              <Button
+                asChild
+                size="lg"
+                className="bg-emerald-400 text-slate-950 hover:bg-emerald-300"
               >
-                View next commands
-              </a>
-              <a
-                href="https://nx.dev"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center justify-center rounded-xl border border-slate-700 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-500 hover:bg-slate-900"
+                <a href="#commands">View next commands</a>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="border-slate-700 text-slate-100 hover:border-slate-500 hover:bg-slate-900"
               >
-                Nx docs
-              </a>
+                <a href="https://nx.dev" target="_blank" rel="noreferrer">
+                  Nx docs
+                </a>
+              </Button>
             </div>
           </div>
 

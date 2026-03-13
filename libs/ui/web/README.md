@@ -1,7 +1,21 @@
-# web
+# ui-web
 
-This library was generated with [Nx](https://nx.dev).
+Shared web UI foundation for the Next.js app.
 
-## Running unit tests
+Current exports:
 
-Run `nx test web` to execute the unit tests via [Jest](https://jestjs.io).
+- `Button`
+- `buttonVariants`
+- `cn`
+
+The intent is to keep this library aligned with shadcn-style composition:
+
+- Tailwind-first primitives
+- `class-variance-authority` variants
+- `cn()` utility with `clsx` and `tailwind-merge`
+
+Import from:
+
+```ts
+import { Button, cn } from '@acme-los/ui-web';
+```

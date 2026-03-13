@@ -2,14 +2,27 @@
 
 Nx monorepo backbone for a Loan Origination System.
 
-Current workspace apps:
+## Purpose
 
-- `apps/web-app` - Next.js web application
-- `apps/web-app-e2e` - Playwright e2e tests for the web app
-- `apps/mobile-app` - Expo application
-- `apps/mobile-app-e2e` - Playwright mobile-web e2e tests for the Expo app
+This repository is the starting point for an LOS codebase with:
 
-Current shared libraries:
+- a web application in Next.js
+- a mobile application in Expo and React Native
+- shared domain, api, core, and UI libraries under `libs/`
+- Nx-based orchestration for build, test, lint, and dependency management
+
+The repo is currently in an early foundation stage. The shared libraries exist as the initial backbone, and the platform styling stack is being established so web and mobile can evolve with clear boundaries.
+
+## Current Repository State
+
+Current applications:
+
+- `apps/web-app` - Next.js application
+- `apps/web-app-e2e` - Playwright e2e coverage for the web app
+- `apps/mobile-app` - Expo React Native application
+- `apps/mobile-app-e2e` - Playwright coverage for Expo Web
+
+Current libraries:
 
 - `libs/core/types`
 - `libs/core/utils`
@@ -32,13 +45,43 @@ Runtime baseline:
 
 - Node.js 24 LTS
 
-## Repo-Specific Corrections
+## Repository History
 
-This repository does not follow the generic sample names from older Nx walkthroughs.
+Current commit history in this repository:
 
-Use these values for this repo:
+1. `65a0248` `Initial commit`
+2. `46d5410` `feat(repo): bootstrap Nx apps, hooks, and docs`
+3. `e22e1fd` `chore(repo): remove husky deprecation warning`
+4. `fa3a7c6` `feat(repo): add shared libs and tailwind setup`
 
-- repo/workspace: `acme-los`
+What those commits established:
+
+- the Nx workspace
+- the Next.js and Expo applications
+- Jest and Playwright coverage
+- Husky and commitlint
+- the initial shared library skeleton
+- web Tailwind setup
+
+Current working tree additions beyond that committed history:
+
+- mobile NativeWind wiring
+- gluestack provider setup for mobile
+- first gluestack mobile button primitive
+- move of mobile shared UI into `libs/ui/mobile`
+- shadcn-style web UI foundation under `libs/ui/web`
+- concrete domain models and API DTOs in the generated shared libraries
+- project tag validation for future apps and libs
+
+That distinction matters. The README below documents the repository as it exists in the current workspace, while the history section above is limited to what the git log currently contains.
+
+## Repo-Specific Ground Rules
+
+This repository does not use generic sample names from older Nx or tutorial examples.
+
+Use these values in this repo:
+
+- workspace name: `acme-los`
 - package manager: `npm`
 - web app: `web-app`
 - mobile app: `mobile-app`
@@ -51,16 +94,16 @@ Not used here:
 - `los-web`
 - `los-mobile`
 
-Also note:
+Other repo-specific notes:
 
-- this workspace uses `nx.json`, not an older `workspace.json` layout
+- this workspace uses `nx.json`, not an older `workspace.json`
 - the Next.js app uses Jest, not Vitest
 - mobile e2e is Playwright against Expo Web, not native-device Detox
-- on Windows, `npx.cmd nx ...` or `node .\node_modules\nx\bin\nx.js ...` is safer than plain `npx` in restricted PowerShell setups
+- on Windows, `npx.cmd nx ...` or `node .\node_modules\nx\bin\nx.js ...` is safer than plain `npx`
 
-## Naming
+## Naming Conventions
 
-Recommended project naming in this repo:
+Recommended naming in this repository:
 
 - workspace/repo: `acme-los`
 - web app: `web-app`
@@ -78,6 +121,7 @@ Examples:
 
 - `@acme-los/core/types`
 - `@acme-los/domain/loan`
+- `@acme-los/api/contracts`
 - `@acme-los/ui-web`
 - `@acme-los/ui-mobile`
 
@@ -93,14 +137,17 @@ acme-los/
     mobile-app/
     mobile-app-e2e/
   libs/
+    api/
+    core/
+    domain/
+    ui/
+  docs/
   tools/
   package.json
   package-lock.json
   nx.json
   tsconfig.base.json
 ```
-
-`libs/` now contains the initial shared backbone for core, domain, api, and ui modules.
 
 ## Prerequisites
 
@@ -118,7 +165,9 @@ Recommended VS Code extensions:
 - EditorConfig for VS Code
 - Expo Tools
 
-## Verify Your Environment
+## Environment Verification
+
+Verify the local toolchain:
 
 ```powershell
 node -v
@@ -140,7 +189,7 @@ node -v
 npm install
 ```
 
-## PowerShell Nx Commands
+## Day-One Commands
 
 Preferred on Windows PowerShell:
 
@@ -154,15 +203,94 @@ Equivalent direct Node form:
 node .\node_modules\nx\bin\nx.js run <project>:<target>
 ```
 
-Examples:
+Useful examples:
 
 ```powershell
 npx.cmd nx run web-app:dev
 npx.cmd nx run mobile-app:start
+npx.cmd nx run-many -t test
 npx.cmd nx graph
 ```
 
-## Web App Commands
+## Architecture Overview
+
+The workspace is organized around platform apps consuming shared libraries.
+
+Recommended dependency direction:
+
+- apps can depend on libs
+- `ui` can depend on `core` and `domain`
+- `api` can depend on `core` and `domain`
+- `domain` can depend on `core`
+- `core` should stay app-agnostic
+
+Avoid:
+
+- web importing mobile UI
+- mobile importing web UI
+- domain code depending on app code
+- deep relative imports across projects
+
+Prefer package imports such as:
+
+- `@acme-los/domain/loan`
+- `@acme-los/api/contracts`
+- `@acme-los/ui-mobile`
+
+Architecture references:
+
+- [Domain Boundaries](c:/Users/vc4u2/Documents/Source/Repos/acme-los/docs/architecture/domain-boundaries.md)
+- [Auth and API Contracts](c:/Users/vc4u2/Documents/Source/Repos/acme-los/docs/architecture/auth-and-api-contracts.md)
+
+## Styling And UI Strategy
+
+The intended platform split is:
+
+- Web: Tailwind CSS in `apps/web-app`, with `shadcn/ui` as the target component system
+- Mobile: NativeWind in `apps/mobile-app`, with gluestack as the target component system
+
+What is wired now:
+
+- web Tailwind is active in `apps/web-app`
+- shadcn-style button and `cn()` foundation now live in `libs/ui/web`
+- mobile NativeWind is active in `apps/mobile-app`
+- mobile gluestack foundation is active through `GluestackUIProvider`
+- mobile shared UI primitives now live in `libs/ui/mobile`
+
+What should be shared across platforms:
+
+- domain logic
+- API contracts and clients
+- validation
+- theme tokens where practical
+- variant names and intent
+
+What should remain platform-specific:
+
+- rendered web components
+- rendered mobile components
+- DOM-only behavior
+- React Native-only behavior
+
+Do not plan around direct component reuse between `shadcn/ui` and gluestack. Reuse should happen below the rendered component layer.
+
+## Web Application
+
+Current web styling files:
+
+- `apps/web-app/tailwind.config.js`
+- `apps/web-app/postcss.config.js`
+- `apps/web-app/src/app/global.css`
+- `libs/ui/web/src/lib/button.tsx`
+- `libs/ui/web/src/lib/utils.ts`
+
+Current web direction:
+
+- Next.js app router
+- Tailwind-based styling
+- shadcn-style foundation under `@acme-los/ui-web`
+
+Common commands:
 
 Run app:
 
@@ -199,21 +327,35 @@ npx.cmd nx run web-app-e2e:e2e
 node .\node_modules\nx\bin\nx.js run web-app-e2e:e2e
 ```
 
-Check dependency graph:
-
-```powershell
-npx.cmd nx graph
-node .\node_modules\nx\bin\nx.js graph
-```
-
-Show web app project details:
+Show project details:
 
 ```powershell
 npx.cmd nx show project web-app --web
-node .\node_modules\nx\bin\nx.js show project web-app --web
 ```
 
-## Mobile App Commands
+## Mobile Application
+
+Current mobile styling files:
+
+- `apps/mobile-app/tailwind.config.js`
+- `apps/mobile-app/global.css`
+- `apps/mobile-app/nativewind-env.d.ts`
+- `apps/mobile-app/metro.config.js`
+- `apps/mobile-app/.babelrc.js`
+
+Current shared mobile UI files:
+
+- `libs/ui/mobile/src/lib/gluestack-ui-provider/index.tsx`
+- `libs/ui/mobile/src/lib/button/index.tsx`
+
+Current mobile direction:
+
+- Expo
+- React Native
+- NativeWind
+- gluestack provider and button primitive from `@acme-los/ui-mobile`
+
+Common commands:
 
 Run app in Expo dev server:
 
@@ -253,8 +395,8 @@ node .\node_modules\nx\bin\nx.js run mobile-app:lint
 Test app:
 
 ```powershell
-npx.cmd nx run mobile-app:test
-node .\node_modules\nx\bin\nx.js run mobile-app:test
+npx.cmd nx run mobile-app:test --runInBand
+node .\node_modules\nx\bin\nx.js run mobile-app:test --runInBand
 ```
 
 Run e2e:
@@ -264,68 +406,10 @@ npx.cmd nx run mobile-app-e2e:e2e
 node .\node_modules\nx\bin\nx.js run mobile-app-e2e:e2e
 ```
 
-Check dependency graph:
+Verified during the latest setup pass:
 
-```powershell
-npx.cmd nx graph
-node .\node_modules\nx\bin\nx.js graph
-```
-
-Show mobile app project details:
-
-```powershell
-npx.cmd nx show project mobile-app --web
-node .\node_modules\nx\bin\nx.js show project mobile-app --web
-```
-
-## Workspace Commands
-
-Lint everything:
-
-```powershell
-npx.cmd nx run-many -t lint
-node .\node_modules\nx\bin\nx.js run-many -t lint
-```
-
-Test everything:
-
-```powershell
-npx.cmd nx run-many -t test
-node .\node_modules\nx\bin\nx.js run-many -t test
-```
-
-Run all e2e:
-
-```powershell
-npx.cmd nx run-many -t e2e
-node .\node_modules\nx\bin\nx.js run-many -t e2e
-```
-
-Run lint and test together:
-
-```powershell
-npx.cmd nx run-many -t lint,test
-node .\node_modules\nx\bin\nx.js run-many -t lint,test
-```
-
-## Current Testing Setup
-
-Web:
-
-- app framework: Next.js
-- unit tests: Jest
-- e2e: Playwright
-
-Mobile:
-
-- app framework: Expo
-- unit tests: Jest
-- e2e: Playwright against Expo Web
-
-Note:
-
-- `mobile-app-e2e` is not native-device Detox coverage
-- it is browser-based e2e for the Expo app rendered on web with mobile device profiles
+- `nx test mobile-app --runInBand`
+- `nx lint mobile-app`
 
 ## Shared Libraries
 
@@ -338,8 +422,6 @@ libs/
     utils/
     config/
     logger/
-    observability/
-    request-context/
   domain/
     loan/
     borrower/
@@ -368,33 +450,90 @@ Recommended import paths:
 - `@acme-los/ui-web`
 - `@acme-los/ui-mobile`
 
-## Boundary Rules
+Current exports from `@acme-los/ui-mobile`:
 
-Recommended dependency direction:
+- `GluestackUIProvider`
+- `Button`
+- `ButtonText`
+- `ButtonSpinner`
+- `ButtonIcon`
+- `ButtonGroup`
 
-- apps can depend on libs
-- `ui` can depend on `core` and `domain`
-- `api` can depend on `core` and `domain`
-- `domain` can depend on `core`
-- `core` should stay app-agnostic
+Current exports from `@acme-los/ui-web`:
 
-Avoid:
+- `Button`
+- `buttonVariants`
+- `cn`
 
-- web importing mobile UI
-- mobile importing web UI
-- domain code depending on app code
-- deep relative imports across projects
+Concrete shared models and DTOs now live in:
 
-Prefer package imports such as:
+- `libs/core/types`
+- `libs/core/utils`
+- `libs/core/config`
+- `libs/core/logger`
+- `libs/domain/borrower`
+- `libs/domain/loan`
+- `libs/domain/application`
+- `libs/domain/underwriting`
+- `libs/api/contracts`
+- `libs/api/client`
 
-- `@acme-los/domain/loan`
+## Testing Setup
 
-Architecture docs:
+Web:
 
-- [Domain Boundaries](c:/Users/vc4u2/Documents/Source/Repos/acme-los/docs/architecture/domain-boundaries.md)
-- [Auth and API Contracts](c:/Users/vc4u2/Documents/Source/Repos/acme-los/docs/architecture/auth-and-api-contracts.md)
+- app framework: Next.js
+- unit tests: Jest
+- e2e: Playwright
 
-## Observability and Logging
+Mobile:
+
+- app framework: Expo
+- unit tests: Jest
+- e2e: Playwright against Expo Web
+
+Important note:
+
+- `mobile-app-e2e` is not native-device Detox coverage
+- it is browser-based e2e for the Expo app rendered on web with mobile device profiles
+
+## Workspace-Wide Commands
+
+Lint everything:
+
+```powershell
+npx.cmd nx run-many -t lint
+node .\node_modules\nx\bin\nx.js run-many -t lint
+```
+
+Test everything:
+
+```powershell
+npx.cmd nx run-many -t test
+node .\node_modules\nx\bin\nx.js run-many -t test
+```
+
+Run all e2e:
+
+```powershell
+npx.cmd nx run-many -t e2e
+node .\node_modules\nx\bin\nx.js run-many -t e2e
+```
+
+Inspect dependency graph:
+
+```powershell
+npx.cmd nx graph
+node .\node_modules\nx\bin\nx.js graph
+```
+
+Validate project tags:
+
+```powershell
+npm run validate:tags
+```
+
+## Observability And Logging
 
 Recommended default stack for this LOS backbone:
 
@@ -419,28 +558,15 @@ Prefer:
 - event names
 - latency and status metadata
 
-Suggested future shared packages:
-
-- `@acme-los/logger`
-- `@acme-los/telemetry`
-- `@acme-los/observability`
-
-## Notes
-
-- This repo currently uses `npm`, not `pnpm`
-- React and React DOM are pinned to `19.1.0` for Expo compatibility
-- Playwright output folders are ignored in `.gitignore`
-- if `3000` is busy, Next may choose another port when running `web-app:dev`
-- commands like `npx create-nx-workspace@latest los` are historical bootstrap commands, not something you should run inside this existing repo
-
-## Git Hooks and Commit Format
+## Git Hooks And Commit Format
 
 This repo uses Husky hooks.
 
 Pre-commit:
 
 - runs `lint-staged`
-- fixes/lints staged source files before commit
+- runs project tag validation
+- fixes and lints staged source files before commit
 
 Commit message:
 
@@ -467,16 +593,10 @@ Common types:
 Examples:
 
 ```text
+feat(mobile-app): add gluestack button primitive
 feat(web-app): add borrower dashboard shell
-fix(mobile-app): handle expired session
-docs(readme): add Nx PowerShell commands
+docs(readme): document workspace architecture
 chore(repo): add husky and commitlint
-```
-
-This will fail:
-
-```text
-updated stuff
 ```
 
 ### Windows Husky Note
@@ -502,9 +622,19 @@ Husky hooks in this repo:
 - [pre-commit](c:/Users/vc4u2/Documents/Source/Repos/acme-los/.husky/pre-commit)
 - [commit-msg](c:/Users/vc4u2/Documents/Source/Repos/acme-los/.husky/commit-msg)
 
+## Development Notes
+
+- this repo currently uses `npm`, not `pnpm`
+- React and React DOM are pinned to `19.1.0` for Expo compatibility
+- the workspace uses Nx inferred targets from plugins in `nx.json`
+- mobile e2e is Playwright against Expo Web, not Detox
+- `apps/web-app/next-env.d.ts` is auto-generated by Next.js and may appear modified during local work
+- the current git history stops at `fa3a7c6`; the mobile NativeWind and gluestack setup described above is current workspace state until committed
+- project tag usage is now validated by `tools/scripts/validate-project-tags.mjs`
+
 ## Suggested Next Steps
 
+- commit the current mobile NativeWind and gluestack changes if they should become part of repository history
+- add the matching `shadcn/ui` foundation under `libs/ui/web`
 - add concrete models and DTOs inside the generated shared libraries
 - enforce tag usage on future projects as they are added
-- add auth and request-context shared libraries when implementation starts
-- pin Node 24 in `.nvmrc` if you want repo-level enforcement

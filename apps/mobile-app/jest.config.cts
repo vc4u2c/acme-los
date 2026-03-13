@@ -5,7 +5,11 @@ module.exports = {
   preset: 'jest-expo',
   moduleFileExtensions: ['ts', 'js', 'html', 'tsx', 'jsx'],
   setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
+  transformIgnorePatterns: [
+    'node_modules/(?!(jest-)?react-native|@react-native|react-native|@gluestack-ui|@react-native-aria)/',
+  ],
   moduleNameMapper: {
+    '^@acme-los/ui-mobile$': '<rootDir>/../../libs/ui/mobile/src/index.ts',
     '\\.svg$': '@nx/expo/plugins/jest/svg-mock',
   },
   transform: {
