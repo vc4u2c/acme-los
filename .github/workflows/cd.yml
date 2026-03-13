@@ -8,25 +8,6 @@ on:
       - completed
     branches:
       - main
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: Environment to deploy
-        required: true
-        default: qa
-        type: choice
-        options:
-          - qa
-          - stg
-          - prod
-      artifact_name:
-        description: Artifact name to promote
-        required: true
-        type: string
-      artifact_run_id:
-        description: GitHub Actions run ID that produced the artifact
-        required: true
-        type: string
 
 permissions:
   actions: read
@@ -45,39 +26,36 @@ jobs:
     uses: ./.github/workflows/deploy-dev.yml
     secrets: inherit
     with:
-      artifact_name: deployable-${{ github.event.workflow_run.head_sha }}
+      artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
       artifact_run_id: ${{ github.event.workflow_run.id }}
       source_ref: ${{ github.event.workflow_run.head_sha }}
 
   deploy_qa:
     name: Deploy To QA
-    if: >
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.environment == 'qa'
+    needs:
+      - deploy_dev
     uses: ./.github/workflows/deploy-qa.yml
     secrets: inherit
     with:
-      artifact_name: ${{ github.event.inputs.artifact_name }}
-      artifact_run_id: ${{ github.event.inputs.artifact_run_id }}
+      artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
+      artifact_run_id: ${{ github.event.workflow_run.id }}
 
   deploy_stg:
     name: Deploy To Staging
-    if: >
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.environment == 'stg'
+    needs:
+      - deploy_qa
     uses: ./.github/workflows/deploy-stg.yml
     secrets: inherit
     with:
-      artifact_name: ${{ github.event.inputs.artifact_name }}
-      artifact_run_id: ${{ github.event.inputs.artifact_run_id }}
+      artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
+      artifact_run_id: ${{ github.event.workflow_run.id }}
 
   deploy_prod:
     name: Deploy To Production
-    if: >
-      github.event_name == 'workflow_dispatch' &&
-      github.event.inputs.environment == 'prod'
+    needs:
+      - deploy_stg
     uses: ./.github/workflows/deploy-prod.yml
     secrets: inherit
     with:
-      artifact_name: ${{ github.event.inputs.artifact_name }}
-      artifact_run_id: ${{ github.event.inputs.artifact_run_id }}
+      artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
+      artifact_run_id: ${{ github.event.workflow_run.id }}
