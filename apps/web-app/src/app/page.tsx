@@ -32,6 +32,9 @@ export default function Index() {
             <p className="mt-4 text-sm font-medium text-amber-300">
               Release marker: web shell refreshed
             </p>
+            <p className="mt-2 text-xs uppercase tracking-[0.25em] text-emerald-400/80">
+              Sync marker: branch refresh ready
+            </p>
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
               <Button

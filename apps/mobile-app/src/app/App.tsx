@@ -44,6 +44,9 @@ export const App = () => {
                 Mobile release marker v{mobileAppVersion}
               </Text>
             </View>
+            <Text className="mt-3 text-xs font-semibold uppercase tracking-[2px] text-primary-700">
+              Sync marker: mobile branch refresh ready
+            </Text>
 
             <View className="mt-8 gap-3">
               {checklist.map((item) => (

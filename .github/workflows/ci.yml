@@ -112,13 +112,17 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      # Use a dedicated release token when provided so protected-branch bypass
+      # can be scoped to the automation path instead of general CI.
+      RELEASE_GIT_TOKEN: ${{ secrets.RELEASE_PUSH_TOKEN != '' && secrets.RELEASE_PUSH_TOKEN || secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ env.RELEASE_GIT_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -146,7 +150,8 @@ jobs:
 
       - name: Release versions, tags, and GitHub releases
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ env.RELEASE_GIT_TOKEN }}
+          GH_TOKEN: ${{ env.RELEASE_GIT_TOKEN }}
         run: npx nx release --skip-publish
 
       - name: Resolve versions after release

@@ -9,4 +9,5 @@ test('renders correctly', () => {
     /NativeWind plus gluestack are wired/i,
   );
   expect(getByText(/Mobile release marker v1\.0\.2/i)).toBeTruthy();
+  expect(getByText(/Sync marker: mobile branch refresh ready/i)).toBeTruthy();
 });
