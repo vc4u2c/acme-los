@@ -682,7 +682,8 @@ Recommended repository settings:
 
 - require the `CI / Lint And Test` check before merging to `main`
 - require the `Commitlint / Validate PR Commits` check before merging to `main`
-- allow the GitHub Actions release job to bypass direct-push restrictions on `main`, or allow GitHub Actions to push release commits to `main`
+- for personal repositories, create a `RELEASE_PUSH_TOKEN` secret for an admin-capable account and let only the release workflow use it for the post-merge version bump push
+- for organization-owned repositories, you can instead allow the release actor to bypass direct-push restrictions on `main`
 - keep GitHub Actions enabled for the repository
 - allow the default `GITHUB_TOKEN` to create tags and releases for the release workflow
 - create GitHub environments named `dev`, `qa`, `stg`, and `prod`
@@ -698,6 +699,7 @@ GitHub updates to make now:
 - `Commitlint / Validate PR Commits`
 
 4. Allow GitHub Actions to push the release commit to `main` for the automated release step.
+   In this repo, the practical path is to add a `RELEASE_PUSH_TOKEN` secret and let the `CI / Release Apps` job use that token. The repo is currently personal (`vc4u2c/acme-los`), so GitHub's actor bypass lists for protected branches are not the primary path here.
 5. Keep pull request merging required for `main` for human changes.
 6. Go to `Settings -> Actions -> General`.
 7. Set `Workflow permissions` to `Read and write permissions`.
@@ -777,6 +779,7 @@ How the GitHub process works end to end:
 - `CI / Lint And Test` runs again on the merged commit
 - `CI / Build Deployable Artifact` creates the deployable artifact for that exact `main` commit
 - `CI / Release Apps` runs on `main`, bumps app versions when warranted, writes the release commit with `[skip ci]`, pushes tags, and creates GitHub Releases
+- when `RELEASE_PUSH_TOKEN` is configured, only that release job gets the credential used for the protected `main` push
 
 4. Release output
 
