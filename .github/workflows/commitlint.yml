@@ -14,7 +14,8 @@ permissions:
   contents: read
 
 jobs:
-  commitlint:
+  validate_pr_commits:
+    name: Validate PR Commits
     runs-on: ubuntu-latest
 
     steps:

@@ -17,7 +17,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  prepare:
+  prepare_release_pr:
+    name: Prepare Release Versions
     if: >
       github.event_name == 'workflow_dispatch' ||
       (

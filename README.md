@@ -644,14 +644,27 @@ This repository now includes first-party GitHub automation under `.github/`.
 
 Current workflows:
 
-- `CI` runs on pushes to `main` and pull requests targeting `main`
+- `CI` runs on pull requests targeting `main` and on pushes to `main`
 - `Commitlint` runs on pull requests and validates commit messages across the PR range
-- `Prepare Release PR` opens or updates a release PR after successful CI on `main`
-- `Publish Release` publishes tags and GitHub Releases after a release PR is merged to `main`
-- `Deploy Dev` is the initial CD placeholder for the development environment
-- `Deploy QA` is the initial CD placeholder for the QA environment
-- `Deploy Staging` is the initial CD placeholder for the staging environment
-- `Deploy Production` is the initial CD placeholder for the production environment
+- `Prepare Release PR` runs after successful `CI` on `main` and opens or updates the release PR
+- `Publish Release` runs on pushes to `main` when an app `package.json` changed and publishes tags and GitHub Releases
+- `CD` is the top-level deployment workflow
+- `CD` builds one deployable artifact after successful `CI` on `main`
+- `CD` automatically deploys that artifact to `dev`
+- `CD` also handles manual promotion of that same artifact to `qa`, `stg`, or `prod`
+- the environment-specific deploy files remain separate reusable workflows called by `CD`
+
+Current GitHub checks:
+
+- `CI / Lint And Test`
+- `Commitlint / Validate PR Commits`
+- `Prepare Release PR / Prepare Release Versions`
+- `Publish Release / Publish App Releases`
+- `CD / Build Release Artifact`
+- `CD / Deploy To Dev`
+- `CD / Deploy To QA`
+- `CD / Deploy To Staging`
+- `CD / Deploy To Production`
 
 Current GitHub files:
 
@@ -659,6 +672,7 @@ Current GitHub files:
 - `.github/workflows/commitlint.yml`
 - `.github/workflows/prepare-release-pr.yml`
 - `.github/workflows/publish-release.yml`
+- `.github/workflows/cd.yml`
 - `.github/workflows/deploy-dev.yml`
 - `.github/workflows/deploy-qa.yml`
 - `.github/workflows/deploy-stg.yml`
@@ -667,12 +681,33 @@ Current GitHub files:
 
 Recommended repository settings:
 
-- require the `CI` check before merging to `main`
-- require the `Commitlint` check before merging to `main`
+- require the `CI / Lint And Test` check before merging to `main`
+- require the `Commitlint / Validate PR Commits` check before merging to `main`
 - keep GitHub Actions enabled for the repository
 - allow the default `GITHUB_TOKEN` to create tags and releases for the release workflow
 - create GitHub environments named `dev`, `qa`, `stg`, and `prod`
 - configure required reviewers on the `prod` environment so production deployment is gated
+
+GitHub updates to make now:
+
+1. Go to `Settings -> Branches -> main` protection rule.
+2. Under required status checks, remove the old `verify` check if it is still listed.
+3. Add these required checks:
+
+- `CI / Lint And Test`
+- `Commitlint / Validate PR Commits`
+
+4. Keep pull request merging required for `main`.
+5. Go to `Settings -> Actions -> General`.
+6. Set `Workflow permissions` to `Read and write permissions`.
+7. Go to `Settings -> Environments` and create:
+
+- `dev`
+- `qa`
+- `stg`
+- `prod`
+
+8. On the `prod` environment, add required reviewers so production deployment is gated.
 
 How the GitHub process works end to end:
 
@@ -683,26 +718,27 @@ How the GitHub process works end to end:
 
 2. Pull request
 
-- `Commitlint` validates the commits included in the PR
-- `CI` validates the affected projects in the PR
+- `Commitlint / Validate PR Commits` validates the commits included in the PR
+- `CI / Lint And Test` validates the affected projects in the PR
 
 3. Merge to `main`
 
-- `CI` runs again on the merged commit
-- after successful CI on `main`, `Prepare Release PR` opens or updates a release PR when a new app version is warranted
+- `CI / Lint And Test` runs again on the merged commit
+- after successful CI on `main`, `Prepare Release PR / Prepare Release Versions` opens or updates the release PR when a new app version is warranted
 
 4. Release output
 
 - the release PR updates app version files in source control
 - you merge that release PR only when you are ready to cut a release
-- after the release PR merge, `Publish Release` creates git tags and GitHub Releases from that merged commit
+- after the release PR merge, `Publish Release / Publish App Releases` runs because one or both app `package.json` files changed on `main`
+- `Publish Release / Publish App Releases` creates git tags and GitHub Releases from that merged release commit
 
 5. Deployment
 
-- `Deploy Dev` can deploy the current `main` state into the development environment
-- `Deploy QA` can deploy a selected ref into QA
-- `Deploy Staging` can deploy a selected ref into staging
-- `Deploy Production` can deploy a selected ref or release tag into production after environment approval
+- `CD / Build Release Artifact` builds one deployment artifact from the merged `main` commit
+- `CD / Deploy To Dev` deploys that same built artifact into the development environment automatically after successful `CI` on `main`
+- `CD` can also be run manually to promote that same artifact into `qa`, `stg`, or `prod`
+- `prod` deployment remains gated by the GitHub `prod` environment approval rules
 
 CI workflow behavior:
 
@@ -725,24 +761,32 @@ Prepare Release PR workflow behavior:
 - it calculates the next application versions using Nx Release
 - it updates app version files on a release branch
 - it opens or updates a PR named `chore(release): prepare app releases`
+- it skips creating another release PR when the most recent merge was already a release-only merge
 - you can choose not to merge that PR if you are not ready to release
 
 Publish Release workflow behavior:
 
-- it runs after successful `CI` on `main`
+- it runs on pushes to `main` that change one or both app `package.json` version files
 - it can also be triggered manually with `workflow_dispatch`
 - it only publishes when a merge to `main` changed one or both app `package.json` version files
-- it creates git tags and GitHub Releases from the merged release PR commit
+- it reads the release version from the merged app manifests
+- it creates the git tag through Nx Release and then creates the GitHub Release entry for that tag
 - it does not push a new commit back to protected `main`
 
 Environment deployment workflow behavior:
 
-- `Deploy Dev` runs automatically after successful `CI` on `main` and can also be triggered manually
-- `Deploy QA` is a manual placeholder workflow for QA deployment
-- `Deploy Staging` is a manual placeholder workflow for staging deployment
-- `Deploy Production` is a manual placeholder workflow for production deployment
-- `Deploy Production` uses the GitHub `prod` environment and is intended to be gated with required reviewers
-- all four deployment workflows are scaffolds right now and need the real platform-specific deployment commands
+- `CD` is the only top-level deployment workflow shown in GitHub Actions
+- `CD / Build Release Artifact` packages one deployable artifact from the merged `main` commit
+- `CD / Deploy To Dev` runs automatically after successful `CI` on `main` and deploys that artifact to `dev`
+- `CD / Deploy To QA` is a manual promotion path for QA deployment of the same artifact
+- `CD / Deploy To Staging` is a manual promotion path for staging deployment of the same artifact
+- `CD / Deploy To Production` is a manual promotion path for production deployment of the same artifact
+- `CD / Deploy To Production` uses the GitHub `prod` environment and is intended to be gated with required reviewers
+- `deploy-dev.yml`, `deploy-qa.yml`, `deploy-stg.yml`, and `deploy-prod.yml` are reusable environment workflows called by `cd.yml`
+- manual promotion through `CD` requires:
+- `artifact_name`
+- `artifact_run_id`
+- all environment deploy workflows are scaffolds right now and need the real platform-specific deployment commands
 
 ## Release Model
 
@@ -777,6 +821,7 @@ What that means in practice:
 - before the release PR is merged, the app manifests on `main` still show the previously released version
 - if the applications need to display the true release version at runtime, the committed manifest is again a valid source after the release PR merge
 - deployment environments (`dev`, `qa`, `stg`, `prod`) are separate from semantic release versioning and should be promoted intentionally
+- higher environments should promote the same built artifact that was already deployed to `dev`
 
 Recommended release flow:
 
@@ -790,7 +835,7 @@ merge the release PR when ready
 Operational summary:
 
 ```powershell
-feature PR merge -> CI on main -> Prepare Release PR -> merge release PR -> CI on main -> Publish Release -> deploy chosen ref/tag to dev/qa/stg/prod
+feature PR -> Commitlint + CI -> merge to main -> CI on main -> CD builds artifact and deploys dev -> Prepare Release PR -> merge release PR -> Publish Release on main -> run CD manually with artifact_name + artifact_run_id to promote qa/stg/prod
 ```
 
 Practical mental model:
@@ -799,7 +844,7 @@ Practical mental model:
 - use git tags and generated changelogs as the release history
 - keep internal libs versionless from a product perspective until one actually needs to be published on its own
 - in this repository, protected `main` is the reviewed source of truth for app versions and GitHub Releases are the published release notes
-- environment deployment is a separate concern from semantic versioning: `dev`, `qa`, and `stg` can follow selected refs, while `prod` should follow reviewed releases and gated approvals
+- environment deployment is a separate concern from semantic versioning: `dev` builds once from `main`, and `qa`, `stg`, and `prod` should promote that same artifact with gated approvals rather than rebuilding from refs
 
 Release decision examples:
 
