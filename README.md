@@ -646,7 +646,7 @@ Current workflows:
 
 - `CI` runs on pushes to `main` and pull requests targeting `main`
 - `Commitlint` runs on pull requests and validates commit messages across the PR range
-- `Release` is a manual GitHub Actions workflow that runs Nx Release for `web`, `mobile`, or both
+- `Release` runs automatically on pushes to `main` and can also be triggered manually for `web`, `mobile`, or both
 
 Current GitHub files:
 
@@ -664,11 +664,14 @@ Recommended repository settings:
 
 Release workflow behavior:
 
-- it is triggered manually with `workflow_dispatch`
+- it runs automatically on pushes to `main`
+- it can also be triggered manually with `workflow_dispatch`
 - it can run for `web`, `mobile`, or `all`
 - it supports dry-run mode for verification before cutting a real release
 - it supports a `first_release` toggle for the initial tagged release of a project or group
+- it automatically treats the run as a first release if neither app has a release tag yet
 - it validates tags, lint, and tests before versioning
+- it skips re-triggering when the release bot pushes the generated release commit
 - real releases use the Nx Release config in `nx.json` and create project-level GitHub releases
 
 CI workflow behavior:

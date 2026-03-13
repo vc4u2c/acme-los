@@ -1,6 +1,9 @@
 name: Release
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       group:
@@ -27,11 +30,12 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.event.inputs.group || 'all' }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
+    if: github.event_name == 'workflow_dispatch' || github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
 
     steps:
@@ -67,25 +71,37 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          GROUP="all"
+          DRY_RUN="false"
+          FIRST_RELEASE_INPUT="false"
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            GROUP="${{ github.event.inputs.group }}"
+            DRY_RUN="${{ github.event.inputs.dry_run }}"
+            FIRST_RELEASE_INPUT="${{ github.event.inputs.first_release }}"
+          fi
+
           FIRST_RELEASE_FLAG=""
-          if [[ "${{ github.event.inputs.first_release }}" == "true" ]]; then
+          if [[ "$FIRST_RELEASE_INPUT" == "true" ]]; then
+            FIRST_RELEASE_FLAG="--first-release"
+          elif [[ -z "$(git tag --list 'web-app@*')" && -z "$(git tag --list 'mobile-app@*')" ]]; then
             FIRST_RELEASE_FLAG="--first-release"
           fi
 
-          if [[ "${{ github.event.inputs.group }}" == "web" ]]; then
-            if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+          if [[ "$GROUP" == "web" ]]; then
+            if [[ "$DRY_RUN" == "true" ]]; then
               npx nx release --groups web --dry-run $FIRST_RELEASE_FLAG
             else
               npx nx release --groups web $FIRST_RELEASE_FLAG
             fi
-          elif [[ "${{ github.event.inputs.group }}" == "mobile" ]]; then
-            if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+          elif [[ "$GROUP" == "mobile" ]]; then
+            if [[ "$DRY_RUN" == "true" ]]; then
               npx nx release --groups mobile --dry-run $FIRST_RELEASE_FLAG
             else
               npx nx release --groups mobile $FIRST_RELEASE_FLAG
             fi
           else
-            if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
+            if [[ "$DRY_RUN" == "true" ]]; then
               npx nx release --dry-run $FIRST_RELEASE_FLAG
             else
               npx nx release $FIRST_RELEASE_FLAG
