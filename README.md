@@ -686,7 +686,7 @@ Recommended repository settings:
 - keep GitHub Actions enabled for the repository
 - allow the default `GITHUB_TOKEN` to create tags and releases for the release workflow
 - create GitHub environments named `dev`, `qa`, `stg`, and `prod`
-- configure required reviewers on the `prod` environment so production deployment is gated
+- configure required reviewers on the `qa`, `stg`, and `prod` environments so promotion is gated from QA onward
 
 GitHub updates to make now:
 
@@ -708,7 +708,7 @@ GitHub updates to make now:
 - `stg`
 - `prod`
 
-9. On the `prod` environment, add required reviewers so production deployment is gated.
+9. On the `qa`, `stg`, and `prod` environments, add required reviewers so the CD workflow pauses for approval from QA onward.
 
 How the GitHub process works end to end:
 
@@ -753,7 +753,8 @@ CI workflow behavior:
 - on pushes to `main`, it uploads `acme-los-deployable-<commitSha>.tgz` as the artifact CD will deploy
 - on pushes to `main`, it also runs `CI / Release Apps`
 - after an actual release, it uploads `acme-los-release-assets-<commitSha>.tgz` as a GitHub Actions artifact
-- after an actual release, it also attaches that asset bundle to the corresponding GitHub Releases
+- after an actual release, it also attaches friendly per-app asset filenames such as `acme-los-web-app-<version>-release-bundle.tgz` and `acme-los-mobile-app-<version>-release-bundle.tgz` to the corresponding GitHub Releases
+- after an actual release, the workflow summary lists the Actions artifact name and the friendly release asset names
 - `CI / Release Apps` uses `GITHUB_TOKEN` and a `[skip ci]` release commit message to avoid recursive workflow runs
 - `nx fix-ci` is not enabled yet because that is only useful after connecting the workspace to Nx Cloud
 
@@ -782,7 +783,7 @@ Environment deployment workflow behavior:
 - `CD / Deploy To QA` depends on successful `CD / Deploy To Dev` and promotes the same artifact into `qa`
 - `CD / Deploy To Staging` depends on successful `CD / Deploy To QA` and promotes the same artifact into `stg`
 - `CD / Deploy To Production` depends on successful `CD / Deploy To Staging` and promotes the same artifact into `prod`
-- `CD / Deploy To Production` uses the GitHub `prod` environment and is intended to be gated with required reviewers
+- `CD / Deploy To QA`, `CD / Deploy To Staging`, and `CD / Deploy To Production` should each use GitHub environment reviewers so the single CD run pauses for approval at each stage
 - `deploy-dev.yml`, `deploy-qa.yml`, `deploy-stg.yml`, and `deploy-prod.yml` are reusable environment workflows called by `cd.yml`
 - `qa`, `stg`, and `prod` approvals should be configured through GitHub environments so the same workflow run pauses on the approval boxes
 - all environment deploy workflows are scaffolds right now and need the real platform-specific deployment commands
@@ -820,7 +821,7 @@ What that means in practice:
 - if the applications need to display the true release version at runtime, the committed manifest is again a valid source after the release step
 - every push to `main` produces a deployable Actions artifact for CD promotion
 - the GitHub Actions run for the release retains a downloadable release asset bundle
-- the GitHub Release page for each changed app also carries that bundle as a release asset
+- the GitHub Release page for each changed app also carries a friendly per-app release asset filename for that version
 - deployment environments (`dev`, `qa`, `stg`, `prod`) are separate from semantic release versioning and should be promoted intentionally
 - higher environments should promote the same built artifact that was already deployed to `dev`
 
