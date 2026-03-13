@@ -83,8 +83,8 @@
     "git": {
       "stageChanges": false,
       "commit": false,
-      "tag": true,
-      "push": true
+      "tag": false,
+      "push": false
     },
     "releaseTag": {
       "pattern": "{projectName}@{version}"
