@@ -96,7 +96,7 @@ jobs:
       - name: Release versions, tags, and GitHub releases
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx nx release --yes --skip-publish
+        run: npx nx release --skip-publish
 
       - name: Resolve versions after release
         id: versions_after

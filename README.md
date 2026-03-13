@@ -765,8 +765,10 @@ Release automation behavior:
 - the release step lives inside `CI` instead of a separate release workflow
 - it only runs on pushes to `main`
 - it uses Nx Release to update app manifests, create the release commit, create tags, and publish GitHub Releases
+- it skips Nx package publishing because this repo releases applications, not publishable npm packages
 - it also uploads a release asset bundle for that workflow run
 - it attaches that same asset bundle to each app release that actually changed
+- it skips Nx package publishing because this repo releases applications, not publishable npm packages
 - the release commit message is `chore(release): publish [skip ci]`
 - because the release commit is pushed back to `main`, GitHub branch protection must allow the GitHub Actions release actor to perform that push
 

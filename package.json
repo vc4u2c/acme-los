@@ -7,7 +7,7 @@
     "lint-staged": "lint-staged",
     "commitlint": "commitlint --edit",
     "validate:tags": "node tools/scripts/validate-project-tags.mjs",
-    "release": "nx release --yes --skip-publish",
+    "release": "nx release --skip-publish",
     "release:dry-run": "nx release --dry-run --skip-publish"
   },
   "private": true,
