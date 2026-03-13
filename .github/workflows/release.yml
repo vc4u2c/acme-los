@@ -17,6 +17,11 @@ on:
         required: true
         default: true
         type: boolean
+      first_release:
+        description: Treat this as the first release for the selected scope
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -44,6 +49,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Fetch tags
+        run: git fetch --force --tags origin
+
+      - name: Verify workspace
+        run: |
+          npm run validate:tags
+          npx nx run-many -t lint
+          npx nx run-many -t test --runInBand
+
       - name: Configure git identity
         run: |
           git config user.name "github-actions[bot]"
@@ -53,22 +67,27 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          FIRST_RELEASE_FLAG=""
+          if [[ "${{ github.event.inputs.first_release }}" == "true" ]]; then
+            FIRST_RELEASE_FLAG="--first-release"
+          fi
+
           if [[ "${{ github.event.inputs.group }}" == "web" ]]; then
             if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
-              npm run release:web:dry-run
+              npx nx release --groups web --dry-run $FIRST_RELEASE_FLAG
             else
-              npm run release:web
+              npx nx release --groups web $FIRST_RELEASE_FLAG
             fi
           elif [[ "${{ github.event.inputs.group }}" == "mobile" ]]; then
             if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
-              npm run release:mobile:dry-run
+              npx nx release --groups mobile --dry-run $FIRST_RELEASE_FLAG
             else
-              npm run release:mobile
+              npx nx release --groups mobile $FIRST_RELEASE_FLAG
             fi
           else
             if [[ "${{ github.event.inputs.dry_run }}" == "true" ]]; then
-              npm run release:dry-run
+              npx nx release --dry-run $FIRST_RELEASE_FLAG
             else
-              npm run release
+              npx nx release $FIRST_RELEASE_FLAG
             fi
           fi

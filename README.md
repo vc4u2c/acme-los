@@ -667,6 +667,8 @@ Release workflow behavior:
 - it is triggered manually with `workflow_dispatch`
 - it can run for `web`, `mobile`, or `all`
 - it supports dry-run mode for verification before cutting a real release
+- it supports a `first_release` toggle for the initial tagged release of a project or group
+- it validates tags, lint, and tests before versioning
 - real releases use the Nx Release config in `nx.json` and create project-level GitHub releases
 
 ## Release Model
