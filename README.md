@@ -189,6 +189,102 @@ node -v
 npm install
 ```
 
+## Installation History And Commands
+
+This section captures the major installation steps and package additions that shaped the current workspace.
+
+These commands are split into two categories:
+
+- historical bootstrap commands that explain how this repo was originally formed
+- additive install commands that are relevant to the current architecture
+
+Do not rerun the bootstrap commands inside this existing repository. They are documented for traceability, not as repeatable in-place setup steps.
+
+### Historical Bootstrap Commands
+
+Representative bootstrap flow for this workspace shape:
+
+```powershell
+npx create-nx-workspace@latest acme-los
+```
+
+Representative follow-on generation flow for the app structure now present in git history:
+
+```powershell
+npx.cmd nx g @nx/next:app web-app
+npx.cmd nx g @nx/expo:app mobile-app
+npx.cmd nx g @nx/js:lib libs/core/types
+npx.cmd nx g @nx/js:lib libs/core/utils
+npx.cmd nx g @nx/js:lib libs/core/config
+npx.cmd nx g @nx/js:lib libs/core/logger
+npx.cmd nx g @nx/js:lib libs/domain/loan
+npx.cmd nx g @nx/js:lib libs/domain/borrower
+npx.cmd nx g @nx/js:lib libs/domain/application
+npx.cmd nx g @nx/js:lib libs/domain/underwriting
+npx.cmd nx g @nx/js:lib libs/api/client
+npx.cmd nx g @nx/js:lib libs/api/contracts
+npx.cmd nx g @nx/react:lib libs/ui/web
+npx.cmd nx g @nx/react:lib libs/ui/mobile
+```
+
+Those commands are documented to show repo lineage. They are not intended to be rerun in this workspace now that the projects already exist.
+
+### Current Additive Install Commands
+
+Core install:
+
+```powershell
+npm install
+```
+
+Mobile NativeWind and React Native styling setup:
+
+```powershell
+npx.cmd expo install nativewind react-native-reanimated react-native-safe-area-context
+```
+
+Mobile gluestack foundation and component dependencies:
+
+```powershell
+npm.cmd install @gluestack-ui/nativewind-utils @gluestack-ui/overlay @gluestack-ui/toast
+npm.cmd install @gluestack-ui/core@^3.0.13 @gluestack-ui/utils@^3.0.15 --legacy-peer-deps
+npm.cmd install react-native-worklets@0.5.1 --legacy-peer-deps
+```
+
+Web shadcn-compatible foundation dependencies:
+
+```powershell
+npm.cmd install class-variance-authority clsx tailwind-merge --legacy-peer-deps
+npm.cmd install -D shadcn
+npm.cmd install @radix-ui/react-slot --legacy-peer-deps
+```
+
+Tag validation and governance:
+
+```powershell
+npm run validate:tags
+```
+
+### Current Installed Tooling Of Note
+
+Web-side UI foundation packages:
+
+- `shadcn`
+- `@radix-ui/react-slot`
+- `class-variance-authority`
+- `clsx`
+- `tailwind-merge`
+
+Mobile-side UI foundation packages:
+
+- `nativewind`
+- `@gluestack-ui/core`
+- `@gluestack-ui/utils`
+- `@gluestack-ui/nativewind-utils`
+- `@gluestack-ui/overlay`
+- `@gluestack-ui/toast`
+- `react-native-worklets`
+
 ## Day-One Commands
 
 Preferred on Windows PowerShell:

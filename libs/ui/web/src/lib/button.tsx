@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from './utils';
 
@@ -38,22 +39,15 @@ export function Button({
   variant,
   size,
   asChild = false,
-  children,
   ...props
 }: ButtonProps): React.ReactElement {
-  const classes = cn(buttonVariants({ variant, size }), className);
-
-  if (asChild && React.isValidElement(children)) {
-    const child = children as React.ReactElement<{ className?: string }>;
-    return React.cloneElement(child, {
-      className: cn(classes, child.props.className),
-    });
-  }
+  const Comp = asChild ? Slot : 'button';
 
   return (
-    <button className={classes} {...props}>
-      {children}
-    </button>
+    <Comp
+      className={cn(buttonVariants({ variant, size }), className)}
+      {...props}
+    />
   );
 }
 
