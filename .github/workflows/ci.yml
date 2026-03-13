@@ -8,6 +8,9 @@ on:
     branches:
       - main
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 permissions:
   contents: read
 
@@ -167,6 +170,9 @@ jobs:
             echo "mobile_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
+          echo "web_asset_file=acme-los-web-app-${web_version}-release-bundle.tgz" >> "$GITHUB_OUTPUT"
+          echo "mobile_asset_file=acme-los-mobile-app-${mobile_version}-release-bundle.tgz" >> "$GITHUB_OUTPUT"
+
       - name: Create release asset bundle
         if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true'
         shell: bash
@@ -185,8 +191,8 @@ jobs:
           EOF
           mkdir -p dist/artifacts
           tar -czf dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz -C dist/release-assets .
-          cp dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz dist/artifacts/acme-los-web-app-release-assets-${{ github.sha }}.tgz
-          cp dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz dist/artifacts/acme-los-mobile-app-release-assets-${{ github.sha }}.tgz
+          cp dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz dist/artifacts/${{ steps.versions_after.outputs.web_asset_file }}
+          cp dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz dist/artifacts/${{ steps.versions_after.outputs.mobile_asset_file }}
 
       - name: Upload release asset bundle
         if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true'
@@ -202,7 +208,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: web-app@${{ steps.versions_after.outputs.web }}
-          files: dist/artifacts/acme-los-web-app-release-assets-${{ github.sha }}.tgz
+          files: dist/artifacts/${{ steps.versions_after.outputs.web_asset_file }}
           append_body: true
           fail_on_unmatched_files: true
 
@@ -211,6 +217,22 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: mobile-app@${{ steps.versions_after.outputs.mobile }}
-          files: dist/artifacts/acme-los-mobile-app-release-assets-${{ github.sha }}.tgz
+          files: dist/artifacts/${{ steps.versions_after.outputs.mobile_asset_file }}
           append_body: true
           fail_on_unmatched_files: true
+
+      - name: Summarize release artifacts
+        if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true'
+        shell: bash
+        run: |
+          {
+            echo "## Release Artifacts"
+            echo ""
+            echo "- Actions artifact bundle: \`acme-los-release-assets-${GITHUB_SHA}.tgz\`"
+            if [[ "${{ steps.versions_after.outputs.web_changed }}" == "true" ]]; then
+              echo "- Web release asset: \`${{ steps.versions_after.outputs.web_asset_file }}\`"
+            fi
+            if [[ "${{ steps.versions_after.outputs.mobile_changed }}" == "true" ]]; then
+              echo "- Mobile release asset: \`${{ steps.versions_after.outputs.mobile_asset_file }}\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

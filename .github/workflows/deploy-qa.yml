@@ -12,6 +12,9 @@ on:
         required: true
         type: string
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
 permissions:
   actions: read
   contents: read
@@ -35,6 +38,19 @@ jobs:
           run-id: ${{ inputs.artifact_run_id }}
           name: ${{ inputs.artifact_name }}
           path: dist/deployable
+
+      - name: Inspect deploy artifact
+        shell: bash
+        run: |
+          mkdir -p dist/deployable/extracted
+          tar -xzf dist/deployable/${{ inputs.artifact_name }}.tgz -C dist/deployable/extracted
+          web_version="$(node -p "require('./dist/deployable/extracted/web-app.package.json').version")"
+          mobile_version="$(node -p "require('./dist/deployable/extracted/mobile-app.package.json').version")"
+          commit_sha="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').commitSha")"
+          echo "Deploy artifact bundle: ${{ inputs.artifact_name }}.tgz"
+          echo "Artifact commit SHA: ${commit_sha}"
+          echo "Friendly web release asset: acme-los-web-app-${web_version}-release-bundle.tgz"
+          echo "Friendly mobile release asset: acme-los-mobile-app-${mobile_version}-release-bundle.tgz"
 
       - name: Placeholder deploy
         run: |
