@@ -10,6 +10,20 @@ Current exports:
 - `ButtonSpinner`
 - `ButtonIcon`
 - `ButtonGroup`
+- `Input`
+- `InputField`
+- `InputSlot`
+- `InputIcon`
+- `Textarea`
+- `TextareaInput`
+- `Card`
+- `CardHeader`
+- `CardTitle`
+- `CardDescription`
+- `CardContent`
+- `CardFooter`
+- `Badge`
+- `BadgeText`
 
 Import from:
 
