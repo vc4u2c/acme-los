@@ -1,12 +1,6 @@
 {
   "presets": [
-    [
-      "@nx/react/babel",
-      {
-        "runtime": "automatic",
-        "useBuiltIns": "usage"
-      }
-    ]
-  ],
-  "plugins": []
+    ["babel-preset-expo", { "jsxImportSource": "nativewind" }],
+    "nativewind/babel"
+  ]
 }

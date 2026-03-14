@@ -1,8 +1,8 @@
-'use client';
 import React from 'react';
 import { OverlayProvider } from '@gluestack-ui/overlay';
 import { ToastProvider } from '@gluestack-ui/toast';
 import { config } from './config';
+import { GluestackThemeModeProvider } from './theme-mode';
 
 export function GluestackUIProvider({
   mode = 'light',
@@ -31,8 +31,10 @@ export function GluestackUIProvider({
   }
 
   return (
-    <OverlayProvider>
-      <ToastProvider>{props.children}</ToastProvider>
-    </OverlayProvider>
+    <GluestackThemeModeProvider value={mode}>
+      <OverlayProvider>
+        <ToastProvider>{props.children}</ToastProvider>
+      </OverlayProvider>
+    </GluestackThemeModeProvider>
   );
 }

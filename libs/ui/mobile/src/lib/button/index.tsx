@@ -1,4 +1,3 @@
-'use client';
 import React from 'react';
 import { createButton } from '@gluestack-ui/core/button/creator';
 import {
@@ -118,23 +117,23 @@ const buttonStyle = tva({
 });
 
 const buttonTextStyle = tva({
-  base: 'text-typography-0 font-semibold web:select-none',
+  base: 'text-typography-950 font-semibold web:select-none',
   parentVariants: {
     action: {
       primary:
-        'text-primary-600 data-[hover=true]:text-primary-600 data-[active=true]:text-primary-700',
+        'text-primary-700 data-[hover=true]:text-primary-800 data-[active=true]:text-primary-900',
       secondary:
-        'text-typography-500 data-[hover=true]:text-typography-600 data-[active=true]:text-typography-700',
+        'text-typography-900 data-[hover=true]:text-typography-950 data-[active=true]:text-typography-950',
       positive:
-        'text-success-600 data-[hover=true]:text-success-600 data-[active=true]:text-success-700',
+        'text-success-800 data-[hover=true]:text-success-900 data-[active=true]:text-success-950',
       negative:
-        'text-error-600 data-[hover=true]:text-error-600 data-[active=true]:text-error-700',
+        'text-error-800 data-[hover=true]:text-error-900 data-[active=true]:text-error-950',
     },
     variant: {
       link: 'data-[hover=true]:underline data-[active=true]:underline',
       outline: '',
       solid:
-        'text-typography-0 data-[hover=true]:text-typography-0 data-[active=true]:text-typography-0',
+        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
     },
     size: {
       xs: 'text-xs',
@@ -149,49 +148,49 @@ const buttonTextStyle = tva({
       variant: 'solid',
       action: 'primary',
       class:
-        'text-typography-0 data-[hover=true]:text-typography-0 data-[active=true]:text-typography-0',
+        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
     },
     {
       variant: 'solid',
       action: 'secondary',
       class:
-        'text-typography-800 data-[hover=true]:text-typography-800 data-[active=true]:text-typography-800',
+        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
     },
     {
       variant: 'solid',
       action: 'positive',
       class:
-        'text-typography-0 data-[hover=true]:text-typography-0 data-[active=true]:text-typography-0',
+        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
     },
     {
       variant: 'solid',
       action: 'negative',
       class:
-        'text-typography-0 data-[hover=true]:text-typography-0 data-[active=true]:text-typography-0',
+        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
     },
     {
       variant: 'outline',
       action: 'primary',
       class:
-        'text-primary-500 data-[hover=true]:text-primary-500 data-[active=true]:text-primary-500',
+        'text-primary-700 data-[hover=true]:text-primary-800 data-[active=true]:text-primary-900',
     },
     {
       variant: 'outline',
       action: 'secondary',
       class:
-        'text-typography-500 data-[hover=true]:text-primary-600 data-[active=true]:text-typography-700',
+        'text-typography-900 data-[hover=true]:text-typography-950 data-[active=true]:text-typography-950',
     },
     {
       variant: 'outline',
       action: 'positive',
       class:
-        'text-primary-500 data-[hover=true]:text-primary-500 data-[active=true]:text-primary-500',
+        'text-success-800 data-[hover=true]:text-success-900 data-[active=true]:text-success-950',
     },
     {
       variant: 'outline',
       action: 'negative',
       class:
-        'text-primary-500 data-[hover=true]:text-primary-500 data-[active=true]:text-primary-500',
+        'text-error-800 data-[hover=true]:text-error-900 data-[active=true]:text-error-950',
     },
   ],
 });
@@ -203,7 +202,7 @@ const buttonIconStyle = tva({
       link: 'data-[hover=true]:underline data-[active=true]:underline',
       outline: '',
       solid:
-        'text-typography-0 data-[hover=true]:text-typography-0 data-[active=true]:text-typography-0',
+        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
     },
     size: {
       xs: 'h-3.5 w-3.5',
@@ -214,13 +213,13 @@ const buttonIconStyle = tva({
     },
     action: {
       primary:
-        'text-primary-600 data-[hover=true]:text-primary-600 data-[active=true]:text-primary-700',
+        'text-primary-700 data-[hover=true]:text-primary-800 data-[active=true]:text-primary-900',
       secondary:
-        'text-typography-500 data-[hover=true]:text-typography-600 data-[active=true]:text-typography-700',
+        'text-typography-900 data-[hover=true]:text-typography-950 data-[active=true]:text-typography-950',
       positive:
-        'text-success-600 data-[hover=true]:text-success-600 data-[active=true]:text-success-700',
+        'text-success-800 data-[hover=true]:text-success-900 data-[active=true]:text-success-950',
       negative:
-        'text-error-600 data-[hover=true]:text-error-600 data-[active=true]:text-error-700',
+        'text-error-800 data-[hover=true]:text-error-900 data-[active=true]:text-error-950',
     },
   },
   parentCompoundVariants: [
@@ -228,25 +227,25 @@ const buttonIconStyle = tva({
       variant: 'solid',
       action: 'primary',
       class:
-        'text-typography-0 data-[hover=true]:text-typography-0 data-[active=true]:text-typography-0',
+        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
     },
     {
       variant: 'solid',
       action: 'secondary',
       class:
-        'text-typography-800 data-[hover=true]:text-typography-800 data-[active=true]:text-typography-800',
+        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
     },
     {
       variant: 'solid',
       action: 'positive',
       class:
-        'text-typography-0 data-[hover=true]:text-typography-0 data-[active=true]:text-typography-0',
+        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
     },
     {
       variant: 'solid',
       action: 'negative',
       class:
-        'text-typography-0 data-[hover=true]:text-typography-0 data-[active=true]:text-typography-0',
+        'text-white data-[hover=true]:text-white data-[active=true]:text-white',
     },
   ],
 });
@@ -293,9 +292,9 @@ const Button = React.forwardRef<
     return (
       <UIButton
         ref={ref}
-        {...props}
         className={buttonStyle({ variant, size, action, class: className })}
         context={{ variant, size, action }}
+        {...props}
       />
     );
   },
@@ -317,7 +316,6 @@ const ButtonText = React.forwardRef<
   return (
     <UIButton.Text
       ref={ref}
-      {...props}
       className={buttonTextStyle({
         parentVariants: {
           variant: parentVariant,
@@ -329,6 +327,7 @@ const ButtonText = React.forwardRef<
         action,
         class: className,
       })}
+      {...props}
     />
   );
 });
@@ -357,9 +356,9 @@ const ButtonIcon = React.forwardRef<
     return (
       <UIButton.Icon
         ref={ref}
-        {...props}
         className={buttonIconStyle({ class: className })}
         size={size}
+        {...props}
       />
     );
   }
@@ -371,15 +370,15 @@ const ButtonIcon = React.forwardRef<
     return (
       <UIButton.Icon
         ref={ref}
-        {...props}
         className={buttonIconStyle({ class: className })}
+        {...props}
       />
     );
   }
 
   return (
     <UIButton.Icon
-      {...props}
+      ref={ref}
       className={buttonIconStyle({
         parentVariants: {
           size: parentSize,
@@ -389,7 +388,7 @@ const ButtonIcon = React.forwardRef<
         size,
         class: className,
       })}
-      ref={ref}
+      {...props}
     />
   );
 });
@@ -413,6 +412,7 @@ const ButtonGroup = React.forwardRef<
   ) => {
     return (
       <UIButton.Group
+        ref={ref}
         className={buttonGroupStyle({
           class: className,
           space,
@@ -420,7 +420,6 @@ const ButtonGroup = React.forwardRef<
           flexDirection,
         })}
         {...props}
-        ref={ref}
       />
     );
   },

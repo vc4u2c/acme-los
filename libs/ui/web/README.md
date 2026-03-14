@@ -6,6 +6,27 @@ Current exports:
 
 - `Button`
 - `buttonVariants`
+- `Input`
+- `Card`
+- `CardHeader`
+- `CardTitle`
+- `CardDescription`
+- `CardContent`
+- `CardFooter`
+- `Dialog`
+- `DialogTrigger`
+- `DialogContent`
+- `DialogHeader`
+- `DialogFooter`
+- `DialogTitle`
+- `DialogDescription`
+- `Sheet`
+- `SheetTrigger`
+- `SheetContent`
+- `SheetHeader`
+- `SheetFooter`
+- `SheetTitle`
+- `SheetDescription`
 - `cn`
 
 Project config:

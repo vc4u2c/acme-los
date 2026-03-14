@@ -1,3 +1,25 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+[data-testid='mobile-app-shell'] input,
+[data-testid='mobile-app-shell'] textarea {
+  color: #fefeff;
+  caret-color: #72b6e6;
+  -webkit-text-fill-color: #fefeff;
+}
+
+[data-testid='mobile-app-shell'] input::placeholder,
+[data-testid='mobile-app-shell'] textarea::placeholder {
+  color: #94a3b8;
+}
+
+[data-testid='mobile-app-shell'] [role='button'],
+[data-testid='mobile-app-shell'] [role='button'] * {
+  color: #fefeff;
+  -webkit-text-fill-color: #fefeff;
+}

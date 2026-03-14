@@ -1,8 +1,13 @@
 import { test, expect } from '@playwright/test';
 
-test('has title', async ({ page }) => {
+test('shows the web home and showcase route', async ({ page }) => {
   await page.goto('/');
 
-  // Expect h1 to contain a substring.
-  expect(await page.locator('h1').innerText()).toContain('Welcome');
+  await expect(
+    page.getByRole('heading', { name: /Welcome web-app/i }),
+  ).toBeVisible();
+  await page.getByRole('link', { name: /Open UI showcase/i }).click();
+  await expect(
+    page.getByRole('heading', { name: /Web primitives in one place/i }),
+  ).toBeVisible();
 });

@@ -6,6 +6,7 @@ const baseURL = process.env['BASE_URL'] || 'http://127.0.0.1:4201';
 
 export default defineConfig({
   testDir: './src',
+  timeout: 60_000,
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 2 : 0,
@@ -14,11 +15,13 @@ export default defineConfig({
   use: {
     baseURL,
     trace: 'on-first-retry',
+    navigationTimeout: 60_000,
   },
   webServer: {
-    command: 'node ../../node_modules/expo/bin/cli start --web --port 4201',
+    command: 'node ../../tools/scripts/serve-expo-web-static.mjs --port 4201',
     url: baseURL,
     reuseExistingServer: true,
+    timeout: 120_000,
     cwd: join(workspaceRoot, 'apps/mobile-app'),
   },
   projects: [

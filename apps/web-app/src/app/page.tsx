@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Button } from '@acme-los/ui-web';
 import webAppPackage from '../../package.json';
 
@@ -25,21 +26,9 @@ export default function Index() {
               Welcome web-app
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-              Tailwind is wired into the web app. This workspace is ready for
-              shared LOS domain modules, API contracts, and platform-specific UI
-              packages.
-            </p>
-            <p className="mt-4 text-sm font-medium text-amber-300">
-              Release marker: web shell refreshed
-            </p>
-            <p className="mt-2 text-xs uppercase tracking-[0.25em] text-emerald-400/80">
-              Sync marker: branch refresh ready
-            </p>
-            <p className="mt-2 text-xs text-cyan-300/80">
-              GitHub release setup branch active
-            </p>
-            <p className="mt-2 text-xs text-slate-500">
-              Deploy artifact label update ready
+              The web shell is ready for shared LOS domain modules, API
+              contracts, and a reusable UI system that stays aligned with the
+              mobile experience.
             </p>
 
             <div className="mt-8 flex flex-col gap-4 sm:flex-row">
@@ -48,7 +37,15 @@ export default function Index() {
                 size="lg"
                 className="bg-emerald-400 text-slate-950 hover:bg-emerald-300"
               >
-                <a href="#commands">View next commands</a>
+                <Link href="/showcase">Open UI showcase</Link>
+              </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="border-slate-700 text-slate-100 hover:border-slate-500 hover:bg-slate-900"
+              >
+                <Link href="#commands">View next commands</Link>
               </Button>
               <Button
                 asChild
@@ -72,7 +69,7 @@ export default function Index() {
                 'Next.js web application',
                 'Expo mobile application',
                 'Playwright e2e coverage',
-                'Shared libs under libs/',
+                'Shared web + mobile UI libraries',
               ].map((item) => (
                 <div
                   key={item}
@@ -89,7 +86,7 @@ export default function Index() {
           <article className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
             <p className="text-sm font-semibold text-emerald-300">Core</p>
             <p className="mt-3 text-sm leading-7 text-slate-300">
-              Shared types, config, utilities, and logger primitives for LOS
+              Shared types, config, utilities, and logging foundations for LOS
               workflows.
             </p>
           </article>
@@ -103,8 +100,8 @@ export default function Index() {
           <article className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
             <p className="text-sm font-semibold text-fuchsia-300">API + UI</p>
             <p className="mt-3 text-sm leading-7 text-slate-300">
-              API contracts, API clients, and separate platform UI libraries for
-              web and mobile.
+              API contracts, API clients, and platform UI libraries for web and
+              mobile.
             </p>
           </article>
         </div>
