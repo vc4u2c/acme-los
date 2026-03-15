@@ -35,6 +35,9 @@
   ],
   "references": [
     {
+      "path": "../../libs/core/config/tsconfig.lib.json"
+    },
+    {
       "path": "../../libs/ui/mobile/tsconfig.lib.json"
     }
   ]

@@ -36,6 +36,8 @@ export type ApplicationDraft = {
   finalAuthorization: boolean;
 };
 
+export type ApplicationFieldName = keyof ApplicationDraft;
+
 export const defaultDraft: ApplicationDraft = {
   firstName: '',
   lastName: '',
@@ -72,7 +74,10 @@ export const defaultDraft: ApplicationDraft = {
   finalAuthorization: false,
 };
 
-export const stepFieldNames: Record<ApplicationStepSlug, (keyof ApplicationDraft)[]> = {
+export const stepFieldNames: Record<
+  ApplicationStepSlug,
+  (keyof ApplicationDraft)[]
+> = {
   'personal-info': [
     'firstName',
     'lastName',
@@ -104,22 +109,14 @@ export const stepFieldNames: Record<ApplicationStepSlug, (keyof ApplicationDraft
     'debitCardLast4',
     'directDeposit',
   ],
-  'pre-approval': [
-    'requestedAmount',
-    'loanPurpose',
-    'softReviewConsent',
-  ],
+  'pre-approval': ['requestedAmount', 'loanPurpose', 'softReviewConsent'],
   'documents-signing': [
     'governmentIdReady',
     'proofOfIncomeReady',
     'typedSignature',
     'electronicConsent',
   ],
-  funding: [
-    'fundingMethod',
-    'deliveryDestination',
-    'finalAuthorization',
-  ],
+  funding: ['fundingMethod', 'deliveryDestination', 'finalAuthorization'],
 };
 
 export const applyNavigationItems = [

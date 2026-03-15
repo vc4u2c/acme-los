@@ -9,6 +9,7 @@ module.exports = {
     'node_modules/(?!(jest-)?react-native|@react-native|react-native|@gluestack-ui|@react-native-aria)/',
   ],
   moduleNameMapper: {
+    '^@acme-los/core/config$': '<rootDir>/../../libs/core/config/src/index.ts',
     '^@acme-los/ui-mobile$': '<rootDir>/../../libs/ui/mobile/src/index.ts',
     '\\.svg$': '@nx/expo/plugins/jest/svg-mock',
   },

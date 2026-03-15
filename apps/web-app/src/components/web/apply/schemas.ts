@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ApplicationFieldName } from './form-model';
 import type { ApplicationStepSlug } from './step-definitions';
 
 const requiredText = (label: string) =>
@@ -14,7 +15,10 @@ export const schemaMap = {
     addressLine2: z.string().trim().optional().catch(''),
     city: requiredText('City'),
     state: z.string().trim().length(2, 'Use a 2-letter state code.'),
-    zipCode: z.string().trim().regex(/^\d{5}$/, 'Enter a 5-digit ZIP code.'),
+    zipCode: z
+      .string()
+      .trim()
+      .regex(/^\d{5}$/, 'Enter a 5-digit ZIP code.'),
   }),
   disclosures: z.object({
     residencyStatus: requiredText('Residency status'),
@@ -80,3 +84,49 @@ export const schemaMap = {
     }),
   }),
 } satisfies Record<ApplicationStepSlug, z.ZodTypeAny>;
+
+const schemaShapeMap = {
+  'personal-info': schemaMap['personal-info'].shape as Partial<
+    Record<ApplicationFieldName, z.ZodTypeAny>
+  >,
+  disclosures: schemaMap.disclosures.shape as Partial<
+    Record<ApplicationFieldName, z.ZodTypeAny>
+  >,
+  'employment-income': schemaMap['employment-income'].shape as Partial<
+    Record<ApplicationFieldName, z.ZodTypeAny>
+  >,
+  'bank-card': schemaMap['bank-card'].shape as Partial<
+    Record<ApplicationFieldName, z.ZodTypeAny>
+  >,
+  'pre-approval': schemaMap['pre-approval'].shape as Partial<
+    Record<ApplicationFieldName, z.ZodTypeAny>
+  >,
+  'documents-signing': schemaMap['documents-signing'].shape as Partial<
+    Record<ApplicationFieldName, z.ZodTypeAny>
+  >,
+  funding: schemaMap.funding.shape as Partial<
+    Record<ApplicationFieldName, z.ZodTypeAny>
+  >,
+} satisfies Record<
+  ApplicationStepSlug,
+  Partial<Record<ApplicationFieldName, z.ZodTypeAny>>
+>;
+
+function extractFirstZodMessage(error: z.ZodError) {
+  return error.issues[0]?.message ?? 'Enter a valid value.';
+}
+
+export function validateStepField(
+  step: ApplicationStepSlug,
+  name: ApplicationFieldName,
+  value: unknown,
+) {
+  const fieldSchema = schemaShapeMap[step][name];
+
+  if (!fieldSchema) {
+    return undefined;
+  }
+
+  const result = fieldSchema.safeParse(value);
+  return result.success ? undefined : extractFirstZodMessage(result.error);
+}

@@ -16,6 +16,8 @@ import {
 import { SiteHeader } from '../components/web/site-header';
 import { applicationSteps } from '../components/web/apply/step-definitions';
 
+export const dynamic = 'force-static';
+
 const navigationItems = [
   { href: '#why-us', label: 'Why us' },
   { href: '#process', label: 'Process' },
@@ -40,8 +42,8 @@ export default function Index() {
               </h1>
               <p className="max-w-3xl text-lg leading-8 text-[var(--muted-foreground)]">
                 Lead with identity and disclosures, keep support in view, and
-                move through income, banking, pre-approval, signing, and
-                funding with fewer surprises late in the journey.
+                move through income, banking, pre-approval, signing, and funding
+                with fewer surprises late in the journey.
               </p>
             </div>
 
@@ -65,9 +67,18 @@ export default function Index() {
 
             <div className="grid gap-3 sm:grid-cols-3">
               {[
-                ['Talk to us', 'Customer support and rate details stay visible throughout the experience.'],
-                ['Pause when needed', 'Local draft progress stays in this browser while the customer steps away.'],
-                ['See the path', 'Seven clear stages carry the customer from first answer to funding.'],
+                [
+                  'Talk to us',
+                  'Customer support and rate details stay visible throughout the experience.',
+                ],
+                [
+                  'Pause when needed',
+                  'Local draft progress stays in this browser while the customer steps away.',
+                ],
+                [
+                  'See the path',
+                  'Seven clear stages carry the customer from first answer to funding.',
+                ],
               ].map(([title, copy]) => (
                 <div
                   key={title}
@@ -107,7 +118,9 @@ export default function Index() {
                     {index + 1}
                   </div>
                   <div>
-                    <p className="font-semibold text-[var(--foreground)]">{step.label}</p>
+                    <p className="font-semibold text-[var(--foreground)]">
+                      {step.label}
+                    </p>
                     <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
                       {step.description}
                     </p>
@@ -128,7 +141,10 @@ export default function Index() {
         </div>
       </section>
 
-      <section id="why-us" className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10">
+      <section
+        id="why-us"
+        className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10"
+      >
         <div className="mb-7 max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
             Why customers choose us
@@ -149,25 +165,37 @@ export default function Index() {
               Why us
             </p>
             <h2 className="mt-3 max-w-2xl font-display text-4xl leading-tight text-[var(--foreground)]">
-              We reduce friction where financial applications usually lose trust.
+              We reduce friction where financial applications usually lose
+              trust.
             </h2>
             <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
-              Customers get support cues, timing context, and a readable next step
-              before the application asks for more detail. That pacing makes the
-              journey feel guided instead of transactional.
+              Customers get support cues, timing context, and a readable next
+              step before the application asks for more detail. That pacing
+              makes the journey feel guided instead of transactional.
             </p>
 
             <div className="mt-6 grid gap-4 md:grid-cols-3">
               {[
-                ['Support is one click away', 'Phone, contact, and rate details stay inside the shell.'],
-                ['Disclosures show up earlier', 'The customer understands consent and timing before banking details.'],
-                ['Progress stays visible', 'Every stage feels like forward motion, not a reset.'],
+                [
+                  'Support is one click away',
+                  'Phone, contact, and rate details stay inside the shell.',
+                ],
+                [
+                  'Disclosures show up earlier',
+                  'The customer understands consent and timing before banking details.',
+                ],
+                [
+                  'Progress stays visible',
+                  'Every stage feels like forward motion, not a reset.',
+                ],
               ].map(([title, copy]) => (
                 <div
                   key={title}
                   className="rounded-[1.4rem] border border-[var(--border)] bg-[var(--surface-strong)] p-4"
                 >
-                  <p className="text-sm font-semibold text-[var(--foreground)]">{title}</p>
+                  <p className="text-sm font-semibold text-[var(--foreground)]">
+                    {title}
+                  </p>
                   <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
                     {copy}
                   </p>
@@ -180,13 +208,11 @@ export default function Index() {
             {[
               {
                 title: 'Timing is explained up front',
-                copy:
-                  'The flow makes room for the questions people actually ask: when funds land, when disclosures appear, and what happens after review.',
+                copy: 'The flow makes room for the questions people actually ask: when funds land, when disclosures appear, and what happens after review.',
               },
               {
                 title: 'Completion feels more realistic',
-                copy:
-                  'Route-based steps, local drafts, and guided validation help customers finish without making the experience feel rushed.',
+                copy: 'Route-based steps, local drafts, and guided validation help customers finish without making the experience feel rushed.',
               },
             ].map((item) => (
               <article
@@ -208,7 +234,10 @@ export default function Index() {
         </div>
       </section>
 
-      <section id="process" className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10">
+      <section
+        id="process"
+        className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10"
+      >
         <div className="mb-7 max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
             Process preview
@@ -250,7 +279,10 @@ export default function Index() {
         </div>
       </section>
 
-      <section id="trust" className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10">
+      <section
+        id="trust"
+        className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10"
+      >
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-[1.85rem] border border-[var(--border)] bg-[color:var(--surface)/0.92] p-6 shadow-xl shadow-[color:var(--shadow-soft)]">
             <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
@@ -261,8 +293,8 @@ export default function Index() {
             </h2>
             <p className="mt-4 text-lg leading-8 text-[var(--muted-foreground)]">
               The better lending experiences make support, timing, and privacy
-              cues obvious up front. Banking and signing should feel earned,
-              not abrupt.
+              cues obvious up front. Banking and signing should feel earned, not
+              abrupt.
             </p>
             <Alert
               variant="muted"
@@ -295,7 +327,10 @@ export default function Index() {
         </div>
       </section>
 
-      <section id="faq" className="mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-12">
+      <section
+        id="faq"
+        className="mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-12"
+      >
         <div className="rounded-[2rem] border border-[var(--border)] bg-[color:var(--surface)/0.95] p-6 shadow-xl shadow-[color:var(--shadow-soft)] lg:p-7">
           <div className="grid gap-7 lg:grid-cols-[1fr_0.9fr]">
             <div>

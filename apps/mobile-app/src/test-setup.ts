@@ -6,6 +6,23 @@ jest.mock('expo/src/winter/ImportMetaRegistry', () => ({
   },
 }));
 
+jest.mock('expo-constants', () => {
+  const expoConfig = {
+    version: 'test-version',
+    extra: {
+      appVersion: 'test-version',
+    },
+  };
+
+  return {
+    __esModule: true,
+    default: {
+      expoConfig,
+    },
+    expoConfig,
+  };
+});
+
 jest.mock('react-native-safe-area-context', () => {
   const mockReact = require('react');
   const defaultInsets = {

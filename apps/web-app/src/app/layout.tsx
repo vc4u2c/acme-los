@@ -6,7 +6,24 @@ export const metadata = {
   title: 'ACME LOS Installment Flow',
   description: 'Responsive installment loan intake experience for ACME LOS.',
   icons: {
-    icon: '/acme-tab-icon.svg',
+    icon: [
+      {
+        url: '/acme-tab-icon.svg?v=2',
+        type: 'image/svg+xml',
+      },
+    ],
+    shortcut: [
+      {
+        url: '/acme-tab-icon.svg?v=2',
+        type: 'image/svg+xml',
+      },
+    ],
+    apple: [
+      {
+        url: '/acme-tab-icon.svg?v=2',
+        type: 'image/svg+xml',
+      },
+    ],
   },
 };
 

@@ -11,7 +11,7 @@ import {
 } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GluestackUIProvider } from '@acme-los/ui-mobile';
-import mobileAppPackage from '../../package.json';
+import { mobileAppRelease } from '../lib/app-release';
 import { MobileHomeScreen } from './screens/mobile-home-screen';
 import { MobileShowcaseScreen } from './screens/mobile-showcase-screen';
 
@@ -21,7 +21,6 @@ type RootStackParamList = {
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
-const mobileAppVersion = mobileAppPackage.version;
 
 const navigationTheme: Theme = {
   ...DarkTheme,
@@ -41,14 +40,14 @@ function HomeRoute({
 }: NativeStackScreenProps<RootStackParamList, 'home'>): React.ReactElement {
   return (
     <MobileHomeScreen
-      mobileAppVersion={mobileAppVersion}
+      mobileAppVersion={mobileAppRelease.version}
       onOpenShowcase={() => navigation.navigate('showcase')}
     />
   );
 }
 
 function ShowcaseRoute(): React.ReactElement {
-  return <MobileShowcaseScreen mobileAppVersion={mobileAppVersion} />;
+  return <MobileShowcaseScreen mobileAppVersion={mobileAppRelease.version} />;
 }
 
 export const App = () => {

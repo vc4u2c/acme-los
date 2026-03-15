@@ -1,12 +1,11 @@
 import Link from 'next/link';
-import webAppPackage from '../../../package.json';
 import { applicationSteps } from './apply/step-definitions';
+import { webAppRelease } from '../../lib/app-release';
 import { AcmeMarkIcon } from './icons';
-
-const webAppVersion = webAppPackage.version;
 
 const quickLinks = [
   { href: '/', label: 'Home' },
+  { href: '/rendering-demo', label: 'Rendering demo' },
   { href: '/account/sign-in', label: 'Sign in' },
   { href: '/account/create-account', label: 'Create account' },
   { href: '/showcase', label: 'Showcase' },
@@ -153,11 +152,17 @@ export function SiteFooter(): React.ReactElement {
         </div>
 
         <div className="mt-8 flex flex-col gap-3 border-t border-[var(--border)] pt-6 text-sm text-[var(--muted-foreground)] md:flex-row md:items-center md:justify-between">
-          <p>Built for responsive intake, clearer disclosures, visible support, and steadier conversion.</p>
+          <p>
+            Built for responsive intake, clearer disclosures, visible support,
+            and steadier conversion.
+          </p>
           <div className="flex flex-col gap-1 text-left md:items-end md:text-right">
-            <p>Copyright {new Date().getFullYear()} ACME LOS. All rights reserved.</p>
+            <p>
+              Copyright {new Date().getFullYear()} ACME LOS. All rights
+              reserved.
+            </p>
             <div className="inline-flex items-center rounded-full border border-[var(--accent)] bg-[var(--surface-spot)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-ink)]">
-              Web app v{webAppVersion}
+              {webAppRelease.versionBadgeLabel}
             </div>
           </div>
         </div>
