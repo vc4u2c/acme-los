@@ -2,12 +2,13 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "../dist/out-tsc",
+    "composite": true,
     "module": "commonjs",
     "moduleResolution": "node10",
     "jsx": "react-jsx",
     "types": ["jest", "node"]
   },
-  "files": ["src/test-setup.ts"],
+  "files": ["src/test-setup.ts", "package.json"],
   "include": [
     "jest.config.ts",
     "jest.config.cts",
