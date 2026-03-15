@@ -4,9 +4,26 @@ Shared web UI foundation for the Next.js app.
 
 Current exports:
 
+- `Accordion`
+- `AccordionItem`
+- `AccordionTrigger`
+- `AccordionContent`
+- `Alert`
+- `AlertTitle`
+- `AlertDescription`
 - `Button`
 - `buttonVariants`
 - `Input`
+- `Checkbox`
+- `FormField`
+- `FormLabel`
+- `FormHint`
+- `FormError`
+- `RadioGroup`
+- `RadioGroupItem`
+- `Progress`
+- `Select`
+- `Textarea`
 - `Card`
 - `CardHeader`
 - `CardTitle`

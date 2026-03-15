@@ -1,152 +1,346 @@
 import Link from 'next/link';
-import { Button } from '@acme-los/ui-web';
-import webAppPackage from '../../package.json';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from '@acme-los/ui-web';
+import { SiteHeader } from '../components/web/site-header';
+import { applicationSteps } from '../components/web/apply/step-definitions';
 
-const webAppVersion = webAppPackage.version;
+const navigationItems = [
+  { href: '#why-us', label: 'Why us' },
+  { href: '#process', label: 'Process' },
+  { href: '#trust', label: 'Trust' },
+  { href: '#faq', label: 'FAQ' },
+];
 
 export default function Index() {
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-50">
-      <section className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-6 py-16 lg:px-10">
-        <div className="mb-8 flex flex-wrap items-center gap-3">
-          <div className="inline-flex w-fit items-center rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-2 text-sm font-medium text-emerald-200">
-            ACME LOS backbone
-          </div>
-          <div className="inline-flex w-fit items-center rounded-full border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm font-medium text-cyan-200">
-            Web version {webAppVersion}
-          </div>
-        </div>
+    <main className="min-h-screen text-[var(--foreground)]">
+      <SiteHeader items={navigationItems} />
 
-        <div className="grid gap-10 lg:grid-cols-[1.4fr_0.9fr] lg:items-end">
-          <div>
-            <p className="mb-4 text-sm uppercase tracking-[0.3em] text-slate-400">
-              Next.js + Expo + Nx
-            </p>
-            <h1 className="max-w-4xl text-5xl font-semibold tracking-tight text-white sm:text-6xl">
-              Welcome web-app
-            </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-              The web shell is ready for shared LOS domain modules, API
-              contracts, and a reusable UI system that stays aligned with the
-              mobile experience.
-            </p>
+      <section className="mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-12">
+        <div className="grid gap-8 lg:grid-cols-[1.06fr_0.94fr] lg:items-start xl:gap-10">
+          <div className="space-y-8">
+            <div className="space-y-5">
+              <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
+                Calm, clear, conversion-ready
+              </p>
+              <h1 className="max-w-5xl font-display text-4xl leading-tight text-[var(--foreground)] sm:text-5xl lg:text-6xl">
+                A steadier installment application from first answer to funding.
+              </h1>
+              <p className="max-w-3xl text-lg leading-8 text-[var(--muted-foreground)]">
+                Lead with identity and disclosures, keep support in view, and
+                move through income, banking, pre-approval, signing, and
+                funding with fewer surprises late in the journey.
+              </p>
+            </div>
 
-            <div className="mt-8 flex flex-col gap-4 sm:flex-row">
+            <div className="flex flex-col gap-4 sm:flex-row">
               <Button
                 asChild
                 size="lg"
-                className="bg-emerald-400 text-slate-950 hover:bg-emerald-300"
+                className="rounded-full bg-[var(--brand)] px-7 text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)] hover:bg-[var(--brand-strong)]"
               >
-                <Link href="/showcase">Open UI showcase</Link>
+                <Link href="/apply/personal-info">Start application</Link>
               </Button>
               <Button
                 asChild
                 size="lg"
                 variant="outline"
-                className="border-slate-700 text-slate-100 hover:border-slate-500 hover:bg-slate-900"
+                className="rounded-full border-[var(--border-strong)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-accent)]"
               >
-                <Link href="#commands">View next commands</Link>
-              </Button>
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="border-slate-700 text-slate-100 hover:border-slate-500 hover:bg-slate-900"
-              >
-                <a href="https://nx.dev" target="_blank" rel="noreferrer">
-                  Nx docs
-                </a>
+                <Link href="/showcase">See the experience library</Link>
               </Button>
             </div>
-          </div>
 
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 shadow-2xl shadow-emerald-950/20 backdrop-blur">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-slate-500">
-              Active stack
-            </p>
-            <div className="mt-4 grid gap-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               {[
-                'Next.js web application',
-                'Expo mobile application',
-                'Playwright e2e coverage',
-                'Shared web + mobile UI libraries',
-              ].map((item) => (
+                ['Talk to us', 'Customer support and rate details stay visible throughout the experience.'],
+                ['Pause when needed', 'Local draft progress stays in this browser while the customer steps away.'],
+                ['See the path', 'Seven clear stages carry the customer from first answer to funding.'],
+              ].map(([title, copy]) => (
                 <div
-                  key={item}
-                  className="rounded-2xl border border-slate-800 bg-slate-950/70 px-4 py-3 text-sm text-slate-200"
+                  key={title}
+                  className="rounded-[1.45rem] border border-[var(--border)] bg-[color:var(--surface)/0.9] p-4 shadow-lg shadow-[color:var(--shadow-soft)]"
                 >
-                  {item}
+                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--brand)]">
+                    {title}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">
+                    {copy}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
-        </div>
 
-        <div className="mt-16 grid gap-6 lg:grid-cols-3">
-          <article className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
-            <p className="text-sm font-semibold text-emerald-300">Core</p>
-            <p className="mt-3 text-sm leading-7 text-slate-300">
-              Shared types, config, utilities, and logging foundations for LOS
-              workflows.
-            </p>
-          </article>
-          <article className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
-            <p className="text-sm font-semibold text-cyan-300">Domain</p>
-            <p className="mt-3 text-sm leading-7 text-slate-300">
-              Borrower, loan, application, and underwriting modules with
-              enforced boundaries.
-            </p>
-          </article>
-          <article className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
-            <p className="text-sm font-semibold text-fuchsia-300">API + UI</p>
-            <p className="mt-3 text-sm leading-7 text-slate-300">
-              API contracts, API clients, and platform UI libraries for web and
-              mobile.
-            </p>
-          </article>
+          <Card className="overflow-hidden rounded-[1.9rem] border-[var(--border)] bg-[color:var(--surface)/0.96] text-[var(--foreground)] shadow-2xl shadow-[color:var(--shadow-soft)]">
+            <CardHeader className="border-b border-[var(--border)] bg-[var(--surface-accent)]">
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
+                Application preview
+              </p>
+              <CardTitle className="font-display text-3xl">
+                Customers see the path before they share sensitive information.
+              </CardTitle>
+              <p className="text-sm leading-7 text-[var(--muted-foreground)]">
+                The opening view sets expectations, shows the sequence, and
+                makes the next click feel safe instead of rushed.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-3 p-5 sm:p-6">
+              {applicationSteps.slice(0, 4).map((step, index) => (
+                <div
+                  key={step.slug}
+                  className="flex items-start gap-4 rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3.5"
+                >
+                  <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand)] text-sm font-semibold text-[var(--brand-contrast)]">
+                    {index + 1}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-[var(--foreground)]">{step.label}</p>
+                    <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                      {step.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              <div className="rounded-[1.55rem] border border-[var(--accent)] bg-[var(--surface-spot)] p-4">
+                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--accent-ink)]">
+                  Timing and handoff
+                </p>
+                <p className="mt-3 text-base leading-7 text-[var(--foreground)]">
+                  Banking, signing, and funding arrive in sequence, with the
+                  next checkpoint visible before the form asks for more.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
+      </section>
 
-        <section
-          id="commands"
-          className="mt-16 rounded-[2rem] border border-slate-800 bg-slate-900/70 p-8"
-        >
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500">
-            Commands
+      <section id="why-us" className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10">
+        <div className="mb-7 max-w-3xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
+            Why customers choose us
           </p>
-          <h2 className="mt-3 text-3xl font-semibold text-white">
-            Useful next steps
+          <h2 className="mt-3 font-display text-4xl leading-tight text-[var(--foreground)] lg:text-5xl">
+            Clear support, cleaner pacing, fewer late surprises.
           </h2>
-          <div className="mt-8 grid gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl bg-slate-950/70 p-5">
-              <p className="text-sm font-medium text-slate-200">Run web app</p>
-              <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-900 px-4 py-3 text-sm text-emerald-200">
-                npx.cmd nx run web-app:dev
-              </pre>
+          <p className="mt-4 text-lg leading-8 text-[var(--muted-foreground)]">
+            The strongest intake experiences answer the practical questions
+            early: who can help, when funding decisions show up, and why the
+            application is asking for the next piece of information.
+          </p>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <article className="rounded-[1.9rem] border border-[var(--border)] bg-[color:var(--surface)/0.95] p-6 shadow-xl shadow-[color:var(--shadow-soft)] lg:p-7">
+            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
+              Why us
+            </p>
+            <h2 className="mt-3 max-w-2xl font-display text-4xl leading-tight text-[var(--foreground)]">
+              We reduce friction where financial applications usually lose trust.
+            </h2>
+            <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
+              Customers get support cues, timing context, and a readable next step
+              before the application asks for more detail. That pacing makes the
+              journey feel guided instead of transactional.
+            </p>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
+              {[
+                ['Support is one click away', 'Phone, contact, and rate details stay inside the shell.'],
+                ['Disclosures show up earlier', 'The customer understands consent and timing before banking details.'],
+                ['Progress stays visible', 'Every stage feels like forward motion, not a reset.'],
+              ].map(([title, copy]) => (
+                <div
+                  key={title}
+                  className="rounded-[1.4rem] border border-[var(--border)] bg-[var(--surface-strong)] p-4"
+                >
+                  <p className="text-sm font-semibold text-[var(--foreground)]">{title}</p>
+                  <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">
+                    {copy}
+                  </p>
+                </div>
+              ))}
             </div>
-            <div className="rounded-2xl bg-slate-950/70 p-5">
-              <p className="text-sm font-medium text-slate-200">
-                Run mobile app
-              </p>
-              <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-900 px-4 py-3 text-sm text-cyan-200">
-                npx.cmd nx run mobile-app:start
-              </pre>
-            </div>
-            <div className="rounded-2xl bg-slate-950/70 p-5">
-              <p className="text-sm font-medium text-slate-200">Run tests</p>
-              <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-900 px-4 py-3 text-sm text-fuchsia-200">
-                npx.cmd nx run-many -t test
-              </pre>
-            </div>
-            <div className="rounded-2xl bg-slate-950/70 p-5">
-              <p className="text-sm font-medium text-slate-200">
-                Inspect dependency graph
-              </p>
-              <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-900 px-4 py-3 text-sm text-amber-200">
-                npx.cmd nx graph
-              </pre>
-            </div>
+          </article>
+
+          <div className="grid gap-4">
+            {[
+              {
+                title: 'Timing is explained up front',
+                copy:
+                  'The flow makes room for the questions people actually ask: when funds land, when disclosures appear, and what happens after review.',
+              },
+              {
+                title: 'Completion feels more realistic',
+                copy:
+                  'Route-based steps, local drafts, and guided validation help customers finish without making the experience feel rushed.',
+              },
+            ].map((item) => (
+              <article
+                key={item.title}
+                className="rounded-[1.7rem] border border-[var(--border)] bg-[color:var(--surface)/0.92] p-5 shadow-lg shadow-[color:var(--shadow-soft)]"
+              >
+                <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
+                  Why us
+                </p>
+                <h3 className="mt-3 font-display text-3xl text-[var(--foreground)]">
+                  {item.title}
+                </h3>
+                <p className="mt-3 text-base leading-8 text-[var(--muted-foreground)]">
+                  {item.copy}
+                </p>
+              </article>
+            ))}
           </div>
-        </section>
+        </div>
+      </section>
+
+      <section id="process" className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10">
+        <div className="mb-7 max-w-3xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
+            Process preview
+          </p>
+          <h2 className="mt-3 font-display text-4xl leading-tight text-[var(--foreground)] lg:text-5xl">
+            A seven-step flow with no sudden jumps.
+          </h2>
+          <p className="mt-4 text-lg leading-8 text-[var(--muted-foreground)]">
+            Applicants move from basics to banking, then into pre-approval,
+            signing, and funding. Each stage explains what comes next before
+            asking for more.
+          </p>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          {applicationSteps.map((step, index) => (
+            <article
+              key={step.slug}
+              className="rounded-[1.65rem] border border-[var(--border)] bg-[color:var(--surface)/0.94] p-5 shadow-lg shadow-[color:var(--shadow-soft)]"
+            >
+              <div className="flex items-start gap-4">
+                <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--surface-accent)] font-semibold text-[var(--brand)]">
+                  {index + 1}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+                    {step.label}
+                  </p>
+                  <h3 className="mt-1.5 font-display text-[1.9rem] text-[var(--foreground)]">
+                    {step.title}
+                  </h3>
+                  <p className="mt-2.5 text-base leading-8 text-[var(--muted-foreground)]">
+                    {step.description}
+                  </p>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section id="trust" className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-[1.85rem] border border-[var(--border)] bg-[color:var(--surface)/0.92] p-6 shadow-xl shadow-[color:var(--shadow-soft)]">
+            <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
+              Trust and clarity
+            </p>
+            <h2 className="mt-3 font-display text-4xl leading-tight text-[var(--foreground)] lg:text-5xl">
+              Explain the path before asking for sensitive details.
+            </h2>
+            <p className="mt-4 text-lg leading-8 text-[var(--muted-foreground)]">
+              The better lending experiences make support, timing, and privacy
+              cues obvious up front. Banking and signing should feel earned,
+              not abrupt.
+            </p>
+            <Alert
+              variant="muted"
+              className="mt-5 rounded-[1.4rem] border-[var(--border)] bg-[var(--surface-strong)]"
+            >
+              <AlertTitle className="text-[var(--foreground)]">
+                The trust moment is usually banking
+              </AlertTitle>
+              <AlertDescription className="text-[var(--muted-foreground)]">
+                The shell should already have answered support, disclosure, and
+                timing questions before account details appear.
+              </AlertDescription>
+            </Alert>
+          </div>
+
+          <div className="grid gap-4">
+            {[
+              'Contact and address before bank account details',
+              'Disclosures before soft-review consent',
+              'Funding expectations surfaced before final submission',
+            ].map((item) => (
+              <div
+                key={item}
+                className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-strong)] px-5 py-4 text-base font-medium text-[var(--foreground)] shadow-sm"
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" className="mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-12">
+        <div className="rounded-[2rem] border border-[var(--border)] bg-[color:var(--surface)/0.95] p-6 shadow-xl shadow-[color:var(--shadow-soft)] lg:p-7">
+          <div className="grid gap-7 lg:grid-cols-[1fr_0.9fr]">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
+                Before the long part
+              </p>
+              <h2 className="mt-3 font-display text-4xl leading-tight text-[var(--foreground)] lg:text-5xl">
+                Answer the practical questions early.
+              </h2>
+              <p className="mt-4 max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
+                Strong lending pages front-load support, timing, and disclosure
+                cues so customers know what the application is asking and when.
+              </p>
+            </div>
+
+            <Accordion>
+              {[
+                [
+                  'Where do disclosures live?',
+                  'Up front, before income and bank details.',
+                ],
+                [
+                  'Can someone pause mid-flow?',
+                  'Yes. Draft progress stays saved in this browser.',
+                ],
+                [
+                  'When does funding come up?',
+                  'After review, documents, and signing, not as a buried last-minute detail.',
+                ],
+              ].map(([question, answer]) => (
+                <AccordionItem
+                  key={question}
+                  className="rounded-[1.45rem] border-[var(--border)] bg-[var(--surface-strong)]"
+                >
+                  <AccordionTrigger className="px-4 py-4 text-[var(--foreground)]">
+                    {question}
+                  </AccordionTrigger>
+                  <AccordionContent className="px-4 pb-4 text-base leading-8 text-[var(--muted-foreground)]">
+                    {answer}
+                  </AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
+        </div>
       </section>
     </main>
   );
