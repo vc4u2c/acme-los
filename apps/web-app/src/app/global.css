@@ -3,7 +3,56 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
+  --background: #f6efe3;
+  --foreground: #17312a;
+  --muted-foreground: #627068;
+  --surface: #fffaf2;
+  --surface-strong: #ffffff;
+  --surface-accent: #ebf4eb;
+  --surface-spot: #f5e7c6;
+  --border: #d6ddd1;
+  --border-strong: #bfcbbc;
+  --brand: #187a53;
+  --brand-strong: #0f6040;
+  --brand-contrast: #f8fff9;
+  --brand-shadow: rgba(24, 122, 83, 0.22);
+  --accent: #d6b05f;
+  --accent-ink: #5a4212;
+  --ring: #249567;
+  --ring-soft: rgba(36, 149, 103, 0.18);
+  --critical: #b24a3d;
+  --shadow-soft: rgba(44, 57, 51, 0.08);
+  --hero-glow-top: rgba(42, 132, 90, 0.18);
+  --hero-glow-side: rgba(214, 176, 95, 0.16);
+  --display-font: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia,
+    serif;
+  --body-font: Aptos, 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
+}
+
+html[data-theme='dark'] {
   color-scheme: dark;
+  --background: #101b19;
+  --foreground: #f4efe6;
+  --muted-foreground: #b4bdb6;
+  --surface: #142321;
+  --surface-strong: #1a2c29;
+  --surface-accent: #1a312c;
+  --surface-spot: #3b3224;
+  --border: #2a423d;
+  --border-strong: #3b5952;
+  --brand: #46a67a;
+  --brand-strong: #65bc92;
+  --brand-contrast: #0d1614;
+  --brand-shadow: rgba(70, 166, 122, 0.24);
+  --accent: #d4ae60;
+  --accent-ink: #f5e0b7;
+  --ring: #72c79b;
+  --ring-soft: rgba(114, 199, 155, 0.22);
+  --critical: #ff9d8d;
+  --shadow-soft: rgba(2, 12, 10, 0.26);
+  --hero-glow-top: rgba(70, 166, 122, 0.16);
+  --hero-glow-side: rgba(212, 174, 96, 0.12);
 }
 
 html {
@@ -13,23 +62,35 @@ html {
 body {
   margin: 0;
   min-height: 100vh;
-  background: #020617;
-  color: #f8fafc;
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  background:
+    radial-gradient(circle at top right, var(--hero-glow-top), transparent 32%),
+    radial-gradient(circle at top left, var(--hero-glow-side), transparent 26%),
+    linear-gradient(180deg, var(--background), var(--background));
+  color: var(--foreground);
+  font-family: var(--body-font);
+}
+
+body,
+button,
+input,
+select,
+textarea {
+  font-family: var(--body-font);
 }
 
 * {
   box-sizing: border-box;
 }
 
+::selection {
+  background: rgba(24, 122, 83, 0.24);
+}
+
 a {
   color: inherit;
   text-decoration: none;
+}
+
+.font-display {
+  font-family: var(--display-font);
 }

@@ -1,0 +1,54 @@
+'use client';
+
+import * as React from 'react';
+import Link from 'next/link';
+import { InfoIcon, XIcon } from './icons';
+
+const dismissalKey = 'acme-los-site-alert-dismissed-v2';
+
+export function SiteAlertStrip(): React.ReactElement | null {
+  const [isDismissed, setIsDismissed] = React.useState(false);
+
+  React.useEffect(() => {
+    const wasDismissed = window.sessionStorage.getItem(dismissalKey) === 'true';
+    setIsDismissed(wasDismissed);
+  }, []);
+
+  const dismiss = React.useCallback(() => {
+    window.sessionStorage.setItem(dismissalKey, 'true');
+    setIsDismissed(true);
+  }, []);
+
+  if (isDismissed) {
+    return null;
+  }
+
+  return (
+    <div className="border-b border-[var(--border)] bg-[var(--brand)] text-[var(--brand-contrast)]">
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-1 text-[10.5px] sm:px-5 sm:py-1.5 lg:px-8">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-[color:rgba(248,255,249,0.26)] bg-[color:rgba(248,255,249,0.08)] text-[var(--brand-contrast)] sm:h-5 sm:w-5">
+            <InfoIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+          </span>
+          <p className="truncate leading-5 text-[var(--brand-contrast)]">
+            Applications approved after 6:00 PM CT may fund the next business day.
+          </p>
+          <Link
+            href="/rates-terms"
+            className="hidden whitespace-nowrap font-semibold underline decoration-[color:rgba(248,255,249,0.45)] underline-offset-4 transition hover:decoration-[var(--brand-contrast)] sm:inline"
+          >
+            Review rates and timing
+          </Link>
+        </div>
+        <button
+          type="button"
+          onClick={dismiss}
+          aria-label="Dismiss alert"
+          className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[color:rgba(248,255,249,0.25)] bg-[color:rgba(248,255,249,0.08)] text-[var(--brand-contrast)] transition hover:bg-[color:rgba(248,255,249,0.14)] sm:h-6 sm:w-6"
+        >
+          <XIcon className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
