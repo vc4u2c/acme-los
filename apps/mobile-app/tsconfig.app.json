@@ -2,11 +2,13 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir": "../dist/out-tsc",
+    "composite": true,
     "types": ["node"]
   },
   "files": [
     "../../node_modules/@nx/expo/typings/svg.d.ts",
-    "nativewind-env.d.ts"
+    "nativewind-env.d.ts",
+    "package.json"
   ],
   "exclude": [
     "**/*.test.ts",
@@ -30,5 +32,10 @@
     "**/*.jsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../libs/ui/mobile/tsconfig.lib.json"
+    }
   ]
 }

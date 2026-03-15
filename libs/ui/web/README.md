@@ -23,6 +23,10 @@ Current exports:
 - `RadioGroupItem`
 - `Progress`
 - `Select`
+- `SelectTrigger`
+- `SelectValue`
+- `SelectContent`
+- `SelectItem`
 - `Textarea`
 - `Card`
 - `CardHeader`

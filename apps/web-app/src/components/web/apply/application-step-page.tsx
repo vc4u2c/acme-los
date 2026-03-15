@@ -54,6 +54,7 @@ export function ApplicationStepPage({
   const progressValue = stepIndex + 1;
   const resolver = zodResolver(schemaMap[step]) as unknown as Resolver<ApplicationDraft>;
   const {
+    control,
     register,
     reset,
     watch,
@@ -193,7 +194,7 @@ export function ApplicationStepPage({
           </CardHeader>
           <CardContent className="p-6 lg:p-8">
             <form className="space-y-8" onSubmit={onSubmit}>
-              {renderStepFields(step, register, errors)}
+              {renderStepFields(step, control, register, errors)}
 
               <Alert className="rounded-[1.4rem] border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

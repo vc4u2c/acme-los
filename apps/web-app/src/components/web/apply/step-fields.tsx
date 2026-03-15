@@ -1,11 +1,17 @@
 import {
-  Input,
   Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Input,
   Textarea,
 } from '@acme-los/ui-web';
-import type {
-  FieldErrors,
-  UseFormRegister,
+import {
+  Controller,
+  type Control,
+  type FieldErrors,
+  type UseFormRegister,
 } from 'react-hook-form';
 import {
   CheckboxField,
@@ -21,6 +27,7 @@ import type { ApplicationStepSlug } from './step-definitions';
 
 export function renderStepFields(
   step: ApplicationStepSlug,
+  control: Control<ApplicationDraft>,
   register: UseFormRegister<ApplicationDraft>,
   errors: FieldErrors<ApplicationDraft>,
 ) {
@@ -286,14 +293,24 @@ export function renderStepFields(
             label="Loan purpose"
             error={getErrorMessage(errors, 'loanPurpose')}
           >
-            <Select id="loanPurpose" {...register('loanPurpose')} className={selectClassName}>
-              <option value="">Select a reason</option>
-              <option value="unexpected-expense">Unexpected expense</option>
-              <option value="utilities-rent">Utilities or rent</option>
-              <option value="vehicle-repair">Vehicle repair</option>
-              <option value="medical">Medical expense</option>
-              <option value="debt-consolidation">Debt consolidation</option>
-            </Select>
+            <Controller
+              name="loanPurpose"
+              control={control}
+              render={({ field }) => (
+                <Select value={field.value || undefined} onValueChange={field.onChange}>
+                  <SelectTrigger id="loanPurpose" className={selectClassName}>
+                    <SelectValue placeholder="Select a reason" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="unexpected-expense">Unexpected expense</SelectItem>
+                    <SelectItem value="utilities-rent">Utilities or rent</SelectItem>
+                    <SelectItem value="vehicle-repair">Vehicle repair</SelectItem>
+                    <SelectItem value="medical">Medical expense</SelectItem>
+                    <SelectItem value="debt-consolidation">Debt consolidation</SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
           </Field>
           <CheckboxField
             name="softReviewConsent"
@@ -368,16 +385,24 @@ export function renderStepFields(
             label="Delivery destination"
             error={getErrorMessage(errors, 'deliveryDestination')}
           >
-            <Select
-              id="deliveryDestination"
-              {...register('deliveryDestination')}
-              className={selectClassName}
-            >
-              <option value="">Choose destination</option>
-              <option value="primary-bank">Primary bank account</option>
-              <option value="verified-card">Verified debit card</option>
-              <option value="best-available">Best available verified method</option>
-            </Select>
+            <Controller
+              name="deliveryDestination"
+              control={control}
+              render={({ field }) => (
+                <Select value={field.value || undefined} onValueChange={field.onChange}>
+                  <SelectTrigger id="deliveryDestination" className={selectClassName}>
+                    <SelectValue placeholder="Choose destination" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="primary-bank">Primary bank account</SelectItem>
+                    <SelectItem value="verified-card">Verified debit card</SelectItem>
+                    <SelectItem value="best-available">
+                      Best available verified method
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
+            />
           </Field>
           <CheckboxField
             name="finalAuthorization"
