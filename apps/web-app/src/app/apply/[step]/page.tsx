@@ -5,6 +5,12 @@ import {
   type ApplicationStepSlug,
 } from '../../../components/web/apply/step-definitions';
 
+export function generateStaticParams() {
+  return applicationStepSlugs.map((step) => ({ step }));
+}
+
+export const dynamicParams = false;
+
 export default async function ApplicationStepRoute({
   params,
 }: {

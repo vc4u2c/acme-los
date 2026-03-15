@@ -25,6 +25,9 @@ module.exports = {
       bundler: 'metro',
       favicon: './assets/images/favicon.png',
     },
+    extra: {
+      appVersion: version,
+    },
     plugins: [
       [
         'expo-splash-screen',

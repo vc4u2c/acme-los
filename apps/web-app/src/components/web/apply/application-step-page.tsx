@@ -3,7 +3,6 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Alert,
   AlertDescription,
@@ -16,22 +15,10 @@ import {
   Progress,
   CardTitle,
 } from '@acme-los/ui-web';
-import {
-  useForm,
-  type Resolver,
-} from 'react-hook-form';
 import { SiteHeader } from '../site-header';
-import {
-  buildStepDraft,
-  persistDraft,
-  readDraft,
-} from './draft-storage';
-import {
-  applyNavigationItems,
-  defaultDraft,
-  type ApplicationDraft,
-} from './form-model';
-import { schemaMap } from './schemas';
+import { useApplicationForm } from './application-form';
+import { buildStepDraft, persistDraft, readDraft } from './draft-storage';
+import { applyNavigationItems, defaultDraft } from './form-model';
 import { renderStepFields } from './step-fields';
 import {
   applicationSteps,
@@ -52,72 +39,65 @@ export function ApplicationStepPage({
   const previousStep = applicationSteps[stepIndex - 1];
   const nextStep = applicationSteps[stepIndex + 1];
   const progressValue = stepIndex + 1;
-  const resolver = zodResolver(schemaMap[step]) as unknown as Resolver<ApplicationDraft>;
-  const {
-    control,
-    register,
-    reset,
-    watch,
-    handleSubmit,
-    getValues,
-    formState: { errors, isSubmitting },
-  } = useForm<ApplicationDraft>({
-    resolver,
-    defaultValues: defaultDraft,
-    mode: 'onBlur',
-    shouldUnregister: true,
-  });
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
   const [isHydrated, setIsHydrated] = React.useState(false);
+  const { form, values, isSubmitting } = useApplicationForm({
+    step,
+    onSubmit: async (value) => {
+      persistDraft(buildStepDraft(step, value));
+
+      if (nextStep) {
+        router.push(`/apply/${nextStep.slug}`);
+        return;
+      }
+
+      setStatusMessage('Application saved. Returning home.');
+      router.push('/');
+    },
+    onSubmitInvalid: () => {
+      setStatusMessage(
+        'Please review the highlighted fields before continuing.',
+      );
+    },
+  });
 
   React.useEffect(() => {
     const storedDraft = readDraft();
-    reset({ ...defaultDraft, ...storedDraft });
+    form.reset({ ...defaultDraft, ...storedDraft });
     setStatusMessage(null);
     setIsHydrated(true);
-  }, [reset]);
+  }, [form]);
 
   React.useEffect(() => {
     if (!isHydrated) {
       return;
     }
 
-    const subscription = watch((values, info) => {
-      if (!info.name) {
-        return;
-      }
-
-      persistDraft(buildStepDraft(step, values as Partial<ApplicationDraft>));
-    });
-
-    return () => subscription.unsubscribe();
-  }, [isHydrated, step, watch]);
+    persistDraft(buildStepDraft(step, values));
+  }, [isHydrated, step, values]);
 
   const saveDraftLocally = React.useCallback(() => {
-    persistDraft(buildStepDraft(step, getValues()));
+    persistDraft(buildStepDraft(step, values));
     setStatusMessage('Draft saved in this browser.');
-  }, [getValues, step]);
+  }, [step, values]);
 
   const goToPreviousStep = React.useCallback(() => {
     if (!previousStep) {
       return;
     }
 
-    persistDraft(buildStepDraft(step, getValues()));
-    router.push(`/apply/${previousStep.slug}`);
-  }, [getValues, previousStep, router, step]);
-
-  const onSubmit = handleSubmit((values) => {
     persistDraft(buildStepDraft(step, values));
+    router.push(`/apply/${previousStep.slug}`);
+  }, [previousStep, router, step, values]);
 
-    if (nextStep) {
-      router.push(`/apply/${nextStep.slug}`);
-      return;
-    }
-
-    setStatusMessage('Application saved. Returning home.');
-    router.push('/');
-  });
+  const onSubmit = React.useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void form.handleSubmit();
+    },
+    [form],
+  );
 
   return (
     <main className="min-h-screen text-[var(--foreground)]">
@@ -194,7 +174,7 @@ export function ApplicationStepPage({
           </CardHeader>
           <CardContent className="p-6 lg:p-8">
             <form className="space-y-8" onSubmit={onSubmit}>
-              {renderStepFields(step, control, register, errors)}
+              {renderStepFields(step, form)}
 
               <Alert className="rounded-[1.4rem] border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -203,7 +183,8 @@ export function ApplicationStepPage({
                       Your progress saves in this browser
                     </AlertTitle>
                     <AlertDescription className="text-[var(--muted-foreground)]">
-                      Use Save draft before leaving if you want a clear checkpoint.
+                      Use Save draft before leaving if you want a clear
+                      checkpoint.
                     </AlertDescription>
                   </div>
                   <span className="inline-flex w-fit items-center rounded-full border border-[var(--border-strong)] bg-[var(--surface-accent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--brand)]">
@@ -322,8 +303,8 @@ export function ApplicationStepPage({
             <CardContent>
               <p className="text-base leading-8 text-[var(--foreground)]">
                 The flow starts with identity and disclosures, then moves into
-                income, banking, pre-approval, signing, and funding. That
-                pacing keeps the experience trustworthy instead of abrupt.
+                income, banking, pre-approval, signing, and funding. That pacing
+                keeps the experience trustworthy instead of abrupt.
               </p>
             </CardContent>
           </Card>

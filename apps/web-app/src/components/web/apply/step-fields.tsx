@@ -1,120 +1,96 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Input,
-  Textarea,
-} from '@acme-los/ui-web';
-import {
-  Controller,
-  type Control,
-  type FieldErrors,
-  type UseFormRegister,
-} from 'react-hook-form';
+import type { ApplicationFormApi } from './application-form';
 import {
   CheckboxField,
-  ChoiceGroup,
-  Field,
-  fieldClassName,
-  getErrorMessage,
-  selectClassName,
-  textareaClassName,
+  ChoiceGroupField,
+  SelectField,
+  TextareaField,
+  TextInputField,
 } from './form-controls';
-import type { ApplicationDraft } from './form-model';
 import type { ApplicationStepSlug } from './step-definitions';
 
 export function renderStepFields(
   step: ApplicationStepSlug,
-  control: Control<ApplicationDraft>,
-  register: UseFormRegister<ApplicationDraft>,
-  errors: FieldErrors<ApplicationDraft>,
+  form: ApplicationFormApi,
 ) {
   switch (step) {
     case 'personal-info':
       return (
         <div className="grid gap-6 md:grid-cols-2">
-          <Field
-            id="firstName"
+          <TextInputField
+            form={form}
+            step={step}
+            name="firstName"
             label="First name"
-            error={getErrorMessage(errors, 'firstName')}
-          >
-            <Input id="firstName" {...register('firstName')} className={fieldClassName} />
-          </Field>
-          <Field
-            id="lastName"
+          />
+          <TextInputField
+            form={form}
+            step={step}
+            name="lastName"
             label="Last name"
-            error={getErrorMessage(errors, 'lastName')}
-          >
-            <Input id="lastName" {...register('lastName')} className={fieldClassName} />
-          </Field>
-          <Field id="email" label="Email" error={getErrorMessage(errors, 'email')}>
-            <Input id="email" type="email" {...register('email')} className={fieldClassName} />
-          </Field>
-          <Field id="phone" label="Phone" error={getErrorMessage(errors, 'phone')}>
-            <Input id="phone" {...register('phone')} className={fieldClassName} />
-          </Field>
+          />
+          <TextInputField
+            form={form}
+            step={step}
+            name="email"
+            label="Email"
+            type="email"
+          />
+          <TextInputField form={form} step={step} name="phone" label="Phone" />
           <div className="md:col-span-2">
-            <Field
-              id="streetAddress"
+            <TextInputField
+              form={form}
+              step={step}
+              name="streetAddress"
               label="Street address"
-              error={getErrorMessage(errors, 'streetAddress')}
-            >
-              <Input
-                id="streetAddress"
-                {...register('streetAddress')}
-                className={fieldClassName}
-              />
-            </Field>
+            />
           </div>
           <div className="md:col-span-2">
-            <Field
-              id="addressLine2"
+            <TextInputField
+              form={form}
+              step={step}
+              name="addressLine2"
               label="Address line 2"
               hint="Apartment, suite, or unit if needed."
-              error={getErrorMessage(errors, 'addressLine2')}
-            >
-              <Input
-                id="addressLine2"
-                {...register('addressLine2')}
-                className={fieldClassName}
-              />
-            </Field>
+            />
           </div>
-          <Field id="city" label="City" error={getErrorMessage(errors, 'city')}>
-            <Input id="city" {...register('city')} className={fieldClassName} />
-          </Field>
+          <TextInputField form={form} step={step} name="city" label="City" />
           <div className="grid gap-6 sm:grid-cols-2">
-            <Field id="state" label="State" error={getErrorMessage(errors, 'state')}>
-              <Input id="state" {...register('state')} className={fieldClassName} maxLength={2} />
-            </Field>
-            <Field id="zipCode" label="ZIP code" error={getErrorMessage(errors, 'zipCode')}>
-              <Input id="zipCode" {...register('zipCode')} className={fieldClassName} />
-            </Field>
+            <TextInputField
+              form={form}
+              step={step}
+              name="state"
+              label="State"
+              maxLength={2}
+            />
+            <TextInputField
+              form={form}
+              step={step}
+              name="zipCode"
+              label="ZIP code"
+            />
           </div>
         </div>
       );
     case 'disclosures':
       return (
         <div className="space-y-6">
-          <ChoiceGroup
+          <ChoiceGroupField
+            form={form}
+            step={step}
             name="residencyStatus"
             label="Residency status"
             hint="Use the option that best matches the applicant's current status."
-            register={register}
-            error={getErrorMessage(errors, 'residencyStatus')}
             options={[
               { label: 'U.S. citizen', value: 'citizen' },
               { label: 'Permanent resident', value: 'permanent-resident' },
               { label: 'Other eligible status', value: 'other-eligible' },
             ]}
           />
-          <ChoiceGroup
+          <ChoiceGroupField
+            form={form}
+            step={step}
             name="activeMilitary"
             label="Active military status"
-            register={register}
-            error={getErrorMessage(errors, 'activeMilitary')}
             options={[
               {
                 label: 'No',
@@ -124,26 +100,27 @@ export function renderStepFields(
               {
                 label: 'Yes',
                 value: 'yes',
-                description: 'Trigger the service-member review path and disclosures.',
+                description:
+                  'Trigger the service-member review path and disclosures.',
               },
             ]}
           />
-          <ChoiceGroup
+          <ChoiceGroupField
+            form={form}
+            step={step}
             name="openBankruptcy"
             label="Open bankruptcy"
-            register={register}
-            error={getErrorMessage(errors, 'openBankruptcy')}
             options={[
               { label: 'No current bankruptcy', value: 'no' },
               { label: 'Currently open', value: 'yes' },
             ]}
           />
           <CheckboxField
+            form={form}
+            step={step}
             name="creditConsent"
             label="I consent to a soft credit review"
             description="This allows the application to move into pre-approval without affecting the applicant's credit score."
-            register={register}
-            error={getErrorMessage(errors, 'creditConsent')}
           />
         </div>
       );
@@ -151,30 +128,24 @@ export function renderStepFields(
       return (
         <div className="space-y-6">
           <div className="grid gap-6 md:grid-cols-2">
-            <Field
-              id="employerName"
+            <TextInputField
+              form={form}
+              step={step}
+              name="employerName"
               label="Employer name"
-              error={getErrorMessage(errors, 'employerName')}
-            >
-              <Input
-                id="employerName"
-                {...register('employerName')}
-                className={fieldClassName}
-              />
-            </Field>
-            <Field
-              id="occupation"
+            />
+            <TextInputField
+              form={form}
+              step={step}
+              name="occupation"
               label="Occupation"
-              error={getErrorMessage(errors, 'occupation')}
-            >
-              <Input id="occupation" {...register('occupation')} className={fieldClassName} />
-            </Field>
+            />
           </div>
-          <ChoiceGroup
+          <ChoiceGroupField
+            form={form}
+            step={step}
             name="payFrequency"
             label="Pay frequency"
-            register={register}
-            error={getErrorMessage(errors, 'payFrequency')}
             options={[
               { label: 'Weekly', value: 'weekly' },
               { label: 'Biweekly', value: 'biweekly' },
@@ -182,87 +153,65 @@ export function renderStepFields(
               { label: 'Monthly', value: 'monthly' },
             ]}
           />
-          <Field
-            id="monthlyIncome"
+          <TextInputField
+            form={form}
+            step={step}
+            name="monthlyIncome"
             label="Monthly take-home income"
             hint="Enter a monthly estimate using numbers only or a simple currency format."
-            error={getErrorMessage(errors, 'monthlyIncome')}
-          >
-            <Input
-              id="monthlyIncome"
-              {...register('monthlyIncome')}
-              className={fieldClassName}
-              inputMode="decimal"
-              placeholder="4,500"
-            />
-          </Field>
-          <Field
-            id="otherIncomeNotes"
+            inputMode="decimal"
+            placeholder="4,500"
+          />
+          <TextareaField
+            form={form}
+            step={step}
+            name="otherIncomeNotes"
             label="Other income notes"
             hint="Optional context for side income, benefits, or seasonal variability."
-            error={getErrorMessage(errors, 'otherIncomeNotes')}
-          >
-            <Textarea
-              id="otherIncomeNotes"
-              {...register('otherIncomeNotes')}
-              className={textareaClassName}
-              placeholder="Describe anything underwriters should know about the income picture."
-            />
-          </Field>
+            placeholder="Describe anything underwriters should know about the income picture."
+          />
         </div>
       );
     case 'bank-card':
       return (
         <div className="space-y-6">
-          <Field id="bankName" label="Bank name" error={getErrorMessage(errors, 'bankName')}>
-            <Input id="bankName" {...register('bankName')} className={fieldClassName} />
-          </Field>
+          <TextInputField
+            form={form}
+            step={step}
+            name="bankName"
+            label="Bank name"
+          />
           <div className="grid gap-6 md:grid-cols-2">
-            <Field
-              id="routingNumber"
+            <TextInputField
+              form={form}
+              step={step}
+              name="routingNumber"
               label="Routing number"
-              error={getErrorMessage(errors, 'routingNumber')}
-            >
-              <Input
-                id="routingNumber"
-                {...register('routingNumber')}
-                className={fieldClassName}
-                inputMode="numeric"
-              />
-            </Field>
-            <Field
-              id="accountNumber"
+              inputMode="numeric"
+            />
+            <TextInputField
+              form={form}
+              step={step}
+              name="accountNumber"
               label="Account number"
-              error={getErrorMessage(errors, 'accountNumber')}
-            >
-              <Input
-                id="accountNumber"
-                {...register('accountNumber')}
-                className={fieldClassName}
-                inputMode="numeric"
-              />
-            </Field>
+              inputMode="numeric"
+            />
           </div>
           <div className="grid gap-6 md:grid-cols-2">
-            <Field
-              id="debitCardLast4"
+            <TextInputField
+              form={form}
+              step={step}
+              name="debitCardLast4"
               label="Debit card last 4"
               hint="Fallback for repayments or funding confirmations."
-              error={getErrorMessage(errors, 'debitCardLast4')}
-            >
-              <Input
-                id="debitCardLast4"
-                {...register('debitCardLast4')}
-                className={fieldClassName}
-                inputMode="numeric"
-                maxLength={4}
-              />
-            </Field>
-            <ChoiceGroup
+              inputMode="numeric"
+              maxLength={4}
+            />
+            <ChoiceGroupField
+              form={form}
+              step={step}
               name="directDeposit"
               label="Direct deposit on file"
-              register={register}
-              error={getErrorMessage(errors, 'directDeposit')}
               options={[
                 { label: 'Yes', value: 'yes' },
                 { label: 'No', value: 'no' },
@@ -274,50 +223,35 @@ export function renderStepFields(
     case 'pre-approval':
       return (
         <div className="space-y-6">
-          <Field
-            id="requestedAmount"
+          <TextInputField
+            form={form}
+            step={step}
+            name="requestedAmount"
             label="Requested amount"
             hint="Use a simple figure like 1500 or 1,500."
-            error={getErrorMessage(errors, 'requestedAmount')}
-          >
-            <Input
-              id="requestedAmount"
-              {...register('requestedAmount')}
-              className={fieldClassName}
-              inputMode="decimal"
-              placeholder="1,500"
-            />
-          </Field>
-          <Field
-            id="loanPurpose"
+            inputMode="decimal"
+            placeholder="1,500"
+          />
+          <SelectField
+            form={form}
+            step={step}
+            name="loanPurpose"
             label="Loan purpose"
-            error={getErrorMessage(errors, 'loanPurpose')}
-          >
-            <Controller
-              name="loanPurpose"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value || undefined} onValueChange={field.onChange}>
-                  <SelectTrigger id="loanPurpose" className={selectClassName}>
-                    <SelectValue placeholder="Select a reason" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unexpected-expense">Unexpected expense</SelectItem>
-                    <SelectItem value="utilities-rent">Utilities or rent</SelectItem>
-                    <SelectItem value="vehicle-repair">Vehicle repair</SelectItem>
-                    <SelectItem value="medical">Medical expense</SelectItem>
-                    <SelectItem value="debt-consolidation">Debt consolidation</SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </Field>
+            placeholder="Select a reason"
+            options={[
+              { label: 'Unexpected expense', value: 'unexpected-expense' },
+              { label: 'Utilities or rent', value: 'utilities-rent' },
+              { label: 'Vehicle repair', value: 'vehicle-repair' },
+              { label: 'Medical expense', value: 'medical' },
+              { label: 'Debt consolidation', value: 'debt-consolidation' },
+            ]}
+          />
           <CheckboxField
+            form={form}
+            step={step}
             name="softReviewConsent"
             label="I want to see a pre-approval result"
             description="This keeps the review moving while preserving a clear handoff into final documents and signing."
-            register={register}
-            error={getErrorMessage(errors, 'softReviewConsent')}
           />
         </div>
       );
@@ -325,91 +259,79 @@ export function renderStepFields(
       return (
         <div className="space-y-6">
           <CheckboxField
+            form={form}
+            step={step}
             name="governmentIdReady"
             label="Government ID is ready"
             description="A current government-issued ID will be required for final verification."
-            register={register}
-            error={getErrorMessage(errors, 'governmentIdReady')}
           />
           <CheckboxField
+            form={form}
+            step={step}
             name="proofOfIncomeReady"
             label="Proof of income is ready"
             description="Recent pay stubs, deposits, or other income evidence help keep underwriting moving."
-            register={register}
-            error={getErrorMessage(errors, 'proofOfIncomeReady')}
           />
-          <Field
-            id="typedSignature"
+          <TextInputField
+            form={form}
+            step={step}
+            name="typedSignature"
             label="Typed signature"
             hint="Type the applicant name exactly as it should appear on the document packet."
-            error={getErrorMessage(errors, 'typedSignature')}
-          >
-            <Input
-              id="typedSignature"
-              {...register('typedSignature')}
-              className={fieldClassName}
-            />
-          </Field>
+          />
           <CheckboxField
+            form={form}
+            step={step}
             name="electronicConsent"
             label="I consent to electronic delivery and signing"
             description="This confirms the applicant can receive disclosures and sign documents electronically."
-            register={register}
-            error={getErrorMessage(errors, 'electronicConsent')}
           />
         </div>
       );
     case 'funding':
       return (
         <div className="space-y-6">
-          <ChoiceGroup
+          <ChoiceGroupField
+            form={form}
+            step={step}
             name="fundingMethod"
             label="Funding method"
-            register={register}
-            error={getErrorMessage(errors, 'fundingMethod')}
             options={[
               {
                 label: 'Direct deposit',
                 value: 'direct-deposit',
-                description: 'Send approved funds to the verified bank account on file.',
+                description:
+                  'Send approved funds to the verified bank account on file.',
               },
               {
                 label: 'Debit card transfer',
                 value: 'debit-card',
-                description: 'Use the verified debit card when instant transfer is available.',
+                description:
+                  'Use the verified debit card when instant transfer is available.',
               },
             ]}
           />
-          <Field
-            id="deliveryDestination"
+          <SelectField
+            form={form}
+            step={step}
+            name="deliveryDestination"
             label="Delivery destination"
-            error={getErrorMessage(errors, 'deliveryDestination')}
-          >
-            <Controller
-              name="deliveryDestination"
-              control={control}
-              render={({ field }) => (
-                <Select value={field.value || undefined} onValueChange={field.onChange}>
-                  <SelectTrigger id="deliveryDestination" className={selectClassName}>
-                    <SelectValue placeholder="Choose destination" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="primary-bank">Primary bank account</SelectItem>
-                    <SelectItem value="verified-card">Verified debit card</SelectItem>
-                    <SelectItem value="best-available">
-                      Best available verified method
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-            />
-          </Field>
+            placeholder="Choose destination"
+            options={[
+              { label: 'Primary bank account', value: 'primary-bank' },
+              { label: 'Verified debit card', value: 'verified-card' },
+              {
+                label: 'Best available verified method',
+                value: 'best-available',
+              },
+            ]}
+          />
           <CheckboxField
+            form={form}
+            step={step}
             name="finalAuthorization"
             label="I understand the final underwriting review comes next"
             description="This acknowledges the submission, the final decision step, and the expected funding timeline after approval."
-            register={register}
-            error={getErrorMessage(errors, 'finalAuthorization')}
           />
         </div>
       );

@@ -4,10 +4,38 @@ export interface AppRuntimeConfig {
   enableMockData: boolean;
 }
 
+export type AppReleaseTarget = 'web' | 'mobile';
+
+export interface AppReleaseInfo {
+  target: AppReleaseTarget;
+  name: string;
+  version: string;
+  versionBadgeLabel: string;
+}
+
+const releaseTargetNames: Record<AppReleaseTarget, string> = {
+  web: 'Web app',
+  mobile: 'Mobile app',
+};
+
 export function getDefaultRuntimeConfig(): AppRuntimeConfig {
   return {
     environment: 'development',
     apiBaseUrl: 'http://localhost:3000/api',
     enableMockData: true,
+  };
+}
+
+export function createAppReleaseInfo(
+  target: AppReleaseTarget,
+  version: string,
+): AppReleaseInfo {
+  const name = releaseTargetNames[target];
+
+  return {
+    target,
+    name,
+    version,
+    versionBadgeLabel: `${name} v${version}`,
   };
 }

@@ -23,6 +23,7 @@ type NavItem = {
 
 const utilityLinks = [
   { href: '/rates-terms', label: 'Rates & terms' },
+  { href: '/rendering-demo', label: 'Rendering demo' },
   { href: '/legal/licenses', label: 'State licenses' },
   { href: '/support/contact', label: 'Contact support' },
 ];
