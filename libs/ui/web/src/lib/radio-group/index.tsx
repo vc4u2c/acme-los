@@ -26,13 +26,17 @@ export const RadioGroupItem = React.forwardRef<
       <input ref={ref} type="radio" className="peer sr-only" {...props} />
       <span
         className={cn(
-          'flex min-h-[112px] flex-col justify-between rounded-[1.5rem] border border-slate-300 bg-white p-4 text-left shadow-sm transition peer-checked:border-slate-900 peer-checked:bg-slate-50 peer-focus-visible:ring-2 peer-focus-visible:ring-slate-400',
+          'relative flex min-h-[128px] flex-col justify-between rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-strong)] p-5 text-left shadow-sm transition duration-200 hover:border-[var(--border-strong)] hover:bg-[var(--surface)] peer-checked:border-[var(--brand)] peer-checked:bg-[var(--surface-accent)] peer-checked:shadow-lg peer-checked:shadow-[color:var(--brand-shadow)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--ring-soft)]',
           itemClassName,
         )}
       >
-        <span className="text-base font-semibold text-slate-950">{children}</span>
+        <span className="text-lg font-semibold leading-tight text-[var(--foreground)]">
+          {children}
+        </span>
         {description ? (
-          <span className="mt-2 text-sm leading-6 text-slate-600">{description}</span>
+          <span className="mt-3 max-w-[28ch] text-sm leading-7 text-[var(--muted-foreground)]">
+            {description}
+          </span>
         ) : null}
       </span>
     </label>

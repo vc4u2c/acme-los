@@ -5,6 +5,9 @@ import { ThemeScript } from '../components/web/theme-script';
 export const metadata = {
   title: 'ACME LOS Installment Flow',
   description: 'Responsive installment loan intake experience for ACME LOS.',
+  icons: {
+    icon: '/acme-tab-icon.svg',
+  },
 };
 
 export default function RootLayout({
