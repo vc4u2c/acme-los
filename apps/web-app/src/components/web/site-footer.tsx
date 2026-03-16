@@ -22,7 +22,7 @@ const legalLinks = [
 export function SiteFooter(): React.ReactElement {
   return (
     <footer className="border-t border-[var(--border)] bg-[color:var(--surface)/0.94] text-[var(--foreground)]">
-      <div className="mx-auto max-w-7xl px-5 py-10 lg:px-8 lg:py-12">
+      <div className="mx-auto max-w-[90rem] px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
         <div className="mb-8 grid gap-4 lg:grid-cols-3">
           <div className="rounded-[1.8rem] border border-[var(--border)] bg-[var(--surface-strong)] p-5 shadow-lg shadow-[color:var(--shadow-soft)]">
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
@@ -151,18 +151,22 @@ export function SiteFooter(): React.ReactElement {
           </div>
         </div>
 
-        <div className="mt-8 flex flex-col gap-3 border-t border-[var(--border)] pt-6 text-sm text-[var(--muted-foreground)] md:flex-row md:items-center md:justify-between">
-          <p>
-            Built for responsive intake, clearer disclosures, visible support,
-            and steadier conversion.
-          </p>
-          <div className="flex flex-col gap-1 text-left md:items-end md:text-right">
-            <p>
-              Copyright {new Date().getFullYear()} ACME LOS. All rights
-              reserved.
+        <div className="mt-8 border-t border-[var(--border)] pt-6">
+          <div className="flex flex-col gap-4 text-sm text-[var(--muted-foreground)] md:flex-row md:items-end md:justify-between">
+            <p className="max-w-2xl leading-7">
+              Built for responsive intake, clearer disclosures, visible support,
+              and steadier conversion.
             </p>
-            <div className="inline-flex items-center rounded-full border border-[var(--accent)] bg-[var(--surface-spot)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--accent-ink)]">
-              {webAppRelease.versionBadgeLabel}
+            <div className="flex flex-col gap-2 text-left md:items-end md:text-right">
+              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                <span className="inline-flex max-w-full items-center rounded-full border border-[var(--accent)] bg-[var(--surface-spot)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent-ink)]">
+                  {webAppRelease.versionBadgeLabel}
+                </span>
+              </div>
+              <p className="leading-6">
+                Copyright {new Date().getFullYear()} ACME LOS. All rights
+                reserved.
+              </p>
             </div>
           </div>
         </div>

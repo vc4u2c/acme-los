@@ -51,19 +51,21 @@ export function MobileHomeScreen({
           </CardHeader>
           <CardContent className="gap-6">
             <ScreenGrid>
-              <View className="min-w-[220px] flex-1 gap-2 rounded-2xl border border-success-300 bg-background-success p-4">
-                <Badge variant="success">
-                  <BadgeText variant="success">Version</BadgeText>
-                </Badge>
-                <ScreenTitle className="text-2xl">
-                  v{mobileAppVersion}
-                </ScreenTitle>
+              <View className="flex-1 gap-2 rounded-2xl border border-success-300 bg-background-success p-4 md:min-w-[260px]">
+                <View className="flex-row flex-wrap items-center gap-2">
+                  <Badge variant="warning">
+                    <BadgeText variant="warning">Release</BadgeText>
+                  </Badge>
+                  <ScreenTitle className="text-xl leading-tight">
+                    {`Mobile app v${mobileAppVersion}`}
+                  </ScreenTitle>
+                </View>
                 <ScreenDescription className="text-sm leading-6">
                   Shared primitives are ready for app-level review.
                 </ScreenDescription>
               </View>
 
-              <View className="min-w-[220px] flex-1 gap-2 rounded-2xl border border-info-300 bg-background-info p-4">
+              <View className="flex-1 gap-2 rounded-2xl border border-info-300 bg-background-info p-4 md:min-w-[260px]">
                 <Badge variant="info">
                   <BadgeText variant="info">Destination</BadgeText>
                 </Badge>

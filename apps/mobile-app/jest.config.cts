@@ -6,7 +6,8 @@ module.exports = {
   moduleFileExtensions: ['ts', 'js', 'html', 'tsx', 'jsx'],
   setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
   transformIgnorePatterns: [
-    'node_modules/(?!(jest-)?react-native|@react-native|react-native|@gluestack-ui|@react-native-aria)/',
+    '/node_modules/(?!(.pnpm|react-native|@react-native|@react-native-community|expo|@expo|@expo-google-fonts|react-navigation|@react-navigation|@sentry/react-native|native-base|react-native-svg|@gluestack-ui|@react-native-aria|nativewind|react-native-css-interop))',
+    '/node_modules/react-native-reanimated/plugin/',
   ],
   moduleNameMapper: {
     '^@acme-los/core/config$': '<rootDir>/../../libs/core/config/src/index.ts',

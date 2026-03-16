@@ -30,7 +30,7 @@ export default function Index() {
     <main className="min-h-screen text-[var(--foreground)]">
       <SiteHeader items={navigationItems} />
 
-      <section className="mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-12">
+      <section className="mx-auto max-w-[90rem] px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
         <div className="grid gap-8 lg:grid-cols-[1.06fr_0.94fr] lg:items-start xl:gap-10">
           <div className="space-y-8">
             <div className="space-y-5">
@@ -143,7 +143,7 @@ export default function Index() {
 
       <section
         id="why-us"
-        className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10"
+        className="mx-auto max-w-[90rem] px-4 py-7 sm:px-6 lg:px-8 lg:py-10"
       >
         <div className="mb-7 max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
@@ -236,7 +236,7 @@ export default function Index() {
 
       <section
         id="process"
-        className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10"
+        className="mx-auto max-w-[90rem] px-4 py-7 sm:px-6 lg:px-8 lg:py-10"
       >
         <div className="mb-7 max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
@@ -281,7 +281,7 @@ export default function Index() {
 
       <section
         id="trust"
-        className="mx-auto max-w-7xl px-5 py-7 lg:px-8 lg:py-10"
+        className="mx-auto max-w-[90rem] px-4 py-7 sm:px-6 lg:px-8 lg:py-10"
       >
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-[1.85rem] border border-[var(--border)] bg-[color:var(--surface)/0.92] p-6 shadow-xl shadow-[color:var(--shadow-soft)]">
@@ -329,7 +329,7 @@ export default function Index() {
 
       <section
         id="faq"
-        className="mx-auto max-w-7xl px-5 py-8 lg:px-8 lg:py-12"
+        className="mx-auto max-w-[90rem] px-4 py-8 sm:px-6 lg:px-8 lg:py-12"
       >
         <div className="rounded-[2rem] border border-[var(--border)] bg-[color:var(--surface)/0.95] p-6 shadow-xl shadow-[color:var(--shadow-soft)] lg:p-7">
           <div className="grid gap-7 lg:grid-cols-[1fr_0.9fr]">

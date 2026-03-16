@@ -24,7 +24,7 @@ export function Screen({
   return (
     <ScrollView
       className={`flex-1 bg-background-0 ${className}`.trim()}
-      contentContainerClassName={`min-h-full px-6 py-10 pb-16 ${contentContainerClassName}`.trim()}
+      contentContainerClassName={`min-h-full px-4 py-8 pb-14 sm:px-6 sm:py-10 sm:pb-16 lg:px-8 ${contentContainerClassName}`.trim()}
       showsVerticalScrollIndicator={showsVerticalScrollIndicator}
       testID={testID}
       {...props}
@@ -38,7 +38,7 @@ export function ScreenContent({
 }: ViewProps): React.ReactElement {
   return (
     <View
-      className={`mx-auto w-full max-w-4xl gap-6 ${className}`.trim()}
+      className={`mx-auto w-full max-w-6xl gap-6 ${className}`.trim()}
       {...props}
     />
   );

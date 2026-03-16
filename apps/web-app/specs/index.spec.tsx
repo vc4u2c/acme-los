@@ -8,9 +8,15 @@ jest.mock('next/navigation', () => ({
   }),
 }));
 
+jest.mock('next/link', () => {
+  return function MockLink({ children, href }) {
+    return React.createElement('a', { href }, children);
+  };
+});
+
 describe('Page', () => {
   it('should render successfully', () => {
-    const { baseElement } = render(<Page />);
+    const { baseElement } = render(React.createElement(Page));
     expect(baseElement).toBeTruthy();
   });
 });

@@ -64,14 +64,14 @@ export function MobileShowcaseScreen({
               cleanly here before we reuse them across feature screens.
             </ScreenDescription>
             <ScreenGrid>
-              <View className="min-w-[220px] flex-1 gap-2 rounded-2xl border border-outline-200 bg-background-0 p-4">
+              <View className="flex-1 gap-2 rounded-2xl border border-outline-200 bg-background-0 p-4 md:min-w-[260px]">
                 <ScreenEyebrow>Surface</ScreenEyebrow>
                 <ScreenDescription className="text-sm leading-6">
                   Rounded cards and section spacing should feel deliberate, not
                   improvised.
                 </ScreenDescription>
               </View>
-              <View className="min-w-[220px] flex-1 gap-2 rounded-2xl border border-outline-200 bg-background-0 p-4">
+              <View className="flex-1 gap-2 rounded-2xl border border-outline-200 bg-background-0 p-4 md:min-w-[260px]">
                 <ScreenEyebrow>Content</ScreenEyebrow>
                 <ScreenDescription className="text-sm leading-6">
                   Form inputs and status markers should read clearly at a
