@@ -18,7 +18,7 @@ export const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-[12rem] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 text-[var(--foreground)] shadow-md shadow-[color:var(--shadow-soft)]',
+        'z-50 min-w-[12rem] overflow-hidden rounded-[1.25rem] border border-[var(--overlay-border)] bg-[var(--overlay-surface)] p-1.5 text-[var(--foreground)] shadow-[0_22px_48px_var(--shadow-soft)]',
         className,
       )}
       {...props}
@@ -34,7 +34,10 @@ export const DropdownMenuLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Label
     ref={ref}
-    className={cn('px-2 py-1.5 text-sm font-semibold', className)}
+    className={cn(
+      'px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)]',
+      className,
+    )}
     {...props}
   />
 ));
@@ -48,7 +51,7 @@ export const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-default select-none items-center rounded-md px-2 py-2 text-sm outline-none transition-colors focus:bg-[var(--surface-accent)] focus:text-[var(--foreground)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      'relative flex cursor-pointer select-none items-center rounded-[1rem] px-3 py-3 text-sm text-[var(--foreground)] outline-none transition-colors data-[highlighted]:bg-[var(--overlay-surface-strong)] data-[highlighted]:text-[var(--foreground)] focus:bg-[var(--overlay-surface-strong)] focus:text-[var(--foreground)] data-[disabled]:pointer-events-none data-[disabled]:cursor-default data-[disabled]:opacity-50',
       className,
     )}
     {...props}
@@ -63,7 +66,7 @@ export const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Separator
     ref={ref}
-    className={cn('-mx-1 my-1 h-px bg-[var(--border)]', className)}
+    className={cn('mx-3 my-1.5 h-px bg-[var(--overlay-border)]', className)}
     {...props}
   />
 ));

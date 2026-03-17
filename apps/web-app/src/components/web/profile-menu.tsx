@@ -83,46 +83,31 @@ export function ProfileMenu(): React.ReactElement {
 
       <DropdownMenuContent
         align="end"
-        className="w-72 max-w-[calc(100vw-1rem)] rounded-[1.25rem] border border-[var(--border-strong)] bg-[var(--surface-strong)] p-2 text-[var(--foreground)] shadow-2xl shadow-[color:var(--shadow-soft)] sm:w-[18rem]"
+        className="w-72 max-w-[calc(100vw-1rem)] sm:w-[18rem]"
       >
-        <DropdownMenuLabel className="px-2 py-1 text-[11px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
-          Account
-        </DropdownMenuLabel>
+        <DropdownMenuLabel>Account</DropdownMenuLabel>
         {accountLinks.map((item) => (
-          <DropdownMenuItem
-            key={item.href}
-            asChild
-            className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 hover:border-[var(--brand)] hover:bg-[var(--surface-accent)] focus:bg-[var(--surface-accent)]"
-          >
+          <DropdownMenuItem key={item.href} asChild className="px-3 py-2.5">
             <Link href={item.href}>
               <MenuCopy label={item.label} description={item.description} />
             </Link>
           </DropdownMenuItem>
         ))}
 
-        <DropdownMenuSeparator className="mx-1 my-2 bg-[var(--border)]" />
+        <DropdownMenuSeparator />
 
-        <DropdownMenuLabel className="px-2 py-1 text-[11px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
-          Support
-        </DropdownMenuLabel>
+        <DropdownMenuLabel>Support</DropdownMenuLabel>
         {supportLinks.map((item) => (
-          <DropdownMenuItem
-            key={item.href}
-            asChild
-            className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 hover:border-[var(--brand)] hover:bg-[var(--surface-accent)] focus:bg-[var(--surface-accent)]"
-          >
+          <DropdownMenuItem key={item.href} asChild className="px-3 py-2.5">
             <Link href={item.href}>
               <MenuCopy label={item.label} description={item.description} />
             </Link>
           </DropdownMenuItem>
         ))}
 
-        <DropdownMenuSeparator className="mx-1 my-2 bg-[var(--border)]" />
+        <DropdownMenuSeparator />
 
-        <DropdownMenuItem
-          onSelect={signOut}
-          className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 hover:border-[var(--brand)] hover:bg-[var(--surface-accent)] focus:bg-[var(--surface-accent)]"
-        >
+        <DropdownMenuItem onSelect={signOut} className="px-3 py-2.5">
           <MenuCopy
             label="Sign out"
             description="Clear the local customer session shell and return to home."

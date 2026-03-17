@@ -101,7 +101,7 @@ export function ApplicationStepPage({
 
   return (
     <main className="min-h-screen text-[var(--foreground)]">
-      <SiteHeader items={applyNavigationItems} />
+      <SiteHeader items={applyNavigationItems} variant="application" />
 
       <header className="border-b border-[var(--border)] bg-[color:var(--surface)/0.88] backdrop-blur-xl">
         <div className="site-shell py-4 lg:py-5">

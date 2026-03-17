@@ -205,7 +205,7 @@ export default function Index() {
           </p>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
           <article className="rounded-[1.9rem] border border-[var(--border)] bg-[color:var(--surface)/0.95] p-6 shadow-xl shadow-[color:var(--shadow-soft)] lg:p-7">
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
               Why us
@@ -250,7 +250,7 @@ export default function Index() {
             </div>
           </article>
 
-          <div className="grid gap-4">
+          <div className="grid gap-4 self-start">
             {[
               {
                 title: 'Timing is explained up front',
@@ -323,7 +323,7 @@ export default function Index() {
       </section>
 
       <section id="trust" className="site-shell py-7 lg:py-10">
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+        <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:items-start">
           <div className="rounded-[1.85rem] border border-[var(--border)] bg-[color:var(--surface)/0.92] p-6 shadow-xl shadow-[color:var(--shadow-soft)]">
             <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
               Trust and clarity
@@ -350,7 +350,7 @@ export default function Index() {
             </Alert>
           </div>
 
-          <div className="grid gap-4">
+          <div className="grid gap-4 self-start">
             {[
               'Contact and address before bank account details',
               'Disclosures before soft-review consent',

@@ -119,9 +119,4 @@ export const stepFieldNames: Record<
   funding: ['fundingMethod', 'deliveryDestination', 'finalAuthorization'],
 };
 
-export const applyNavigationItems = [
-  { href: '/apply/personal-info', label: 'Application' },
-  { href: '/rates-terms', label: 'Rates' },
-  { href: '/support/contact', label: 'Support' },
-  { href: '/showcase', label: 'Showcase' },
-];
+export const applyNavigationItems = [];
