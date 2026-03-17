@@ -15,11 +15,16 @@ import {
 } from '@acme-los/ui-web';
 import { SiteHeader } from '../components/web/site-header';
 import { applicationSteps } from '../components/web/apply/step-definitions';
+import {
+  PreapprovalFeatureCard,
+  preapprovalGraphics,
+} from '../components/web/preapproval-graphics';
 
 export const dynamic = 'force-static';
 
 const navigationItems = [
   { href: '#why-us', label: 'Why us' },
+  { href: '#preapproval', label: 'Preapproval' },
   { href: '#process', label: 'Process' },
   { href: '#trust', label: 'Trust' },
   { href: '#faq', label: 'FAQ' },
@@ -30,7 +35,7 @@ export default function Index() {
     <main className="min-h-screen text-[var(--foreground)]">
       <SiteHeader items={navigationItems} />
 
-      <section className="mx-auto max-w-[90rem] px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
+      <section className="site-shell py-8 lg:py-12">
         <div className="grid gap-8 lg:grid-cols-[1.06fr_0.94fr] lg:items-start xl:gap-10">
           <div className="space-y-8">
             <div className="space-y-5">
@@ -141,10 +146,51 @@ export default function Index() {
         </div>
       </section>
 
-      <section
-        id="why-us"
-        className="mx-auto max-w-[90rem] px-4 py-7 sm:px-6 lg:px-8 lg:py-10"
-      >
+      <section id="preapproval" className="site-shell py-6 lg:py-8">
+        <div className="grid gap-6 rounded-[2rem] border border-[var(--border)] bg-[color:var(--surface)/0.96] p-6 shadow-xl shadow-[color:var(--shadow-soft)] lg:grid-cols-[0.92fr_1.08fr] lg:p-7">
+          <div className="space-y-4">
+            <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
+              Preapproval, lightning fast
+            </p>
+            <h2 className="max-w-2xl font-display text-4xl leading-tight text-[var(--foreground)] lg:text-5xl">
+              Give customers a quick read on what comes next.
+            </h2>
+            <p className="max-w-2xl text-lg leading-8 text-[var(--muted-foreground)]">
+              Make the soft-review step feel fast, understandable, and worth
+              continuing. The handoff into documents, signing, and funding
+              should feel visible before the application asks for more trust.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {[
+                'Soft review first',
+                'No hard pull surprise',
+                'Clear next step',
+              ].map((item) => (
+                <span
+                  key={item}
+                  className="rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-3 py-1.5 text-sm font-medium text-[var(--foreground)]"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-3">
+            {preapprovalGraphics.map((item) => (
+              <PreapprovalFeatureCard
+                key={item.title}
+                title={item.title}
+                copy={item.copy}
+              >
+                {item.visual}
+              </PreapprovalFeatureCard>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="why-us" className="site-shell py-7 lg:py-10">
         <div className="mb-7 max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
             Why customers choose us
@@ -234,10 +280,7 @@ export default function Index() {
         </div>
       </section>
 
-      <section
-        id="process"
-        className="mx-auto max-w-[90rem] px-4 py-7 sm:px-6 lg:px-8 lg:py-10"
-      >
+      <section id="process" className="site-shell py-7 lg:py-10">
         <div className="mb-7 max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
             Process preview
@@ -259,7 +302,7 @@ export default function Index() {
               className="rounded-[1.65rem] border border-[var(--border)] bg-[color:var(--surface)/0.94] p-5 shadow-lg shadow-[color:var(--shadow-soft)]"
             >
               <div className="flex items-start gap-4">
-                <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[var(--surface-accent)] font-semibold text-[var(--brand)]">
+                <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface-strong)] font-semibold text-[var(--brand)] shadow-sm">
                   {index + 1}
                 </div>
                 <div>
@@ -279,10 +322,7 @@ export default function Index() {
         </div>
       </section>
 
-      <section
-        id="trust"
-        className="mx-auto max-w-[90rem] px-4 py-7 sm:px-6 lg:px-8 lg:py-10"
-      >
+      <section id="trust" className="site-shell py-7 lg:py-10">
         <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-[1.85rem] border border-[var(--border)] bg-[color:var(--surface)/0.92] p-6 shadow-xl shadow-[color:var(--shadow-soft)]">
             <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
@@ -327,10 +367,7 @@ export default function Index() {
         </div>
       </section>
 
-      <section
-        id="faq"
-        className="mx-auto max-w-[90rem] px-4 py-8 sm:px-6 lg:px-8 lg:py-12"
-      >
+      <section id="faq" className="site-shell py-8 lg:py-12">
         <div className="rounded-[2rem] border border-[var(--border)] bg-[color:var(--surface)/0.95] p-6 shadow-xl shadow-[color:var(--shadow-soft)] lg:p-7">
           <div className="grid gap-7 lg:grid-cols-[1fr_0.9fr]">
             <div>

@@ -16,7 +16,7 @@ export const AccordionItem = React.forwardRef<
     <details
       ref={ref}
       className={cn(
-        'group rounded-xl border border-slate-200 bg-white shadow-sm',
+        'group rounded-xl border border-[var(--border)] bg-[var(--surface)] shadow-sm shadow-[color:var(--shadow-soft)]',
         className,
       )}
       {...props}
@@ -34,7 +34,7 @@ export const AccordionTrigger = React.forwardRef<
     <summary
       ref={ref}
       className={cn(
-        'flex list-none cursor-pointer items-center justify-between gap-4 px-4 py-4 text-left font-semibold text-slate-950 marker:hidden',
+        'flex list-none cursor-pointer items-center justify-between gap-4 px-4 py-4 text-left font-semibold text-[var(--foreground)] marker:hidden',
         className,
       )}
       {...props}
@@ -43,7 +43,7 @@ export const AccordionTrigger = React.forwardRef<
       <svg
         aria-hidden="true"
         viewBox="0 0 24 24"
-        className="h-4 w-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180"
+        className="h-4 w-4 shrink-0 text-[var(--muted-foreground)] transition-transform group-open:rotate-180"
         fill="none"
         stroke="currentColor"
         strokeLinecap="round"
@@ -62,5 +62,13 @@ export function AccordionContent({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>): React.ReactElement {
-  return <div className={cn('px-4 pb-4 text-sm leading-7 text-slate-600', className)} {...props} />;
+  return (
+    <div
+      className={cn(
+        'px-4 pb-4 text-sm leading-7 text-[var(--muted-foreground)]',
+        className,
+      )}
+      {...props}
+    />
+  );
 }

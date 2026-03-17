@@ -1,5 +1,7 @@
 const { version } = require('./package.json');
 
+process.env.EXPO_PUBLIC_APP_VERSION ??= version;
+
 /** @type {import('expo/config').ExpoConfig} */
 module.exports = {
   expo: {

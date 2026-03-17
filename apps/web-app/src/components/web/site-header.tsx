@@ -37,7 +37,7 @@ export function SiteHeader({
     <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[color:var(--surface)/0.9] backdrop-blur-xl">
       <SiteAlertStrip />
       <div className="hidden border-b border-[var(--border)] bg-[color:var(--surface-strong)/0.88] md:block">
-        <div className="mx-auto flex max-w-[90rem] items-center justify-between gap-4 px-4 py-2.5 text-xs sm:px-6 lg:px-8">
+        <div className="site-shell flex items-center justify-between gap-4 py-2.5 text-xs">
           <div className="flex items-center gap-4 text-[var(--muted-foreground)]">
             <span className="font-semibold uppercase tracking-[0.22em] text-[var(--brand)]">
               Customer support
@@ -67,10 +67,10 @@ export function SiteHeader({
         </div>
       </div>
 
-      <div className="mx-auto flex max-w-[90rem] items-center justify-between gap-3 px-4 py-2.5 sm:px-6 sm:py-4 lg:px-8">
+      <div className="site-shell flex items-center justify-between gap-3 py-2.5 sm:py-4">
         <Link href="/" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[1.1rem] bg-[var(--brand)] text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)] sm:h-11 sm:w-11">
-            <AcmeMarkIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+          <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[1rem] bg-[var(--brand)] text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)] sm:h-10 sm:w-10">
+            <AcmeMarkIcon className="h-4.5 w-4.5 sm:h-5.5 sm:w-5.5" />
           </span>
           <span className="min-w-0">
             <span className="font-display text-base leading-none text-[var(--foreground)] sm:hidden">
@@ -148,6 +148,9 @@ export function SiteHeader({
                 </div>
 
                 <div className="space-y-3">
+                  <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+                    Explore
+                  </p>
                   {items.map((item) => (
                     <Link
                       key={item.href}
@@ -160,6 +163,9 @@ export function SiteHeader({
                 </div>
 
                 <div className="space-y-3">
+                  <p className="px-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+                    Support and legal
+                  </p>
                   {utilityLinks.map((item) => (
                     <Link
                       key={item.href}

@@ -14,6 +14,12 @@
     "release:dry-run": "nx release --dry-run --skip-publish"
   },
   "private": true,
+  "overrides": {
+    "koa": "^3.1.2",
+    "patch-package": "^8.0.1",
+    "serialize-javascript": "^7.0.4",
+    "tmp": "^0.2.5"
+  },
   "lint-staged": {
     "**/*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}": [
       "eslint --fix --max-warnings=0",
@@ -41,9 +47,7 @@
     "@nx/workspace": "22.5.4",
     "@playwright/test": "^1.36.0",
     "@swc-node/register": "~1.11.1",
-    "@swc/cli": "~0.8.0",
     "@swc/core": "~1.15.5",
-    "@swc/helpers": "~0.5.18",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@testing-library/react-native": "~13.3.3",

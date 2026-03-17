@@ -38,7 +38,7 @@ export default function ShowcasePage() {
   return (
     <main className="min-h-screen text-[var(--foreground)]">
       <SiteHeader items={navigationItems} />
-      <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
+      <section className="site-shell py-12">
         <div className="mb-8">
           <Link
             href="/"

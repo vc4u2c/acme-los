@@ -7,9 +7,12 @@ const alertVariants = cva(
   {
     variants: {
       variant: {
-        default: 'border-slate-200 bg-white text-slate-950',
-        muted: 'border-slate-200 bg-slate-50 text-slate-950',
-        accent: 'border-amber-300 bg-amber-50 text-slate-950',
+        default:
+          'border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]',
+        muted:
+          'border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground)]',
+        accent:
+          'border-[var(--accent)] bg-[var(--surface-spot)] text-[var(--foreground)]',
       },
     },
     defaultVariants: {
@@ -19,7 +22,8 @@ const alertVariants = cva(
 );
 
 export interface AlertProps
-  extends React.HTMLAttributes<HTMLDivElement>,
+  extends
+    React.HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof alertVariants> {}
 
 export function Alert({
@@ -27,19 +31,38 @@ export function Alert({
   variant,
   ...props
 }: AlertProps): React.ReactElement {
-  return <div role="alert" className={cn(alertVariants({ variant }), className)} {...props} />;
+  return (
+    <div
+      role="alert"
+      className={cn(alertVariants({ variant }), className)}
+      {...props}
+    />
+  );
 }
 
 export function AlertTitle({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>): React.ReactElement {
-  return <div className={cn('font-semibold leading-none tracking-tight', className)} {...props} />;
+  return (
+    <div
+      className={cn('font-semibold leading-none tracking-tight', className)}
+      {...props}
+    />
+  );
 }
 
 export function AlertDescription({
   className,
   ...props
 }: React.HTMLAttributes<HTMLDivElement>): React.ReactElement {
-  return <div className={cn('mt-2 text-sm leading-6 text-slate-600', className)} {...props} />;
+  return (
+    <div
+      className={cn(
+        'mt-2 text-sm leading-6 text-[var(--muted-foreground)]',
+        className,
+      )}
+      {...props}
+    />
+  );
 }

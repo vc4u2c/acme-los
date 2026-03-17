@@ -80,6 +80,38 @@
   },
   "release": {
     "projectsRelationship": "independent",
+    "conventionalCommits": {
+      "types": {
+        "perf": {
+          "semverBump": "patch",
+          "changelog": {
+            "hidden": false,
+            "title": "Performance"
+          }
+        },
+        "refactor": {
+          "semverBump": "patch",
+          "changelog": {
+            "hidden": false,
+            "title": "Refactors"
+          }
+        },
+        "build": {
+          "semverBump": "patch",
+          "changelog": {
+            "hidden": false,
+            "title": "Build"
+          }
+        },
+        "chore": {
+          "semverBump": "patch",
+          "changelog": {
+            "hidden": false,
+            "title": "Maintenance"
+          }
+        }
+      }
+    },
     "git": {
       "stageChanges": true,
       "commit": true,

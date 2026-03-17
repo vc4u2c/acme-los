@@ -1,5 +1,12 @@
 import Link from 'next/link';
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from '@acme-los/ui-web';
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input,
+} from '@acme-los/ui-web';
 import { SiteHeader } from '../../../components/web/site-header';
 
 const navigationItems = [
@@ -9,10 +16,13 @@ const navigationItems = [
 ];
 
 export default function SignInPage() {
+  const emailId = 'sign-in-email';
+  const passwordId = 'sign-in-password';
+
   return (
     <main className="min-h-screen text-[var(--foreground)]">
       <SiteHeader items={navigationItems} />
-      <section className="mx-auto max-w-6xl px-5 py-10 lg:px-8 lg:py-14">
+      <section className="site-shell py-10 lg:py-14">
         <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
           <Card className="rounded-[2rem] border-[var(--border)] bg-[color:var(--surface)/0.96] text-[var(--foreground)] shadow-2xl shadow-[color:var(--shadow-soft)]">
             <CardHeader>
@@ -29,16 +39,30 @@ export default function SignInPage() {
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="space-y-2">
-                <label className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
+                <label
+                  htmlFor={emailId}
+                  className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
+                >
                   Email
                 </label>
-                <Input className="h-12 rounded-2xl border-[var(--border)] bg-[var(--surface-strong)] px-4 text-[var(--foreground)]" />
+                <Input
+                  id={emailId}
+                  type="email"
+                  className="h-12 rounded-2xl border-[var(--border)] bg-[var(--surface-strong)] px-4 text-[var(--foreground)]"
+                />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
+                <label
+                  htmlFor={passwordId}
+                  className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
+                >
                   Password
                 </label>
-                <Input type="password" className="h-12 rounded-2xl border-[var(--border)] bg-[var(--surface-strong)] px-4 text-[var(--foreground)]" />
+                <Input
+                  id={passwordId}
+                  type="password"
+                  className="h-12 rounded-2xl border-[var(--border)] bg-[var(--surface-strong)] px-4 text-[var(--foreground)]"
+                />
               </div>
               <Button className="w-full rounded-full bg-[var(--brand)] text-[var(--brand-contrast)] hover:bg-[var(--brand-strong)]">
                 Sign in
@@ -59,8 +83,14 @@ export default function SignInPage() {
               </CardHeader>
               <CardContent className="space-y-3 text-base leading-8 text-[var(--muted-foreground)]">
                 <p>Resume the seven-step application without losing context.</p>
-                <p>Review documents, disclosures, and funding status in one place.</p>
-                <p>Keep identity and support actions separate from the main CTA flow.</p>
+                <p>
+                  Review documents, disclosures, and funding status in one
+                  place.
+                </p>
+                <p>
+                  Keep identity and support actions separate from the main CTA
+                  flow.
+                </p>
               </CardContent>
             </Card>
 
