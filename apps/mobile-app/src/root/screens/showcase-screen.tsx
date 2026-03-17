@@ -27,7 +27,7 @@ import {
   TextareaInput,
 } from '@acme-los/ui-mobile';
 
-export function MobileShowcaseScreen({
+export function ShowcaseScreen({
   mobileAppVersion,
 }: {
   mobileAppVersion: string;

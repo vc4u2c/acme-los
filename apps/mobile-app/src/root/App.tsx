@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import * as React from 'react';
 import {
+  DefaultTheme,
   DarkTheme,
   NavigationContainer,
   type Theme,
@@ -9,37 +10,54 @@ import {
   createNativeStackNavigator,
   type NativeStackScreenProps,
 } from '@react-navigation/native-stack';
+import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GluestackUIProvider } from '@acme-los/ui-mobile';
 import { mobileAppRelease } from '../lib/app-release';
-import { MobileHomeScreen } from './screens/mobile-home-screen';
-import { MobileShowcaseScreen } from './screens/mobile-showcase-screen';
+import { DashboardScreen } from './screens/dashboard-screen';
+import { ShowcaseScreen } from './screens/showcase-screen';
 
 type RootStackParamList = {
-  home: undefined;
+  dashboard: undefined;
   showcase: undefined;
 };
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
-const navigationTheme: Theme = {
-  ...DarkTheme,
+const lightNavigationTheme: Theme = {
+  ...DefaultTheme,
   colors: {
-    ...DarkTheme.colors,
-    background: '#0B1220',
-    border: '#253247',
-    card: '#111A2B',
-    notification: '#469EDA',
-    primary: '#72B6E6',
-    text: '#FEFEFF',
+    ...DefaultTheme.colors,
+    background: '#FCFAF6',
+    border: '#C7D3C8',
+    card: '#F4F6F1',
+    notification: '#D6B05F',
+    primary: '#116243',
+    text: '#17312A',
   },
 };
 
-function HomeRoute({
+const darkNavigationTheme: Theme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: '#101B19',
+    border: '#2A423D',
+    card: '#142321',
+    notification: '#D4AE60',
+    primary: '#46A67A',
+    text: '#F4EFE6',
+  },
+};
+
+function DashboardRoute({
   navigation,
-}: NativeStackScreenProps<RootStackParamList, 'home'>): React.ReactElement {
+}: NativeStackScreenProps<
+  RootStackParamList,
+  'dashboard'
+>): React.ReactElement {
   return (
-    <MobileHomeScreen
+    <DashboardScreen
       mobileAppVersion={mobileAppRelease.version}
       onOpenShowcase={() => navigation.navigate('showcase')}
     />
@@ -47,33 +65,40 @@ function HomeRoute({
 }
 
 function ShowcaseRoute(): React.ReactElement {
-  return <MobileShowcaseScreen mobileAppVersion={mobileAppRelease.version} />;
+  return <ShowcaseScreen mobileAppVersion={mobileAppRelease.version} />;
 }
 
 export const App = () => {
+  const colorScheme = useColorScheme();
+  const mode = colorScheme === 'dark' ? 'dark' : 'light';
+  const navigationTheme =
+    mode === 'dark' ? darkNavigationTheme : lightNavigationTheme;
+
   return (
     <SafeAreaProvider>
-      <GluestackUIProvider mode="dark">
+      <GluestackUIProvider mode={mode}>
         <NavigationContainer theme={navigationTheme}>
-          <StatusBar style="light" />
+          <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
           <Stack.Navigator
-            initialRouteName="home"
+            initialRouteName="dashboard"
             screenOptions={{
               animation: 'slide_from_right',
-              contentStyle: { backgroundColor: '#0B1220' },
+              contentStyle: {
+                backgroundColor: navigationTheme.colors.background,
+              },
               headerShadowVisible: false,
-              headerStyle: { backgroundColor: '#111A2B' },
-              headerTintColor: '#FEFEFF',
+              headerStyle: { backgroundColor: navigationTheme.colors.card },
+              headerTintColor: navigationTheme.colors.text,
               headerTitleStyle: {
-                color: '#FEFEFF',
+                color: navigationTheme.colors.text,
                 fontSize: 18,
                 fontWeight: '600',
               },
             }}
           >
             <Stack.Screen
-              name="home"
-              component={HomeRoute}
+              name="dashboard"
+              component={DashboardRoute}
               options={{ headerShown: false }}
             />
             <Stack.Screen
@@ -81,7 +106,7 @@ export const App = () => {
               component={ShowcaseRoute}
               options={{
                 headerBackButtonDisplayMode: 'minimal',
-                title: 'Mobile Showcase',
+                title: 'Showcase',
               }}
             />
           </Stack.Navigator>
