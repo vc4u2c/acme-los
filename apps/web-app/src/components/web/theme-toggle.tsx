@@ -36,7 +36,7 @@ export function ThemeToggle(): React.ReactElement {
       role="switch"
       aria-checked={isDark}
       onClick={toggleTheme}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] shadow-sm transition hover:border-[var(--brand)] hover:bg-[var(--surface-strong)] sm:h-10 sm:w-10"
+      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] shadow-sm transition hover:border-[var(--brand)] hover:bg-[var(--surface-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] sm:h-10 sm:w-10"
       aria-label={`Switch to ${isDark ? 'light' : 'dark'} theme`}
     >
       <span

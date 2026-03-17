@@ -6,6 +6,8 @@ test('shows the mobile showcase primitives', async ({ page }) => {
   await page.goto('/');
 
   await expect(page.getByText(/Welcome mobile-app/i)).toBeVisible();
+  await expect(page.getByText(/Mobile app v\d+\.\d+\.\d+/i)).toBeVisible();
+  await expect(page.getByText(/Mobile app v0\.0\.0/i)).toHaveCount(0);
   await expect(page.getByText(/Open mobile showcase/i)).toHaveCSS(
     'color',
     showcaseFieldColor,

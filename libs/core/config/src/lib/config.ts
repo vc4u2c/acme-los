@@ -14,8 +14,8 @@ export interface AppReleaseInfo {
 }
 
 const releaseTargetNames: Record<AppReleaseTarget, string> = {
-  web: 'Web app',
-  mobile: 'Mobile app',
+  web: 'Web App',
+  mobile: 'Mobile App',
 };
 
 export function getDefaultRuntimeConfig(): AppRuntimeConfig {

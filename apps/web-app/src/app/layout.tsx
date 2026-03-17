@@ -33,11 +33,25 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning data-theme="light">
+    <html
+      lang="en"
+      suppressHydrationWarning
+      data-theme="light"
+      data-scroll-behavior="smooth"
+    >
       <body className="min-h-screen">
         <ThemeScript />
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
         <div className="flex min-h-screen flex-col">
-          <div className="flex-1">{children}</div>
+          <div
+            id="main-content"
+            tabIndex={-1}
+            className="flex-1 focus:outline-none"
+          >
+            {children}
+          </div>
           <SiteFooter />
         </div>
       </body>

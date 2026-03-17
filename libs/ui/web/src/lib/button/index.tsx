@@ -4,15 +4,18 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        default: 'bg-slate-900 text-slate-50 hover:bg-slate-800',
-        secondary: 'bg-slate-100 text-slate-900 hover:bg-slate-200',
+        default:
+          'bg-[var(--brand)] text-[var(--brand-contrast)] hover:bg-[var(--brand-strong)]',
+        secondary:
+          'bg-[var(--surface-strong)] text-[var(--foreground)] hover:bg-[var(--surface-accent)]',
         outline:
-          'border border-slate-300 bg-transparent text-slate-900 hover:bg-slate-100',
-        ghost: 'bg-transparent text-slate-900 hover:bg-slate-100',
+          'border border-[var(--border-strong)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-accent)]',
+        ghost:
+          'bg-transparent text-[var(--foreground)] hover:bg-[var(--surface-accent)]',
       },
       size: {
         default: 'h-10 px-4 py-2',
@@ -28,7 +31,8 @@ const buttonVariants = cva(
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
   children: React.ReactNode;

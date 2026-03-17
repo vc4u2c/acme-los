@@ -27,7 +27,7 @@ export function ContentPageShell({
   return (
     <main className="min-h-screen text-[var(--foreground)]">
       <SiteHeader items={navigationItems} />
-      <section className="mx-auto max-w-6xl px-5 py-10 lg:px-8 lg:py-14">
+      <section className="site-shell py-10 lg:py-14">
         <div className="mb-8">
           <Link
             href="/"

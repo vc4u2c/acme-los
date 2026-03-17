@@ -104,7 +104,7 @@ export function ApplicationStepPage({
       <SiteHeader items={applyNavigationItems} />
 
       <header className="border-b border-[var(--border)] bg-[color:var(--surface)/0.88] backdrop-blur-xl">
-        <div className="mx-auto max-w-7xl px-5 py-4 lg:px-8 lg:py-5">
+        <div className="site-shell py-4 lg:py-5">
           <div className="space-y-4">
             <Link
               href="/"
@@ -128,6 +128,7 @@ export function ApplicationStepPage({
           <Progress
             value={progressValue}
             max={applicationSteps.length}
+            aria-label={`Application progress: step ${stepIndex + 1} of ${applicationSteps.length}`}
             className="mt-6 bg-[var(--surface-accent)]"
             indicatorClassName="bg-[var(--brand)]"
           />
@@ -159,7 +160,7 @@ export function ApplicationStepPage({
         </div>
       </header>
 
-      <section className="mx-auto grid max-w-7xl gap-7 px-5 py-7 lg:grid-cols-[1.08fr_0.92fr] lg:px-8 lg:py-9">
+      <section className="site-shell grid gap-7 py-7 lg:grid-cols-[1.08fr_0.92fr] lg:py-9">
         <Card className="overflow-hidden rounded-[2rem] border-[var(--border)] bg-[color:var(--surface)/0.96] text-[var(--foreground)] shadow-2xl shadow-[color:var(--shadow-soft)]">
           <CardHeader className="border-b border-[var(--border)] bg-[var(--surface-accent)]">
             <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">

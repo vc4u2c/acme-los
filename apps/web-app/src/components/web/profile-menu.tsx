@@ -49,7 +49,9 @@ function MenuCopy({
   return (
     <div className="space-y-0.5">
       <p className="text-sm font-semibold text-[var(--foreground)]">{label}</p>
-      <p className="text-xs leading-5 text-[var(--muted-foreground)]">{description}</p>
+      <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+        {description}
+      </p>
     </div>
   );
 }
@@ -70,7 +72,7 @@ export function ProfileMenu(): React.ReactElement {
         <button
           type="button"
           aria-label="Open profile menu"
-          className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 shadow-sm transition hover:border-[var(--brand)] hover:bg-[var(--surface-strong)] sm:h-10 sm:px-3"
+          className="inline-flex h-9 items-center gap-1.5 rounded-full border border-[var(--border-strong)] bg-[var(--surface)] px-2.5 shadow-sm transition hover:border-[var(--brand)] hover:bg-[var(--surface-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] sm:h-10 sm:px-3"
         >
           <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--surface-accent)] text-[var(--brand)] sm:h-7 sm:w-7">
             <UserCircleIcon className="h-4 w-4" />
@@ -81,7 +83,7 @@ export function ProfileMenu(): React.ReactElement {
 
       <DropdownMenuContent
         align="end"
-        className="w-72 max-w-[calc(100vw-1rem)] rounded-[1.25rem] border-[var(--border)] bg-[color:var(--surface)/0.98] p-2 text-[var(--foreground)] shadow-2xl shadow-[color:var(--shadow-soft)] backdrop-blur-xl sm:w-[18rem]"
+        className="w-72 max-w-[calc(100vw-1rem)] rounded-[1.25rem] border border-[var(--border-strong)] bg-[var(--surface-strong)] p-2 text-[var(--foreground)] shadow-2xl shadow-[color:var(--shadow-soft)] sm:w-[18rem]"
       >
         <DropdownMenuLabel className="px-2 py-1 text-[11px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
           Account
@@ -90,7 +92,7 @@ export function ProfileMenu(): React.ReactElement {
           <DropdownMenuItem
             key={item.href}
             asChild
-            className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-strong)] px-3 py-2.5 hover:border-[var(--brand)] focus:bg-[var(--surface-accent)]"
+            className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 hover:border-[var(--brand)] hover:bg-[var(--surface-accent)] focus:bg-[var(--surface-accent)]"
           >
             <Link href={item.href}>
               <MenuCopy label={item.label} description={item.description} />
@@ -107,7 +109,7 @@ export function ProfileMenu(): React.ReactElement {
           <DropdownMenuItem
             key={item.href}
             asChild
-            className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-strong)] px-3 py-2.5 hover:border-[var(--brand)] focus:bg-[var(--surface-accent)]"
+            className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 hover:border-[var(--brand)] hover:bg-[var(--surface-accent)] focus:bg-[var(--surface-accent)]"
           >
             <Link href={item.href}>
               <MenuCopy label={item.label} description={item.description} />
@@ -119,7 +121,7 @@ export function ProfileMenu(): React.ReactElement {
 
         <DropdownMenuItem
           onSelect={signOut}
-          className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface-strong)] px-3 py-2.5 hover:border-[var(--brand)] focus:bg-[var(--surface-accent)]"
+          className="rounded-[1rem] border border-[var(--border)] bg-[var(--surface)] px-3 py-2.5 hover:border-[var(--brand)] hover:bg-[var(--surface-accent)] focus:bg-[var(--surface-accent)]"
         >
           <MenuCopy
             label="Sign out"

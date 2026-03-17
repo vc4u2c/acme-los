@@ -24,11 +24,17 @@ export function Progress({
       aria-valuemax={safeMax}
       aria-valuemin={0}
       aria-valuenow={clamped}
-      className={cn('h-2 w-full overflow-hidden rounded-full bg-slate-100', className)}
+      className={cn(
+        'h-2 w-full overflow-hidden rounded-full bg-[var(--surface-accent)]',
+        className,
+      )}
       {...props}
     >
       <div
-        className={cn('h-full rounded-full bg-slate-900 transition-all', indicatorClassName)}
+        className={cn(
+          'h-full rounded-full bg-[var(--brand)] transition-all',
+          indicatorClassName,
+        )}
         style={{ width: `${percentage}%` }}
       />
     </div>

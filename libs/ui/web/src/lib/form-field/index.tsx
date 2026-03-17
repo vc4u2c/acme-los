@@ -15,7 +15,7 @@ export function FormLabel({
   return (
     <label
       className={cn(
-        'text-sm font-semibold uppercase tracking-[0.22em] text-slate-600',
+        'text-sm font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]',
         className,
       )}
       {...props}
@@ -27,12 +27,25 @@ export function FormHint({
   className,
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>): React.ReactElement {
-  return <p className={cn('text-sm leading-6 text-slate-600', className)} {...props} />;
+  return (
+    <p
+      className={cn(
+        'text-sm leading-6 text-[var(--muted-foreground)]',
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 export function FormError({
   className,
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement>): React.ReactElement {
-  return <p className={cn('text-sm font-medium text-red-700', className)} {...props} />;
+  return (
+    <p
+      className={cn('text-sm font-medium text-[var(--critical)]', className)}
+      {...props}
+    />
+  );
 }
