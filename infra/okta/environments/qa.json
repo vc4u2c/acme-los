@@ -1,0 +1,33 @@
+{
+  "environment": "qa",
+  "okta": {
+    "issuer": "https://qa-org.okta.com/oauth2/default",
+    "webClientId": "replace-with-qa-web-client-id",
+    "mobileClientId": "replace-with-qa-mobile-client-id",
+    "fundingStepUpAcrValues": "urn:okta:loa:2fa:any",
+    "hostedExperience": {
+      "rememberUser": true,
+      "keepMeSignedIn": true,
+      "registrationRequiresEmailVerification": true,
+      "registrationRequiresPhoneVerification": false,
+      "adaptiveMfaOnSignIn": true,
+      "fundingRouteStepUp": true
+    }
+  },
+  "web": {
+    "baseUrl": "https://qa.acme-los.dev",
+    "redirectPath": "/auth/callback",
+    "postLogoutRedirectPath": "/"
+  },
+  "mobile": {
+    "scheme": "mobile-app",
+    "redirectPath": "auth/callback"
+  },
+  "bff": {
+    "baseUrl": "https://qa-api.acme-los.dev",
+    "loginPath": "/bff/auth/login",
+    "callbackPath": "/bff/auth/callback",
+    "logoutPath": "/bff/auth/logout",
+    "sessionPath": "/bff/auth/session"
+  }
+}

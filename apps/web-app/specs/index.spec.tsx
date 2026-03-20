@@ -1,11 +1,15 @@
 import React from 'react';
 import { render } from '@testing-library/react';
 import Page from '../src/app/page';
+import { AppProviders } from '../src/components/web/providers/app-providers';
+
+process.env.NEXT_PUBLIC_AUTH_PROVIDER = 'mock';
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
     push: jest.fn(),
   }),
+  usePathname: () => '/',
 }));
 
 jest.mock('next/link', () => {
@@ -22,7 +26,9 @@ jest.mock('next/link', () => {
 
 describe('Page', () => {
   it('should render successfully', () => {
-    const { baseElement } = render(React.createElement(Page));
+    const { baseElement } = render(
+      React.createElement(AppProviders, null, React.createElement(Page)),
+    );
     expect(baseElement).toBeTruthy();
   });
 });

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import * as React from 'react';
 import {
   Button,
@@ -34,6 +35,7 @@ export function SiteHeader({
   items: NavItem[];
   variant?: 'default' | 'application';
 }): React.ReactElement {
+  const pathname = usePathname();
   const showMarketingNav = variant !== 'application';
 
   return (
@@ -98,7 +100,21 @@ export function SiteHeader({
               <Link
                 key={item.href}
                 href={item.href}
-                className="transition hover:text-[var(--foreground)]"
+                className={[
+                  'transition hover:text-[var(--foreground)]',
+                  item.href.startsWith('/') &&
+                  (pathname === item.href ||
+                    pathname.startsWith(`${item.href}/`))
+                    ? 'text-[var(--foreground)]'
+                    : '',
+                ].join(' ')}
+                aria-current={
+                  item.href.startsWith('/') &&
+                  (pathname === item.href ||
+                    pathname.startsWith(`${item.href}/`))
+                    ? 'page'
+                    : undefined
+                }
               >
                 {item.label}
               </Link>
@@ -165,7 +181,14 @@ export function SiteHeader({
                       <Link
                         key={item.href}
                         href={item.href}
-                        className="block rounded-2xl border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--brand)]"
+                        className={[
+                          'block rounded-2xl border px-4 py-3 text-sm font-medium transition',
+                          item.href.startsWith('/') &&
+                          (pathname === item.href ||
+                            pathname.startsWith(`${item.href}/`))
+                            ? 'border-[var(--brand)] bg-[var(--surface-accent)] text-[var(--foreground)]'
+                            : 'border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground)] hover:border-[var(--brand)]',
+                        ].join(' ')}
                       >
                         {item.label}
                       </Link>

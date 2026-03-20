@@ -5,9 +5,8 @@ import { AcmeMarkIcon } from './icons';
 
 const quickLinks = [
   { href: '/', label: 'Home' },
+  { href: '/apply/personal-info', label: 'Application' },
   { href: '/rendering-demo', label: 'Rendering demo' },
-  { href: '/account/sign-in', label: 'Sign in' },
-  { href: '/account/create-account', label: 'Create account' },
   { href: '/showcase', label: 'Showcase' },
 ];
 
@@ -112,7 +111,7 @@ export function SiteFooter(): React.ReactElement {
 
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
-              Account
+              Explore
             </p>
             <div className="mt-4 space-y-3">
               {quickLinks.map((link) => (
@@ -151,19 +150,17 @@ export function SiteFooter(): React.ReactElement {
           </div>
         </div>
 
-        <div className="mt-8 flex flex-col gap-3 border-t border-[var(--border)] pt-6 text-sm text-[var(--muted-foreground)] md:flex-row md:items-center md:justify-between">
-          <p>
-            Built for responsive intake, clearer disclosures, visible support,
-            and steadier conversion.
-          </p>
-          <div className="flex flex-col gap-1 text-left md:items-end md:text-right">
-            <div className="inline-flex w-fit self-start items-center rounded-full border border-[var(--accent)] bg-[var(--surface-spot)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-ink)] md:self-end">
-              {webAppRelease.versionBadgeLabel}
+        <div className="mt-8 rounded-[1.6rem] border border-[var(--border)] bg-[var(--surface-strong)] px-5 py-4 text-sm text-[var(--muted-foreground)] shadow-lg shadow-[color:var(--shadow-soft)] md:px-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
+            <div className="flex flex-col gap-1 text-left md:items-end md:text-right">
+              <div className="inline-flex w-fit self-start items-center rounded-full border border-[var(--accent)] bg-[var(--surface-spot)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-ink)] md:self-end">
+                {webAppRelease.versionBadgeLabel}
+              </div>
+              <p>
+                Copyright {new Date().getFullYear()} ACME LOS. All rights
+                reserved.
+              </p>
             </div>
-            <p>
-              Copyright {new Date().getFullYear()} ACME LOS. All rights
-              reserved.
-            </p>
           </div>
         </div>
       </div>
