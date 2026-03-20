@@ -1,11 +1,18 @@
 import Link from 'next/link';
-import { applicationSteps } from './apply/step-definitions';
+import {
+  Facebook,
+  Instagram,
+  Linkedin,
+  Youtube,
+  type LucideIcon,
+} from 'lucide-react';
 import { webAppRelease } from '../../lib/app-release';
 import { AcmeMarkIcon } from './icons';
 
 const quickLinks = [
   { href: '/', label: 'Home' },
   { href: '/apply/personal-info', label: 'Application' },
+  { href: '/account/profile', label: 'Customer dashboard' },
   { href: '/rendering-demo', label: 'Rendering demo' },
   { href: '/showcase', label: 'Showcase' },
 ];
@@ -16,6 +23,13 @@ const legalLinks = [
   { href: '/legal/terms', label: 'Terms of use' },
   { href: '/legal/accessibility', label: 'Accessibility' },
   { href: '/legal/licenses', label: 'State licenses' },
+];
+
+const socialChannels: Array<{ label: string; icon: LucideIcon }> = [
+  { label: 'LinkedIn', icon: Linkedin },
+  { label: 'Instagram', icon: Instagram },
+  { label: 'Facebook', icon: Facebook },
+  { label: 'YouTube', icon: Youtube },
 ];
 
 export function SiteFooter(): React.ReactElement {
@@ -73,8 +87,8 @@ export function SiteFooter(): React.ReactElement {
           </div>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[1.05fr_0.85fr_0.85fr_1fr]">
-          <div className="space-y-4">
+        <div className="grid gap-8 lg:grid-cols-[1.15fr_0.9fr_1fr]">
+          <div className="space-y-5">
             <div className="flex items-center gap-3">
               <span className="inline-flex h-11 w-11 items-center justify-center rounded-[1.1rem] bg-[var(--brand)] text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)]">
                 <AcmeMarkIcon className="h-6 w-6" />
@@ -86,26 +100,39 @@ export function SiteFooter(): React.ReactElement {
                 <p className="font-display text-2xl">Installment flow</p>
               </div>
             </div>
+
             <p className="max-w-xl text-base leading-8 text-[var(--muted-foreground)]">
-              A cleaner installment flow with visible support, clearer
-              disclosures, and steadier progress from first click through
+              A steadier lending experience with visible support, clearer
+              disclosures, and cleaner pacing from the first step through
               funding.
             </p>
-          </div>
 
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
-              Journey
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {applicationSteps.map((step, index) => (
-                <span
-                  key={step.slug}
-                  className="rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-3 py-2 text-sm font-medium text-[var(--foreground)]"
-                >
-                  {index + 1}. {step.shortLabel}
-                </span>
-              ))}
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
+                Stay connected
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2.5">
+                {socialChannels.map((channel) => {
+                  const Icon = channel.icon;
+
+                  return (
+                    <span
+                      key={channel.label}
+                      className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-3.5 py-2 text-sm font-medium text-[var(--foreground)] shadow-sm"
+                    >
+                      <Icon
+                        className="h-4 w-4 text-[var(--brand)]"
+                        aria-hidden="true"
+                      />
+                      {channel.label}
+                    </span>
+                  );
+                })}
+              </div>
+              <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
+                Follow product updates, customer education, and service notices
+                across our official channels.
+              </p>
             </div>
           </div>
 
@@ -150,15 +177,14 @@ export function SiteFooter(): React.ReactElement {
           </div>
         </div>
 
-        <div className="mt-8 rounded-[1.6rem] border border-[var(--border)] bg-[var(--surface-strong)] px-5 py-4 text-sm text-[var(--muted-foreground)] shadow-lg shadow-[color:var(--shadow-soft)] md:px-6">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
-            <div className="flex flex-col gap-1 text-left md:items-end md:text-right">
-              <div className="inline-flex w-fit self-start items-center rounded-full border border-[var(--accent)] bg-[var(--surface-spot)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-ink)] md:self-end">
+        <div className="mt-8 border-t border-[var(--border)] pt-5 text-sm text-[var(--muted-foreground)]">
+          <div className="flex justify-center">
+            <div className="flex flex-col items-center gap-2 text-center sm:flex-row sm:items-center sm:gap-3">
+              <div className="inline-flex w-fit items-center rounded-full border border-[var(--accent)] bg-[var(--surface-spot)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-ink)]">
                 {webAppRelease.versionBadgeLabel}
               </div>
               <p>
-                Copyright {new Date().getFullYear()} ACME LOS. All rights
-                reserved.
+                &copy; {new Date().getFullYear()} ACME LOS. All rights reserved.
               </p>
             </div>
           </div>

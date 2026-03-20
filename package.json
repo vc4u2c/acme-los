@@ -115,6 +115,7 @@
     "expo-splash-screen": "~55.0.10",
     "expo-status-bar": "~55.0.4",
     "expo-system-ui": "~55.0.9",
+    "lucide-react": "^0.577.0",
     "nativewind": "^4.2.3",
     "next": "~16.1.6",
     "react": "19.2.0",

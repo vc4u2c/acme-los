@@ -33,16 +33,12 @@ export function getWebAuthConfig(): WebAuthConfig {
     return { provider: 'mock' };
   }
 
-  if (requestedProvider !== 'okta') {
-    if (process.env.NODE_ENV === 'production') {
-      return {
-        provider: 'okta',
-        configurationError:
-          'Set NEXT_PUBLIC_AUTH_PROVIDER=okta and provide the required NEXT_PUBLIC_OKTA_* values before deploying.',
-      };
-    }
-
-    return { provider: 'mock' };
+  if (requestedProvider && requestedProvider !== 'okta') {
+    return {
+      provider: 'okta',
+      configurationError:
+        'Set NEXT_PUBLIC_AUTH_PROVIDER=okta for the real hosted auth flow or NEXT_PUBLIC_AUTH_PROVIDER=mock only for explicit test/demo scenarios.',
+    };
   }
 
   const issuer = trimValue(process.env.NEXT_PUBLIC_OKTA_ISSUER);
@@ -56,7 +52,9 @@ export function getWebAuthConfig(): WebAuthConfig {
     return {
       provider: 'okta',
       configurationError:
-        'Okta auth is enabled, but one or more required NEXT_PUBLIC_OKTA_* values are missing.',
+        process.env.NODE_ENV === 'production'
+          ? 'Set NEXT_PUBLIC_AUTH_PROVIDER=okta and provide the required NEXT_PUBLIC_OKTA_* values before deploying.'
+          : 'Okta auth config is missing. Run "npm run okta:render -- dev" to generate the local web auth settings before starting the app.',
     };
   }
 
