@@ -18,7 +18,7 @@ export const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-[12rem] overflow-hidden rounded-[1.25rem] border border-[var(--overlay-border)] bg-[var(--overlay-surface)] p-1.5 text-[var(--foreground)] shadow-[0_22px_48px_var(--shadow-soft)]',
+        'z-50 min-w-[12rem] overflow-hidden rounded-[1.25rem] border border-[var(--overlay-border)] bg-[color:var(--overlay-surface)/0.96] p-1.5 text-[var(--foreground)] shadow-[0_22px_48px_var(--shadow-soft)] backdrop-blur-xl',
         className,
       )}
       {...props}
@@ -51,7 +51,7 @@ export const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      'relative flex cursor-pointer select-none items-center rounded-[1rem] px-3 py-3 text-sm text-[var(--foreground)] outline-none transition-colors data-[highlighted]:bg-[var(--overlay-surface-strong)] data-[highlighted]:text-[var(--foreground)] focus:bg-[var(--overlay-surface-strong)] focus:text-[var(--foreground)] data-[disabled]:pointer-events-none data-[disabled]:cursor-default data-[disabled]:opacity-50',
+      'group relative flex cursor-pointer select-none items-center rounded-[1rem] border border-transparent px-3 py-3 text-sm text-[var(--foreground)] outline-none transition-all duration-150 data-[highlighted]:border-[var(--border-strong)] data-[highlighted]:bg-[var(--overlay-surface-strong)] data-[highlighted]:text-[var(--foreground)] data-[highlighted]:shadow-[0_10px_24px_var(--shadow-soft)] focus:border-[var(--border-strong)] focus:bg-[var(--overlay-surface-strong)] focus:text-[var(--foreground)] focus:shadow-[0_10px_24px_var(--shadow-soft)] data-[disabled]:pointer-events-none data-[disabled]:cursor-default data-[disabled]:opacity-50',
       className,
     )}
     {...props}

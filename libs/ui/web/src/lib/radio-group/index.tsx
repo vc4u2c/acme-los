@@ -7,11 +7,15 @@ export function RadioGroup({
   className,
   ...props
 }: RadioGroupProps): React.ReactElement {
-  return <div role="radiogroup" className={cn('grid gap-3', className)} {...props} />;
+  return (
+    <div role="radiogroup" className={cn('grid gap-3', className)} {...props} />
+  );
 }
 
-export interface RadioGroupItemProps
-  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'type'> {
+export interface RadioGroupItemProps extends Omit<
+  React.InputHTMLAttributes<HTMLInputElement>,
+  'type'
+> {
   description?: React.ReactNode;
   itemClassName?: string;
   children: React.ReactNode;

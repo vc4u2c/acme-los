@@ -50,7 +50,7 @@ function buildHostedBrandHeaderMarkup({ brandLabel, productLabel }) {
 }
 
 function buildHostedCopyrightMarkup(year) {
-  return `<p class="acme-auth-copyright">Copyright ${year} ACME LOS. All rights reserved.</p>`;
+  return `<p class="acme-auth-copyright">© ${year} ACME LOS. All rights reserved.</p>`;
 }
 
 function buildHostedThemeCss(branding) {

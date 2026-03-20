@@ -36,12 +36,12 @@ export function ThemeToggle(): React.ReactElement {
       role="switch"
       aria-checked={isDark}
       onClick={toggleTheme}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface)] shadow-sm transition hover:border-[var(--brand)] hover:bg-[var(--surface-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] sm:h-10 sm:w-10"
+      className="inline-flex h-9 w-9 appearance-none items-center justify-center rounded-full border border-[var(--border)] bg-[color:var(--surface)/0.92] shadow-[0_10px_22px_var(--shadow-soft)] outline-none transition duration-150 hover:border-[var(--brand)] hover:bg-[var(--surface)] hover:shadow-[0_0_0_1px_var(--brand),0_10px_22px_var(--shadow-soft)] focus:outline-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--background)] sm:h-10 sm:w-10 [-webkit-tap-highlight-color:transparent]"
       aria-label={`Switch to ${isDark ? 'light' : 'dark'} theme`}
     >
       <span
         aria-hidden="true"
-        className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--surface-accent)] text-[var(--brand)] sm:h-7 sm:w-7"
+        className="inline-flex h-6 w-6 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface-strong)] text-[var(--brand)] shadow-sm sm:h-7 sm:w-7"
       >
         {isDark ? (
           <MoonIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />

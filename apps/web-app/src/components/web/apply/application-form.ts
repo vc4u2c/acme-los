@@ -6,18 +6,20 @@ import type { ApplicationStepSlug } from './step-definitions';
 
 type UseApplicationFormOptions = {
   step: ApplicationStepSlug;
+  initialValues?: Partial<ApplicationDraft>;
   onSubmit: (value: ApplicationDraft) => void | Promise<void>;
   onSubmitInvalid?: () => void;
 };
 
 export function useApplicationForm({
   step,
+  initialValues,
   onSubmit,
   onSubmitInvalid,
 }: UseApplicationFormOptions) {
   const form = useForm({
     formId: `apply-${step}`,
-    defaultValues: defaultDraft,
+    defaultValues: { ...defaultDraft, ...initialValues },
     onSubmit: async ({ value }) => {
       await onSubmit(value);
     },

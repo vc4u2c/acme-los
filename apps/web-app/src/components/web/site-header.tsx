@@ -6,13 +6,14 @@ import * as React from 'react';
 import {
   Button,
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from '@acme-los/ui-web';
-import { AcmeMarkIcon, MenuIcon } from './icons';
+import { AcmeMarkIcon, MenuIcon, XIcon } from './icons';
 import { ProfileMenu } from './profile-menu';
 import { SiteAlertStrip } from './site-alert-strip';
 import { ThemeToggle } from './theme-toggle';
@@ -28,6 +29,10 @@ const utilityLinks = [
   { href: '/support/contact', label: 'Contact support' },
 ];
 
+function isPathActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 export function SiteHeader({
   items,
   variant = 'default',
@@ -37,14 +42,125 @@ export function SiteHeader({
 }): React.ReactElement {
   const pathname = usePathname();
   const showMarketingNav = variant !== 'application';
+  const [activeHash, setActiveHash] = React.useState<string | null>(null);
+  const headerRef = React.useRef<HTMLElement | null>(null);
+
+  React.useEffect(() => {
+    if (!showMarketingNav) {
+      return;
+    }
+
+    const hashItems = items.filter((item) => item.href.startsWith('#'));
+    if (!hashItems.length) {
+      return;
+    }
+
+    const sections = hashItems
+      .map((item) => {
+        const id = item.href.slice(1);
+        const element = document.getElementById(id);
+
+        return element ? { href: item.href, element } : null;
+      })
+      .filter((item): item is { href: string; element: HTMLElement } =>
+        Boolean(item),
+      );
+
+    if (!sections.length) {
+      return;
+    }
+
+    const updateActiveHash = () => {
+      const headerOffset =
+        (headerRef.current?.getBoundingClientRect().height ?? 160) + 16;
+      const current = sections
+        .filter(
+          ({ element }) => element.getBoundingClientRect().top <= headerOffset,
+        )
+        .at(-1);
+
+      setActiveHash(current?.href ?? null);
+    };
+
+    updateActiveHash();
+    window.addEventListener('scroll', updateActiveHash, { passive: true });
+    window.addEventListener('resize', updateActiveHash);
+    window.addEventListener('hashchange', updateActiveHash);
+
+    return () => {
+      window.removeEventListener('scroll', updateActiveHash);
+      window.removeEventListener('resize', updateActiveHash);
+      window.removeEventListener('hashchange', updateActiveHash);
+    };
+  }, [items, showMarketingNav]);
+
+  React.useEffect(() => {
+    const header = headerRef.current;
+    if (!header) {
+      return;
+    }
+
+    const syncHeaderOffset = () => {
+      document.documentElement.style.setProperty(
+        '--site-header-offset',
+        `${header.getBoundingClientRect().height}px`,
+      );
+    };
+
+    syncHeaderOffset();
+
+    window.addEventListener('resize', syncHeaderOffset);
+
+    if (typeof ResizeObserver === 'undefined') {
+      return () => {
+        window.removeEventListener('resize', syncHeaderOffset);
+      };
+    }
+
+    const resizeObserver = new ResizeObserver(syncHeaderOffset);
+    resizeObserver.observe(header);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', syncHeaderOffset);
+    };
+  }, []);
+
+  const isActiveItem = React.useCallback(
+    (href: string) => {
+      if (href.startsWith('#')) {
+        return activeHash === href;
+      }
+
+      return isPathActive(pathname, href);
+    },
+    [activeHash, pathname],
+  );
+
+  const handleBrandClick = React.useCallback<
+    React.MouseEventHandler<HTMLAnchorElement>
+  >(
+    (event) => {
+      if (pathname !== '/' || variant === 'application') {
+        return;
+      }
+
+      event.preventDefault();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+    [pathname, variant],
+  );
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[color:var(--surface)/0.9] backdrop-blur-xl">
+    <header
+      ref={headerRef}
+      className="sticky top-0 z-40 border-b border-[var(--border)] bg-[color:var(--surface)/0.9] backdrop-blur-xl"
+    >
       <SiteAlertStrip />
       {showMarketingNav ? (
         <div className="hidden border-b border-[var(--border)] bg-[color:var(--surface-strong)/0.88] md:block">
           <div className="site-shell flex items-center justify-between gap-4 py-2.5 text-xs">
-            <div className="flex items-center gap-4 text-[var(--muted-foreground)]">
+            <div className="flex items-center gap-4 text-[var(--foreground)]">
               <span className="font-semibold uppercase tracking-[0.22em] text-[var(--brand)]">
                 Customer support
               </span>
@@ -54,17 +170,23 @@ export function SiteHeader({
               >
                 (833) 410-2746
               </a>
-              <span className="hidden xl:inline">
+              <span className="hidden font-medium text-[var(--muted-foreground)] xl:inline">
                 Mon-Fri 8:00 AM to 8:00 PM CT
               </span>
             </div>
 
-            <div className="flex items-center gap-4 text-[var(--muted-foreground)]">
+            <div className="flex items-center gap-4">
               {utilityLinks.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="font-medium transition hover:text-[var(--foreground)]"
+                  className={[
+                    'rounded-full px-2.5 py-1 font-semibold transition',
+                    isActiveItem(item.href)
+                      ? 'border border-[var(--brand)] bg-[var(--surface-accent)] text-[var(--brand-strong)] opacity-100 shadow-sm'
+                      : 'border border-transparent text-[var(--foreground)] opacity-80 hover:border-[var(--border)] hover:bg-[var(--surface)] hover:opacity-100',
+                  ].join(' ')}
+                  aria-current={isActiveItem(item.href) ? 'page' : undefined}
                 >
                   {item.label}
                 </Link>
@@ -75,7 +197,11 @@ export function SiteHeader({
       ) : null}
 
       <div className="site-shell flex items-center justify-between gap-3 py-2.5 sm:py-4">
-        <Link href="/" className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+        <Link
+          href="/"
+          onClick={handleBrandClick}
+          className="flex min-w-0 items-center gap-2.5 sm:gap-3"
+        >
           <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-[1rem] bg-[var(--brand)] text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)] sm:h-10 sm:w-10">
             <AcmeMarkIcon className="h-4.5 w-4.5 sm:h-5.5 sm:w-5.5" />
           </span>
@@ -95,26 +221,18 @@ export function SiteHeader({
         </Link>
 
         {showMarketingNav ? (
-          <nav className="hidden items-center gap-7 text-sm font-medium text-[var(--muted-foreground)] lg:flex">
+          <nav className="hidden items-center gap-7 text-sm font-semibold text-[var(--foreground)] lg:flex">
             {items.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 className={[
-                  'transition hover:text-[var(--foreground)]',
-                  item.href.startsWith('/') &&
-                  (pathname === item.href ||
-                    pathname.startsWith(`${item.href}/`))
-                    ? 'text-[var(--foreground)]'
-                    : '',
+                  'opacity-80 transition hover:opacity-100',
+                  isActiveItem(item.href)
+                    ? 'text-[var(--brand)] opacity-100'
+                    : 'text-[var(--foreground)]',
                 ].join(' ')}
-                aria-current={
-                  item.href.startsWith('/') &&
-                  (pathname === item.href ||
-                    pathname.startsWith(`${item.href}/`))
-                    ? 'page'
-                    : undefined
-                }
+                aria-current={isActiveItem(item.href) ? 'page' : undefined}
               >
                 {item.label}
               </Link>
@@ -145,16 +263,29 @@ export function SiteHeader({
               </SheetTrigger>
               <SheetContent
                 side="right"
-                className="border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]"
+                className="border-[var(--border)] bg-[var(--surface)] p-5 text-[var(--foreground)]"
               >
-                <SheetHeader>
-                  <SheetTitle className="font-display text-[var(--foreground)]">
-                    Customer navigation
-                  </SheetTitle>
-                  <SheetDescription className="text-[var(--muted-foreground)]">
-                    Reach support, review rates, or go straight into the
-                    application.
-                  </SheetDescription>
+                <SheetHeader className="gap-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="space-y-2">
+                      <SheetTitle className="font-display text-[var(--foreground)]">
+                        Customer navigation
+                      </SheetTitle>
+                      <SheetDescription className="text-[var(--muted-foreground)]">
+                        Reach support, review rates, or go straight into the
+                        application.
+                      </SheetDescription>
+                    </div>
+                    <SheetClose asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border-strong)] bg-[var(--surface-strong)] text-[var(--foreground)] shadow-sm transition hover:border-[var(--brand)] hover:bg-[var(--surface-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
+                        aria-label="Close navigation menu"
+                      >
+                        <XIcon className="h-4.5 w-4.5" />
+                      </button>
+                    </SheetClose>
+                  </div>
                 </SheetHeader>
 
                 <div className="mt-8 space-y-6">
@@ -178,20 +309,19 @@ export function SiteHeader({
                       Explore
                     </p>
                     {items.map((item) => (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className={[
-                          'block rounded-2xl border px-4 py-3 text-sm font-medium transition',
-                          item.href.startsWith('/') &&
-                          (pathname === item.href ||
-                            pathname.startsWith(`${item.href}/`))
-                            ? 'border-[var(--brand)] bg-[var(--surface-accent)] text-[var(--foreground)]'
-                            : 'border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground)] hover:border-[var(--brand)]',
-                        ].join(' ')}
-                      >
-                        {item.label}
-                      </Link>
+                      <SheetClose asChild key={item.href}>
+                        <Link
+                          href={item.href}
+                          className={[
+                            'block rounded-2xl border px-4 py-3 text-sm font-medium transition',
+                            isActiveItem(item.href)
+                              ? 'border-[var(--brand)] bg-[var(--surface-accent)] text-[var(--foreground)]'
+                              : 'border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground)] hover:border-[var(--brand)]',
+                          ].join(' ')}
+                        >
+                          {item.label}
+                        </Link>
+                      </SheetClose>
                     ))}
                   </div>
 
@@ -200,13 +330,22 @@ export function SiteHeader({
                       Support and legal
                     </p>
                     {utilityLinks.map((item) => (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        className="block rounded-2xl border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--brand)]"
-                      >
-                        {item.label}
-                      </Link>
+                      <SheetClose asChild key={item.href}>
+                        <Link
+                          href={item.href}
+                          className={[
+                            'block rounded-2xl border px-4 py-3 text-sm font-medium transition',
+                            isActiveItem(item.href)
+                              ? 'border-[var(--brand)] bg-[var(--surface-accent)] text-[var(--foreground)]'
+                              : 'border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground)] hover:border-[var(--brand)]',
+                          ].join(' ')}
+                          aria-current={
+                            isActiveItem(item.href) ? 'page' : undefined
+                          }
+                        >
+                          {item.label}
+                        </Link>
+                      </SheetClose>
                     ))}
                   </div>
                 </div>

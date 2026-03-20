@@ -363,6 +363,29 @@ Planned BFF endpoints:
 - `POST /bff/auth/logout`
 - `GET /bff/auth/session`
 
+### Recommended Transition Plan
+
+Recommended near-term path:
+
+- keep the current apply route shape
+  - server-rendered route shells
+  - small client form islands
+- add a thin Next.js API layer for web-only cookie/session handling and proxy behavior
+- keep UI code calling app-owned API contracts instead of reaching directly into auth/storage details
+- move security hardening into that API layer first
+  - secure cookie boundaries
+  - CSRF protection where needed
+  - server-side session checks
+  - token handling off the browser
+- treat the Next API layer as a temporary web façade, not the final business-logic home
+- preserve request/response contracts so the later .NET BFF can replace the Next implementation with minimal UI churn
+
+Practical implication:
+
+- web can use the Next API layer now for cookie-backed auth/session work
+- mobile should continue to depend on shared contracts, not Next-specific runtime details
+- when the .NET BFF is ready, the web app should mostly swap transport/proxy wiring rather than rewrite page and form code
+
 Related docs:
 
 - [docs/architecture/domain-boundaries.md](./docs/architecture/domain-boundaries.md)
@@ -488,6 +511,9 @@ chore(repo): refresh dependency policy
 
 ## Suggested Next Steps
 
+- harden the web auth path behind a thin Next API layer before the .NET BFF exists
+- define stable request/response contracts so the later .NET BFF can replace the Next API layer without UI churn
+- move apply-route data loading from local browser draft assumptions toward server/API-backed reads as the API layer solidifies
 - finish moving generic web icons to `lucide-react` where it is worth the swap
 - back customer profile persistence with the future BFF instead of local browser storage
 - continue reducing overlap between MJS and Terraform in the Okta admin plane

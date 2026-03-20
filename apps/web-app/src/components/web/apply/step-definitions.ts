@@ -9,7 +9,11 @@ export const applicationSteps = [
     supportTitle: 'Why this comes first',
     supportCopy:
       'This is the information most applicants expect to give upfront, and it helps frame the rest of the request without making the first screen feel heavy.',
-    highlights: ['Name and contact details', 'Current address', 'Residency basics'],
+    highlights: [
+      'Name and contact details',
+      'Current address',
+      'Residency basics',
+    ],
   },
   {
     slug: 'disclosures',
@@ -21,7 +25,11 @@ export const applicationSteps = [
     supportTitle: 'Make the legal part readable',
     supportCopy:
       'This step should feel clear, not punitive. Use plain language and grouped decisions so the user can move with confidence.',
-    highlights: ['Residency and military status', 'Consent to review', 'Regulatory acknowledgements'],
+    highlights: [
+      'Residency and military status',
+      'Consent to review',
+      'Regulatory acknowledgements',
+    ],
   },
   {
     slug: 'employment-income',
@@ -33,7 +41,11 @@ export const applicationSteps = [
     supportTitle: 'Keep it practical',
     supportCopy:
       'Applicants usually know this information, but they may not have it perfectly formatted. Labels and examples matter here.',
-    highlights: ['Employer and occupation', 'Pay frequency', 'Monthly income picture'],
+    highlights: [
+      'Employer and occupation',
+      'Pay frequency',
+      'Monthly income picture',
+    ],
   },
   {
     slug: 'bank-card',
@@ -45,7 +57,11 @@ export const applicationSteps = [
     supportTitle: 'This is the trust checkpoint',
     supportCopy:
       'Once the user reaches banking details, the page needs to feel especially stable, secure, and transparent.',
-    highlights: ['Primary bank account', 'Routing and account number', 'Debit card fallback'],
+    highlights: [
+      'Primary bank account',
+      'Routing and account number',
+      'Debit card fallback',
+    ],
   },
   {
     slug: 'pre-approval',
@@ -81,7 +97,11 @@ export const applicationSteps = [
     supportTitle: 'End with clarity',
     supportCopy:
       'The final step should remove ambiguity about timing, delivery, and what happens next after submission.',
-    highlights: ['Funding method', 'Delivery destination', 'Final authorization'],
+    highlights: [
+      'Funding method',
+      'Delivery destination',
+      'Final authorization',
+    ],
   },
 ] as const;
 
