@@ -2,6 +2,13 @@ const { version } = require('./package.json');
 
 process.env.EXPO_PUBLIC_APP_VERSION ??= version;
 
+const authProvider = process.env.EXPO_PUBLIC_AUTH_PROVIDER ?? 'mock';
+const oktaIssuer = process.env.EXPO_PUBLIC_OKTA_ISSUER ?? null;
+const oktaClientId = process.env.EXPO_PUBLIC_OKTA_CLIENT_ID ?? null;
+const oktaRedirectUri = process.env.EXPO_PUBLIC_OKTA_REDIRECT_URI ?? null;
+const oktaFundingAcrValues =
+  process.env.EXPO_PUBLIC_OKTA_FUNDING_ACR_VALUES ?? null;
+
 /** @type {import('expo/config').ExpoConfig} */
 module.exports = {
   expo: {
@@ -29,6 +36,15 @@ module.exports = {
     },
     extra: {
       appVersion: version,
+      auth: {
+        provider: authProvider,
+        okta: {
+          issuer: oktaIssuer,
+          clientId: oktaClientId,
+          redirectUri: oktaRedirectUri,
+          fundingStepUpAcrValues: oktaFundingAcrValues,
+        },
+      },
     },
     plugins: [
       [

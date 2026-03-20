@@ -64,5 +64,10 @@ cache/
 playwright-report/
 test-results/
 
+# Generated local auth config
+apps/web-app/.env.local
+apps/mobile-app/.env.local
+tmp/okta/
+
 # TypeScript incremental build output
 *.tsbuildinfo

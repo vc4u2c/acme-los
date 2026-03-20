@@ -1,0 +1,9 @@
+{
+  "name": "auth-core",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/auth/core/src",
+  "projectType": "library",
+  "tags": ["scope:auth", "type:core"],
+  "// targets": "to see all targets run: nx show project auth-core --web",
+  "targets": {}
+}

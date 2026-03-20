@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+const mockAuthStorageKey = 'acme-los-auth-mock-session';
 const axeSource = readFileSync(
   join(__dirname, '..', '..', '..', 'node_modules', 'axe-core', 'axe.min.js'),
   'utf8',
@@ -28,11 +29,11 @@ const auditedRoutes = [
   },
   {
     path: '/account/sign-in',
-    waitFor: { role: 'heading', name: /Sign in securely/i },
+    waitFor: { role: 'heading', name: /Opening secure sign in/i },
   },
   {
-    path: '/account/create-account',
-    waitFor: { role: 'heading', name: /Create your customer login/i },
+    path: '/account/profile',
+    waitFor: { role: 'heading', name: /Keep your contact details current/i },
   },
 ] as const;
 
@@ -59,6 +60,39 @@ type AxeWindow = Window & {
     ) => Promise<{ violations: AxeViolation[] }>;
   };
 };
+
+function createMockCustomerUser(assuranceLevel: 'aal1' | 'aal2' = 'aal2') {
+  return {
+    id: 'mock-customer-01',
+    email: 'taylor.customer@acme-los.dev',
+    displayName: 'Taylor Customer',
+    firstName: 'Taylor',
+    lastName: 'Customer',
+    authenticationMethods:
+      assuranceLevel === 'aal2' ? ['pwd', 'email', 'mfa'] : ['pwd'],
+  };
+}
+
+async function primeAuthenticatedCustomer(
+  page: Page,
+  assuranceLevel: 'aal1' | 'aal2' = 'aal2',
+) {
+  await page.addInitScript(
+    ({ key, user }) => {
+      window.sessionStorage.setItem(key, JSON.stringify(user));
+    },
+    {
+      key: mockAuthStorageKey,
+      user: createMockCustomerUser(assuranceLevel),
+    },
+  );
+}
+
+async function prepareRoute(page: Page, path: string) {
+  if (path.startsWith('/apply/') || path === '/account/profile') {
+    await primeAuthenticatedCustomer(page);
+  }
+}
 
 async function injectAxe(page: Page) {
   await page.addScriptTag({ content: axeSource });
@@ -126,6 +160,7 @@ test.describe('web accessibility', () => {
   test('apply form fields are exposed by accessible labels', async ({
     page,
   }) => {
+    await primeAuthenticatedCustomer(page);
     await page.goto('/apply/personal-info');
 
     await expect(page.getByLabel(/First name/i)).toBeVisible();
@@ -135,6 +170,7 @@ test.describe('web accessibility', () => {
 
   for (const route of auditedRoutes) {
     test(`axe smoke: ${route.path}`, async ({ page }) => {
+      await prepareRoute(page, route.path);
       await page.goto(route.path);
       await expect(getReadyHeading(page, route.path)).toBeVisible();
 

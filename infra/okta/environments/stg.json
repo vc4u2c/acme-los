@@ -1,0 +1,33 @@
+{
+  "environment": "stg",
+  "okta": {
+    "issuer": "https://stg-org.okta.com/oauth2/default",
+    "webClientId": "replace-with-stg-web-client-id",
+    "mobileClientId": "replace-with-stg-mobile-client-id",
+    "fundingStepUpAcrValues": "urn:okta:loa:2fa:any",
+    "hostedExperience": {
+      "rememberUser": true,
+      "keepMeSignedIn": true,
+      "registrationRequiresEmailVerification": true,
+      "registrationRequiresPhoneVerification": false,
+      "adaptiveMfaOnSignIn": true,
+      "fundingRouteStepUp": true
+    }
+  },
+  "web": {
+    "baseUrl": "https://stg.acme-los.dev",
+    "redirectPath": "/auth/callback",
+    "postLogoutRedirectPath": "/"
+  },
+  "mobile": {
+    "scheme": "mobile-app",
+    "redirectPath": "auth/callback"
+  },
+  "bff": {
+    "baseUrl": "https://stg-api.acme-los.dev",
+    "loginPath": "/bff/auth/login",
+    "callbackPath": "/bff/auth/callback",
+    "logoutPath": "/bff/auth/logout",
+    "sessionPath": "/bff/auth/session"
+  }
+}

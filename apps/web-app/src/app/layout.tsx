@@ -1,4 +1,5 @@
 import './global.css';
+import { AppProviders } from '../components/web/providers/app-providers';
 import { SiteFooter } from '../components/web/site-footer';
 import { ThemeScript } from '../components/web/theme-script';
 
@@ -8,20 +9,23 @@ export const metadata = {
   icons: {
     icon: [
       {
-        url: '/acme-tab-icon.svg?v=2',
+        url: '/acme-mark.svg?v=1',
         type: 'image/svg+xml',
+      },
+      {
+        url: '/favicon.ico?v=4',
+        sizes: 'any',
       },
     ],
     shortcut: [
       {
-        url: '/acme-tab-icon.svg?v=2',
-        type: 'image/svg+xml',
+        url: '/favicon.ico?v=4',
       },
     ],
     apple: [
       {
-        url: '/acme-tab-icon.svg?v=2',
-        type: 'image/svg+xml',
+        url: '/acme-mark.png?v=1',
+        type: 'image/png',
       },
     ],
   },
@@ -41,19 +45,21 @@ export default function RootLayout({
     >
       <body className="min-h-screen">
         <ThemeScript />
-        <a href="#main-content" className="skip-link">
-          Skip to main content
-        </a>
-        <div className="flex min-h-screen flex-col">
-          <div
-            id="main-content"
-            tabIndex={-1}
-            className="flex-1 focus:outline-none"
-          >
-            {children}
+        <AppProviders>
+          <a href="#main-content" className="skip-link">
+            Skip to main content
+          </a>
+          <div className="flex min-h-screen flex-col">
+            <div
+              id="main-content"
+              tabIndex={-1}
+              className="flex-1 focus:outline-none"
+            >
+              {children}
+            </div>
+            <SiteFooter />
           </div>
-          <SiteFooter />
-        </div>
+        </AppProviders>
       </body>
     </html>
   );

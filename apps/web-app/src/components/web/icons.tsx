@@ -61,11 +61,7 @@ export function AcmeMarkIcon(props: IconProps): React.ReactElement {
         d="M16 4.5 6.75 27.5h4.4l1.95-5.05h5.8l1.95 5.05h4.4L16 4.5Zm-1.55 13.15L16 13.1l1.55 4.55h-3.1Z"
         fill="currentColor"
       />
-      <path
-        d="M22.75 7.5h3.4v3.4h-3.4z"
-        fill="currentColor"
-        opacity="0.72"
-      />
+      <path d="M22.75 7.5h3.4v3.4h-3.4z" fill="currentColor" opacity="0.72" />
     </svg>
   );
 }
@@ -103,6 +99,49 @@ export function InfoIcon(props: IconProps): React.ReactElement {
       <circle cx="12" cy="12" r="8.5" />
       <path d="M12 10v5" />
       <path d="M12 7.4h.01" />
+    </svg>
+  );
+}
+
+export function LogInIcon(props: IconProps): React.ReactElement {
+  return (
+    <svg aria-hidden="true" {...baseProps(props)}>
+      <path d="M13 6.5h4.5v11H13" />
+      <path d="m10 8.5-3.5 3.5L10 15.5" />
+      <path d="M6.5 12H16" />
+    </svg>
+  );
+}
+
+export function LogOutIcon(props: IconProps): React.ReactElement {
+  return (
+    <svg aria-hidden="true" {...baseProps(props)}>
+      <path d="M11 6.5H6.5v11H11" />
+      <path d="m14 8.5 3.5 3.5-3.5 3.5" />
+      <path d="M8 12h9.5" />
+    </svg>
+  );
+}
+
+export function ClipboardIcon(props: IconProps): React.ReactElement {
+  return (
+    <svg aria-hidden="true" {...baseProps(props)}>
+      <path d="M9 5.5h6" />
+      <path d="M9.5 4h5a1.5 1.5 0 0 1 1.5 1.5v1H8V5.5A1.5 1.5 0 0 1 9.5 4Z" />
+      <path d="M7.5 6.5h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2Z" />
+    </svg>
+  );
+}
+
+export function SupportIcon(props: IconProps): React.ReactElement {
+  return (
+    <svg aria-hidden="true" {...baseProps(props)}>
+      <path d="M5.5 12a6.5 6.5 0 0 1 13 0" />
+      <path d="M6 12v3.25A1.75 1.75 0 0 0 7.75 17H9.5" />
+      <path d="M18 12v2.75A2.25 2.25 0 0 1 15.75 17H14" />
+      <path d="M9.5 18.5h4" />
+      <path d="M6.5 13.5h-1v-2h1" />
+      <path d="M18.5 13.5h-1v-2h1" />
     </svg>
   );
 }

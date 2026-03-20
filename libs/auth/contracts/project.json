@@ -1,0 +1,9 @@
+{
+  "name": "auth-contracts",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/auth/contracts/src",
+  "projectType": "library",
+  "tags": ["scope:auth", "type:contracts"],
+  "// targets": "to see all targets run: nx show project auth-contracts --web",
+  "targets": {}
+}

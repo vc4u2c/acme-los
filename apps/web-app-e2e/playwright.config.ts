@@ -30,6 +30,10 @@ export default defineConfig({
     url: baseURL,
     reuseExistingServer: true,
     cwd: join(workspaceRoot, 'apps/web-app'),
+    env: {
+      ...process.env,
+      NEXT_PUBLIC_AUTH_PROVIDER: 'mock',
+    },
   },
   projects: [
     {

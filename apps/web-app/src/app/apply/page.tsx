@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import { ApplicationEntryPage } from '../../components/web/apply/application-entry-page';
 
 export default function ApplyIndexPage() {
-  redirect('/apply/personal-info');
+  return <ApplicationEntryPage />;
 }

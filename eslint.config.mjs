@@ -41,12 +41,17 @@ export default [
               ],
             },
             {
+              sourceTag: 'scope:auth',
+              onlyDependOnLibsWithTags: ['scope:core', 'scope:auth'],
+            },
+            {
               sourceTag: 'type:app',
               onlyDependOnLibsWithTags: [
                 'scope:core',
                 'scope:domain',
                 'scope:api',
                 'scope:ui',
+                'scope:auth',
               ],
             },
             {
@@ -64,6 +69,7 @@ export default [
                 'scope:domain',
                 'scope:api',
                 'scope:ui',
+                'scope:auth',
               ],
             },
           ],

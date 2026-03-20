@@ -1,8 +1,31 @@
 import { test, expect } from '@playwright/test';
 
+const mockAuthStorageKey = 'acme-los-auth-mock-session';
+
+function createMockCustomerUser() {
+  return {
+    id: 'mock-customer-01',
+    email: 'taylor.customer@acme-los.dev',
+    displayName: 'Taylor Customer',
+    firstName: 'Taylor',
+    lastName: 'Customer',
+    authenticationMethods: ['pwd', 'email', 'mfa'],
+  };
+}
+
 test('shows the web home, rendering demos, and showcase route', async ({
   page,
 }) => {
+  await page.addInitScript(
+    ({ key, user }) => {
+      window.sessionStorage.setItem(key, JSON.stringify(user));
+    },
+    {
+      key: mockAuthStorageKey,
+      user: createMockCustomerUser(),
+    },
+  );
+
   await page.goto('/');
   const hero = page.locator('main > section').first();
 
@@ -11,10 +34,8 @@ test('shows the web home, rendering demos, and showcase route', async ({
       name: /A steadier installment application from first answer to funding/i,
     }),
   ).toBeVisible();
-  await Promise.all([
-    page.waitForURL('**/apply/personal-info'),
-    hero.getByRole('link', { name: /Start application/i }).click(),
-  ]);
+  await hero.getByRole('link', { name: /Start application/i }).click();
+  await expect(page).toHaveURL(/\/apply\/personal-info$/);
   await expect(
     page.getByRole('heading', {
       level: 1,

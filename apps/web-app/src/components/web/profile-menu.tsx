@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useAuthSession } from '@acme-los/auth/web';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,18 +11,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@acme-los/ui-web';
-import { ChevronDownIcon, UserCircleIcon } from './icons';
+import {
+  ChevronDownIcon,
+  ClipboardIcon,
+  LogInIcon,
+  LogOutIcon,
+  SupportIcon,
+  UserCircleIcon,
+} from './icons';
 
-const accountLinks = [
+const signedOutAccountLinks = [
   {
-    href: '/account/sign-in',
     label: 'Sign in',
-    description: 'Resume an application or view updates.',
-  },
-  {
-    href: '/account/create-account',
-    label: 'Create account',
-    description: 'Set up a secure customer login.',
+    description: 'Sign in or create an account in the secure customer portal.',
+    returnTo: '/account/profile',
   },
 ];
 
@@ -31,40 +33,66 @@ const supportLinks = [
     href: '/support/contact',
     label: 'Contact support',
     description: 'Get help with documents or funding.',
+    icon: SupportIcon,
   },
   {
     href: '/rates-terms',
     label: 'Rates and terms',
     description: 'See pricing and funding expectations.',
+    icon: ClipboardIcon,
   },
 ];
 
 function MenuCopy({
   label,
   description,
+  icon: Icon,
 }: {
   label: string;
   description: string;
+  icon?: React.ComponentType<React.SVGProps<SVGSVGElement>>;
 }): React.ReactElement {
   return (
-    <div className="space-y-0.5">
-      <p className="text-sm font-semibold text-[var(--foreground)]">{label}</p>
-      <p className="text-xs leading-5 text-[var(--muted-foreground)]">
-        {description}
-      </p>
+    <div className="flex items-start gap-3">
+      {Icon ? (
+        <span className="mt-0.5 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--surface-accent)] text-[var(--brand)]">
+          <Icon className="h-4 w-4" />
+        </span>
+      ) : null}
+      <div className="space-y-0.5">
+        <p className="text-sm font-semibold text-[var(--foreground)]">
+          {label}
+        </p>
+        <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+          {description}
+        </p>
+      </div>
     </div>
   );
 }
 
 export function ProfileMenu(): React.ReactElement {
-  const router = useRouter();
-
-  const signOut = React.useCallback(() => {
-    window.localStorage.removeItem('acme-los-installment-draft');
-    window.localStorage.removeItem('acme-los-theme');
-    document.documentElement.dataset.theme = 'light';
-    router.push('/');
-  }, [router]);
+  const { session, signIn, signOut } = useAuthSession();
+  const isAuthenticated = session.status === 'authenticated';
+  const accountLinks = isAuthenticated
+    ? [
+        {
+          href: '/account/profile',
+          label: 'Customer dashboard',
+          description: 'Update contact details and address information.',
+          icon: UserCircleIcon,
+        },
+        {
+          href: '/apply/personal-info',
+          label: 'Continue application',
+          description: 'Return to the guarded application shell.',
+          icon: ClipboardIcon,
+        },
+      ]
+    : signedOutAccountLinks.map((item) => ({
+        ...item,
+        icon: LogInIcon,
+      }));
 
   return (
     <DropdownMenu>
@@ -85,14 +113,49 @@ export function ProfileMenu(): React.ReactElement {
         align="end"
         className="w-72 max-w-[calc(100vw-1rem)] sm:w-[18rem]"
       >
-        <DropdownMenuLabel>Account</DropdownMenuLabel>
-        {accountLinks.map((item) => (
-          <DropdownMenuItem key={item.href} asChild className="px-3 py-2.5">
-            <Link href={item.href}>
-              <MenuCopy label={item.label} description={item.description} />
-            </Link>
-          </DropdownMenuItem>
-        ))}
+        <DropdownMenuLabel>
+          {isAuthenticated && session.user ? (
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-[var(--foreground)]">
+                {session.user.displayName}
+              </p>
+              <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+                {session.user.email ?? 'Authenticated customer session'}
+              </p>
+            </div>
+          ) : (
+            'Account'
+          )}
+        </DropdownMenuLabel>
+        {isAuthenticated
+          ? accountLinks.map((item) => (
+              <DropdownMenuItem key={item.href} asChild className="px-3 py-2.5">
+                <Link href={item.href}>
+                  <MenuCopy
+                    label={item.label}
+                    description={item.description}
+                    icon={item.icon}
+                  />
+                </Link>
+              </DropdownMenuItem>
+            ))
+          : signedOutAccountLinks.map((item) => (
+              <DropdownMenuItem
+                key={item.label}
+                className="px-3 py-2.5 cursor-pointer"
+                onSelect={() => {
+                  void signIn({
+                    returnTo: item.returnTo,
+                  });
+                }}
+              >
+                <MenuCopy
+                  label={item.label}
+                  description={item.description}
+                  icon={LogInIcon}
+                />
+              </DropdownMenuItem>
+            ))}
 
         <DropdownMenuSeparator />
 
@@ -100,19 +163,32 @@ export function ProfileMenu(): React.ReactElement {
         {supportLinks.map((item) => (
           <DropdownMenuItem key={item.href} asChild className="px-3 py-2.5">
             <Link href={item.href}>
-              <MenuCopy label={item.label} description={item.description} />
+              <MenuCopy
+                label={item.label}
+                description={item.description}
+                icon={item.icon}
+              />
             </Link>
           </DropdownMenuItem>
         ))}
 
-        <DropdownMenuSeparator />
-
-        <DropdownMenuItem onSelect={signOut} className="px-3 py-2.5">
-          <MenuCopy
-            label="Sign out"
-            description="Clear the local customer session shell and return to home."
-          />
-        </DropdownMenuItem>
+        {isAuthenticated ? (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => {
+                void signOut();
+              }}
+              className="px-3 py-2.5"
+            >
+              <MenuCopy
+                label="Sign out"
+                description="Close the customer session and return to home."
+                icon={LogOutIcon}
+              />
+            </DropdownMenuItem>
+          </>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );
