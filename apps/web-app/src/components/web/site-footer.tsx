@@ -32,6 +32,9 @@ const socialChannels: Array<{ label: string; icon: LucideIcon }> = [
   { label: 'YouTube', icon: Youtube },
 ];
 
+const footerNavLinkClassName =
+  'block w-full rounded-[1.3rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--brand)] hover:bg-[var(--surface-accent)] lg:max-w-[20rem]';
+
 export function SiteFooter(): React.ReactElement {
   return (
     <footer className="border-t border-[var(--border)] bg-[color:var(--surface)/0.94] text-[var(--foreground)]">
@@ -140,12 +143,12 @@ export function SiteFooter(): React.ReactElement {
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
               Explore
             </p>
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 flex flex-col items-start gap-3">
               {quickLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="block rounded-[1.3rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--brand)] hover:bg-[var(--surface-accent)]"
+                  className={footerNavLinkClassName}
                 >
                   {link.label}
                 </Link>
@@ -157,18 +160,15 @@ export function SiteFooter(): React.ReactElement {
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
               Legal and support
             </p>
-            <div className="mt-4 space-y-3">
-              <Link
-                href="/support/contact"
-                className="block rounded-[1.3rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--brand)] hover:bg-[var(--surface-accent)]"
-              >
+            <div className="mt-4 flex flex-col items-start gap-3">
+              <Link href="/support/contact" className={footerNavLinkClassName}>
                 Contact support
               </Link>
               {legalLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
-                  className="block rounded-[1.3rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--brand)] hover:bg-[var(--surface-accent)]"
+                  className={footerNavLinkClassName}
                 >
                   {link.label}
                 </Link>

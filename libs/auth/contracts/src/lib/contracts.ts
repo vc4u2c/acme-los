@@ -14,6 +14,8 @@ export interface AuthUser {
   displayName: string;
   firstName?: string;
   lastName?: string;
+  leadId?: string;
+  customerId?: string;
   authenticationMethods?: string[];
 }
 

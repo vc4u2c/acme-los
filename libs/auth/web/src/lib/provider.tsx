@@ -16,6 +16,7 @@ import {
   MOCK_AUTH_STORAGE_KEY,
 } from '@acme-los/auth/core';
 import { getWebAuthConfig } from './config';
+import { getStoredLeadId } from './lead-id';
 import { getOktaAuthClient } from './okta-client';
 
 type AuthContextValue = {
@@ -124,6 +125,15 @@ function buildUserFromOktaClaims(
     typeof claims.given_name === 'string' ? claims.given_name : undefined;
   const lastName =
     typeof claims.family_name === 'string' ? claims.family_name : undefined;
+  const leadId =
+    (typeof claims.lead_id === 'string' && claims.lead_id) ||
+    (typeof claims.leadId === 'string' && claims.leadId) ||
+    getStoredLeadId() ||
+    undefined;
+  const customerId =
+    (typeof claims.customer_id === 'string' && claims.customer_id) ||
+    (typeof claims.customerId === 'string' && claims.customerId) ||
+    undefined;
   const displayName =
     (typeof claims.name === 'string' && claims.name) ||
     [firstName, lastName].filter(Boolean).join(' ') ||
@@ -141,6 +151,8 @@ function buildUserFromOktaClaims(
     displayName,
     firstName,
     lastName,
+    leadId,
+    customerId,
     authenticationMethods,
   };
 }
@@ -256,8 +268,6 @@ export function AuthProvider({
             minimumAssuranceLevel === 'aal2'
               ? config.okta.fundingStepUpAcrValues
               : undefined,
-          maxAge: minimumAssuranceLevel === 'aal2' ? 0 : undefined,
-          prompt: minimumAssuranceLevel === 'aal2' ? 'login' : undefined,
         });
       } catch (error) {
         authRedirectInFlight = false;

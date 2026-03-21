@@ -490,6 +490,14 @@ async function assignGroupToApplication(appId, groupId) {
   return oktaRequest('PUT', `/api/v1/apps/${appId}/groups/${groupId}`, {});
 }
 
+async function getDefaultUserSchema() {
+  return oktaRequest('GET', '/api/v1/meta/schemas/user/default');
+}
+
+async function updateDefaultUserSchema(payload) {
+  return oktaRequest('POST', '/api/v1/meta/schemas/user/default', payload);
+}
+
 async function listAuthorizationServerPolicies(authServerId) {
   return oktaRequest(
     'GET',
@@ -546,6 +554,29 @@ async function updateAuthorizationServerRule(
   return oktaRequest(
     'PUT',
     `/api/v1/authorizationServers/${authServerId}/policies/${policyId}/rules/${ruleId}`,
+    payload,
+  );
+}
+
+async function listAuthorizationServerClaims(authServerId) {
+  return oktaRequest(
+    'GET',
+    `/api/v1/authorizationServers/${authServerId}/claims`,
+  );
+}
+
+async function createAuthorizationServerClaim(authServerId, payload) {
+  return oktaRequest(
+    'POST',
+    `/api/v1/authorizationServers/${authServerId}/claims`,
+    payload,
+  );
+}
+
+async function updateAuthorizationServerClaim(authServerId, claimId, payload) {
+  return oktaRequest(
+    'PUT',
+    `/api/v1/authorizationServers/${authServerId}/claims/${claimId}`,
     payload,
   );
 }
@@ -658,6 +689,110 @@ async function ensureAuthorizationServerRule(
   };
 }
 
+async function ensureUserProfileAttributes(attributeDefinitions) {
+  const currentSchema = await getDefaultUserSchema();
+  const currentProperties =
+    currentSchema?.definitions?.custom?.properties ?? {};
+  const nextProperties = { ...currentProperties };
+  const changedAttributes = [];
+
+  for (const [key, definition] of Object.entries(attributeDefinitions)) {
+    const existingDefinition = currentProperties[key];
+    const expectedDefinition = {
+      title: definition.title,
+      description: definition.description,
+      type: 'string',
+      required: false,
+      minLength: 1,
+      maxLength: 255,
+      permissions: [
+        {
+          principal: 'SELF',
+          action: 'READ_ONLY',
+        },
+      ],
+      master: {
+        type: 'PROFILE_MASTER',
+      },
+      scope: 'NONE',
+      mutability: 'READ_WRITE',
+    };
+
+    nextProperties[key] = expectedDefinition;
+
+    if (!profileAttributeMatches(existingDefinition, expectedDefinition)) {
+      changedAttributes.push(key);
+    }
+  }
+
+  if (changedAttributes.length === 0) {
+    return {
+      mode: 'existing',
+      schema: currentSchema,
+      changedAttributes: [],
+    };
+  }
+
+  const updatedSchema = await updateDefaultUserSchema({
+    definitions: {
+      custom: {
+        id: '#custom',
+        type: 'object',
+        properties: nextProperties,
+      },
+    },
+  });
+
+  return {
+    mode: 'updated',
+    schema: updatedSchema,
+    changedAttributes,
+  };
+}
+
+async function ensureAuthorizationServerClaim(
+  authServerId,
+  claimName,
+  claimType,
+  payloadBuilder,
+) {
+  const claims = await listAuthorizationServerClaims(authServerId);
+  const existingClaim =
+    claims.find(
+      (claim) =>
+        claim.name === claimName &&
+        claim.claimType === claimType &&
+        claim.valueType === 'EXPRESSION',
+    ) ?? null;
+  const payload = payloadBuilder(existingClaim);
+
+  if (
+    existingClaim &&
+    authorizationServerClaimMatches(existingClaim, payload)
+  ) {
+    return {
+      mode: 'existing',
+      claim: existingClaim,
+    };
+  }
+
+  if (existingClaim) {
+    return {
+      mode: 'updated',
+      claim: await updateAuthorizationServerClaim(
+        authServerId,
+        existingClaim.id,
+        payload,
+      ),
+    };
+  }
+
+  return {
+    mode: 'created',
+    claim: await createAuthorizationServerClaim(authServerId, payload),
+  };
+}
+
 function buildPasswordFirstVerificationMethod(factorMode, reauthenticateIn) {
   return {
     factorMode,
@@ -672,6 +807,46 @@ function buildPasswordFirstVerificationMethod(factorMode, reauthenticateIn) {
       },
     ],
   };
+}
+
+function profileAttributeMatches(existingDefinition, expectedDefinition) {
+  const existingPermissions = Array.isArray(existingDefinition?.permissions)
+    ? existingDefinition.permissions.map((permission) => ({
+        principal: permission?.principal,
+        action: permission?.action,
+      }))
+    : [];
+  const expectedPermissions = Array.isArray(expectedDefinition?.permissions)
+    ? expectedDefinition.permissions.map((permission) => ({
+        principal: permission?.principal,
+        action: permission?.action,
+      }))
+    : [];
+
+  return (
+    existingDefinition?.title === expectedDefinition.title &&
+    existingDefinition?.description === expectedDefinition.description &&
+    existingDefinition?.type === expectedDefinition.type &&
+    existingDefinition?.minLength === expectedDefinition.minLength &&
+    existingDefinition?.maxLength === expectedDefinition.maxLength &&
+    existingDefinition?.scope === expectedDefinition.scope &&
+    existingDefinition?.mutability === expectedDefinition.mutability &&
+    existingDefinition?.master?.type === expectedDefinition.master?.type &&
+    JSON.stringify(existingPermissions) === JSON.stringify(expectedPermissions)
+  );
+}
+
+function authorizationServerClaimMatches(existingClaim, expectedClaim) {
+  return (
+    existingClaim?.name === expectedClaim.name &&
+    existingClaim?.claimType === expectedClaim.claimType &&
+    existingClaim?.valueType === expectedClaim.valueType &&
+    existingClaim?.value === expectedClaim.value &&
+    Boolean(existingClaim?.alwaysIncludeInToken) ===
+      Boolean(expectedClaim.alwaysIncludeInToken) &&
+    JSON.stringify(existingClaim?.conditions?.scopes ?? []) ===
+      JSON.stringify(expectedClaim.conditions?.scopes ?? [])
+  );
 }
 
 const webBaseUrl = requiredString(environment.web?.baseUrl, 'web.baseUrl');
@@ -891,6 +1066,17 @@ if (dryRun) {
       sessionPolicyName,
       accessPolicyName,
     },
+    customProfileAttributes: ['leadId', 'customerId'],
+    authorizationServerClaims: [
+      { name: 'lead_id', claimType: 'IDENTITY', value: 'user.leadId' },
+      { name: 'customer_id', claimType: 'IDENTITY', value: 'user.customerId' },
+      { name: 'lead_id', claimType: 'RESOURCE', value: 'user.leadId' },
+      {
+        name: 'customer_id',
+        claimType: 'RESOURCE',
+        value: 'user.customerId',
+      },
+    ],
   });
 
   console.log(`Prepared Okta bootstrap payloads for "${environmentName}".`);
@@ -1244,6 +1430,106 @@ results.authorizationServerRule = {
   id: authorizationServerRuleResult.rule.id,
 };
 
+const customProfileAttributesResult = await ensureUserProfileAttributes({
+  leadId: {
+    title: 'Lead ID',
+    description: 'ACME lead identifier used for intake attribution.',
+  },
+  customerId: {
+    title: 'Customer ID',
+    description:
+      'ACME customer identifier used for portal and servicing lookups.',
+  },
+});
+results.customProfileAttributes = {
+  mode: customProfileAttributesResult.mode,
+  changedAttributes: customProfileAttributesResult.changedAttributes,
+};
+
+const leadIdClaimResult = await ensureAuthorizationServerClaim(
+  authorizationServerId,
+  'lead_id',
+  'IDENTITY',
+  (existingClaim) => ({
+    name: existingClaim?.name ?? 'lead_id',
+    status: 'ACTIVE',
+    claimType: 'IDENTITY',
+    valueType: 'EXPRESSION',
+    value: 'user.leadId',
+    alwaysIncludeInToken: true,
+    conditions: {
+      scopes: [],
+    },
+  }),
+);
+results.leadIdClaim = {
+  mode: leadIdClaimResult.mode,
+  id: leadIdClaimResult.claim.id,
+};
+
+const customerIdClaimResult = await ensureAuthorizationServerClaim(
+  authorizationServerId,
+  'customer_id',
+  'IDENTITY',
+  (existingClaim) => ({
+    name: existingClaim?.name ?? 'customer_id',
+    status: 'ACTIVE',
+    claimType: 'IDENTITY',
+    valueType: 'EXPRESSION',
+    value: 'user.customerId',
+    alwaysIncludeInToken: true,
+    conditions: {
+      scopes: [],
+    },
+  }),
+);
+results.customerIdClaim = {
+  mode: customerIdClaimResult.mode,
+  id: customerIdClaimResult.claim.id,
+};
+
+const leadIdAccessClaimResult = await ensureAuthorizationServerClaim(
+  authorizationServerId,
+  'lead_id',
+  'RESOURCE',
+  (existingClaim) => ({
+    name: existingClaim?.name ?? 'lead_id',
+    status: 'ACTIVE',
+    claimType: 'RESOURCE',
+    valueType: 'EXPRESSION',
+    value: 'user.leadId',
+    alwaysIncludeInToken: true,
+    conditions: {
+      scopes: [],
+    },
+  }),
+);
+results.leadIdAccessClaim = {
+  mode: leadIdAccessClaimResult.mode,
+  id: leadIdAccessClaimResult.claim.id,
+};
+
+const customerIdAccessClaimResult = await ensureAuthorizationServerClaim(
+  authorizationServerId,
+  'customer_id',
+  'RESOURCE',
+  (existingClaim) => ({
+    name: existingClaim?.name ?? 'customer_id',
+    status: 'ACTIVE',
+    claimType: 'RESOURCE',
+    valueType: 'EXPRESSION',
+    value: 'user.customerId',
+    alwaysIncludeInToken: true,
+    conditions: {
+      scopes: [],
+    },
+  }),
+);
+results.customerIdAccessClaim = {
+  mode: customerIdAccessClaimResult.mode,
+  id: customerIdAccessClaimResult.claim.id,
+};
+
 const profileEnrollmentPolicyResult = await ensurePolicy(
   'PROFILE_ENROLLMENT',
   profileEnrollmentPolicyName,
@@ -1523,7 +1809,7 @@ if (hostedExperience.rememberUser) {
 
 if (hostedExperience.fundingRouteStepUp) {
   warnings.push(
-    'Funding step-up remains enforced in application code through acr_values + prompt=login on the guarded funding step. The Okta policy bootstrap ensures 2FA-capable app access, but route-level step-up is still a runtime concern.',
+    'Funding step-up remains enforced in application code through acr_values on the guarded funding step. The Okta policy bootstrap ensures 2FA-capable app access, but route-level step-up is still a runtime concern.',
   );
 }
 
@@ -1548,6 +1834,11 @@ writeJsonFile(bootstrapOutputsPath, {
   applicationAssignmentGroupId: results.applicationAssignmentGroupId,
   authorizationServerPolicyId: results.authorizationServerPolicy.id,
   authorizationServerRuleId: results.authorizationServerRule.id,
+  customProfileAttributes: results.customProfileAttributes,
+  leadIdClaimId: results.leadIdClaim.id,
+  customerIdClaimId: results.customerIdClaim.id,
+  leadIdAccessClaimId: results.leadIdAccessClaim.id,
+  customerIdAccessClaimId: results.customerIdAccessClaim.id,
   profileEnrollmentPolicyId: results.profileEnrollmentPolicy.id,
   mfaEnrollmentPolicyId: results.mfaEnrollmentPolicy.id,
   sessionPolicyId: results.sessionPolicy.id,
@@ -1570,6 +1861,15 @@ console.log(
 console.log(`- Default brand: ${results.defaultBrand.name}`);
 console.log(
   `- Customer brand (${results.customerBrand.mode}): ${results.customerBrand.name}`,
+);
+console.log(
+  `- Custom profile attributes (${results.customProfileAttributes.mode}): leadId, customerId`,
+);
+console.log(
+  `- ID token claims: lead_id=${results.leadIdClaim.id}, customer_id=${results.customerIdClaim.id}`,
+);
+console.log(
+  `- Access token claims: lead_id=${results.leadIdAccessClaim.id}, customer_id=${results.customerIdAccessClaim.id}`,
 );
 console.log(`- Hosted sign-in page: ${results.customizedSignInPage.mode}`);
 console.log(`- Hosted error page: ${results.customizedErrorPage.mode}`);
