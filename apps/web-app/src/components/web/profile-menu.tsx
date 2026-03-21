@@ -239,6 +239,10 @@ export function ProfileMenu(): React.ReactElement {
 
         <DropdownMenuLabel>Support</DropdownMenuLabel>
         {supportLinks.map((item) => {
+          if (!item.href) {
+            return null;
+          }
+
           const isActive = isItemActive(item);
 
           return (

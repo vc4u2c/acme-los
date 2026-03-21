@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@acme-los/auth/web';
+import { LeadIdTracker } from './lead-id-tracker';
 
 export function AppProviders({
   children,
@@ -25,6 +26,9 @@ export function AppProviders({
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>{children}</AuthProvider>
+      <React.Suspense fallback={null}>
+        <LeadIdTracker />
+      </React.Suspense>
     </QueryClientProvider>
   );
 }

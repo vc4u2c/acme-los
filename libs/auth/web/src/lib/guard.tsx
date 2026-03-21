@@ -21,26 +21,40 @@ export function RequireAuth({
   requirement: AuthRequirement;
   children: React.ReactNode;
 }): React.ReactElement {
+  return (
+    <React.Suspense
+      fallback={<RequireAuthFallback requirement={requirement} />}
+    >
+      <RequireAuthContent requirement={requirement}>
+        {children}
+      </RequireAuthContent>
+    </React.Suspense>
+  );
+}
+
+function RequireAuthContent({
+  requirement,
+  children,
+}: {
+  requirement: AuthRequirement;
+  children: React.ReactNode;
+}): React.ReactElement {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { session, signIn } = useAuthSession();
   const hasTriggeredRedirectRef = React.useRef(false);
+  const minimumAssuranceLevel = requirement.minimumAssuranceLevel ?? 'aal1';
+  const isSatisfied =
+    session.status === 'authenticated' &&
+    isAssuranceSatisfied(session.assuranceLevel, minimumAssuranceLevel);
 
   React.useEffect(() => {
-    if (!requirement.requiresAuthentication) {
-      return;
-    }
-
-    if (hasTriggeredRedirectRef.current || session.status === 'loading') {
-      return;
-    }
-
-    const minimumAssuranceLevel = requirement.minimumAssuranceLevel ?? 'aal1';
-    const isSatisfied =
-      session.status === 'authenticated' &&
-      isAssuranceSatisfied(session.assuranceLevel, minimumAssuranceLevel);
-
-    if (isSatisfied) {
+    if (
+      !requirement.requiresAuthentication ||
+      hasTriggeredRedirectRef.current ||
+      session.status === 'loading' ||
+      isSatisfied
+    ) {
       return;
     }
 
@@ -51,20 +65,33 @@ export function RequireAuth({
     }).catch(() => {
       hasTriggeredRedirectRef.current = false;
     });
-  }, [pathname, requirement, searchParams, session, signIn]);
+  }, [
+    isSatisfied,
+    minimumAssuranceLevel,
+    pathname,
+    requirement.requiresAuthentication,
+    searchParams,
+    session.status,
+    signIn,
+  ]);
 
   if (!requirement.requiresAuthentication) {
     return <>{children}</>;
   }
 
-  const minimumAssuranceLevel = requirement.minimumAssuranceLevel ?? 'aal1';
-  const isSatisfied =
-    session.status === 'authenticated' &&
-    isAssuranceSatisfied(session.assuranceLevel, minimumAssuranceLevel);
-
   if (isSatisfied) {
     return <>{children}</>;
   }
+
+  return <RequireAuthFallback requirement={requirement} />;
+}
+
+function RequireAuthFallback({
+  requirement,
+}: {
+  requirement: AuthRequirement;
+}): React.ReactElement {
+  const minimumAssuranceLevel = requirement.minimumAssuranceLevel ?? 'aal1';
 
   return (
     <>

@@ -43,17 +43,20 @@ function buildHostedBrandHeaderMarkup({ brandLabel, productLabel }) {
                     <span class="acme-brand-header__title">${productLabel}</span>
                 </span>
             </div>
-            <span class="acme-brand-header__pill">Customer access</span>
         </div>
     </header>
   `;
 }
 
-function buildHostedCopyrightMarkup(year) {
+// Retained temporarily while the hosted-page template continues to evolve.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function buildHostedCopyrightMarkupLegacy(year) {
   return `<p class="acme-auth-copyright">© ${year} ACME LOS. All rights reserved.</p>`;
 }
 
-function buildHostedThemeCss(branding) {
+// Retained temporarily while the hosted-page template continues to evolve.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function buildHostedThemeCssLegacy(branding) {
   const primaryColor = requiredString(
     branding.PrimaryColor,
     'Branding.PrimaryColor',
@@ -118,6 +121,156 @@ function buildHostedThemeCss(branding) {
   `;
 }
 
+function buildHostedCopyrightMarkup(year) {
+  return `<p class="acme-auth-copyright">&copy; ${year} ACME LOS. All rights reserved.</p>`;
+}
+
+function buildHostedSupportFooterMarkup({
+  supportPhoneHref,
+  supportPhone,
+  supportHours,
+  helpUrl,
+  copyrightYear,
+}) {
+  return `
+    <footer class="acme-auth-footer">
+        <div class="acme-auth-support">
+            <a href="${escapeHtml(helpUrl)}">Contact support</a>
+            <span class="acme-auth-support__divider" aria-hidden="true">&bull;</span>
+            <a href="${supportPhoneHref}">${supportPhone}</a>
+            <span>${supportHours}</span>
+        </div>
+        ${buildHostedCopyrightMarkup(copyrightYear)}
+    </footer>
+  `;
+}
+
+function buildHostedThemeCss(branding) {
+  const primaryColor = requiredString(
+    branding.PrimaryColor,
+    'Branding.PrimaryColor',
+  );
+  const primaryContrastColor = requiredString(
+    branding.PrimaryContrastColor,
+    'Branding.PrimaryContrastColor',
+  );
+  const backgroundColor = requiredString(
+    branding.BackgroundColor,
+    'Branding.BackgroundColor',
+  );
+  const surfaceColor = requiredString(
+    branding.SurfaceColor,
+    'Branding.SurfaceColor',
+  );
+  const textColor = requiredString(branding.TextColor, 'Branding.TextColor');
+  const mutedTextColor = requiredString(
+    branding.MutedTextColor,
+    'Branding.MutedTextColor',
+  );
+  const linkColor = requiredString(branding.LinkColor, 'Branding.LinkColor');
+  const borderColor = requiredString(
+    branding.BorderColor,
+    'Branding.BorderColor',
+  );
+  const focusColor = requiredString(branding.FocusColor, 'Branding.FocusColor');
+  const accentColor = requiredString(
+    branding.AccentColor,
+    'Branding.AccentColor',
+  );
+
+  return `
+        :root {
+            color-scheme: light;
+            --acme-background: ${backgroundColor};
+            --acme-background-top: #fffef9;
+            --acme-hero-glow-top: rgba(17, 98, 67, 0.12);
+            --acme-hero-glow-side: rgba(214, 176, 95, 0.13);
+            --acme-hero-glow-top-size: 76rem 36rem;
+            --acme-hero-glow-side-size: 72rem 32rem;
+            --acme-surface: ${surfaceColor};
+            --acme-surface-strong: #e8eee7;
+            --acme-surface-accent: #dde6de;
+            --acme-surface-spot: #efe3c3;
+            --acme-card: #fffdf8;
+            --acme-field-bg: #fffdf8;
+            --acme-guidance-bg: #edf3ec;
+            --acme-text: ${textColor};
+            --acme-muted-text: ${mutedTextColor};
+            --acme-border: ${borderColor};
+            --acme-border-strong: #9fb1a4;
+            --acme-link: ${linkColor};
+            --acme-focus: ${focusColor};
+            --acme-ring-soft: rgba(36, 149, 103, 0.18);
+            --acme-brand: ${primaryColor};
+            --acme-brand-strong: #0d5338;
+            --acme-brand-contrast: ${primaryContrastColor};
+            --acme-brand-shadow: rgba(24, 122, 83, 0.22);
+            --acme-accent: ${accentColor};
+            --acme-accent-ink: #5a4212;
+            --acme-critical-border: rgba(178, 74, 61, 0.22);
+            --acme-critical-bg: rgba(178, 74, 61, 0.08);
+            --acme-header-shadow: 0 18px 40px rgba(10, 24, 20, 0.06);
+            --acme-card-shadow: 0 24px 60px rgba(10, 24, 20, 0.12);
+            --acme-font-display: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
+            --acme-font-body: Aptos, 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                color-scheme: dark;
+                --acme-background: #101b19;
+                --acme-background-top: #13211f;
+                --acme-hero-glow-top: rgba(70, 166, 122, 0.13);
+                --acme-hero-glow-side: rgba(212, 174, 96, 0.10);
+                --acme-hero-glow-top-size: 72rem 32rem;
+                --acme-hero-glow-side-size: 66rem 28rem;
+                --acme-surface: #142321;
+                --acme-surface-strong: #1a2c29;
+                --acme-surface-accent: #1a312c;
+                --acme-surface-spot: #3b3224;
+                --acme-card: #172521;
+                --acme-field-bg: #172521;
+                --acme-guidance-bg: #1c2d29;
+                --acme-text: #f4efe6;
+                --acme-muted-text: #b4bdb6;
+                --acme-border: #2a423d;
+                --acme-border-strong: #3b5952;
+                --acme-link: #65bc92;
+                --acme-focus: #72c79b;
+                --acme-ring-soft: rgba(114, 199, 155, 0.22);
+                --acme-brand: #46a67a;
+                --acme-brand-strong: #65bc92;
+                --acme-brand-contrast: #0d1614;
+                --acme-brand-shadow: rgba(70, 166, 122, 0.24);
+                --acme-accent: #d4ae60;
+                --acme-accent-ink: #f5e0b7;
+                --acme-critical-border: rgba(255, 157, 141, 0.28);
+                --acme-critical-bg: rgba(255, 157, 141, 0.12);
+                --acme-header-shadow: 0 22px 44px rgba(2, 12, 10, 0.28);
+                --acme-card-shadow: 0 24px 60px rgba(2, 12, 10, 0.28);
+            }
+        }
+
+        @media (max-width: 640px) {
+            :root {
+                --acme-hero-glow-top: rgba(17, 98, 67, 0.08);
+                --acme-hero-glow-side: rgba(214, 176, 95, 0.09);
+                --acme-hero-glow-top-size: 44rem 18rem;
+                --acme-hero-glow-side-size: 40rem 16rem;
+            }
+        }
+
+        @media (prefers-color-scheme: dark) and (max-width: 640px) {
+            :root {
+                --acme-hero-glow-top: rgba(70, 166, 122, 0.09);
+                --acme-hero-glow-side: rgba(212, 174, 96, 0.06);
+                --acme-hero-glow-top-size: 38rem 15rem;
+                --acme-hero-glow-side-size: 34rem 13rem;
+            }
+        }
+  `;
+}
+
 export function buildHostedSignInPageContent(branding) {
   const titleCopy = {
     signInTitle: requiredString(branding.SignInTitle, 'Branding.SignInTitle'),
@@ -132,15 +285,7 @@ export function buildHostedSignInPageContent(branding) {
     ),
   };
 
-  const flowCopy = {
-    signInPrompt: 'New here?',
-    signInAction: 'Create account',
-    signUpPrompt: 'Already have an account?',
-    signUpAction: 'Sign in',
-  };
-
   const supportCopy = {
-    label: 'Need help?',
     phone: requiredString(branding.SupportPhone, 'Branding.SupportPhone'),
     hours: requiredString(branding.SupportHours, 'Branding.SupportHours'),
   };
@@ -190,14 +335,23 @@ export function buildHostedSignInPageContent(branding) {
             padding: 0;
             color: var(--acme-text);
             background:
-                radial-gradient(circle at top right, var(--acme-hero-glow-top), transparent 28%),
-                radial-gradient(circle at top left, var(--acme-hero-glow-side), transparent 24%),
+                radial-gradient(ellipse at top right, var(--acme-hero-glow-top) 0%, transparent 68%),
+                radial-gradient(ellipse at top left, var(--acme-hero-glow-side) 0%, transparent 72%),
                 linear-gradient(
                     180deg,
                     var(--acme-background-top) 0%,
                     var(--acme-background) 22%,
                     var(--acme-background) 100%
                 );
+            background-position:
+                top right,
+                top left,
+                top left;
+            background-repeat: no-repeat;
+            background-size:
+                var(--acme-hero-glow-top-size),
+                var(--acme-hero-glow-side-size),
+                100% 100%;
             font-family: var(--acme-font-body);
             overflow-x: hidden;
         }
@@ -222,7 +376,7 @@ export function buildHostedSignInPageContent(branding) {
             padding: 0.9rem 1.5rem;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-start;
             gap: 1rem;
         }
 
@@ -274,30 +428,13 @@ export function buildHostedSignInPageContent(branding) {
             line-height: 1.05;
         }
 
-        .acme-brand-header__pill {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 2rem;
-            padding: 0 0.9rem;
-            border: 1px solid var(--acme-border);
-            border-radius: 999px;
-            background: var(--acme-surface-strong);
-            color: var(--acme-muted-text);
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            white-space: nowrap;
-        }
-
         .acme-auth-shell {
             position: relative;
             z-index: 1;
             width: 100%;
-            max-width: 30rem;
+            max-width: 34rem;
             margin: 0 auto;
-            padding: 1.75rem 1.25rem 1.5rem;
+            padding: 1.8rem 1.2rem 1.35rem;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -339,24 +476,43 @@ export function buildHostedSignInPageContent(branding) {
             align-items: center;
             justify-content: center;
             width: 100%;
-            margin: 0.75rem 0 1rem;
-            padding: 0.72rem 0.95rem;
+            margin: 0.85rem 0 1.05rem;
+            padding: 0.82rem 1rem;
             border: 1px solid var(--acme-border);
-            border-radius: 1rem;
+            border-radius: 1.1rem;
             background: var(--acme-guidance-bg);
             color: var(--acme-muted-text);
-            font-size: 0.9rem;
+            font-size: 0.92rem;
             line-height: 1.55;
             text-align: center;
         }
 
-        .acme-auth-secondary-link,
+        .acme-auth-footer {
+            width: 100%;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--acme-border);
+            text-align: center;
+        }
+
         .acme-auth-support {
-            margin-top: 0.9rem;
             text-align: center;
             color: var(--acme-muted-text);
             font-size: 0.9rem;
             line-height: 1.55;
+        }
+
+        .acme-auth-support {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem 0.55rem;
+            margin-top: 0.7rem;
+        }
+
+        .acme-auth-support__divider {
+            color: var(--acme-border-strong);
         }
 
         #okta-login-container {
@@ -377,7 +533,11 @@ export function buildHostedSignInPageContent(branding) {
             margin: 0 !important;
             border: 1px solid var(--acme-border);
             border-radius: 1.8rem;
-            background: var(--acme-card);
+            background: linear-gradient(
+                180deg,
+                var(--acme-card) 0%,
+                var(--acme-surface) 100%
+            );
             box-shadow: var(--acme-card-shadow);
             overflow: hidden;
         }
@@ -400,20 +560,23 @@ export function buildHostedSignInPageContent(branding) {
         }
 
         #okta-login-container .siw-main-footer {
-            padding: 0 1.5rem 1.5rem !important;
-            border-top: 1px solid var(--acme-border);
+            width: 100% !important;
+            padding: 0.2rem 1.5rem 1.5rem !important;
+            border-top: 0 !important;
             display: flex !important;
-            flex-wrap: wrap !important;
+            flex-direction: column !important;
             align-items: center !important;
-            justify-content: flex-start !important;
-            gap: 0.75rem !important;
+            justify-content: center !important;
+            gap: 0.65rem !important;
+            text-align: center !important;
         }
 
         #okta-login-container .siw-main-footer > * {
-            width: auto !important;
+            width: 100% !important;
             max-width: 100% !important;
             min-width: 0 !important;
             margin: 0 !important;
+            text-align: center !important;
         }
 
         #okta-login-container .siw-main-footer a,
@@ -428,7 +591,7 @@ export function buildHostedSignInPageContent(branding) {
             word-break: normal !important;
             overflow-wrap: normal !important;
             writing-mode: horizontal-tb !important;
-            text-align: left !important;
+            text-align: center !important;
         }
 
         #okta-login-container .auth-content-inner,
@@ -490,6 +653,12 @@ export function buildHostedSignInPageContent(branding) {
             padding: 0 !important;
         }
 
+        body[data-acme-auth-state='enroll'] #okta-login-container .siw-main-header,
+        body[data-acme-auth-state='password'] #okta-login-container .siw-main-header,
+        body[data-acme-auth-state='verify'] #okta-login-container .siw-main-header {
+            display: none !important;
+        }
+
         #okta-login-container label,
         #okta-login-container .o-form-label,
         #okta-login-container .siw-label,
@@ -508,9 +677,9 @@ export function buildHostedSignInPageContent(branding) {
         #okta-login-container .selectize-input,
         #okta-login-container .chzn-single,
         #okta-login-container .okta-form-input-field {
-            min-height: 3rem !important;
+            min-height: 2.6rem !important;
             border: 1px solid var(--acme-border) !important;
-            border-radius: 1rem !important;
+            border-radius: 0.9rem !important;
             background: var(--acme-field-bg) !important;
             color: var(--acme-text) !important;
             box-shadow: none !important;
@@ -529,30 +698,30 @@ export function buildHostedSignInPageContent(branding) {
         #okta-login-container .button,
         #okta-login-container input[type="button"],
         #okta-login-container input[type="submit"] {
-            min-height: 3rem !important;
-            border-radius: 1rem !important;
+            min-height: 2.55rem !important;
+            border-radius: 0.9rem !important;
             border: 1px solid var(--acme-border) !important;
             background: var(--acme-field-bg) !important;
             color: var(--acme-text) !important;
             box-shadow: none !important;
-            font-size: 0.98rem !important;
+            font-size: 0.92rem !important;
             font-weight: 700 !important;
-            padding: 0.72rem 1.1rem !important;
+            padding: 0.56rem 0.95rem !important;
             transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease, filter 120ms ease;
         }
 
         #okta-login-container .button-primary,
         #okta-login-container .button.button-primary,
         #okta-login-container input[type="submit"] {
-            min-height: 3rem !important;
+            min-height: 2.55rem !important;
             border-radius: 999px !important;
             border: 0 !important;
             background: var(--acme-brand) !important;
             color: var(--acme-brand-contrast) !important;
             box-shadow: none !important;
-            font-size: 0.98rem !important;
+            font-size: 0.92rem !important;
             font-weight: 700 !important;
-            padding: 0.78rem 1.35rem !important;
+            padding: 0.58rem 1.05rem !important;
         }
 
         #okta-login-container .button:hover,
@@ -616,7 +785,7 @@ export function buildHostedSignInPageContent(branding) {
         #okta-login-container .okta-form-subsection,
         #okta-login-container .siw-enroll-card,
         #okta-login-container .authenticator-enrollments-list li {
-            padding: 1rem !important;
+            padding: 0.85rem !important;
         }
 
         #okta-login-container .authenticator-enrollments-list li,
@@ -625,6 +794,62 @@ export function buildHostedSignInPageContent(branding) {
             list-style: none !important;
             width: 100% !important;
             max-width: 100% !important;
+        }
+
+        #okta-login-container .acme-authenticator-item {
+            display: grid !important;
+            grid-template-columns: auto minmax(0, 1fr) auto !important;
+            align-items: center !important;
+            column-gap: 0.9rem !important;
+            row-gap: 0.4rem !important;
+        }
+
+        #okta-login-container .acme-authenticator-badge {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 2.35rem !important;
+            height: 2.35rem !important;
+            border-radius: 0.8rem !important;
+            border: 1px solid var(--acme-border) !important;
+            background: linear-gradient(
+                180deg,
+                var(--acme-surface-strong) 0%,
+                var(--acme-surface-accent) 100%
+            ) !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+            color: var(--acme-brand) !important;
+            flex-shrink: 0 !important;
+        }
+
+        #okta-login-container .acme-authenticator-badge svg {
+            width: 1rem !important;
+            height: 1rem !important;
+            display: block !important;
+        }
+
+        #okta-login-container .acme-authenticator-copy {
+            min-width: 0 !important;
+        }
+
+        #okta-login-container .acme-authenticator-action {
+            width: auto !important;
+            min-width: 4.75rem !important;
+            justify-self: end !important;
+            align-self: center !important;
+        }
+
+        #okta-login-container .acme-authenticator-action-wrap {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: flex-end !important;
+            width: auto !important;
+            min-width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: 0 !important;
+            background: transparent !important;
+            box-shadow: none !important;
         }
 
         #okta-login-container .select-authenticator-authenticate,
@@ -639,19 +864,30 @@ export function buildHostedSignInPageContent(branding) {
         #okta-login-container .select-authenticator-authenticate .button,
         #okta-login-container .authenticator-button .button,
         #okta-login-container .authenticator-enrollments-list li .button {
-            min-width: 5.6rem !important;
-            min-height: 2.5rem !important;
+            min-width: 4.7rem !important;
+            min-height: 2.25rem !important;
             width: auto !important;
             align-self: center !important;
             justify-content: center !important;
-            border-radius: 1rem !important;
-            padding: 0.58rem 0.9rem !important;
+            border-radius: 999px !important;
+            padding: 0.44rem 0.82rem !important;
             background: var(--acme-brand) !important;
             color: var(--acme-brand-contrast) !important;
             border: 0 !important;
             white-space: nowrap !important;
-            font-size: 0.92rem !important;
+            font-size: 0.89rem !important;
             line-height: 1.1 !important;
+        }
+
+        #okta-login-container .authenticator-enrollments-list li p,
+        #okta-login-container .authenticator-list li p,
+        #okta-login-container .authenticator-verify-list li p,
+        #okta-login-container .authenticator-enrollments-list li [class*='description'],
+        #okta-login-container .authenticator-list li [class*='description'],
+        #okta-login-container .authenticator-verify-list li [class*='description'],
+        #okta-login-container .siw-user-account,
+        #okta-login-container .siw-user-account * {
+            color: var(--acme-muted-text) !important;
         }
 
         #okta-login-container .select-authenticator-authenticate > :first-child,
@@ -674,37 +910,95 @@ export function buildHostedSignInPageContent(branding) {
         #okta-login-container .beacon-container,
         #okta-login-container .mfa-verify-passcode .beacon-container,
         #okta-login-container .authenticator-verify-list .beacon-container {
-            margin: 0 auto 0.5rem !important;
+            display: none !important;
         }
 
         #okta-login-container .beacon,
         #okta-login-container .mfa-verify-passcode .beacon,
         #okta-login-container .authenticator-verify-list .beacon {
-            border-color: var(--acme-border) !important;
-            background: var(--acme-field-bg) !important;
+            display: none !important;
+        }
+
+        #okta-login-container .siw-main-footer .acme-auth-recovery-link {
+            color: var(--acme-link) !important;
+            font-size: 0.92rem !important;
+            font-weight: 600 !important;
+        }
+
+        #okta-login-container .siw-main-footer .acme-registration-row {
+            display: inline-flex !important;
+            flex-wrap: wrap !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0.35rem !important;
+            color: var(--acme-text) !important;
+            font-size: 0.98rem !important;
+            font-weight: 600 !important;
+            line-height: 1.5 !important;
+            opacity: 1 !important;
+        }
+
+        #okta-login-container .siw-main-footer .acme-registration-prompt {
+            color: var(--acme-text) !important;
+            font-size: 0.98rem !important;
+            font-weight: 600 !important;
+            opacity: 1 !important;
+        }
+
+        #okta-login-container .siw-main-footer .acme-registration-link {
+            color: var(--acme-link) !important;
+            font-size: 0.98rem !important;
+            font-weight: 700 !important;
+        }
+
+        #okta-login-container .registration-container {
+            display: inline-flex !important;
+            flex-wrap: wrap !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0.35rem !important;
+            width: 100% !important;
+            color: var(--acme-text) !important;
+            text-align: center !important;
+            font-size: 0.92rem !important;
+            line-height: 1.5 !important;
+        }
+
+        #okta-login-container .registration-container,
+        #okta-login-container .registration-container span,
+        #okta-login-container .registration-container p,
+        #okta-login-container .registration-container div {
+            color: var(--acme-text) !important;
+            font-size: 0.98rem !important;
+            font-weight: 600 !important;
+            opacity: 1 !important;
+        }
+
+        #okta-login-container .registration-container .registration-link,
+        #okta-login-container .registration-container a[href*="signup"] {
+            color: var(--acme-link) !important;
+            font-size: 0.98rem !important;
+            font-weight: 700 !important;
         }
 
         .acme-auth-copyright {
-            margin: 1rem 0 0;
+            margin: 0.15rem 0 0;
             text-align: center;
             color: var(--acme-muted-text);
             font-size: 0.82rem;
             line-height: 1.55;
         }
 
-        .acme-auth-secondary-link a,
         .acme-auth-support a {
             color: var(--acme-link);
             font-weight: 600;
             text-decoration: none;
         }
 
-        .acme-auth-secondary-link a:hover,
         .acme-auth-support a:hover {
             text-decoration: underline;
         }
 
-        .acme-auth-secondary-link a:focus-visible,
         .acme-auth-support a:focus-visible {
             outline: 2px solid var(--acme-focus);
             outline-offset: 3px;
@@ -713,7 +1007,8 @@ export function buildHostedSignInPageContent(branding) {
 
         @media (max-width: 640px) {
             .acme-auth-shell {
-                padding: 1.4rem 0.9rem 1.2rem;
+                max-width: 100%;
+                padding: 1.35rem 0.9rem 1.15rem;
             }
 
             .acme-brand-header__inner {
@@ -724,10 +1019,6 @@ export function buildHostedSignInPageContent(branding) {
 
             .acme-brand-header__title {
                 font-size: 1.3rem;
-            }
-
-            .acme-brand-header__pill {
-                display: none;
             }
 
             .acme-brand-header__lockup {
@@ -763,17 +1054,37 @@ export function buildHostedSignInPageContent(branding) {
                 font-size: 1.35rem !important;
             }
 
+            .acme-auth-support {
+                flex-direction: column;
+                gap: 0.25rem;
+            }
+
+            .acme-auth-support__divider {
+                display: none;
+            }
+
             #okta-login-container .select-authenticator-authenticate,
             #okta-login-container .authenticator-button {
-                grid-template-columns: 1fr !important;
-                gap: 0.8rem !important;
-                padding: 0.9rem !important;
+                grid-template-columns: minmax(0, 1fr) auto !important;
+                gap: 0.7rem !important;
+                padding: 0.75rem !important;
             }
 
             #okta-login-container .select-authenticator-authenticate .button,
             #okta-login-container .authenticator-button .button,
             #okta-login-container .authenticator-enrollments-list li .button {
-                width: 100% !important;
+                width: auto !important;
+                min-width: 4.55rem !important;
+            }
+
+            #okta-login-container .acme-authenticator-item {
+                column-gap: 0.75rem !important;
+            }
+
+            #okta-login-container .acme-authenticator-badge {
+                width: 2.2rem !important;
+                height: 2.2rem !important;
+                border-radius: 0.76rem !important;
             }
         }
     </style>
@@ -789,21 +1100,19 @@ export function buildHostedSignInPageContent(branding) {
         </div>
         <div class="acme-auth-guidance" id="acme-auth-guidance" aria-live="polite"></div>
         <div id="okta-login-container"></div>
-        <div class="acme-auth-secondary-link" id="acme-auth-secondary-link" aria-live="polite"></div>
-        <div class="acme-auth-support">
-            Need help? <a href="${supportPhoneHref}">${escapeHtml(
-              supportCopy.phone,
-            )}</a> <span>${escapeHtml(supportCopy.hours)}</span>
-        </div>
-        ${buildHostedCopyrightMarkup(copyrightYear)}
+        ${buildHostedSupportFooterMarkup({
+          supportPhoneHref,
+          supportPhone: escapeHtml(supportCopy.phone),
+          supportHours: escapeHtml(supportCopy.hours),
+          helpUrl,
+          copyrightYear,
+        })}
     </main>
 
     {{{OktaUtil}}}
 
     <script type="text/javascript" nonce="{{nonceValue}}">
         var copy = ${JSON.stringify(titleCopy)};
-        var flowCopy = ${JSON.stringify(flowCopy)};
-        var helpUrl = ${JSON.stringify(helpUrl)};
         var stateCopy = {
             signIn: {
                 eyebrow: 'Customer sign in',
@@ -842,22 +1151,6 @@ export function buildHostedSignInPageContent(branding) {
                 guidance: 'Use a password you do not reuse anywhere else.'
             }
         };
-        var secondaryStateCopy = {
-            signIn: {
-                prompt: flowCopy.signInPrompt + ' ',
-                action: flowCopy.signInAction,
-                href: buildFlowUrl('signup')
-            },
-            signUp: {
-                prompt: flowCopy.signUpPrompt + ' ',
-                action: flowCopy.signUpAction,
-                href: buildFlowUrl('')
-            },
-            enroll: null,
-            verify: null,
-            recovery: null,
-            password: null
-        };
 
         function getRequestUrl() {
             return new URL(window.location.href);
@@ -865,16 +1158,6 @@ export function buildHostedSignInPageContent(branding) {
 
         function isSignupFlow() {
             return getRequestUrl().searchParams.get('screen_hint') === 'signup';
-        }
-
-        function buildFlowUrl(screenHint) {
-            var url = getRequestUrl();
-            if (screenHint) {
-                url.searchParams.set('screen_hint', screenHint);
-            } else {
-                url.searchParams.delete('screen_hint');
-            }
-            return url.toString();
         }
 
         function normalizeText(value) {
@@ -981,37 +1264,156 @@ export function buildHostedSignInPageContent(branding) {
             document.body.setAttribute('data-acme-auth-state', nextCopy.key);
         }
 
-        function renderSecondaryLink() {
-            var state = resolveStateCopy();
-            var container = document.getElementById('acme-auth-secondary-link');
-            if (!container) {
+        function getAuthenticatorTypeFromText(text) {
+            var normalized = normalizeText(text);
+            if (normalized.indexOf('password') !== -1) {
+                return 'password';
+            }
+            if (normalized.indexOf('email') !== -1) {
+                return 'email';
+            }
+            if (normalized.indexOf('phone') !== -1 || normalized.indexOf('sms') !== -1) {
+                return 'phone';
+            }
+            return 'generic';
+        }
+
+        function getAuthenticatorGlyphMarkup(type) {
+            if (type === 'password') {
+                return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 10V8a5 5 0 0 1 10 0v2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><rect x="5" y="10" width="14" height="10" rx="3" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 13.75v2.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>';
+            }
+            if (type === 'email') {
+                return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="6.5" width="16" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="m5.5 8 6.5 5 6.5-5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+            }
+            if (type === 'phone') {
+                return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="7.25" y="3.5" width="9.5" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M10 6.5h4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="17.25" r="0.9" fill="currentColor"/></svg>';
+            }
+            return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4.5 6 7.25v4.1c0 3.55 2.48 6.85 6 7.65 3.52-.8 6-4.1 6-7.65v-4.1L12 4.5Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="m9.5 12 1.7 1.7 3.3-3.45" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        }
+
+        function enhanceAuthenticatorOptions() {
+            var items = document.querySelectorAll(
+                '#okta-login-container .authenticator-enrollments-list li, #okta-login-container .authenticator-list li, #okta-login-container .authenticator-verify-list li'
+            );
+
+            Array.prototype.forEach.call(items, function(item) {
+                var type = getAuthenticatorTypeFromText(item.textContent || '');
+
+                item.classList.add('acme-authenticator-item');
+                item.setAttribute('data-acme-authenticator', type);
+
+                var action = item.querySelector('.button, button, input[type="button"], input[type="submit"]');
+                if (action) {
+                    action.classList.add('acme-authenticator-action');
+                    if (action.parentElement && action.parentElement !== item) {
+                        action.parentElement.classList.add('acme-authenticator-action-wrap');
+                    }
+                }
+
+                var copyContainer =
+                    item.querySelector('.select-authenticator-authenticate > :first-child, .authenticator-button > :first-child') ||
+                    item.querySelector('.select-authenticator-label') ||
+                    item.querySelector('h2, h3, h4, strong') ||
+                    item.firstElementChild;
+
+                if (copyContainer && copyContainer.nodeType === 1) {
+                    copyContainer.classList.add('acme-authenticator-copy');
+                }
+
+                var badge = item.querySelector('.acme-authenticator-badge');
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = 'acme-authenticator-badge';
+                    badge.innerHTML = getAuthenticatorGlyphMarkup(type);
+                    item.insertBefore(badge, item.firstChild);
+                } else {
+                    badge.innerHTML = getAuthenticatorGlyphMarkup(type);
+                }
+
+                Array.prototype.forEach.call(
+                    item.querySelectorAll(
+                        'img, [class*="factor-icon"], [class*="authenticator-icon"], [class*="mfa-icon"], [data-se*="icon"]'
+                    ),
+                    function(node) {
+                        if (!badge.contains(node) && node !== badge) {
+                            node.style.display = 'none';
+                        }
+                    }
+                );
+            });
+        }
+
+        function enhanceWidgetFooter() {
+            var footer = document.querySelector('#okta-login-container .siw-main-footer');
+            if (!footer) {
                 return;
             }
 
-            container.textContent = '';
-            container.style.display = 'none';
+            var currentState = resolveStateCopy().key;
+            var footerLinks = Array.prototype.slice.call(footer.querySelectorAll('a'));
+            var helpLink = footer.querySelector('.js-help') || footerLinks.find(function(link) {
+                return normalizeText(link.textContent) === 'help';
+            });
+            if (helpLink) {
+                if (currentState === 'signIn') {
+                    helpLink.style.display = 'inline-flex';
+                    helpLink.textContent = 'Forgot password or unlock account?';
+                    helpLink.classList.add('acme-auth-recovery-link');
+                } else {
+                    helpLink.style.display = 'none';
+                }
+            }
 
-            var secondaryCopy = secondaryStateCopy[state.key];
-            if (!secondaryCopy) {
+            var registrationLink = footer.querySelector('.registration-link') || footerLinks.find(function(link) {
+                var text = normalizeText(link.textContent);
+                return text === 'sign up' || text === 'create account' || text === 'register';
+            });
+            if (!registrationLink) {
                 return;
             }
 
-            container.style.display = 'block';
+            registrationLink.classList.add('acme-registration-link');
 
-            var prompt = document.createElement('span');
-            prompt.textContent = secondaryCopy.prompt;
+            var row = registrationLink.closest('.registration-container') || registrationLink.parentElement;
+            if (!row) {
+                return;
+            }
 
-            var link = document.createElement('a');
-            link.href = secondaryCopy.href;
-            link.textContent = secondaryCopy.action;
+            var promptText = currentState === 'signUp'
+                ? 'Already have an account?'
+                : "Don’t have an account?";
+            var actionText = currentState === 'signUp'
+                ? 'Sign in'
+                : 'Sign up';
 
-            container.appendChild(prompt);
-            container.appendChild(link);
+            row.classList.add('acme-registration-row');
+            return;
+            registrationLink.textContent = actionText;
+
+            Array.prototype.slice.call(row.childNodes).forEach(function(node) {
+                if (node !== registrationLink) {
+                    row.removeChild(node);
+                }
+            });
+
+            if (registrationLink.parentElement !== row) {
+                row.appendChild(registrationLink);
+            }
+
+            var promptNode = row.querySelector('.acme-registration-prompt');
+            if (!promptNode) {
+                promptNode = document.createElement('span');
+                promptNode.className = 'acme-registration-prompt';
+                row.insertBefore(promptNode, registrationLink);
+            }
+
+            promptNode.textContent = promptText;
         }
 
         function syncHostedExperience() {
             updateExperienceCopy();
-            renderSecondaryLink();
+            enhanceAuthenticatorOptions();
+            enhanceWidgetFooter();
         }
 
         function observeWidgetUpdates() {
@@ -1108,14 +1510,23 @@ export function buildHostedErrorPageContent(branding) {
             padding: 0;
             color: var(--acme-text);
             background:
-                radial-gradient(circle at top right, var(--acme-hero-glow-top), transparent 28%),
-                radial-gradient(circle at top left, var(--acme-hero-glow-side), transparent 24%),
+                radial-gradient(ellipse at top right, var(--acme-hero-glow-top) 0%, transparent 68%),
+                radial-gradient(ellipse at top left, var(--acme-hero-glow-side) 0%, transparent 72%),
                 linear-gradient(
                     180deg,
                     var(--acme-background-top) 0%,
                     var(--acme-background) 24%,
                     var(--acme-background) 100%
                 );
+            background-position:
+                top right,
+                top left,
+                top left;
+            background-repeat: no-repeat;
+            background-size:
+                var(--acme-hero-glow-top-size),
+                var(--acme-hero-glow-side-size),
+                100% 100%;
             font-family: var(--acme-font-body);
         }
 
@@ -1127,7 +1538,7 @@ export function buildHostedErrorPageContent(branding) {
             position: relative;
             z-index: 1;
             border-bottom: 1px solid var(--acme-border);
-            background: color-mix(in srgb, var(--acme-surface) 92%, transparent);
+            background: var(--acme-surface);
             box-shadow: var(--acme-header-shadow);
         }
 
@@ -1138,7 +1549,7 @@ export function buildHostedErrorPageContent(branding) {
             padding: 0.9rem 1.5rem;
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            justify-content: flex-start;
             gap: 1rem;
         }
 
@@ -1188,38 +1599,25 @@ export function buildHostedErrorPageContent(branding) {
             line-height: 1.05;
         }
 
-        .acme-brand-header__pill {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 2rem;
-            padding: 0 0.9rem;
-            border: 1px solid var(--acme-border);
-            border-radius: 999px;
-            background: var(--acme-surface-strong);
-            color: var(--acme-muted-text);
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.18em;
-            text-transform: uppercase;
-            white-space: nowrap;
-        }
-
         .acme-error-shell {
             position: relative;
             z-index: 1;
             width: 100%;
-            max-width: 40rem;
+            max-width: 34rem;
             margin: 0 auto;
-            padding: 2.5rem 1.5rem 2rem;
+            padding: 2rem 1.2rem 1.35rem;
         }
 
         .acme-error-card {
-            background: var(--acme-surface);
+            background: linear-gradient(
+                180deg,
+                var(--acme-card) 0%,
+                var(--acme-surface) 100%
+            );
             border: 1px solid var(--acme-border);
             border-radius: 1.75rem;
             box-shadow: var(--acme-card-shadow);
-            padding: 2rem;
+            padding: 1.7rem;
         }
 
         .acme-error-eyebrow {
@@ -1255,34 +1653,17 @@ export function buildHostedErrorPageContent(branding) {
             align-items: center;
             justify-content: center;
             min-height: 2.75rem;
-            padding: 0 1rem;
+            padding: 0 1.1rem;
             border-radius: 999px;
             background: var(--acme-brand);
             color: var(--acme-brand-contrast);
-            font-weight: 600;
+            font-weight: 700;
             text-decoration: none;
         }
 
         .acme-error-actions a:focus-visible {
             outline: 2px solid var(--acme-focus);
             outline-offset: 3px;
-        }
-
-        .acme-error-support {
-            margin-top: 1.25rem;
-            color: var(--acme-muted-text);
-            font-size: 0.95rem;
-            line-height: 1.6;
-        }
-
-        .acme-error-support a {
-            color: var(--acme-link);
-            font-weight: 600;
-            text-decoration: none;
-        }
-
-        .acme-error-support a:hover {
-            text-decoration: underline;
         }
 
         .acme-error-accent {
@@ -1298,11 +1679,51 @@ export function buildHostedErrorPageContent(branding) {
         }
 
         .acme-auth-copyright {
-            margin: 1rem 0 0;
+            margin: 0.15rem 0 0;
             text-align: center;
             color: var(--acme-muted-text);
             font-size: 0.82rem;
             line-height: 1.55;
+        }
+
+        .acme-auth-footer {
+            width: 100%;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--acme-border);
+            text-align: center;
+        }
+
+        .acme-auth-support {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            gap: 0.35rem 0.55rem;
+            color: var(--acme-muted-text);
+            font-size: 0.9rem;
+            line-height: 1.55;
+            text-align: center;
+        }
+
+        .acme-auth-support a {
+            color: var(--acme-link);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .acme-auth-support a:hover {
+            text-decoration: underline;
+        }
+
+        .acme-auth-support a:focus-visible {
+            outline: 2px solid var(--acme-focus);
+            outline-offset: 3px;
+            border-radius: 0.25rem;
+        }
+
+        .acme-auth-support__divider {
+            color: var(--acme-border-strong);
         }
 
         @media (max-width: 640px) {
@@ -1314,7 +1735,25 @@ export function buildHostedErrorPageContent(branding) {
                 font-size: 1.3rem;
             }
 
-            .acme-brand-header__pill {
+            .acme-error-shell {
+                max-width: 100%;
+                padding: 1.45rem 0.95rem 1.15rem;
+            }
+
+            .acme-error-card {
+                padding: 1.35rem;
+            }
+
+            .acme-error-title {
+                font-size: 1.65rem;
+            }
+
+            .acme-auth-support {
+                flex-direction: column;
+                gap: 0.25rem;
+            }
+
+            .acme-auth-support__divider {
                 display: none;
             }
         }
@@ -1332,12 +1771,14 @@ export function buildHostedErrorPageContent(branding) {
             <div class="acme-error-actions">
                 <a href="{{buttonHref}}">{{buttonText}}</a>
             </div>
-            <div class="acme-error-support">
-                Need help? <a href="${supportPhoneHref}">${supportPhone}</a><br />
-                ${supportHours}
-            </div>
-            ${buildHostedCopyrightMarkup(copyrightYear)}
         </section>
+        ${buildHostedSupportFooterMarkup({
+          supportPhoneHref,
+          supportPhone,
+          supportHours,
+          helpUrl: requiredString(branding.HelpUrl, 'Branding.HelpUrl'),
+          copyrightYear,
+        })}
     </main>
 </body>
 </html>
