@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 const mockAuthStorageKey = 'acme-los-auth-mock-session';
+const mockAuthBaseUrl = process.env['BASE_URL'] || 'http://127.0.0.1:4200';
 
 function createMockCustomerUser() {
   return {
@@ -16,13 +17,27 @@ function createMockCustomerUser() {
 test('shows the web home, rendering demos, and showcase route', async ({
   page,
 }) => {
+  const mockUser = createMockCustomerUser();
+  const serializedUser = JSON.stringify(mockUser);
+
+  await page.context().addCookies([
+    {
+      name: mockAuthStorageKey,
+      value: encodeURIComponent(serializedUser),
+      url: mockAuthBaseUrl,
+      sameSite: 'Lax',
+    },
+  ]);
+
   await page.addInitScript(
     ({ key, user }) => {
-      window.sessionStorage.setItem(key, JSON.stringify(user));
+      const serializedUser = JSON.stringify(user);
+      window.sessionStorage.setItem(key, serializedUser);
+      document.cookie = `${key}=${encodeURIComponent(serializedUser)}; path=/; samesite=lax`;
     },
     {
       key: mockAuthStorageKey,
-      user: createMockCustomerUser(),
+      user: mockUser,
     },
   );
 

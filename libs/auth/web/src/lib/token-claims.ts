@@ -20,7 +20,7 @@ function decodeBase64Url(value: string): string | null {
   }
 }
 
-function parseJwtClaims(
+export function parseJwtClaims(
   token: string | undefined,
 ): Record<string, unknown> | null {
   if (!token) {
@@ -48,6 +48,31 @@ export async function getCurrentOktaTokenClaims(): Promise<OktaTokenClaimsSnapsh
   const config = getWebAuthConfig();
   if (config.provider !== 'okta' || !config.okta) {
     return { idToken: null, accessToken: null };
+  }
+
+  try {
+    const response = await fetch('/api/auth/session?includeDebug=1', {
+      credentials: 'same-origin',
+      method: 'GET',
+    });
+
+    if (response.ok) {
+      const serverSnapshot = (await response.json()) as {
+        debug?: {
+          idTokenClaims: Record<string, unknown> | null;
+          accessTokenClaims: Record<string, unknown> | null;
+        };
+      };
+
+      if (serverSnapshot.debug) {
+        return {
+          idToken: serverSnapshot.debug.idTokenClaims,
+          accessToken: serverSnapshot.debug.accessTokenClaims,
+        };
+      }
+    }
+  } catch {
+    // Fall back to the browser token manager when the server snapshot is not available.
   }
 
   try {

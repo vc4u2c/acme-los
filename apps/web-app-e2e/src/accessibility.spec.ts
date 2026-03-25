@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const mockAuthStorageKey = 'acme-los-auth-mock-session';
+const mockAuthBaseUrl = process.env['BASE_URL'] || 'http://127.0.0.1:4200';
 const axeSource = readFileSync(
   join(__dirname, '..', '..', '..', 'node_modules', 'axe-core', 'axe.min.js'),
   'utf8',
@@ -77,13 +78,27 @@ async function primeAuthenticatedCustomer(
   page: Page,
   assuranceLevel: 'aal1' | 'aal2' = 'aal2',
 ) {
+  const user = createMockCustomerUser(assuranceLevel);
+  const serializedUser = JSON.stringify(user);
+
+  await page.context().addCookies([
+    {
+      name: mockAuthStorageKey,
+      value: encodeURIComponent(serializedUser),
+      url: mockAuthBaseUrl,
+      sameSite: 'Lax',
+    },
+  ]);
+
   await page.addInitScript(
     ({ key, user }) => {
-      window.sessionStorage.setItem(key, JSON.stringify(user));
+      const serializedUser = JSON.stringify(user);
+      window.sessionStorage.setItem(key, serializedUser);
+      document.cookie = `${key}=${encodeURIComponent(serializedUser)}; path=/; samesite=lax`;
     },
     {
       key: mockAuthStorageKey,
-      user: createMockCustomerUser(assuranceLevel),
+      user,
     },
   );
 }
