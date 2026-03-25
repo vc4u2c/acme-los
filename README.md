@@ -382,9 +382,124 @@ Recommended near-term path:
 
 Practical implication:
 
+Current first slice now in place:
+
+- `/apply/*` keeps the same route shape with server-rendered shells and client form islands
+- `apps/web-app/src/app/api/auth/session`
+  - syncs verified Okta sign-in into a web-owned HTTP-only session cookie
+  - gives the web shell a server-backed session read path
+- `apps/web-app/src/app/api/security/csrf`
+  - issues CSRF tokens for mutating web facade requests
+- `apps/web-app/src/app/api/customer/profile`
+  - moves customer dashboard profile persistence behind the facade instead of local browser storage
+
+This is intentionally still a temporary web-only facade:
+
+- it owns cookie/session concerns and light request validation
+- it does not become the long-term business-logic home
+- the future .NET BFF should be able to replace these implementations while keeping the request and response shapes stable
+
 - web can use the Next API layer now for cookie-backed auth/session work
 - mobile should continue to depend on shared contracts, not Next-specific runtime details
 - when the .NET BFF is ready, the web app should mostly swap transport/proxy wiring rather than rewrite page and form code
+
+### Implementation Checklist
+
+Use this as the practical execution order for the next auth, API, and hardening phase.
+
+#### Phase 1: Freeze The Current Auth Slice
+
+- keep the current `/apply/*` route shape
+- keep server-rendered route shells
+- keep client form islands focused on interaction only
+- keep the web app using the server-backed auth session cookie as the source of truth
+- keep hosted Okta focused on sign-in, MFA, reset, and unlock flows
+
+Definition of done:
+
+- callback creates the secure web session reliably
+- guarded routes use server-side session checks
+- sign-out clears both the app session and the Okta browser session
+
+#### Phase 2: Expand The Thin Next API Layer
+
+- add or continue expanding route handlers under `apps/web-app/src/app/api/*`
+- keep those handlers limited to:
+  - cookie and session handling
+  - CSRF validation
+  - auth and assurance enforcement
+  - request and response mapping
+  - proxy behavior
+- do not move long-term business logic into the Next route handlers
+
+Definition of done:
+
+- web UI talks to app-owned API contracts only
+- UI no longer reaches into Okta browser storage or cookie details directly
+- the same request and response shapes can later be implemented by the .NET BFF
+
+#### Phase 3: Move Remaining Protected Web Actions Behind The Facade
+
+- move authenticated customer and profile actions behind `/api/*`
+- move any remaining web-only auth mutations behind `/api/*`
+- keep shared contracts in `libs/api/contracts`
+- keep fetch and client wrappers in `libs/api/client`
+
+Definition of done:
+
+- web pages and components depend on shared contracts and a client wrapper
+- auth, session, and profile changes are mediated by the server layer
+
+#### Phase 4: Replace Temporary Persistence
+
+- replace cookie-backed demo persistence for customer profile data
+- replace local-browser assumptions for protected customer state where appropriate
+- keep browser-local application draft behavior only where it is intentionally temporary
+
+Definition of done:
+
+- protected customer data lives in backend persistence
+- customer profile is no longer stored in a cookie as a temporary convenience
+
+#### Phase 5: Security Hardening Pass
+
+- review secure cookie settings across environments
+- review CSRF coverage on all mutating web routes
+- add rate limiting or abuse controls where needed
+- add audit and security logging for sign-in, sign-out, and sensitive actions
+- review env var and secret handling for production readiness
+- review server-side assurance checks for standard and funding routes
+
+Definition of done:
+
+- the web facade has explicit hardening around cookies, CSRF, and sensitive actions
+- there is a clear audit trail for auth-sensitive events
+
+#### Phase 6: Prepare The .NET BFF Swap
+
+- keep request and response contracts stable in `libs/api/contracts`
+- keep the web client calling app-owned endpoints, not Okta internals
+- keep the Next implementation thin enough that it can later proxy to or be replaced by .NET
+- avoid baking Next-specific auth or session assumptions into shared UI or domain code
+
+Definition of done:
+
+- the .NET BFF can replace the Next implementation with minimal UI churn
+- mobile and web can share contracts without inheriting web-only runtime details
+
+#### Phase 7: Registration Rework When Unpaused
+
+- stop relying on hosted Okta self-service registration as the final customer registration model
+- build app-owned registration flow behind the server API layer
+- keep registration drafts in backend persistence
+- create the Okta user only at the end of successful registration
+- create the Okta user as `STAGED`
+- include `leadId` and `customerId` in the final user creation path
+
+Definition of done:
+
+- partial registration does not leave behind real customer users in Okta
+- hosted Okta stays focused on sign-in, MFA, reset, and unlock
 
 Related docs:
 

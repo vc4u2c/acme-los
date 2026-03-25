@@ -4,6 +4,8 @@ import {
   applicationStepSlugs,
   type ApplicationStepSlug,
 } from '../../../components/web/apply/step-definitions';
+import { getApplicationAuthRequirement } from '../../../lib/application-auth';
+import { requireServerWebAuthSession } from '../../../server/web-api/server-session';
 
 export function generateStaticParams() {
   return applicationStepSlugs.map((step) => ({ step }));
@@ -21,6 +23,11 @@ export default async function ApplicationStepRoute({
   if (!applicationStepSlugs.includes(step as ApplicationStepSlug)) {
     notFound();
   }
+
+  await requireServerWebAuthSession({
+    returnTo: `/apply/${step}`,
+    requirement: getApplicationAuthRequirement(step as ApplicationStepSlug),
+  });
 
   return <ApplicationStepPage key={step} step={step as ApplicationStepSlug} />;
 }

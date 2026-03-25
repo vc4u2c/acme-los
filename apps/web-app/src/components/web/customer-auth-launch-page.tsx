@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import type { AuthRequirement } from '@acme-los/auth/contracts';
 import { useAuthSession } from '@acme-los/auth/web';
 import {
   Button,
@@ -16,6 +17,10 @@ const shouldAutoLaunch = process.env.NEXT_PUBLIC_AUTH_PROVIDER !== 'mock';
 
 type CustomerAuthLaunchPageProps = {
   returnTo: string;
+  minimumAssuranceLevel?: Exclude<
+    AuthRequirement['minimumAssuranceLevel'],
+    undefined
+  >;
   eyebrow: string;
   title: string;
   description: string;
@@ -25,6 +30,7 @@ type CustomerAuthLaunchPageProps = {
 
 export function CustomerAuthLaunchPage({
   returnTo,
+  minimumAssuranceLevel = 'aal1',
   eyebrow,
   title,
   description,
@@ -37,8 +43,8 @@ export function CustomerAuthLaunchPage({
 
   const launch = React.useCallback(() => {
     setIsLaunching(true);
-    void signIn({ returnTo });
-  }, [returnTo, signIn]);
+    void signIn({ returnTo, minimumAssuranceLevel });
+  }, [minimumAssuranceLevel, returnTo, signIn]);
 
   React.useEffect(() => {
     if (!shouldAutoLaunch || hasAutoLaunchedRef.current) {

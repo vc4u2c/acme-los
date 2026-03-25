@@ -18,6 +18,7 @@ import {
 import { getWebAuthConfig } from './config';
 import { getStoredLeadId } from './lead-id';
 import { getOktaAuthClient } from './okta-client';
+import { parseJwtClaims } from './token-claims';
 
 type AuthContextValue = {
   session: AuthSession;
@@ -31,6 +32,15 @@ const AuthContext = React.createContext<AuthContextValue | null>(null);
 
 const firstApplicationStepPath = '/apply/personal-info';
 let authRedirectInFlight = false;
+
+type AuthSessionResponse = {
+  session: AuthSession;
+};
+type SyncAuthSessionRequest = {
+  idToken: string;
+  leadId?: string;
+  accessTokenClaims?: Record<string, unknown> | null;
+};
 
 function normalizeReturnTo(returnTo: string): string {
   if (returnTo === '/apply') {
@@ -81,21 +91,98 @@ function toUnauthenticatedSession(
   };
 }
 
+async function requestAuthSession(): Promise<AuthSessionResponse> {
+  const response = await fetch('/api/auth/session', {
+    credentials: 'same-origin',
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Unable to load auth session (${response.status}).`);
+  }
+
+  return (await response.json()) as AuthSessionResponse;
+}
+
+async function requestCsrfToken(): Promise<string> {
+  const response = await fetch('/api/security/csrf', {
+    credentials: 'same-origin',
+    method: 'GET',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Unable to issue CSRF token (${response.status}).`);
+  }
+
+  const body = (await response.json()) as { csrfToken?: string };
+  if (!body.csrfToken) {
+    throw new Error('Unable to issue a CSRF token for this request.');
+  }
+
+  return body.csrfToken;
+}
+
+async function syncServerAuthSession(
+  payload: SyncAuthSessionRequest,
+): Promise<AuthSessionResponse> {
+  const csrfToken = await requestCsrfToken();
+  const response = await fetch('/api/auth/session', {
+    body: JSON.stringify(payload),
+    credentials: 'same-origin',
+    headers: {
+      'content-type': 'application/json',
+      'x-csrf-token': csrfToken,
+    },
+    method: 'POST',
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Unable to sync auth session (${response.status}).`;
+
+    try {
+      const body = (await response.json()) as {
+        session?: { errorMessage?: string };
+      };
+
+      if (body.session?.errorMessage) {
+        errorMessage = body.session.errorMessage;
+      }
+    } catch {
+      // Keep the generic transport error when the API response cannot be parsed.
+    }
+
+    throw new Error(errorMessage);
+  }
+
+  return (await response.json()) as AuthSessionResponse;
+}
+
 function readMockSession(): AuthSession {
   if (typeof window === 'undefined') {
     return EMPTY_AUTH_SESSION;
   }
 
   const rawValue = window.sessionStorage.getItem(MOCK_AUTH_STORAGE_KEY);
-  if (!rawValue) {
+  const rawCookieValue = document.cookie
+    .split('; ')
+    .find((cookie) => cookie.startsWith(`${MOCK_AUTH_STORAGE_KEY}=`))
+    ?.split('=')
+    .slice(1)
+    .join('=');
+
+  const sessionSource = rawValue ?? rawCookieValue;
+  if (!sessionSource) {
     return toUnauthenticatedSession('mock');
   }
 
   try {
-    const parsedUser = JSON.parse(rawValue) as AuthUser;
+    const parsedUser = JSON.parse(
+      rawValue ?? decodeURIComponent(rawCookieValue ?? ''),
+    ) as AuthUser;
     return toAuthenticatedSession(parsedUser, 'mock');
   } catch {
     window.sessionStorage.removeItem(MOCK_AUTH_STORAGE_KEY);
+    document.cookie = `${MOCK_AUTH_STORAGE_KEY}=; Max-Age=0; Path=/; SameSite=Lax`;
     return toUnauthenticatedSession('mock');
   }
 }
@@ -105,7 +192,9 @@ function persistMockUser(user: AuthUser) {
     return;
   }
 
-  window.sessionStorage.setItem(MOCK_AUTH_STORAGE_KEY, JSON.stringify(user));
+  const serializedUser = JSON.stringify(user);
+  window.sessionStorage.setItem(MOCK_AUTH_STORAGE_KEY, serializedUser);
+  document.cookie = `${MOCK_AUTH_STORAGE_KEY}=${encodeURIComponent(serializedUser)}; Path=/; SameSite=Lax`;
 }
 
 function clearLocalSessionArtifacts() {
@@ -115,46 +204,7 @@ function clearLocalSessionArtifacts() {
 
   window.localStorage.removeItem(LOCAL_DRAFT_STORAGE_KEY);
   window.sessionStorage.removeItem(MOCK_AUTH_STORAGE_KEY);
-}
-
-function buildUserFromOktaClaims(
-  claims: Record<string, unknown>,
-): AuthUser | null {
-  const email = typeof claims.email === 'string' ? claims.email : undefined;
-  const firstName =
-    typeof claims.given_name === 'string' ? claims.given_name : undefined;
-  const lastName =
-    typeof claims.family_name === 'string' ? claims.family_name : undefined;
-  const leadId =
-    (typeof claims.lead_id === 'string' && claims.lead_id) ||
-    (typeof claims.leadId === 'string' && claims.leadId) ||
-    getStoredLeadId() ||
-    undefined;
-  const customerId =
-    (typeof claims.customer_id === 'string' && claims.customer_id) ||
-    (typeof claims.customerId === 'string' && claims.customerId) ||
-    undefined;
-  const displayName =
-    (typeof claims.name === 'string' && claims.name) ||
-    [firstName, lastName].filter(Boolean).join(' ') ||
-    email ||
-    'Customer';
-  const id =
-    (typeof claims.sub === 'string' && claims.sub) || email || 'okta-user';
-  const authenticationMethods = Array.isArray(claims.amr)
-    ? claims.amr.filter((value): value is string => typeof value === 'string')
-    : undefined;
-
-  return {
-    id,
-    email,
-    displayName,
-    firstName,
-    lastName,
-    leadId,
-    customerId,
-    authenticationMethods,
-  };
+  document.cookie = `${MOCK_AUTH_STORAGE_KEY}=; Max-Age=0; Path=/; SameSite=Lax`;
 }
 
 export function AuthProvider({
@@ -168,6 +218,29 @@ export function AuthProvider({
     provider: config.provider,
   });
 
+  const migrateBrowserTokensToServerSession = React.useCallback(async () => {
+    if (config.provider !== 'okta' || !config.okta) {
+      return false;
+    }
+
+    const oktaAuth = getOktaAuthClient(config.okta);
+    const tokens = await oktaAuth.tokenManager.getTokens();
+
+    if (!tokens.idToken?.idToken) {
+      return false;
+    }
+
+    await syncServerAuthSession({
+      idToken: tokens.idToken.idToken,
+      leadId: getStoredLeadId() ?? undefined,
+      accessTokenClaims: parseJwtClaims(tokens.accessToken?.accessToken),
+    });
+    oktaAuth.tokenManager.clear();
+    oktaAuth.clearStorage();
+
+    return true;
+  }, [config]);
+
   const refreshSession = React.useCallback(async () => {
     if (config.provider === 'mock') {
       setSession(readMockSession());
@@ -180,30 +253,27 @@ export function AuthProvider({
     }
 
     try {
-      const oktaAuth = getOktaAuthClient(config.okta);
-      const authState = await oktaAuth.authStateManager.updateAuthState();
-      const claims =
-        (authState?.idToken?.claims as Record<string, unknown> | undefined) ??
-        ((await oktaAuth.getUser()) as Record<string, unknown> | undefined);
+      const serverSession = await requestAuthSession();
 
-      if (!authState?.isAuthenticated || !claims) {
-        setSession(toUnauthenticatedSession('okta'));
+      if (serverSession.session.isAuthenticated) {
+        setSession(serverSession.session);
         return;
       }
 
-      const user = buildUserFromOktaClaims(claims);
-      if (!user) {
-        setSession(toUnauthenticatedSession('okta'));
+      const migrated = await migrateBrowserTokensToServerSession();
+      if (migrated) {
+        const migratedSession = await requestAuthSession();
+        setSession(migratedSession.session);
         return;
       }
 
-      setSession(toAuthenticatedSession(user, 'okta'));
+      setSession(toUnauthenticatedSession('okta'));
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to load auth session.';
       setSession(toUnauthenticatedSession('okta', message));
     }
-  }, [config]);
+  }, [config, migrateBrowserTokensToServerSession]);
 
   React.useEffect(() => {
     if (config.provider === 'mock') {
@@ -221,18 +291,7 @@ export function AuthProvider({
       return;
     }
 
-    const handleAuthStateChange = async () => {
-      await refreshSession();
-    };
-
-    oktaAuth.authStateManager.subscribe(handleAuthStateChange);
-    void oktaAuth.start();
     void refreshSession();
-
-    return () => {
-      oktaAuth.authStateManager.unsubscribe(handleAuthStateChange);
-      oktaAuth.stop();
-    };
   }, [config, refreshSession]);
 
   const signIn = React.useCallback(
@@ -299,10 +358,9 @@ export function AuthProvider({
     const oktaAuth = getOktaAuthClient(config.okta);
     setSession(toUnauthenticatedSession('okta'));
 
-    await oktaAuth.signOut({
-      clearTokensBeforeRedirect: true,
-      postLogoutRedirectUri: config.okta.postLogoutRedirectUri,
-    });
+    oktaAuth.tokenManager.clear();
+    oktaAuth.clearStorage();
+    window.location.assign('/api/auth/logout');
   }, [config]);
 
   const handleCallback = React.useCallback(async () => {
@@ -318,12 +376,37 @@ export function AuthProvider({
 
     try {
       const oktaAuth = getOktaAuthClient(config.okta);
+      await oktaAuth.storeTokensFromRedirect();
       const originalUri = getSafeReturnTo(
         oktaAuth.getOriginalUri() ?? firstApplicationStepPath,
       );
-      await oktaAuth.handleRedirect();
+      oktaAuth.removeOriginalUri();
+      const tokens = await oktaAuth.tokenManager.getTokens();
+
+      if (!tokens.idToken?.idToken) {
+        throw new Error('Unable to capture the Okta id token after callback.');
+      }
+
+      await syncServerAuthSession({
+        idToken: tokens.idToken.idToken,
+        leadId: getStoredLeadId() ?? undefined,
+        accessTokenClaims: parseJwtClaims(tokens.accessToken?.accessToken),
+      });
+      const serverSession = await requestAuthSession();
+
+      if (
+        !serverSession.session.isAuthenticated ||
+        serverSession.session.user === null
+      ) {
+        throw new Error(
+          'Unable to persist the secure server session after the Okta callback.',
+        );
+      }
+
+      setSession(serverSession.session);
+      oktaAuth.tokenManager.clear();
+      oktaAuth.clearStorage();
       authRedirectInFlight = false;
-      await refreshSession();
       window.location.replace(originalUri);
     } catch (error) {
       authRedirectInFlight = false;
