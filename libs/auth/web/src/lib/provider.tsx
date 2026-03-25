@@ -157,6 +157,21 @@ async function syncServerAuthSession(
   return (await response.json()) as AuthSessionResponse;
 }
 
+async function clearServerAuthSession(): Promise<void> {
+  const csrfToken = await requestCsrfToken();
+  const response = await fetch('/api/auth/session', {
+    credentials: 'same-origin',
+    headers: {
+      'x-csrf-token': csrfToken,
+    },
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    throw new Error(`Unable to clear auth session (${response.status}).`);
+  }
+}
+
 function readMockSession(): AuthSession {
   if (typeof window === 'undefined') {
     return EMPTY_AUTH_SESSION;
@@ -218,29 +233,6 @@ export function AuthProvider({
     provider: config.provider,
   });
 
-  const migrateBrowserTokensToServerSession = React.useCallback(async () => {
-    if (config.provider !== 'okta' || !config.okta) {
-      return false;
-    }
-
-    const oktaAuth = getOktaAuthClient(config.okta);
-    const tokens = await oktaAuth.tokenManager.getTokens();
-
-    if (!tokens.idToken?.idToken) {
-      return false;
-    }
-
-    await syncServerAuthSession({
-      idToken: tokens.idToken.idToken,
-      leadId: getStoredLeadId() ?? undefined,
-      accessTokenClaims: parseJwtClaims(tokens.accessToken?.accessToken),
-    });
-    oktaAuth.tokenManager.clear();
-    oktaAuth.clearStorage();
-
-    return true;
-  }, [config]);
-
   const refreshSession = React.useCallback(async () => {
     if (config.provider === 'mock') {
       setSession(readMockSession());
@@ -260,20 +252,13 @@ export function AuthProvider({
         return;
       }
 
-      const migrated = await migrateBrowserTokensToServerSession();
-      if (migrated) {
-        const migratedSession = await requestAuthSession();
-        setSession(migratedSession.session);
-        return;
-      }
-
       setSession(toUnauthenticatedSession('okta'));
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to load auth session.';
       setSession(toUnauthenticatedSession('okta', message));
     }
-  }, [config, migrateBrowserTokensToServerSession]);
+  }, [config]);
 
   React.useEffect(() => {
     if (config.provider === 'mock') {
@@ -360,6 +345,11 @@ export function AuthProvider({
 
     oktaAuth.tokenManager.clear();
     oktaAuth.clearStorage();
+    try {
+      await clearServerAuthSession();
+    } catch {
+      // Fall through to the logout route, which also clears cookies.
+    }
     window.location.assign('/api/auth/logout');
   }, [config]);
 

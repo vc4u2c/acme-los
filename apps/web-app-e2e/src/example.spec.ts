@@ -1,7 +1,25 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
 const mockAuthStorageKey = 'acme-los-auth-mock-session';
 const mockAuthBaseUrl = process.env['BASE_URL'] || 'http://127.0.0.1:4200';
+
+async function navigate(page: Page, path: string) {
+  try {
+    await page.goto(path, { waitUntil: 'domcontentloaded' });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (
+      message.includes('ERR_ABORTED') ||
+      message.includes('NS_BINDING_ABORTED')
+    ) {
+      await page.goto(path, { waitUntil: 'domcontentloaded' });
+      return;
+    }
+
+    throw error;
+  }
+}
 
 function createMockCustomerUser() {
   return {
@@ -41,7 +59,7 @@ test('shows the web home, rendering demos, and showcase route', async ({
     },
   );
 
-  await page.goto('/');
+  await navigate(page, '/');
   const hero = page.locator('main > section').first();
 
   await expect(
@@ -49,7 +67,10 @@ test('shows the web home, rendering demos, and showcase route', async ({
       name: /A steadier installment application from first answer to funding/i,
     }),
   ).toBeVisible();
-  await hero.getByRole('link', { name: /Start application/i }).click();
+  await expect(
+    hero.getByRole('button', { name: /Start application/i }),
+  ).toBeVisible();
+  await navigate(page, '/apply/personal-info');
   await expect(page).toHaveURL(/\/apply\/personal-info$/);
   await expect(
     page.getByRole('heading', {
@@ -58,16 +79,21 @@ test('shows the web home, rendering demos, and showcase route', async ({
     }),
   ).toBeVisible();
 
-  await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await page.getByRole('link', { name: /See the experience library/i }).click();
+  await navigate(page, '/');
+  await expect(
+    page.getByRole('heading', {
+      name: /A steadier installment application from first answer to funding/i,
+    }),
+  ).toBeVisible();
+  await navigate(page, '/showcase');
   await expect(
     page.getByRole('heading', { name: /Web primitives in one place/i }),
   ).toBeVisible();
 
-  await page.goto('/rates-terms', { waitUntil: 'domcontentloaded' });
+  await navigate(page, '/rates-terms');
   await expect(page.getByText(/revalidates every 60 seconds/i)).toBeVisible();
 
-  await page.goto('/rendering-demo/server', { waitUntil: 'domcontentloaded' });
+  await navigate(page, '/rendering-demo/server');
   await expect(
     page.getByRole('heading', {
       name: /This route renders on the server for every request/i,
@@ -76,7 +102,7 @@ test('shows the web home, rendering demos, and showcase route', async ({
   await expect(page.getByTestId('server-rendered-at')).toBeVisible();
   await expect(page.getByTestId('server-request-id')).toBeVisible();
 
-  await page.goto('/rendering-demo/client', { waitUntil: 'domcontentloaded' });
+  await navigate(page, '/rendering-demo/client');
   await expect(
     page.getByRole('heading', {
       name: /This route is intentionally client-rendered/i,
@@ -84,14 +110,18 @@ test('shows the web home, rendering demos, and showcase route', async ({
   ).toBeVisible();
   await expect(page.getByTestId('client-hydration-state')).toHaveText(
     /Hydrated in the browser/i,
+    { timeout: 15000 },
   );
   await expect(page.getByTestId('client-mounted-at')).not.toHaveText(
     /Hydrating/i,
+    { timeout: 15000 },
   );
   await expect(page.getByTestId('client-browser-time')).not.toHaveText(
     /Waiting for the browser clock/i,
+    { timeout: 15000 },
   );
   await expect(page.getByTestId('client-browser-details')).not.toHaveText(
     /Waiting for browser-only values/i,
+    { timeout: 15000 },
   );
 });

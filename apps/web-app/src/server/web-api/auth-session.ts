@@ -220,9 +220,16 @@ export function clearWebAuthSession(
   response: NextResponse,
 ): void {
   clearCookie(response, request, AUTH_SESSION_COOKIE_NAME);
-  clearCookie(response, request, AUTH_LOGOUT_HINT_COOKIE_NAME);
   clearCookie(response, request, CUSTOMER_PROFILE_COOKIE_NAME);
   clearCookie(response, request, CSRF_COOKIE_NAME);
+}
+
+export function clearWebAuthLogoutArtifacts(
+  request: NextRequest,
+  response: NextResponse,
+): void {
+  clearWebAuthSession(request, response);
+  clearCookie(response, request, AUTH_LOGOUT_HINT_COOKIE_NAME);
 }
 
 export function readLogoutHintIdToken(request: NextRequest): string | null {
