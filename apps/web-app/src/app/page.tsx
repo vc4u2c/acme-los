@@ -20,6 +20,7 @@ import {
   Button,
 } from '@acme-los/ui-web';
 import { SiteHeader } from '../components/web/site-header';
+import { StartApplicationButton } from '../components/web/start-application-button';
 import { applicationSteps } from '../components/web/apply/step-definitions';
 import {
   PreapprovalFeatureCard,
@@ -158,13 +159,7 @@ export default function Index() {
           </div>
 
           <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Button
-              asChild
-              size="lg"
-              className="rounded-full bg-[var(--brand)] px-7 text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)] hover:bg-[var(--brand-strong)]"
-            >
-              <Link href="/apply/personal-info">Start application</Link>
-            </Button>
+            <StartApplicationButton />
             <Button
               asChild
               size="lg"
