@@ -1,0 +1,37 @@
+import { z } from 'zod';
+import { NextRequest, NextResponse } from 'next/server';
+import { applicationStepKeys } from '@acme-los/api/contracts';
+import {
+  assertValidCsrf,
+  clearApplicationFlow,
+  requireAuthenticatedWebSession,
+  submitApplicationFlow,
+} from '@acme-los/api/web-server';
+
+export const runtime = 'nodejs';
+
+const submitApplicationSchema = z.object({
+  step: z.enum(applicationStepKeys),
+  payload: z.record(z.string(), z.unknown()).optional(),
+});
+
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  try {
+    assertValidCsrf(request);
+    const session = requireAuthenticatedWebSession(request);
+    const payload = submitApplicationSchema.parse(await request.json());
+    const submitResponse = submitApplicationFlow(session, payload, request);
+    const response = NextResponse.json(submitResponse);
+
+    clearApplicationFlow(request, response);
+
+    return response;
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Unable to submit the application.';
+
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}

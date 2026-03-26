@@ -17,10 +17,19 @@ import {
   Input,
 } from '@acme-los/ui-web';
 import { SiteHeader } from './site-header';
-import {
-  defaultCustomerProfileDraft,
-  type CustomerProfileDraft,
-} from '../../lib/customer-profile';
+import type { CustomerProfile } from '@acme-los/api/contracts';
+
+type CustomerProfileFormState = CustomerProfile;
+
+const emptyCustomerProfile: CustomerProfileFormState = {
+  email: '',
+  phone: '',
+  streetAddress: '',
+  addressLine2: '',
+  city: '',
+  state: '',
+  zipCode: '',
+};
 
 const navigationItems: { href: string; label: string }[] = [];
 
@@ -72,9 +81,8 @@ export function CustomerProfileDashboard(): React.ReactElement {
     idToken: Record<string, unknown> | null;
     accessToken: Record<string, unknown> | null;
   }>({ idToken: null, accessToken: null });
-  const [formState, setFormState] = React.useState<CustomerProfileDraft>(
-    defaultCustomerProfileDraft,
-  );
+  const [formState, setFormState] =
+    React.useState<CustomerProfileFormState>(emptyCustomerProfile);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
   const [showTokenDebug, setShowTokenDebug] = React.useState(false);
   const [isProfileLoading, setIsProfileLoading] = React.useState(true);
@@ -89,7 +97,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
     const loadCustomerProfile = async () => {
       if (!session.isAuthenticated) {
         if (isMounted) {
-          setFormState(defaultCustomerProfileDraft);
+          setFormState(emptyCustomerProfile);
           setIsProfileLoading(false);
         }
 
@@ -105,7 +113,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
         }
 
         setFormState({
-          ...defaultCustomerProfileDraft,
+          ...emptyCustomerProfile,
           ...response.profile,
           email: response.profile.email || user?.email || '',
         });
@@ -116,7 +124,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
         }
 
         setFormState((currentState) => ({
-          ...defaultCustomerProfileDraft,
+          ...emptyCustomerProfile,
           ...currentState,
           email: currentState.email || user?.email || '',
         }));
@@ -171,7 +179,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
   );
 
   const updateField = React.useCallback(
-    (field: keyof CustomerProfileDraft, value: string) => {
+    (field: keyof CustomerProfileFormState, value: string) => {
       setFormState((currentState) => ({
         ...currentState,
         [field]: value,

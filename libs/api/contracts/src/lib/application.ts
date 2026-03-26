@@ -1,13 +1,16 @@
-export type ApplicationStepKey =
-  | 'personal-info'
-  | 'disclosures'
-  | 'income'
-  | 'bank'
-  | 'pre-approval'
-  | 'documents-signing'
-  | 'funding';
+export const applicationStepKeys = [
+  'personal-info',
+  'disclosures',
+  'employment-income',
+  'bank-card',
+  'pre-approval',
+  'documents-signing',
+  'funding',
+] as const;
 
-export interface ApplicationDraftSummary {
+export type ApplicationStepKey = (typeof applicationStepKeys)[number];
+
+export interface ApplicationFlowSummary {
   applicationId: string;
   customerId?: string;
   leadId?: string;
@@ -16,11 +19,10 @@ export interface ApplicationDraftSummary {
   lastUpdatedAt: string;
 }
 
-export interface ApplicationStepDraft {
-  applicationId: string;
+export interface ApplicationStepState {
   step: ApplicationStepKey;
   payload: Record<string, unknown>;
-  summary: ApplicationDraftSummary;
+  summary: ApplicationFlowSummary;
 }
 
 export interface CreateApplicationRequest {
@@ -30,28 +32,27 @@ export interface CreateApplicationRequest {
 }
 
 export interface CreateApplicationResponse {
-  summary: ApplicationDraftSummary;
+  summary: ApplicationFlowSummary;
 }
 
 export interface GetApplicationStepResponse {
-  draft: ApplicationStepDraft | null;
+  stepState: ApplicationStepState | null;
 }
 
 export interface SaveApplicationStepRequest {
-  applicationId: string;
-  step: ApplicationStepKey;
   payload: Record<string, unknown>;
 }
 
 export interface SaveApplicationStepResponse {
-  draft: ApplicationStepDraft;
+  stepState: ApplicationStepState;
 }
 
 export interface SubmitApplicationRequest {
-  applicationId: string;
+  step: ApplicationStepKey;
+  payload?: Record<string, unknown>;
 }
 
 export interface SubmitApplicationResponse {
-  summary: ApplicationDraftSummary;
+  summary: ApplicationFlowSummary;
   submittedAt: string;
 }

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getWebAuthConfig } from '@acme-los/auth/web';
 import {
   clearWebAuthLogoutArtifacts,
+  getServerWebAuthConfig,
   readLogoutHintIdToken,
-} from '../../../../server/web-api/auth-session';
+} from '@acme-los/api/web-server';
 
 export const runtime = 'nodejs';
 
 function getSafePostLogoutRedirectUri(request: NextRequest): string {
-  const config = getWebAuthConfig();
+  const config = getServerWebAuthConfig();
 
   if (config.provider !== 'okta' || !config.okta) {
     return new URL('/', request.url).toString();
@@ -40,7 +40,7 @@ function readIssuerFromIdToken(idToken: string): string | null {
 }
 
 function buildOktaLogoutUrl(idToken: string): string | null {
-  const config = getWebAuthConfig();
+  const config = getServerWebAuthConfig();
 
   if (config.provider !== 'okta' || !config.okta) {
     return null;

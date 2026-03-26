@@ -1,5 +1,5 @@
-import { ApplicationEntryPage } from '../../components/web/apply/application-entry-page';
-import { requireServerWebAuthSession } from '../../server/web-api/server-session';
+import { requireServerWebAuthSession } from '@acme-los/api/web-server';
+import { redirect } from 'next/navigation';
 
 export default async function ApplyIndexPage() {
   await requireServerWebAuthSession({
@@ -10,5 +10,5 @@ export default async function ApplyIndexPage() {
     },
   });
 
-  return <ApplicationEntryPage />;
+  redirect('/apply/personal-info');
 }

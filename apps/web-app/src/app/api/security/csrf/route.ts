@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  issueCsrfToken,
-  writeCsrfToken,
-} from '../../../../server/web-api/csrf';
+import { issueCsrfToken, writeCsrfToken } from '@acme-los/api/web-server';
 
 export const runtime = 'nodejs';
 

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { requireAuthenticatedWebSession } from '../../../../server/web-api/auth-session';
-import { assertValidCsrf } from '../../../../server/web-api/csrf';
 import {
+  assertValidCsrf,
+  requireAuthenticatedWebSession,
   readCustomerProfile,
   writeCustomerProfile,
-} from '../../../../server/web-api/customer-profile';
+} from '@acme-los/api/web-server';
 
 export const runtime = 'nodejs';
 

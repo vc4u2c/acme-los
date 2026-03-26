@@ -97,7 +97,7 @@ export default function ShowcasePage() {
             </CardContent>
             <CardFooter className="gap-3">
               <Button className="bg-[var(--brand)] text-[var(--brand-contrast)] hover:bg-[var(--brand-strong)]">
-                Save draft
+                Continue flow
               </Button>
               <Button
                 variant="outline"

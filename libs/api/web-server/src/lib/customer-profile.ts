@@ -1,11 +1,20 @@
 import type { CustomerProfile, WebAuthSession } from '@acme-los/api/contracts';
 import type { NextRequest, NextResponse } from 'next/server';
-import { defaultCustomerProfileDraft } from '../../lib/customer-profile';
 import {
   CUSTOMER_PROFILE_COOKIE_NAME,
   readSignedCookie,
   setSignedCookie,
 } from './cookies';
+
+const emptyCustomerProfile: CustomerProfile = {
+  email: '',
+  phone: '',
+  streetAddress: '',
+  addressLine2: '',
+  city: '',
+  state: '',
+  zipCode: '',
+};
 
 type CustomerProfileCookiePayload = {
   profile: CustomerProfile;
@@ -23,10 +32,10 @@ export function readCustomerProfile(
   const email =
     cookiePayload?.profile.email ||
     session.user?.email ||
-    defaultCustomerProfileDraft.email;
+    emptyCustomerProfile.email;
 
   return {
-    ...defaultCustomerProfileDraft,
+    ...emptyCustomerProfile,
     ...cookiePayload?.profile,
     email,
   };

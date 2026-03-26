@@ -1,5 +1,5 @@
 import { CustomerProfileDashboard } from '../../../components/web/customer-profile-dashboard';
-import { requireServerWebAuthSession } from '../../../server/web-api/server-session';
+import { requireServerWebAuthSession } from '@acme-los/api/web-server';
 
 export default async function CustomerProfilePage() {
   await requireServerWebAuthSession({

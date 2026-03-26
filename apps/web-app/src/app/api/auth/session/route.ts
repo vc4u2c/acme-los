@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
+  assertValidCsrf,
   clearWebAuthSession,
   readWebAuthSession,
   syncWebAuthSession,
   writeWebAuthSession,
-} from '../../../../server/web-api/auth-session';
-import { assertValidCsrf } from '../../../../server/web-api/csrf';
+} from '@acme-los/api/web-server';
 
 export const runtime = 'nodejs';
 

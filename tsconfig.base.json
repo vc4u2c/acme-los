@@ -28,6 +28,7 @@
       "@acme-los/api/contracts": ["libs/api/contracts/src/index.ts"],
       "@acme-los/api/web-client": ["libs/api/web-client/src/index.ts"],
       "@acme-los/api/domain-client": ["libs/api/domain-client/src/index.ts"],
+      "@acme-los/api/web-server": ["libs/api/web-server/src/index.ts"],
       "@acme-los/auth/contracts": ["libs/auth/contracts/src/index.ts"],
       "@acme-los/auth/core": ["libs/auth/core/src/index.ts"],
       "@acme-los/auth/web": ["libs/auth/web/src/index.ts"],

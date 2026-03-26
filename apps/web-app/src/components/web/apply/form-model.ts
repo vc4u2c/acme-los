@@ -1,6 +1,6 @@
 import type { ApplicationStepSlug } from './step-definitions';
 
-export type ApplicationDraft = {
+export type ApplicationFormState = {
   firstName: string;
   lastName: string;
   email: string;
@@ -36,9 +36,9 @@ export type ApplicationDraft = {
   finalAuthorization: boolean;
 };
 
-export type ApplicationFieldName = keyof ApplicationDraft;
+export type ApplicationFieldName = keyof ApplicationFormState;
 
-export const defaultDraft: ApplicationDraft = {
+export const defaultApplicationFormState: ApplicationFormState = {
   firstName: '',
   lastName: '',
   email: '',
@@ -76,7 +76,7 @@ export const defaultDraft: ApplicationDraft = {
 
 export const stepFieldNames: Record<
   ApplicationStepSlug,
-  (keyof ApplicationDraft)[]
+  (keyof ApplicationFormState)[]
 > = {
   'personal-info': [
     'firstName',
