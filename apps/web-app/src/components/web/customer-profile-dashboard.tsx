@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { createWebAppApiClient } from '@acme-los/api/client';
+import { createWebApiClient } from '@acme-los/api/web-client';
 import { getCurrentOktaTokenClaims, useAuthSession } from '@acme-los/auth/web';
 import {
   Alert,
@@ -67,7 +67,7 @@ function getDebugRows(
 export function CustomerProfileDashboard(): React.ReactElement {
   const { session } = useAuthSession();
   const user = session.user;
-  const webAppApiClient = React.useMemo(() => createWebAppApiClient(), []);
+  const webApiClient = React.useMemo(() => createWebApiClient(), []);
   const [tokenClaims, setTokenClaims] = React.useState<{
     idToken: Record<string, unknown> | null;
     accessToken: Record<string, unknown> | null;
@@ -98,7 +98,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
 
       setIsProfileLoading(true);
       try {
-        const response = await webAppApiClient.getCustomerProfile();
+        const response = await webApiClient.customer.getProfile();
 
         if (!isMounted) {
           return;
@@ -137,7 +137,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
     return () => {
       isMounted = false;
     };
-  }, [session.isAuthenticated, user?.email, webAppApiClient]);
+  }, [session.isAuthenticated, user?.email, webApiClient]);
 
   React.useEffect(() => {
     if (!tokenDebugSupported || typeof window === 'undefined') {
@@ -187,7 +187,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
       setIsSavingProfile(true);
 
       try {
-        const response = await webAppApiClient.updateCustomerProfile({
+        const response = await webApiClient.customer.updateProfile({
           profile: formState,
         });
         setFormState(response.profile);
@@ -202,7 +202,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
         setIsSavingProfile(false);
       }
     },
-    [formState, webAppApiClient],
+    [formState, webApiClient],
   );
 
   return (
