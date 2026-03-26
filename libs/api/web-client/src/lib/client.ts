@@ -1,8 +1,14 @@
 import type {
+  ApplicationStepKey,
   ClearWebAuthSessionResponse,
+  GetApplicationStepResponse,
   GetCustomerProfileResponse,
   GetWebAuthSessionResponse,
   IssueCsrfTokenResponse,
+  SaveApplicationStepRequest,
+  SaveApplicationStepResponse,
+  SubmitApplicationRequest,
+  SubmitApplicationResponse,
   SyncWebAuthSessionRequest,
   SyncWebAuthSessionResponse,
   UpdateCustomerProfileRequest,
@@ -51,6 +57,7 @@ export function createWebApiClient({
   const authSessionUrl = `${baseUrl}/api/auth/session`;
   const csrfUrl = `${baseUrl}/api/security/csrf`;
   const customerProfileUrl = `${baseUrl}/api/customer/profile`;
+  const applicationBaseUrl = `${baseUrl}/api/application`;
   let csrfTokenPromise: Promise<string> | null = null;
 
   async function getCsrfToken(): Promise<string> {
@@ -124,6 +131,37 @@ export function createWebApiClient({
           customerProfileUrl,
           {
             method: 'PUT',
+            body: JSON.stringify(payload),
+          },
+        );
+      },
+    },
+    application: {
+      getStep(step: ApplicationStepKey): Promise<GetApplicationStepResponse> {
+        return requestJson<GetApplicationStepResponse>(
+          fetchImpl,
+          `${applicationBaseUrl}/steps/${step}`,
+        );
+      },
+      saveStep(
+        step: ApplicationStepKey,
+        payload: SaveApplicationStepRequest,
+      ): Promise<SaveApplicationStepResponse> {
+        return requestWithCsrf<SaveApplicationStepResponse>(
+          `${applicationBaseUrl}/steps/${step}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify(payload),
+          },
+        );
+      },
+      submit(
+        payload: SubmitApplicationRequest,
+      ): Promise<SubmitApplicationResponse> {
+        return requestWithCsrf<SubmitApplicationResponse>(
+          `${applicationBaseUrl}/submit`,
+          {
+            method: 'POST',
             body: JSON.stringify(payload),
           },
         );

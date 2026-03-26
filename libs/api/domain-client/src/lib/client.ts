@@ -4,9 +4,7 @@ import type {
   CreateApplicationResponse,
   GetApplicationStepResponse,
   GetCustomerProfileResponse,
-  SaveApplicationStepRequest,
   SaveApplicationStepResponse,
-  SubmitApplicationRequest,
   SubmitApplicationResponse,
   UpdateCustomerProfileRequest,
   UpdateCustomerProfileResponse,
@@ -95,26 +93,25 @@ export function createApplicationDomainApiClient({
       );
     },
     saveStep(
-      payload: SaveApplicationStepRequest,
+      applicationId: string,
+      step: ApplicationStepKey,
+      payload: Record<string, unknown>,
     ): Promise<SaveApplicationStepResponse> {
       return requestJson<SaveApplicationStepResponse>(
         fetchImpl,
-        `${applicationsBase}/${payload.applicationId}/steps/${payload.step}`,
+        `${applicationsBase}/${applicationId}/steps/${step}`,
         {
           method: 'PUT',
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ payload }),
         },
       );
     },
-    submit(
-      payload: SubmitApplicationRequest,
-    ): Promise<SubmitApplicationResponse> {
+    submit(applicationId: string): Promise<SubmitApplicationResponse> {
       return requestJson<SubmitApplicationResponse>(
         fetchImpl,
-        `${applicationsBase}/${payload.applicationId}/submit`,
+        `${applicationsBase}/${applicationId}/submit`,
         {
           method: 'POST',
-          body: JSON.stringify(payload),
         },
       );
     },

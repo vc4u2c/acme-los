@@ -1,5 +1,5 @@
 import { webcrypto } from 'node:crypto';
-import { getWebAuthConfig } from '@acme-los/auth/web';
+import { getServerWebAuthConfig } from './config';
 
 type JwtClaims = Record<string, unknown>;
 type JwtHeader = {
@@ -104,7 +104,7 @@ async function getJwks(issuer: string): Promise<OktaJwk[]> {
 }
 
 export async function verifyOktaIdToken(idToken: string): Promise<JwtClaims> {
-  const config = getWebAuthConfig();
+  const config = getServerWebAuthConfig();
   if (config.provider !== 'okta' || !config.okta) {
     throw new Error('Okta auth config is not available for session syncing.');
   }

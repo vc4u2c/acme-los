@@ -392,6 +392,9 @@ Current first slice now in place:
   - issues CSRF tokens for mutating web facade requests
 - `apps/web-app/src/app/api/customer/profile`
   - moves customer dashboard profile persistence behind the facade instead of local browser storage
+- `apps/web-app/src/app/api/application/*`
+  - keeps the current seven-step application flow behind the facade
+  - stores in-progress application state in a secure web-session boundary instead of browser-local application storage
 
 This is intentionally still a temporary web-only facade:
 
@@ -465,13 +468,13 @@ Definition of done:
 #### Phase 4: Replace Temporary Persistence
 
 - replace cookie-backed demo persistence for customer profile data
-- replace local-browser assumptions for protected customer state where appropriate
-- keep browser-local application draft behavior only where it is intentionally temporary
+- replace temporary session-scoped application flow storage with backend persistence
+- replace other web-only protected state assumptions where appropriate
 
 Definition of done:
 
 - protected customer data lives in backend persistence
-- customer profile is no longer stored in a cookie as a temporary convenience
+- customer profile and application progress are no longer stored in temporary web-only persistence
 
 #### Phase 5: Security Hardening Pass
 
@@ -503,7 +506,7 @@ Definition of done:
 
 - stop relying on hosted Okta self-service registration as the final customer registration model
 - build app-owned registration flow behind the server API layer
-- keep registration drafts in backend persistence
+- keep temporary registration state in backend persistence
 - create the Okta user only at the end of successful registration
 - create the Okta user as `STAGED`
 - include `leadId` and `customerId` in the final user creation path
@@ -640,7 +643,7 @@ chore(repo): refresh dependency policy
 
 - harden the web auth path behind a thin Next API layer before the .NET BFF exists
 - define stable request/response contracts so the later .NET BFF can replace the Next API layer without UI churn
-- move apply-route data loading from local browser draft assumptions toward server/API-backed reads as the API layer solidifies
+- replace the temporary web-session application flow store with backend persistence when the BFF arrives
 - finish moving generic web icons to `lucide-react` where it is worth the swap
 - back customer profile persistence with the future BFF instead of local browser storage
 - continue reducing overlap between MJS and Terraform in the Okta admin plane

@@ -5,7 +5,6 @@ import {
   Headphones,
   Landmark,
   Route,
-  Save,
   ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
@@ -44,9 +43,9 @@ const heroSupportCards: LandingCard[] = [
     icon: Headphones,
   },
   {
-    title: 'Pause when needed',
-    copy: 'Local draft progress stays in this browser so a customer can step away and come back to the same checkpoint.',
-    icon: Save,
+    title: 'Stay in the flow',
+    copy: 'The secure application session keeps the current flow moving without asking the customer to manage a separate resume state.',
+    icon: Route,
   },
   {
     title: 'See the path',
@@ -106,7 +105,7 @@ const whyUsProofCards: LandingCard[] = [
   },
   {
     title: 'Completion feels more realistic',
-    copy: 'Route-based steps, local drafts, and guided validation help customers finish without making the experience feel rushed.',
+    copy: 'Route-based steps, guarded progress, and guided validation help customers finish without making the experience feel rushed.',
     icon: BadgeCheck,
   },
 ];
@@ -252,7 +251,7 @@ export default function Index() {
                 Customers know what happens next before the form asks for more.
               </h2>
               <p className="text-base leading-8 text-[var(--muted-foreground)]">
-                Support, saved progress, and the path into review stay in view
+                Support, secure progress, and the path into review stay in view
                 from the first screen. The experience feels guided instead of
                 rushed.
               </p>
@@ -568,7 +567,7 @@ export default function Index() {
                 ],
                 [
                   'Can someone pause mid-flow?',
-                  'Yes. Draft progress stays saved in this browser.',
+                  'Yes. The secure application session keeps the current flow moving while the customer stays signed in.',
                 ],
                 [
                   'When does funding come up?',

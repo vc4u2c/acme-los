@@ -1,7 +1,7 @@
 import { isAssuranceSatisfied } from '@acme-los/auth/core';
+import { getServerWebAuthSession } from '@acme-los/api/web-server';
 import { redirect } from 'next/navigation';
 import { CustomerAuthLaunchPage } from '../../../components/web/customer-auth-launch-page';
-import { getServerWebAuthSession } from '../../../server/web-api/server-session';
 
 function getSafeReturnTo(returnTo?: string): string {
   if (!returnTo || !returnTo.startsWith('/')) {

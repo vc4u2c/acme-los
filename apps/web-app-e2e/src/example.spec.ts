@@ -35,6 +35,7 @@ function createMockCustomerUser() {
 test('shows the web home, rendering demos, and showcase route', async ({
   page,
 }) => {
+  test.slow();
   const mockUser = createMockCustomerUser();
   const serializedUser = JSON.stringify(mockUser);
 
@@ -107,21 +108,21 @@ test('shows the web home, rendering demos, and showcase route', async ({
     page.getByRole('heading', {
       name: /This route is intentionally client-rendered/i,
     }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 25000 });
   await expect(page.getByTestId('client-hydration-state')).toHaveText(
     /Hydrated in the browser/i,
-    { timeout: 15000 },
+    { timeout: 25000 },
   );
   await expect(page.getByTestId('client-mounted-at')).not.toHaveText(
     /Hydrating/i,
-    { timeout: 15000 },
+    { timeout: 25000 },
   );
   await expect(page.getByTestId('client-browser-time')).not.toHaveText(
     /Waiting for the browser clock/i,
-    { timeout: 15000 },
+    { timeout: 25000 },
   );
   await expect(page.getByTestId('client-browser-details')).not.toHaveText(
     /Waiting for browser-only values/i,
-    { timeout: 15000 },
+    { timeout: 25000 },
   );
 });

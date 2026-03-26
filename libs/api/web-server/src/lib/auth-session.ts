@@ -5,8 +5,9 @@ import type {
   WebAuthSession,
   WebAuthSessionUser,
 } from '@acme-los/api/contracts';
-import { getAssuranceLevelFromAuthenticationMethods } from '@acme-los/auth/core';
 import type { NextRequest, NextResponse } from 'next/server';
+import { clearApplicationFlow } from './application-flow';
+import { getAssuranceLevelFromAuthenticationMethods } from './assurance';
 import {
   AUTH_LOGOUT_HINT_COOKIE_NAME,
   AUTH_SESSION_COOKIE_NAME,
@@ -219,6 +220,7 @@ export function clearWebAuthSession(
   request: NextRequest,
   response: NextResponse,
 ): void {
+  clearApplicationFlow(request, response);
   clearCookie(response, request, AUTH_SESSION_COOKIE_NAME);
   clearCookie(response, request, CUSTOMER_PROFILE_COOKIE_NAME);
   clearCookie(response, request, CSRF_COOKIE_NAME);

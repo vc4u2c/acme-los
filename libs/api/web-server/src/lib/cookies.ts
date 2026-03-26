@@ -5,6 +5,7 @@ export const AUTH_SESSION_COOKIE_NAME = 'acme-los.auth-session';
 export const AUTH_LOGOUT_HINT_COOKIE_NAME = 'acme-los.auth-logout';
 export const CUSTOMER_PROFILE_COOKIE_NAME = 'acme-los.customer-profile';
 export const CSRF_COOKIE_NAME = 'acme-los.csrf-token';
+export const APPLICATION_FLOW_COOKIE_NAME = 'acme-los.application-flow';
 
 const DEV_SESSION_SECRET = 'acme-los-local-dev-session-secret';
 

@@ -1,15 +1,15 @@
 import type { WebAuthSession } from '@acme-los/api/contracts';
-import type { AuthRequirement } from '@acme-los/auth/contracts';
 import {
-  getAssuranceLevelFromAuthenticationMethods,
   isAssuranceSatisfied,
   MOCK_AUTH_STORAGE_KEY,
-} from '@acme-los/auth/core';
-import { getWebAuthConfig } from '@acme-los/auth/web';
+  type WebAuthRequirement,
+} from './assurance';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { getServerWebAuthConfig } from './config';
 import { AUTH_SESSION_COOKIE_NAME } from './cookies';
 import { readSessionCookiePayload } from './auth-session';
+import { getAssuranceLevelFromAuthenticationMethods } from './assurance';
 
 function getSafeReturnTo(returnTo: string): string {
   return returnTo.startsWith('/') ? returnTo : '/account/profile';
@@ -18,7 +18,7 @@ function getSafeReturnTo(returnTo: string): string {
 function buildSignInRedirectPath(
   returnTo: string,
   minimumAssuranceLevel: Exclude<
-    AuthRequirement['minimumAssuranceLevel'],
+    WebAuthRequirement['minimumAssuranceLevel'],
     undefined
   > = 'aal1',
 ): string {
@@ -62,7 +62,7 @@ function readMockServerSession(cookieValue?: string): WebAuthSession | null {
 
 export async function getServerWebAuthSession(): Promise<WebAuthSession | null> {
   const cookieStore = await cookies();
-  const authConfig = getWebAuthConfig();
+  const authConfig = getServerWebAuthConfig();
 
   if (authConfig.provider === 'mock') {
     return readMockServerSession(cookieStore.get(MOCK_AUTH_STORAGE_KEY)?.value);
@@ -76,7 +76,7 @@ export async function getServerWebAuthSession(): Promise<WebAuthSession | null> 
 
 export async function requireServerWebAuthSession(options: {
   returnTo: string;
-  requirement?: AuthRequirement;
+  requirement?: WebAuthRequirement;
 }): Promise<WebAuthSession> {
   const requirement = options.requirement ?? {
     requiresAuthentication: true,

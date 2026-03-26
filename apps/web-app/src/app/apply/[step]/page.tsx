@@ -1,11 +1,15 @@
 import { notFound } from 'next/navigation';
+import {
+  readServerApplicationStepState,
+  requireServerWebAuthSession,
+} from '@acme-los/api/web-server';
 import { ApplicationStepPage } from '../../../components/web/apply/application-step-page';
+import type { ApplicationFormState } from '../../../components/web/apply/form-model';
 import {
   applicationStepSlugs,
   type ApplicationStepSlug,
 } from '../../../components/web/apply/step-definitions';
 import { getApplicationAuthRequirement } from '../../../lib/application-auth';
-import { requireServerWebAuthSession } from '../../../server/web-api/server-session';
 
 export function generateStaticParams() {
   return applicationStepSlugs.map((step) => ({ step }));
@@ -24,10 +28,20 @@ export default async function ApplicationStepRoute({
     notFound();
   }
 
-  await requireServerWebAuthSession({
+  const session = await requireServerWebAuthSession({
     returnTo: `/apply/${step}`,
     requirement: getApplicationAuthRequirement(step as ApplicationStepSlug),
   });
+  const stepState = await readServerApplicationStepState(
+    session,
+    step as ApplicationStepSlug,
+  );
 
-  return <ApplicationStepPage key={step} step={step as ApplicationStepSlug} />;
+  return (
+    <ApplicationStepPage
+      key={step}
+      step={step as ApplicationStepSlug}
+      initialValues={stepState?.payload as Partial<ApplicationFormState> | null}
+    />
+  );
 }

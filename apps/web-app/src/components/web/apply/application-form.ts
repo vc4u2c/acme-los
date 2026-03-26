@@ -1,13 +1,16 @@
 'use client';
 
 import { useForm, useStore } from '@tanstack/react-form';
-import { defaultDraft, type ApplicationDraft } from './form-model';
+import {
+  defaultApplicationFormState,
+  type ApplicationFormState,
+} from './form-model';
 import type { ApplicationStepSlug } from './step-definitions';
 
 type UseApplicationFormOptions = {
   step: ApplicationStepSlug;
-  initialValues?: Partial<ApplicationDraft>;
-  onSubmit: (value: ApplicationDraft) => void | Promise<void>;
+  initialValues?: Partial<ApplicationFormState>;
+  onSubmit: (value: ApplicationFormState) => void | Promise<void>;
   onSubmitInvalid?: () => void;
 };
 
@@ -19,7 +22,7 @@ export function useApplicationForm({
 }: UseApplicationFormOptions) {
   const form = useForm({
     formId: `apply-${step}`,
-    defaultValues: { ...defaultDraft, ...initialValues },
+    defaultValues: { ...defaultApplicationFormState, ...initialValues },
     onSubmit: async ({ value }) => {
       await onSubmit(value);
     },

@@ -1,0 +1,9 @@
+{
+  "name": "web-server",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/web-server/src",
+  "projectType": "library",
+  "tags": ["scope:api", "type:web-server"],
+  "// targets": "to see all targets run: nx show project web-server --web",
+  "targets": {}
+}

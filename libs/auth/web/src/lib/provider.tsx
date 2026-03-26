@@ -13,7 +13,6 @@ import {
   EMPTY_AUTH_SESSION,
   getAssuranceLevelFromAuthenticationMethods,
   isAssuranceSatisfied,
-  LOCAL_DRAFT_STORAGE_KEY,
   MOCK_AUTH_STORAGE_KEY,
 } from '@acme-los/auth/core';
 import { getWebAuthConfig } from './config';
@@ -128,7 +127,6 @@ function clearLocalSessionArtifacts() {
     return;
   }
 
-  window.localStorage.removeItem(LOCAL_DRAFT_STORAGE_KEY);
   window.sessionStorage.removeItem(MOCK_AUTH_STORAGE_KEY);
   document.cookie = `${MOCK_AUTH_STORAGE_KEY}=; Max-Age=0; Path=/; SameSite=Lax`;
 }

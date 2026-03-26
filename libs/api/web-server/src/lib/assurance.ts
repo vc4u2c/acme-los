@@ -1,22 +1,15 @@
-import type {
-  AuthAssuranceLevel,
-  AuthSession,
-  AuthUser,
-} from '@acme-los/auth/contracts';
+import type { WebAuthSessionAssuranceLevel } from '@acme-los/api/contracts';
+
+export type WebAuthRequirement = {
+  requiresAuthentication: boolean;
+  minimumAssuranceLevel?: Exclude<WebAuthSessionAssuranceLevel, 'anonymous'>;
+};
 
 export const MOCK_AUTH_STORAGE_KEY = 'acme-los-auth-mock-session';
 
-export const EMPTY_AUTH_SESSION: AuthSession = {
-  provider: 'mock',
-  status: 'loading',
-  isAuthenticated: false,
-  assuranceLevel: 'anonymous',
-  user: null,
-};
-
 export function getAssuranceLevelFromAuthenticationMethods(
   authenticationMethods?: string[],
-): AuthAssuranceLevel {
+): WebAuthSessionAssuranceLevel {
   if (!authenticationMethods || authenticationMethods.length === 0) {
     return 'anonymous';
   }
@@ -41,30 +34,14 @@ export function getAssuranceLevelFromAuthenticationMethods(
 }
 
 export function isAssuranceSatisfied(
-  currentLevel: AuthAssuranceLevel,
-  requiredLevel: AuthAssuranceLevel = 'aal1',
+  currentLevel: WebAuthSessionAssuranceLevel,
+  requiredLevel: WebAuthSessionAssuranceLevel = 'aal1',
 ): boolean {
-  const rank: Record<AuthAssuranceLevel, number> = {
+  const rank: Record<WebAuthSessionAssuranceLevel, number> = {
     anonymous: 0,
     aal1: 1,
     aal2: 2,
   };
 
   return rank[currentLevel] >= rank[requiredLevel];
-}
-
-export function createMockAuthUser(
-  assuranceLevel: Exclude<AuthAssuranceLevel, 'anonymous'> = 'aal1',
-): AuthUser {
-  const authenticationMethods =
-    assuranceLevel === 'aal2' ? ['pwd', 'email', 'mfa'] : ['pwd'];
-
-  return {
-    id: 'mock-customer-01',
-    email: 'taylor.customer@acme-los.dev',
-    displayName: 'Taylor Customer',
-    firstName: 'Taylor',
-    lastName: 'Customer',
-    authenticationMethods,
-  };
 }

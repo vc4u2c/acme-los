@@ -1,3 +1,5 @@
+import type { ApplicationStepKey } from '@acme-los/api/contracts';
+
 export const applicationSteps = [
   {
     slug: 'personal-info',
@@ -105,7 +107,7 @@ export const applicationSteps = [
   },
 ] as const;
 
-export type ApplicationStepSlug = (typeof applicationSteps)[number]['slug'];
+export type ApplicationStepSlug = ApplicationStepKey;
 
 export const applicationStepSlugs = applicationSteps.map(
   (step) => step.slug,
