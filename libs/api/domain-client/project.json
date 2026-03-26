@@ -1,0 +1,9 @@
+{
+  "name": "domain-client",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/domain-client/src",
+  "projectType": "library",
+  "tags": ["scope:api", "type:domain-client"],
+  "// targets": "to see all targets run: nx show project domain-client --web",
+  "targets": {}
+}

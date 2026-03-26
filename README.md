@@ -403,6 +403,17 @@ This is intentionally still a temporary web-only facade:
 - mobile should continue to depend on shared contracts, not Next-specific runtime details
 - when the .NET BFF is ready, the web app should mostly swap transport/proxy wiring rather than rewrite page and form code
 
+Current API boundary split:
+
+- `libs/api/contracts`
+  - app-owned request and response shapes for `auth`, `customer`, and `application`
+- `libs/api/web-client`
+  - browser-safe wrappers that call the web app's own `/api/*` routes
+  - handles CSRF-aware requests without exposing Okta or cookie internals to UI code
+- `libs/api/domain-client`
+  - server-side wrappers for domain-facing `customer` and `application` endpoints
+  - this is the layer the Next facade can later point at a .NET BFF or legacy services through
+
 ### Implementation Checklist
 
 Use this as the practical execution order for the next auth, API, and hardening phase.
@@ -443,11 +454,12 @@ Definition of done:
 - move authenticated customer and profile actions behind `/api/*`
 - move any remaining web-only auth mutations behind `/api/*`
 - keep shared contracts in `libs/api/contracts`
-- keep fetch and client wrappers in `libs/api/client`
+- keep browser wrappers in `libs/api/web-client`
+- keep server-side customer and application wrappers in `libs/api/domain-client`
 
 Definition of done:
 
-- web pages and components depend on shared contracts and a client wrapper
+- web pages and components depend on shared contracts and the web client wrapper
 - auth, session, and profile changes are mediated by the server layer
 
 #### Phase 4: Replace Temporary Persistence

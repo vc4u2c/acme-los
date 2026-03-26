@@ -7,6 +7,7 @@ import type {
   AuthUser,
   SignInRequest,
 } from '@acme-los/auth/contracts';
+import { createWebApiClient } from '@acme-los/api/web-client';
 import {
   createMockAuthUser,
   EMPTY_AUTH_SESSION,
@@ -32,15 +33,6 @@ const AuthContext = React.createContext<AuthContextValue | null>(null);
 
 const firstApplicationStepPath = '/apply/personal-info';
 let authRedirectInFlight = false;
-
-type AuthSessionResponse = {
-  session: AuthSession;
-};
-type SyncAuthSessionRequest = {
-  idToken: string;
-  leadId?: string;
-  accessTokenClaims?: Record<string, unknown> | null;
-};
 
 function normalizeReturnTo(returnTo: string): string {
   if (returnTo === '/apply') {
@@ -89,87 +81,6 @@ function toUnauthenticatedSession(
     user: null,
     errorMessage,
   };
-}
-
-async function requestAuthSession(): Promise<AuthSessionResponse> {
-  const response = await fetch('/api/auth/session', {
-    credentials: 'same-origin',
-    method: 'GET',
-  });
-
-  if (!response.ok) {
-    throw new Error(`Unable to load auth session (${response.status}).`);
-  }
-
-  return (await response.json()) as AuthSessionResponse;
-}
-
-async function requestCsrfToken(): Promise<string> {
-  const response = await fetch('/api/security/csrf', {
-    credentials: 'same-origin',
-    method: 'GET',
-  });
-
-  if (!response.ok) {
-    throw new Error(`Unable to issue CSRF token (${response.status}).`);
-  }
-
-  const body = (await response.json()) as { csrfToken?: string };
-  if (!body.csrfToken) {
-    throw new Error('Unable to issue a CSRF token for this request.');
-  }
-
-  return body.csrfToken;
-}
-
-async function syncServerAuthSession(
-  payload: SyncAuthSessionRequest,
-): Promise<AuthSessionResponse> {
-  const csrfToken = await requestCsrfToken();
-  const response = await fetch('/api/auth/session', {
-    body: JSON.stringify(payload),
-    credentials: 'same-origin',
-    headers: {
-      'content-type': 'application/json',
-      'x-csrf-token': csrfToken,
-    },
-    method: 'POST',
-  });
-
-  if (!response.ok) {
-    let errorMessage = `Unable to sync auth session (${response.status}).`;
-
-    try {
-      const body = (await response.json()) as {
-        session?: { errorMessage?: string };
-      };
-
-      if (body.session?.errorMessage) {
-        errorMessage = body.session.errorMessage;
-      }
-    } catch {
-      // Keep the generic transport error when the API response cannot be parsed.
-    }
-
-    throw new Error(errorMessage);
-  }
-
-  return (await response.json()) as AuthSessionResponse;
-}
-
-async function clearServerAuthSession(): Promise<void> {
-  const csrfToken = await requestCsrfToken();
-  const response = await fetch('/api/auth/session', {
-    credentials: 'same-origin',
-    headers: {
-      'x-csrf-token': csrfToken,
-    },
-    method: 'DELETE',
-  });
-
-  if (!response.ok) {
-    throw new Error(`Unable to clear auth session (${response.status}).`);
-  }
 }
 
 function readMockSession(): AuthSession {
@@ -228,6 +139,7 @@ export function AuthProvider({
   children: React.ReactNode;
 }): React.ReactElement {
   const config = React.useMemo(() => getWebAuthConfig(), []);
+  const webApiClient = React.useMemo(() => createWebApiClient(), []);
   const [session, setSession] = React.useState<AuthSession>({
     ...EMPTY_AUTH_SESSION,
     provider: config.provider,
@@ -245,7 +157,7 @@ export function AuthProvider({
     }
 
     try {
-      const serverSession = await requestAuthSession();
+      const serverSession = await webApiClient.auth.getSession();
 
       if (serverSession.session.isAuthenticated) {
         setSession(serverSession.session);
@@ -258,7 +170,7 @@ export function AuthProvider({
         error instanceof Error ? error.message : 'Unable to load auth session.';
       setSession(toUnauthenticatedSession('okta', message));
     }
-  }, [config]);
+  }, [config, webApiClient]);
 
   React.useEffect(() => {
     if (config.provider === 'mock') {
@@ -346,12 +258,12 @@ export function AuthProvider({
     oktaAuth.tokenManager.clear();
     oktaAuth.clearStorage();
     try {
-      await clearServerAuthSession();
+      await webApiClient.auth.clearSession();
     } catch {
       // Fall through to the logout route, which also clears cookies.
     }
     window.location.assign('/api/auth/logout');
-  }, [config]);
+  }, [config, webApiClient]);
 
   const handleCallback = React.useCallback(async () => {
     if (config.provider === 'mock') {
@@ -377,12 +289,12 @@ export function AuthProvider({
         throw new Error('Unable to capture the Okta id token after callback.');
       }
 
-      await syncServerAuthSession({
+      await webApiClient.auth.syncSession({
         idToken: tokens.idToken.idToken,
         leadId: getStoredLeadId() ?? undefined,
         accessTokenClaims: parseJwtClaims(tokens.accessToken?.accessToken),
       });
-      const serverSession = await requestAuthSession();
+      const serverSession = await webApiClient.auth.getSession();
 
       if (
         !serverSession.session.isAuthenticated ||
@@ -404,7 +316,7 @@ export function AuthProvider({
         error instanceof Error ? error.message : 'Unable to complete sign-in.';
       setSession(toUnauthenticatedSession('okta', message));
     }
-  }, [config, refreshSession]);
+  }, [config, webApiClient]);
 
   const value = React.useMemo<AuthContextValue>(
     () => ({
