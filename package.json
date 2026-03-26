@@ -19,6 +19,18 @@
   },
   "private": true,
   "overrides": {
+    "@nx/js": {
+      "picomatch": "^4.0.4"
+    },
+    "@nx/rollup": {
+      "picomatch": "^4.0.4"
+    },
+    "@nx/vite": {
+      "picomatch": "^4.0.4"
+    },
+    "@nx/workspace": {
+      "picomatch": "^4.0.4"
+    },
     "flatted": "^3.4.2",
     "koa": "^3.1.2",
     "patch-package": "^8.0.1",
@@ -40,16 +52,16 @@
     "@eslint/js": "^9.8.0",
     "@expo/cli": "~54.0.16",
     "@next/eslint-plugin-next": "^16.0.1",
-    "@nx/devkit": "22.5.4",
-    "@nx/eslint": "22.5.4",
-    "@nx/eslint-plugin": "22.5.4",
-    "@nx/expo": "^22.5.4",
-    "@nx/jest": "22.5.4",
-    "@nx/js": "^22.5.4",
-    "@nx/next": "^22.5.4",
-    "@nx/playwright": "22.5.4",
-    "@nx/react": "^22.5.4",
-    "@nx/workspace": "22.5.4",
+    "@nx/devkit": "^22.6.1",
+    "@nx/eslint": "^22.6.1",
+    "@nx/eslint-plugin": "^22.6.1",
+    "@nx/expo": "^22.6.1",
+    "@nx/jest": "^22.6.1",
+    "@nx/js": "^22.6.1",
+    "@nx/next": "^22.6.1",
+    "@nx/playwright": "^22.6.1",
+    "@nx/react": "^22.6.1",
+    "@nx/workspace": "^22.6.1",
     "@playwright/test": "^1.36.0",
     "@swc-node/register": "~1.11.1",
     "@swc/core": "~1.15.5",
@@ -80,7 +92,7 @@
     "lint-staged": "^16.4.0",
     "metro-config": "~0.83.0",
     "metro-resolver": "~0.83.0",
-    "nx": "22.5.4",
+    "nx": "^22.6.1",
     "postcss": "^8.5.8",
     "prettier": "~3.8.1",
     "react-refresh": "^0.18.0",

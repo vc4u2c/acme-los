@@ -152,5 +152,6 @@
       "fallbackCurrentVersionResolver": "disk",
       "manifestRootsToUpdate": ["{projectRoot}"]
     }
-  }
+  },
+  "analytics": false
 }
