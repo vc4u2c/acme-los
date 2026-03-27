@@ -21,10 +21,10 @@ import { validateStepField } from './schemas';
 import type { ApplicationStepSlug } from './step-definitions';
 
 export const fieldClassName =
-  'h-12 rounded-2xl border-[var(--border)] bg-[var(--surface-strong)] px-4 text-base text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus-visible:ring-[var(--ring)]';
+  'h-11 rounded-[1.2rem] border-[var(--border)] bg-[var(--surface-strong)] px-3.5 text-[15px] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus-visible:ring-[var(--ring)]';
 
 export const selectClassName =
-  'flex h-12 w-full rounded-2xl border border-[var(--border)] bg-[var(--surface-strong)] px-4 text-base text-[var(--foreground)] shadow-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--ring-soft)]';
+  'flex h-11 w-full rounded-[1.2rem] border border-[var(--border)] bg-[var(--surface-strong)] px-3.5 text-[15px] text-[var(--foreground)] shadow-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--ring-soft)]';
 
 export const textareaClassName =
   'min-h-[148px] w-full rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-base leading-7 text-[var(--foreground)] shadow-sm outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--ring-soft)]';
@@ -66,6 +66,9 @@ type SelectFieldProps = BaseControlledFieldProps & {
 
 type ChoiceGroupProps = BaseControlledFieldProps & {
   options: ChoiceOption[];
+  itemClassName?: string;
+  labelClassName?: string;
+  descriptionClassName?: string;
 };
 
 type CheckboxFieldProps = BaseControlledFieldProps & {
@@ -281,9 +284,7 @@ export function SelectField({
           >
             <Select
               value={
-                typeof field.state.value === 'string' && field.state.value
-                  ? field.state.value
-                  : undefined
+                typeof field.state.value === 'string' ? field.state.value : ''
               }
               onValueChange={field.handleChange}
             >
@@ -318,6 +319,9 @@ export function ChoiceGroupField({
   label,
   hint,
   options,
+  itemClassName,
+  labelClassName,
+  descriptionClassName,
 }: ChoiceGroupProps) {
   return (
     <form.Field
@@ -370,7 +374,14 @@ export function ChoiceGroupField({
                   aria-describedby={joinDescribedBy(hintId, errorId)}
                   aria-invalid={error ? true : undefined}
                   description={option.description}
-                  itemClassName="border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground)] peer-checked:border-[var(--brand)] peer-checked:bg-[var(--surface-accent)] peer-focus-visible:ring-[var(--ring-soft)]"
+                  itemClassName={[
+                    'border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground)] peer-checked:border-[var(--brand)] peer-checked:bg-[var(--surface-accent)] peer-focus-visible:ring-[var(--ring-soft)]',
+                    itemClassName,
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  labelClassName={labelClassName}
+                  descriptionClassName={descriptionClassName}
                 >
                   {option.label}
                 </RadioGroupItem>

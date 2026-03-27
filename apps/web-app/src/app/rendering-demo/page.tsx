@@ -7,27 +7,22 @@ import {
   CardTitle,
 } from '@acme-los/ui-web';
 import { SiteHeader } from '../../components/web/site-header';
+import { renderingDemoNavigationItems } from './navigation';
 
 export const dynamic = 'force-static';
 
-const navigationItems = [
-  { href: '/', label: 'Home' },
-  { href: '/rates-terms', label: 'Rates ISR' },
-  { href: '/apply/personal-info', label: 'Application' },
-];
-
 const demoCards = [
   {
-    href: '/',
+    href: '/rendering-demo/static',
     eyebrow: 'Static',
-    title: 'Landing page',
-    body: 'This page is explicitly force-static and is the cleanest example of the server-first marketing shell.',
+    title: 'Static route',
+    body: 'This route is explicitly force-static and shows a fixed timestamp that only changes on rebuild.',
   },
   {
-    href: '/rates-terms',
+    href: '/rendering-demo/isr',
     eyebrow: 'ISR',
-    title: 'Rates and terms',
-    body: 'This page revalidates every 60 seconds and shows a refresh timestamp for the demo.',
+    title: 'ISR route',
+    body: 'This route revalidates every 60 seconds and shows a refresh timestamp dedicated to the demo.',
   },
   {
     href: '/rendering-demo/server',
@@ -46,7 +41,7 @@ const demoCards = [
 export default function RenderingDemoIndexPage() {
   return (
     <main className="min-h-screen text-[var(--foreground)]">
-      <SiteHeader items={navigationItems} />
+      <SiteHeader items={renderingDemoNavigationItems} />
       <section className="site-shell py-10 lg:py-14">
         <div className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
@@ -71,8 +66,8 @@ export default function RenderingDemoIndexPage() {
               Show the rendering split in under two minutes
             </CardTitle>
             <CardDescription className="text-base leading-7 text-[var(--muted-foreground)]">
-              Start static, move to ISR, refresh the server route, then show
-              hydration and client state on the browser route.
+              Start on the static route, move to ISR, refresh the server route,
+              then show hydration and client state on the browser route.
             </CardDescription>
           </CardHeader>
         </Card>

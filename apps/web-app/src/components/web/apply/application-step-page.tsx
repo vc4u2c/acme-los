@@ -1,4 +1,3 @@
-import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import {
   Card,
@@ -45,15 +44,6 @@ export function ApplicationStepPage({
                 <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--muted-foreground)]">
                   Step {stepIndex + 1} of {applicationSteps.length}
                 </p>
-                {previousStep ? (
-                  <Link
-                    href={`/apply/${previousStep.slug}`}
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--brand)] transition hover:text-[var(--brand-strong)]"
-                  >
-                    <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-                    Back to {previousStep.shortLabel}
-                  </Link>
-                ) : null}
               </div>
               <h1 className="font-display text-4xl leading-tight text-[var(--foreground)] lg:text-5xl">
                 {currentStep.title}
@@ -116,6 +106,7 @@ export function ApplicationStepPage({
             <CardContent className="p-6 lg:p-8">
               <ApplicationStepFormCard
                 step={step}
+                previousStep={previousStep?.slug}
                 nextStep={nextStep?.slug}
                 initialValues={initialValues}
               />

@@ -19,13 +19,17 @@ export function Screen({
   contentContainerClassName = '',
   showsVerticalScrollIndicator = false,
   testID = 'mobile-app-shell',
+  contentContainerStyle,
+  style,
   ...props
 }: ScrollProps): React.ReactElement {
   return (
     <ScrollView
-      className={`flex-1 bg-background-0 ${className}`.trim()}
+      className={`bg-background-0 ${className}`.trim()}
       contentContainerClassName={`min-h-full px-4 py-8 pb-14 sm:px-6 sm:py-10 sm:pb-16 lg:px-8 ${contentContainerClassName}`.trim()}
+      contentContainerStyle={[{ flexGrow: 1 }, contentContainerStyle]}
       showsVerticalScrollIndicator={showsVerticalScrollIndicator}
+      style={[{ flex: 1 }, style]}
       testID={testID}
       {...props}
     />

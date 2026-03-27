@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ArrowRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { createWebApiClient } from '@acme-los/api/web-client';
 import { useRouter } from 'next/navigation';
 import { Button } from '@acme-los/ui-web';
@@ -19,12 +19,14 @@ import {
 
 type ApplicationStepFormCardProps = {
   step: ApplicationStepSlug;
+  previousStep?: ApplicationStepSlug;
   nextStep?: ApplicationStepSlug;
   initialValues?: Partial<ApplicationFormState> | null;
 };
 
 export function ApplicationStepFormCard({
   step,
+  previousStep,
   nextStep,
   initialValues,
 }: ApplicationStepFormCardProps): React.ReactElement {
@@ -90,12 +92,27 @@ export function ApplicationStepFormCard({
         </div>
       ) : null}
 
-      <div className="flex border-t border-[var(--border)] pt-6 sm:justify-end">
+      <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="sm:min-w-[220px]">
+          {previousStep ? (
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              className="w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-accent)] sm:w-auto"
+              onClick={() => router.push(`/apply/${previousStep}`)}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
+              Back to {getApplicationStep(previousStep).shortLabel}
+            </Button>
+          ) : null}
+        </div>
+
         <Button
           type="submit"
           size="lg"
           disabled={isSubmitting}
-          className="rounded-full bg-[var(--brand)] px-7 text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)] hover:bg-[var(--brand-strong)]"
+          className="rounded-full bg-[var(--brand)] px-7 text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)] hover:bg-[var(--brand-strong)] sm:min-w-[220px]"
         >
           {nextStep ? (
             <>

@@ -92,7 +92,27 @@ test('shows the web home, rendering demos, and showcase route', async ({
   ).toBeVisible();
 
   await navigate(page, '/rates-terms');
-  await expect(page.getByText(/revalidates every 60 seconds/i)).toBeVisible();
+  await expect(
+    page.getByRole('heading', {
+      name: /Set expectations before applicants reach pre-approval/i,
+    }),
+  ).toBeVisible();
+
+  await navigate(page, '/rendering-demo/static');
+  await expect(
+    page.getByRole('heading', {
+      name: /This route is generated once and served as static HTML/i,
+    }),
+  ).toBeVisible();
+  await expect(page.getByTestId('static-generated-at')).toBeVisible();
+
+  await navigate(page, '/rendering-demo/isr');
+  await expect(
+    page.getByRole('heading', {
+      name: /This route revalidates on a timed interval/i,
+    }),
+  ).toBeVisible();
+  await expect(page.getByTestId('isr-refreshed-at')).toBeVisible();
 
   await navigate(page, '/rendering-demo/server');
   await expect(

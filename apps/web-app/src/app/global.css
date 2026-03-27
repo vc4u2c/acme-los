@@ -5,18 +5,18 @@
 :root {
   color-scheme: light;
   --site-header-offset: 11rem;
-  --background: #fcfaf6;
+  --background: #ffffff;
   --foreground: #17312a;
-  --muted-foreground: #52625a;
-  --surface: #f4f6f1;
-  --surface-strong: #e8eee7;
-  --surface-accent: #dde6de;
+  --muted-foreground: #4c5d55;
+  --surface: #e9f0e8;
+  --surface-strong: #d8e2d7;
+  --surface-accent: #c9d6c8;
   --surface-spot: #efe3c3;
-  --overlay-surface: #faf7ef;
-  --overlay-surface-strong: #fffdf8;
-  --overlay-border: #c4cec3;
-  --border: #c7d3c8;
-  --border-strong: #9fb1a4;
+  --overlay-surface: #dde8dc;
+  --overlay-surface-strong: #cfdbce;
+  --overlay-border: #aebdad;
+  --border: #b8c6b8;
+  --border-strong: #90a391;
   --brand: #116243;
   --brand-strong: #0d5338;
   --brand-contrast: #f8fff9;
@@ -36,12 +36,18 @@
   --ring: #249567;
   --ring-soft: rgba(36, 149, 103, 0.18);
   --critical: #b24a3d;
-  --shadow-soft: rgba(31, 46, 39, 0.12);
-  --hero-glow-top: rgba(17, 98, 67, 0.12);
-  --hero-glow-side: rgba(214, 176, 95, 0.13);
-  --hero-glow-top-size: 76rem 36rem;
-  --hero-glow-side-size: 72rem 32rem;
-  --background-top: #fffef9;
+  --shadow-soft: rgba(31, 46, 39, 0.1);
+  --hero-glow-top: rgba(17, 98, 67, 0.16);
+  --hero-glow-top-soft: rgba(17, 98, 67, 0.06);
+  --hero-glow-side: rgba(214, 176, 95, 0.135);
+  --hero-glow-side-soft: rgba(214, 176, 95, 0.05);
+  --hero-glow-top-size: 76rem 29rem;
+  --hero-glow-side-size: 68rem 26rem;
+  --hero-glow-top-soft-stop: 22%;
+  --hero-glow-top-end-stop: 54%;
+  --hero-glow-side-soft-stop: 24%;
+  --hero-glow-side-end-stop: 56%;
+  --background-top: #ffffff;
   --display-font:
     'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif;
   --body-font: Aptos, 'Segoe UI Variable Display', 'Segoe UI', sans-serif;
@@ -81,31 +87,41 @@ html[data-theme='dark'] {
   --ring-soft: rgba(114, 199, 155, 0.22);
   --critical: #ff9d8d;
   --shadow-soft: rgba(2, 12, 10, 0.26);
-  --hero-glow-top: rgba(70, 166, 122, 0.13);
-  --hero-glow-side: rgba(212, 174, 96, 0.1);
-  --hero-glow-top-size: 72rem 32rem;
-  --hero-glow-side-size: 66rem 28rem;
+  --hero-glow-top: rgba(70, 166, 122, 0.17);
+  --hero-glow-top-soft: rgba(70, 166, 122, 0.05);
+  --hero-glow-side: rgba(212, 174, 96, 0.13);
+  --hero-glow-side-soft: rgba(212, 174, 96, 0.038);
+  --hero-glow-top-size: 74rem 33rem;
+  --hero-glow-side-size: 68rem 30rem;
+  --hero-glow-top-soft-stop: 34%;
+  --hero-glow-top-end-stop: 68%;
+  --hero-glow-side-soft-stop: 36%;
+  --hero-glow-side-end-stop: 70%;
   --background-top: #13211f;
 }
 
 html {
   scroll-behavior: smooth;
+  overflow-x: clip;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: clip;
   background-color: var(--background);
   background-image:
     radial-gradient(
-      ellipse at top right,
+      var(--hero-glow-top-size) at 81% 1%,
       var(--hero-glow-top) 0%,
-      transparent 68%
+      var(--hero-glow-top-soft) var(--hero-glow-top-soft-stop),
+      transparent var(--hero-glow-top-end-stop)
     ),
     radial-gradient(
-      ellipse at top left,
+      var(--hero-glow-side-size) at 19% 1%,
       var(--hero-glow-side) 0%,
-      transparent 72%
+      var(--hero-glow-side-soft) var(--hero-glow-side-soft-stop),
+      transparent var(--hero-glow-side-end-stop)
     ),
     linear-gradient(
       180deg,
@@ -113,15 +129,8 @@ body {
       var(--background) 24%,
       var(--background) 100%
     );
-  background-position:
-    top right,
-    top left,
-    top left;
   background-repeat: no-repeat;
-  background-size:
-    var(--hero-glow-top-size),
-    var(--hero-glow-side-size),
-    100% 100%;
+  background-size: 100% 100%;
   color: var(--foreground);
   font-family: var(--body-font);
 }
@@ -186,22 +195,34 @@ a {
 
 @layer components {
   .site-shell {
-    @apply mx-auto w-full max-w-[108rem] px-4 sm:px-5 lg:px-6 xl:px-8;
+    @apply mx-auto w-full max-w-[116rem] px-4 sm:px-5 lg:px-6 xl:px-8 2xl:px-10;
   }
 }
 
 @media (max-width: 640px) {
   :root {
-    --hero-glow-top: rgba(17, 98, 67, 0.08);
-    --hero-glow-side: rgba(214, 176, 95, 0.09);
-    --hero-glow-top-size: 44rem 18rem;
-    --hero-glow-side-size: 40rem 16rem;
+    --hero-glow-top: rgba(17, 98, 67, 0.11);
+    --hero-glow-top-soft: rgba(17, 98, 67, 0.04);
+    --hero-glow-side: rgba(214, 176, 95, 0.095);
+    --hero-glow-side-soft: rgba(214, 176, 95, 0.034);
+    --hero-glow-top-size: 52rem 21rem;
+    --hero-glow-side-size: 46rem 18rem;
+    --hero-glow-top-soft-stop: 20%;
+    --hero-glow-top-end-stop: 50%;
+    --hero-glow-side-soft-stop: 22%;
+    --hero-glow-side-end-stop: 52%;
   }
 
   html[data-theme='dark'] {
-    --hero-glow-top: rgba(70, 166, 122, 0.09);
-    --hero-glow-side: rgba(212, 174, 96, 0.06);
-    --hero-glow-top-size: 38rem 15rem;
-    --hero-glow-side-size: 34rem 13rem;
+    --hero-glow-top: rgba(70, 166, 122, 0.125);
+    --hero-glow-top-soft: rgba(70, 166, 122, 0.036);
+    --hero-glow-side: rgba(212, 174, 96, 0.09);
+    --hero-glow-side-soft: rgba(212, 174, 96, 0.028);
+    --hero-glow-top-size: 44rem 18rem;
+    --hero-glow-side-size: 38rem 15rem;
+    --hero-glow-top-soft-stop: 32%;
+    --hero-glow-top-end-stop: 66%;
+    --hero-glow-side-soft-stop: 34%;
+    --hero-glow-side-end-stop: 68%;
   }
 }

@@ -33,14 +33,14 @@ const socialChannels: Array<{ label: string; icon: LucideIcon }> = [
 ];
 
 const footerNavLinkClassName =
-  'block w-full rounded-[1.3rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--brand)] hover:bg-[var(--surface-accent)] lg:max-w-[20rem]';
+  'block w-full rounded-[1.15rem] border border-[var(--border-strong)] bg-[var(--surface-strong)] px-3.5 py-2.5 text-[15px] font-medium text-[var(--foreground)] shadow-sm shadow-[color:var(--shadow-soft)] transition hover:border-[var(--brand)] hover:bg-[var(--surface-accent)] hover:shadow-[0_12px_24px_var(--shadow-soft)] lg:max-w-[15.5rem] lg:px-3 lg:py-2 lg:text-sm';
 
 export function SiteFooter(): React.ReactElement {
   return (
     <footer className="border-t border-[var(--border)] bg-[color:var(--surface)/0.94] text-[var(--foreground)]">
       <div className="site-shell py-10 lg:py-12">
         <div className="mb-8 grid gap-4 lg:grid-cols-3">
-          <div className="rounded-[1.8rem] border border-[var(--border)] bg-[var(--surface-strong)] p-5 shadow-lg shadow-[color:var(--shadow-soft)]">
+          <div className="rounded-[1.8rem] border border-[var(--overlay-border)] bg-[color:var(--overlay-surface)/0.96] p-5 shadow-lg shadow-[color:var(--shadow-soft)]">
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
               Call support
             </p>
@@ -57,7 +57,7 @@ export function SiteFooter(): React.ReactElement {
             </p>
           </div>
 
-          <div className="rounded-[1.8rem] border border-[var(--border)] bg-[var(--surface-strong)] p-5 shadow-lg shadow-[color:var(--shadow-soft)]">
+          <div className="rounded-[1.8rem] border border-[var(--overlay-border)] bg-[color:var(--overlay-surface)/0.96] p-5 shadow-lg shadow-[color:var(--shadow-soft)]">
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
               Email support
             </p>
@@ -73,7 +73,7 @@ export function SiteFooter(): React.ReactElement {
             </p>
           </div>
 
-          <div className="rounded-[1.8rem] border border-[var(--border)] bg-[var(--surface-strong)] p-5 shadow-lg shadow-[color:var(--shadow-soft)]">
+          <div className="rounded-[1.8rem] border border-[var(--overlay-border)] bg-[color:var(--overlay-surface)/0.96] p-5 shadow-lg shadow-[color:var(--shadow-soft)]">
             <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
               Mailing address
             </p>
@@ -121,7 +121,7 @@ export function SiteFooter(): React.ReactElement {
                   return (
                     <span
                       key={channel.label}
-                      className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface-strong)] px-3.5 py-2 text-sm font-medium text-[var(--foreground)] shadow-sm"
+                      className="inline-flex items-center gap-2 rounded-full border border-[var(--overlay-border)] bg-[color:var(--overlay-surface)/0.96] px-3.5 py-2 text-sm font-medium text-[var(--foreground)] shadow-sm shadow-[color:var(--shadow-soft)]"
                     >
                       <Icon
                         className="h-4 w-4 text-[var(--brand)]"

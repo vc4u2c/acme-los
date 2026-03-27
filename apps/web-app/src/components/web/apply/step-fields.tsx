@@ -296,6 +296,9 @@ export function renderStepFields(
             step={step}
             name="fundingMethod"
             label="Funding method"
+            itemClassName="min-h-[96px] rounded-[1.25rem] p-3.5"
+            labelClassName="text-base"
+            descriptionClassName="mt-2 max-w-[34ch] leading-6"
             options={[
               {
                 label: 'Direct deposit',

@@ -10,12 +10,7 @@ import {
   CardTitle,
 } from '@acme-los/ui-web';
 import { SiteHeader } from '../../../components/web/site-header';
-
-const navigationItems = [
-  { href: '/', label: 'Home' },
-  { href: '/rates-terms', label: 'Rates ISR' },
-  { href: '/apply/personal-info', label: 'Application' },
-];
+import { renderingDemoNavigationItems } from '../navigation';
 
 export default function ClientRenderingDemoPage() {
   const [count, setCount] = React.useState(0);
@@ -53,7 +48,7 @@ export default function ClientRenderingDemoPage() {
 
   return (
     <main className="min-h-screen text-[var(--foreground)]">
-      <SiteHeader items={navigationItems} />
+      <SiteHeader items={renderingDemoNavigationItems} />
       <section className="site-shell py-10 lg:py-14">
         <div className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
@@ -129,7 +124,7 @@ export default function ClientRenderingDemoPage() {
                     className="mt-3 text-base font-medium leading-7 text-[var(--foreground)]"
                   >
                     {timeZone && viewport
-                      ? `${timeZone} · ${viewport}`
+                      ? `${timeZone} | ${viewport}`
                       : 'Waiting for browser-only values...'}
                   </p>
                 </div>
@@ -185,7 +180,7 @@ export default function ClientRenderingDemoPage() {
                   browser.
                 </p>
                 <p className="mt-2">
-                  The rates page uses ISR with a 60-second window.
+                  The ISR demo route uses a 60-second revalidation window.
                 </p>
                 <p className="mt-2">
                   This route proves it with browser time, viewport details, and
