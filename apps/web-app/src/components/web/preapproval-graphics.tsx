@@ -16,14 +16,14 @@ function VisualFrame({
   return (
     <div
       className={[
-        'relative overflow-hidden rounded-[1.6rem] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-sm shadow-[color:var(--shadow-soft)]',
+        'relative overflow-hidden rounded-[1.6rem] border border-[var(--overlay-border)] bg-[color:var(--overlay-surface)/0.96] p-4 shadow-lg shadow-[color:var(--shadow-soft)]',
         className,
       ]
         .filter(Boolean)
         .join(' ')}
       aria-hidden="true"
     >
-      <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-[var(--surface-accent)] to-transparent opacity-80" />
+      <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-[var(--surface-accent)] to-transparent opacity-95" />
       <div className="relative">{children}</div>
     </div>
   );
@@ -33,9 +33,9 @@ function ReviewDocumentGraphic(): React.ReactElement {
   return (
     <VisualFrame className="aspect-[1.25/1]">
       <div className="relative mx-auto mt-5 h-40 max-w-[16rem]">
-        <div className="absolute left-3 top-6 h-28 w-24 rotate-[-10deg] rounded-[1rem] border border-[var(--border)] bg-[var(--surface-strong)] shadow-sm" />
-        <div className="absolute right-3 top-6 h-28 w-24 rotate-[10deg] rounded-[1rem] border border-[var(--border)] bg-[var(--surface-strong)] shadow-sm" />
-        <div className="absolute left-1/2 top-1 h-32 w-28 -translate-x-1/2 rounded-[1rem] border border-[var(--border-strong)] bg-[var(--surface-strong)] shadow-lg shadow-[color:var(--shadow-soft)]">
+        <div className="absolute left-3 top-6 h-28 w-24 rotate-[-10deg] rounded-[1rem] border border-[var(--overlay-border)] bg-[var(--surface-strong)] shadow-sm" />
+        <div className="absolute right-3 top-6 h-28 w-24 rotate-[10deg] rounded-[1rem] border border-[var(--overlay-border)] bg-[var(--surface-strong)] shadow-sm" />
+        <div className="absolute left-1/2 top-1 h-32 w-28 -translate-x-1/2 rounded-[1rem] border border-[var(--border-strong)] bg-[var(--overlay-surface-strong)] shadow-lg shadow-[color:var(--shadow-soft)]">
           <div className="border-b border-[var(--border)] px-4 py-3 text-center text-sm font-semibold text-[var(--foreground)]">
             Soft review
           </div>
@@ -56,7 +56,7 @@ function ReviewDocumentGraphic(): React.ReactElement {
 function SoftReviewGraphic(): React.ReactElement {
   return (
     <VisualFrame className="aspect-[1.25/1] flex items-center justify-center">
-      <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-strong)] px-8 py-7 shadow-sm">
+      <div className="rounded-[1.5rem] border border-[var(--overlay-border)] bg-[var(--overlay-surface-strong)] px-8 py-7 shadow-lg shadow-[color:var(--shadow-soft)]">
         <div className="mx-auto h-28 w-28 rounded-full border-[6px] border-[var(--surface-accent)] border-t-[var(--brand)] border-l-[var(--brand)] border-r-[var(--brand)]" />
         <p className="-mt-16 text-center text-4xl font-semibold tracking-tight text-[var(--foreground)]">
           620
@@ -75,7 +75,7 @@ function SoftReviewGraphic(): React.ReactElement {
 function OfferGraphic(): React.ReactElement {
   return (
     <VisualFrame className="aspect-[1.25/1] flex items-center justify-center">
-      <div className="w-full max-w-[15rem] rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-strong)] px-6 py-6 text-center shadow-sm">
+      <div className="w-full max-w-[15rem] rounded-[1.5rem] border border-[var(--overlay-border)] bg-[var(--overlay-surface-strong)] px-6 py-6 text-center shadow-lg shadow-[color:var(--shadow-soft)]">
         <div className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-[var(--surface-accent)] shadow-inner">
           <div className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand)] text-[var(--brand-contrast)]">
             <svg

@@ -30,7 +30,7 @@ export default defineConfig({
   /* Run your local dev server before starting the tests */
   webServer: {
     command:
-      'node ../../node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 4200',
+      'node ../../node_modules/next/dist/bin/next build && node ../../node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 4200',
     url: baseURL,
     reuseExistingServer: true,
     cwd: join(workspaceRoot, 'apps/web-app'),
@@ -38,6 +38,7 @@ export default defineConfig({
       ...process.env,
       NEXT_PUBLIC_AUTH_PROVIDER: 'mock',
     },
+    timeout: 180000,
   },
   projects: [
     {

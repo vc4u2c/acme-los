@@ -1,18 +1,11 @@
 import { ContentPageShell } from '../../components/web/content-page-shell';
 
-export const revalidate = 60;
-
 export default function RatesAndTermsPage() {
-  const refreshedAt = new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'medium',
-  }).format(new Date());
-
   return (
     <ContentPageShell
       eyebrow="Rates and terms"
       title="Set expectations before applicants reach pre-approval"
-      intro={`A credible lending shell should explain that rates, approval, and funding timing depend on underwriting, eligibility, and state-specific requirements. Demo note: this page revalidates every 60 seconds. Last refreshed at ${refreshedAt}.`}
+      intro="A credible lending shell should explain that rates, approval, and funding timing depend on underwriting, eligibility, and state-specific requirements."
       sections={[
         {
           title: 'Rate transparency',

@@ -29,13 +29,27 @@ import {
 
 export function ShowcaseScreen({
   mobileAppVersion,
+  onBack,
 }: {
   mobileAppVersion: string;
+  onBack?: () => void;
 }): React.ReactElement {
   return (
     <Screen>
       <ScreenContent>
         <ScreenHeader>
+          {onBack ? (
+            <View className="w-full max-w-[220px]">
+              <Button
+                action="primary"
+                variant="outline"
+                className="border border-outline-300 bg-background-50"
+                onPress={onBack}
+              >
+                <ButtonText>Back to dashboard</ButtonText>
+              </Button>
+            </View>
+          ) : null}
           <Badge variant="info">
             <BadgeText variant="info">Mobile Showcase</BadgeText>
           </Badge>

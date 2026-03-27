@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import Link from 'next/link';
 import {
   Button,
   Card,
@@ -39,15 +38,6 @@ export default function ShowcasePage() {
     <main className="min-h-screen text-[var(--foreground)]">
       <SiteHeader items={navigationItems} />
       <section className="site-shell py-12">
-        <div className="mb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center text-sm font-medium text-[var(--brand)] transition hover:text-[var(--brand-strong)]"
-          >
-            Back to web home
-          </Link>
-        </div>
-
         <div className="max-w-3xl">
           <p className="text-sm uppercase tracking-[0.3em] text-[var(--brand)]">
             UI Showcase

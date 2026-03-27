@@ -18,33 +18,58 @@ export interface RadioGroupItemProps extends Omit<
 > {
   description?: React.ReactNode;
   itemClassName?: string;
+  labelClassName?: string;
+  descriptionClassName?: string;
   children: React.ReactNode;
 }
 
 export const RadioGroupItem = React.forwardRef<
   HTMLInputElement,
   RadioGroupItemProps
->(({ className, itemClassName, children, description, ...props }, ref) => {
-  return (
-    <label className={cn('block', className)}>
-      <input ref={ref} type="radio" className="peer sr-only" {...props} />
-      <span
-        className={cn(
-          'relative flex min-h-[128px] flex-col justify-between rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-strong)] p-5 text-left shadow-sm transition duration-200 hover:border-[var(--border-strong)] hover:bg-[var(--surface)] peer-checked:border-[var(--brand)] peer-checked:bg-[var(--surface-accent)] peer-checked:shadow-lg peer-checked:shadow-[color:var(--brand-shadow)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--ring-soft)]',
-          itemClassName,
-        )}
-      >
-        <span className="text-lg font-semibold leading-tight text-[var(--foreground)]">
-          {children}
-        </span>
-        {description ? (
-          <span className="mt-3 max-w-[28ch] text-sm leading-7 text-[var(--muted-foreground)]">
-            {description}
+>(
+  (
+    {
+      className,
+      itemClassName,
+      labelClassName,
+      descriptionClassName,
+      children,
+      description,
+      ...props
+    },
+    ref,
+  ) => {
+    return (
+      <label className={cn('block cursor-pointer', className)}>
+        <input ref={ref} type="radio" className="peer sr-only" {...props} />
+        <span
+          className={cn(
+            'relative flex min-h-[128px] cursor-pointer flex-col justify-between rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-strong)] p-5 text-left shadow-sm transition duration-200 hover:border-[var(--border-strong)] hover:bg-[var(--surface)] peer-checked:border-[var(--brand)] peer-checked:bg-[var(--surface-accent)] peer-checked:shadow-lg peer-checked:shadow-[color:var(--brand-shadow)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--ring-soft)]',
+            itemClassName,
+          )}
+        >
+          <span
+            className={cn(
+              'text-lg font-semibold leading-tight text-[var(--foreground)]',
+              labelClassName,
+            )}
+          >
+            {children}
           </span>
-        ) : null}
-      </span>
-    </label>
-  );
-});
+          {description ? (
+            <span
+              className={cn(
+                'mt-3 max-w-[28ch] text-sm leading-7 text-[var(--muted-foreground)]',
+                descriptionClassName,
+              )}
+            >
+              {description}
+            </span>
+          ) : null}
+        </span>
+      </label>
+    );
+  },
+);
 
 RadioGroupItem.displayName = 'RadioGroupItem';

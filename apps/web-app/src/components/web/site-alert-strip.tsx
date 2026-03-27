@@ -46,7 +46,7 @@ export function SiteAlertStrip(): React.ReactElement | null {
   return (
     <div className="border-b border-[var(--border)] bg-[var(--brand)] text-[var(--brand-contrast)]">
       <div className="site-shell flex items-center justify-between gap-2 py-1 text-[10.5px] sm:py-1.5">
-        <div className="flex min-w-0 items-center gap-2.5">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <button
             type="button"
             onClick={handleBannerIconClick}

@@ -270,7 +270,7 @@ export default function Index() {
                       <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[1rem] border border-[var(--border)] bg-[var(--surface)] text-[var(--brand)] shadow-sm">
                         <Icon className="h-5 w-5" aria-hidden="true" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-base font-semibold text-[var(--foreground)]">
                           {card.title}
                         </p>
@@ -312,7 +312,7 @@ export default function Index() {
                       <div className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[1rem] border border-[var(--border)] bg-[var(--surface)] text-[var(--brand)] shadow-sm">
                         <Icon className="h-5 w-5" aria-hidden="true" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[var(--brand)]">
                           {card.title}
                         </p>
@@ -523,7 +523,7 @@ export default function Index() {
                     <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-[0.95rem] border border-[var(--border)] bg-[var(--surface)] text-[var(--brand)] shadow-sm">
                       <Icon className="h-4.5 w-4.5" aria-hidden="true" />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-base font-medium text-[var(--foreground)]">
                         {item.title}
                       </p>

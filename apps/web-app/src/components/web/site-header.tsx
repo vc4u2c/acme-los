@@ -21,6 +21,7 @@ import { ThemeToggle } from './theme-toggle';
 type NavItem = {
   href: string;
   label: string;
+  match?: 'exact' | 'prefix';
 };
 
 const utilityLinks = [
@@ -29,7 +30,15 @@ const utilityLinks = [
   { href: '/support/contact', label: 'Contact support' },
 ];
 
-function isPathActive(pathname: string, href: string): boolean {
+function isPathActive(
+  pathname: string,
+  href: string,
+  match: NavItem['match'] = 'prefix',
+): boolean {
+  if (match === 'exact') {
+    return pathname === href;
+  }
+
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
@@ -37,7 +46,7 @@ export function SiteHeader({
   items,
   variant = 'default',
 }: {
-  items: NavItem[];
+  items: readonly NavItem[];
   variant?: 'default' | 'application';
 }): React.ReactElement {
   const pathname = usePathname();
@@ -127,12 +136,12 @@ export function SiteHeader({
   }, []);
 
   const isActiveItem = React.useCallback(
-    (href: string) => {
-      if (href.startsWith('#')) {
-        return activeHash === href;
+    (item: NavItem) => {
+      if (item.href.startsWith('#')) {
+        return activeHash === item.href;
       }
 
-      return isPathActive(pathname, href);
+      return isPathActive(pathname, item.href, item.match);
     },
     [activeHash, pathname],
   );
@@ -158,7 +167,7 @@ export function SiteHeader({
     >
       <SiteAlertStrip />
       {showMarketingNav ? (
-        <div className="hidden border-b border-[var(--border)] bg-[color:var(--surface-strong)/0.88] md:block">
+        <div className="hidden border-b border-[var(--border)] bg-[color:var(--surface-strong)/0.88] lg:block">
           <div className="site-shell flex items-center justify-between gap-4 py-2.5 text-xs">
             <div className="flex items-center gap-4 text-[var(--foreground)]">
               <span className="font-semibold uppercase tracking-[0.22em] text-[var(--brand)]">
@@ -182,11 +191,11 @@ export function SiteHeader({
                   href={item.href}
                   className={[
                     'rounded-full px-2.5 py-1 font-semibold transition',
-                    isActiveItem(item.href)
+                    isActiveItem(item)
                       ? 'border border-[var(--brand)] bg-[var(--surface-accent)] text-[var(--brand-strong)] opacity-100 shadow-sm'
                       : 'border border-transparent text-[var(--foreground)] opacity-80 hover:border-[var(--border)] hover:bg-[var(--surface)] hover:opacity-100',
                   ].join(' ')}
-                  aria-current={isActiveItem(item.href) ? 'page' : undefined}
+                  aria-current={isActiveItem(item) ? 'page' : undefined}
                 >
                   {item.label}
                 </Link>
@@ -221,18 +230,18 @@ export function SiteHeader({
         </Link>
 
         {showMarketingNav ? (
-          <nav className="hidden items-center gap-7 text-sm font-semibold text-[var(--foreground)] lg:flex">
+          <nav className="hidden items-center gap-8 text-[15px] font-semibold text-[var(--foreground)] lg:flex xl:gap-9 xl:text-base">
             {items.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 className={[
                   'opacity-80 transition hover:opacity-100',
-                  isActiveItem(item.href)
+                  isActiveItem(item)
                     ? 'text-[var(--brand)] opacity-100'
                     : 'text-[var(--foreground)]',
                 ].join(' ')}
-                aria-current={isActiveItem(item.href) ? 'page' : undefined}
+                aria-current={isActiveItem(item) ? 'page' : undefined}
               >
                 {item.label}
               </Link>
@@ -314,7 +323,7 @@ export function SiteHeader({
                           href={item.href}
                           className={[
                             'block rounded-2xl border px-4 py-3 text-sm font-medium transition',
-                            isActiveItem(item.href)
+                            isActiveItem(item)
                               ? 'border-[var(--brand)] bg-[var(--surface-accent)] text-[var(--foreground)]'
                               : 'border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground)] hover:border-[var(--brand)]',
                           ].join(' ')}
@@ -335,13 +344,11 @@ export function SiteHeader({
                           href={item.href}
                           className={[
                             'block rounded-2xl border px-4 py-3 text-sm font-medium transition',
-                            isActiveItem(item.href)
+                            isActiveItem(item)
                               ? 'border-[var(--brand)] bg-[var(--surface-accent)] text-[var(--foreground)]'
                               : 'border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground)] hover:border-[var(--brand)]',
                           ].join(' ')}
-                          aria-current={
-                            isActiveItem(item.href) ? 'page' : undefined
-                          }
+                          aria-current={isActiveItem(item) ? 'page' : undefined}
                         >
                           {item.label}
                         </Link>

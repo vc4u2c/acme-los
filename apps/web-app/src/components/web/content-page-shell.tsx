@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@acme-los/ui-web';
 import { SiteHeader } from './site-header';
 
@@ -10,7 +9,6 @@ type ContentSection = {
 const navigationItems = [
   { href: '/', label: 'Home' },
   { href: '/apply/personal-info', label: 'Application' },
-  { href: '/showcase', label: 'Showcase' },
 ];
 
 export function ContentPageShell({
@@ -28,15 +26,6 @@ export function ContentPageShell({
     <main className="min-h-screen text-[var(--foreground)]">
       <SiteHeader items={navigationItems} />
       <section className="site-shell py-10 lg:py-14">
-        <div className="mb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center text-sm font-medium text-[var(--brand)] transition hover:text-[var(--brand-strong)]"
-          >
-            Back to home
-          </Link>
-        </div>
-
         <div className="max-w-3xl">
           <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
             {eyebrow}
