@@ -20,6 +20,7 @@ Current released app versions in source control:
 - Node.js `24.14.0`
 - npm
 - Windows PowerShell or a Unix-like shell
+- Docker Desktop if you want the Redis-backed local web state path
 
 Install dependencies:
 
@@ -29,6 +30,8 @@ npm install
 
 ### Run The Web App
 
+Default local web state uses the file-backed server store. This is enough for normal UI work and for exercising the hardened auth flow without Docker.
+
 ```powershell
 npx.cmd nx run web-app:dev
 ```
@@ -36,6 +39,32 @@ npx.cmd nx run web-app:dev
 Open:
 
 - `http://localhost:3000`
+
+If you want the Redis-backed local state path instead:
+
+```powershell
+npm run web:dev:redis
+```
+
+That script:
+
+- starts Redis with Docker Compose
+- sets `ACME_WEB_STATE_STORE=redis`
+- sets `ACME_REDIS_URL=redis://127.0.0.1:6379`
+- starts `web-app:dev`
+
+To stop local Redis:
+
+```powershell
+npm run redis:down
+```
+
+Manual fallback if Docker is unavailable:
+
+```powershell
+$env:ACME_WEB_STATE_STORE='file'
+npx.cmd nx run web-app:dev
+```
 
 ### Run The Mobile App
 
@@ -54,6 +83,18 @@ npx.cmd nx run mobile-app:run-ios
 ```
 
 ### Run Verification
+
+Full local verification:
+
+```powershell
+npx.cmd prettier --check .
+npx.cmd nx run-many -t lint test --all --outputStyle=stream
+npx.cmd nx run web-app:build --skip-nx-cache
+npx.cmd nx run mobile-app-e2e:e2e --outputStyle=stream
+Remove-Item -Force apps/web-app/.next/dev/lock -ErrorAction SilentlyContinue; npx.cmd nx run web-app-e2e:e2e --outputStyle=stream --skip-nx-cache
+```
+
+Focused verification:
 
 Lint and unit tests:
 
@@ -354,7 +395,7 @@ Use package imports such as:
 
 ### BFF Direction
 
-The web app is being shaped so browser PKCE can later move behind a .NET BFF without rewriting the UI layer.
+The web app is being shaped so the current server-side PKCE flow can later move behind a .NET BFF without rewriting the UI layer.
 
 Planned BFF endpoints:
 
@@ -382,19 +423,27 @@ Recommended near-term path:
 
 Practical implication:
 
-Current first slice now in place:
+Current hardened slice now in place:
 
 - `/apply/*` keeps the same route shape with server-rendered shells and client form islands
+- `apps/web-app/src/app/api/auth/start`
+  - starts PKCE on the Next server
+  - issues a short-lived signed auth transaction cookie for `state`, `nonce`, and `code_verifier`
+- `apps/web-app/src/app/api/auth/callback`
+  - completes the Okta code exchange on the Next server
+  - verifies callback state and nonce
+  - creates the web-owned session and redirects to the original guarded route
 - `apps/web-app/src/app/api/auth/session`
-  - syncs verified Okta sign-in into a web-owned HTTP-only session cookie
-  - gives the web shell a server-backed session read path
+  - reads and clears the server-backed web session
 - `apps/web-app/src/app/api/security/csrf`
   - issues CSRF tokens for mutating web facade requests
 - `apps/web-app/src/app/api/customer/profile`
-  - moves customer dashboard profile persistence behind the facade instead of local browser storage
+  - moves customer dashboard profile persistence behind the facade instead of browser cookie storage
 - `apps/web-app/src/app/api/application/*`
   - keeps the current seven-step application flow behind the facade
-  - stores in-progress application state in a secure web-session boundary instead of browser-local application storage
+  - stores in-progress application state in the server-side web state layer instead of browser-local application storage
+- `apps/web-app/src/app/security`
+  - provides an authenticated demo-only security inspector for showing server tokens, request cookies, and browser storage during demos
 
 This is intentionally still a temporary web-only facade:
 
@@ -417,6 +466,32 @@ Current API boundary split:
   - server-side wrappers for domain-facing `customer` and `application` endpoints
   - this is the layer the Next facade can later point at a .NET BFF or legacy services through
 
+Current server-state split:
+
+- one opaque auth session cookie identifies the web session
+- one CSRF cookie protects browser mutations
+- one short-lived auth transaction cookie exists only during sign-in
+- `libs/api/web-server`
+  - stores auth session data, customer profile data, and application flow state server-side
+  - uses Redis when `ACME_WEB_STATE_STORE=redis` or `ACME_REDIS_URL` is configured
+  - otherwise falls back to a file-backed local store under `.next/cache/acme-los-web-state`
+
+Current hardening status:
+
+- server-side PKCE initiation and callback exchange
+- opaque HTTP-only auth session cookie
+- tokens off the browser in the normal signed-in flow
+- server-side guarded route checks
+- CSRF on mutating web facade routes
+- server-driven logout
+- centralized server-side state for auth session, customer profile, and application flow
+
+Still temporary by design:
+
+- the security inspector route is for demo use only and should stay opt-in outside local work
+- the local file-backed store is a bridge fallback, not the final multi-instance production state path
+- the future .NET BFF should still replace the Next facade implementations while preserving the contracts
+
 ### Implementation Checklist
 
 Use this as the practical execution order for the next auth, API, and hardening phase.
@@ -426,12 +501,12 @@ Use this as the practical execution order for the next auth, API, and hardening 
 - keep the current `/apply/*` route shape
 - keep server-rendered route shells
 - keep client form islands focused on interaction only
-- keep the web app using the server-backed auth session cookie as the source of truth
+- keep the web app using the opaque server-backed auth session cookie as the source of truth
 - keep hosted Okta focused on sign-in, MFA, reset, and unlock flows
 
 Definition of done:
 
-- callback creates the secure web session reliably
+- callback creates the secure web session reliably through the server-side PKCE flow
 - guarded routes use server-side session checks
 - sign-out clears both the app session and the Okta browser session
 
@@ -467,14 +542,14 @@ Definition of done:
 
 #### Phase 4: Replace Temporary Persistence
 
-- replace cookie-backed demo persistence for customer profile data
-- replace temporary session-scoped application flow storage with backend persistence
+- replace temporary server-backed customer profile persistence with backend persistence
+- replace temporary server-backed application flow storage with backend persistence
 - replace other web-only protected state assumptions where appropriate
 
 Definition of done:
 
-- protected customer data lives in backend persistence
-- customer profile and application progress are no longer stored in temporary web-only persistence
+- protected customer data lives in backend persistence or the BFF-owned state layer
+- customer profile and application progress are no longer stored in temporary web-only web-server persistence
 
 #### Phase 5: Security Hardening Pass
 
@@ -484,6 +559,8 @@ Definition of done:
 - add audit and security logging for sign-in, sign-out, and sensitive actions
 - review env var and secret handling for production readiness
 - review server-side assurance checks for standard and funding routes
+- keep the security inspector route explicit and removable for non-demo environments
+- prefer Redis or another durable shared state backend outside simple local development
 
 Definition of done:
 
@@ -527,6 +604,7 @@ Related docs:
 
 ```powershell
 npx.cmd nx run web-app:dev
+npm run web:dev:redis
 npx.cmd nx run web-app:build
 npx.cmd nx run web-app:lint
 npx.cmd nx run web-app:test
@@ -548,6 +626,7 @@ npx.cmd nx run mobile-app-e2e:e2e
 ### Workspace-Wide
 
 ```powershell
+npx.cmd prettier --check .
 npx.cmd nx run-many -t lint
 npx.cmd nx run-many -t test
 npx.cmd nx run-many -t e2e
@@ -614,6 +693,8 @@ Current delivery model:
 - package manager is `npm`
 - this workspace uses `nx.json`, not legacy `workspace.json`
 - `apps/web-app/next-env.d.ts` is auto-generated by Next.js
+- local web state uses Redis or a file-backed fallback under `.next/cache/acme-los-web-state`
+- `ACME_WEB_STATE_STORE`, `ACME_REDIS_URL`, and `ACME_REDIS_KEY_PREFIX` control the web-state backend
 - mobile e2e is Playwright against Expo Web, not Detox
 - `tools/scripts/validate-project-tags.mjs` enforces project tag usage
 
@@ -641,9 +722,9 @@ chore(repo): refresh dependency policy
 
 ## Suggested Next Steps
 
-- harden the web auth path behind a thin Next API layer before the .NET BFF exists
+- move the file-backed local web-state fallback to a durable shared store outside simple local development
 - define stable request/response contracts so the later .NET BFF can replace the Next API layer without UI churn
-- replace the temporary web-session application flow store with backend persistence when the BFF arrives
+- replace the temporary web-server customer profile and application flow stores with backend persistence when the BFF arrives
 - finish moving generic web icons to `lucide-react` where it is worth the swap
 - back customer profile persistence with the future BFF instead of local browser storage
 - continue reducing overlap between MJS and Terraform in the Okta admin plane

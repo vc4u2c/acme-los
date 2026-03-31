@@ -103,7 +103,12 @@ async function getJwks(issuer: string): Promise<OktaJwk[]> {
   return keys;
 }
 
-export async function verifyOktaIdToken(idToken: string): Promise<JwtClaims> {
+export async function verifyOktaIdToken(
+  idToken: string,
+  options: {
+    expectedNonce?: string;
+  } = {},
+): Promise<JwtClaims> {
   const config = getServerWebAuthConfig();
   if (config.provider !== 'okta' || !config.okta) {
     throw new Error('Okta auth config is not available for session syncing.');
@@ -175,6 +180,13 @@ export async function verifyOktaIdToken(idToken: string): Promise<JwtClaims> {
 
   if (!expiresAt || expiresAt <= currentEpochSeconds) {
     throw new Error('The Okta id token has expired.');
+  }
+
+  if (
+    options.expectedNonce &&
+    (!claims.nonce || claims.nonce !== options.expectedNonce)
+  ) {
+    throw new Error('The Okta id token nonce does not match this sign-in.');
   }
 
   return claims;

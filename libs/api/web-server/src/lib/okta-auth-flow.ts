@@ -1,0 +1,210 @@
+import { createHash } from 'node:crypto';
+import type { NextRequest, NextResponse } from 'next/server';
+import {
+  AUTH_TRANSACTION_COOKIE_NAME,
+  createRandomToken,
+  readSignedCookie,
+  setSignedCookie,
+  clearCookie,
+} from './cookies';
+import { getSafeServerAuthReturnTo } from './auth-routing';
+import { getServerWebAuthConfig } from './config';
+
+export type WebAuthTransactionCookiePayload = {
+  state: string;
+  nonce: string;
+  codeVerifier: string;
+  returnTo: string;
+  minimumAssuranceLevel: 'aal1' | 'aal2';
+  leadId?: string;
+  expiresAt: number;
+};
+
+export type StartedWebAuthTransaction = {
+  cookiePayload: WebAuthTransactionCookiePayload;
+  authorizeUrl: string;
+  maxAge: number;
+};
+
+type OktaTokenResponse = {
+  access_token?: string;
+  expires_in?: number;
+  id_token?: string;
+  refresh_token?: string;
+  scope?: string;
+  token_type?: string;
+  error?: string;
+  error_description?: string;
+};
+
+const AUTH_TRANSACTION_MAX_AGE_SECONDS = 10 * 60;
+
+function toBase64Url(value: Buffer): string {
+  return value
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function buildIssuerEndpoint(issuer: string, endpoint: 'authorize' | 'token') {
+  const issuerUrl = new URL(issuer);
+  const issuerPath = issuerUrl.pathname.replace(/\/+$/, '');
+
+  return new URL(
+    `${issuerPath.replace(/^\//, '')}/v1/${endpoint}`,
+    `${issuerUrl.origin}/`,
+  );
+}
+
+function buildCodeChallenge(codeVerifier: string): string {
+  return toBase64Url(createHash('sha256').update(codeVerifier).digest());
+}
+
+export function startOktaAuthTransaction({
+  returnTo,
+  minimumAssuranceLevel = 'aal1',
+  leadId,
+}: {
+  returnTo?: string;
+  minimumAssuranceLevel?: 'aal1' | 'aal2';
+  leadId?: string;
+}): StartedWebAuthTransaction {
+  const config = getServerWebAuthConfig();
+  if (config.provider !== 'okta' || !config.okta) {
+    throw new Error('Okta auth config is not available for sign-in.');
+  }
+
+  const state = createRandomToken();
+  const nonce = createRandomToken();
+  const codeVerifier = createRandomToken();
+  const codeChallenge = buildCodeChallenge(codeVerifier);
+  const safeReturnTo = getSafeServerAuthReturnTo(returnTo);
+  const expiresAt =
+    Math.floor(Date.now() / 1000) + AUTH_TRANSACTION_MAX_AGE_SECONDS;
+  const authorizeUrl = buildIssuerEndpoint(config.okta.issuer, 'authorize');
+
+  authorizeUrl.searchParams.set('client_id', config.okta.clientId);
+  authorizeUrl.searchParams.set('redirect_uri', config.okta.redirectUri);
+  authorizeUrl.searchParams.set('response_type', 'code');
+  authorizeUrl.searchParams.set('response_mode', 'query');
+  authorizeUrl.searchParams.set('scope', config.okta.scopes.join(' '));
+  authorizeUrl.searchParams.set('state', state);
+  authorizeUrl.searchParams.set('nonce', nonce);
+  authorizeUrl.searchParams.set('code_challenge', codeChallenge);
+  authorizeUrl.searchParams.set('code_challenge_method', 'S256');
+
+  if (minimumAssuranceLevel === 'aal2') {
+    authorizeUrl.searchParams.set(
+      'acr_values',
+      config.okta.fundingStepUpAcrValues,
+    );
+  }
+
+  return {
+    cookiePayload: {
+      state,
+      nonce,
+      codeVerifier,
+      returnTo: safeReturnTo,
+      minimumAssuranceLevel,
+      leadId: leadId?.trim() ? leadId.trim() : undefined,
+      expiresAt,
+    },
+    authorizeUrl: authorizeUrl.toString(),
+    maxAge: AUTH_TRANSACTION_MAX_AGE_SECONDS,
+  };
+}
+
+export function readWebAuthTransaction(
+  request: NextRequest,
+): WebAuthTransactionCookiePayload | null {
+  const cookiePayload = readSignedCookie<WebAuthTransactionCookiePayload>(
+    request,
+    AUTH_TRANSACTION_COOKIE_NAME,
+  );
+
+  if (!cookiePayload) {
+    return null;
+  }
+
+  const currentEpochSeconds = Math.floor(Date.now() / 1000);
+  if (cookiePayload.expiresAt <= currentEpochSeconds) {
+    return null;
+  }
+
+  return cookiePayload;
+}
+
+export function writeWebAuthTransaction(
+  request: NextRequest,
+  response: NextResponse,
+  transaction: StartedWebAuthTransaction,
+): void {
+  setSignedCookie(
+    response,
+    request,
+    AUTH_TRANSACTION_COOKIE_NAME,
+    transaction.cookiePayload,
+    {
+      maxAge: transaction.maxAge,
+    },
+  );
+}
+
+export function clearWebAuthTransaction(
+  request: NextRequest,
+  response: NextResponse,
+): void {
+  clearCookie(response, request, AUTH_TRANSACTION_COOKIE_NAME);
+}
+
+export async function exchangeOktaAuthorizationCode({
+  code,
+  codeVerifier,
+}: {
+  code: string;
+  codeVerifier: string;
+}): Promise<OktaTokenResponse> {
+  const config = getServerWebAuthConfig();
+  if (config.provider !== 'okta' || !config.okta) {
+    throw new Error('Okta auth config is not available for callback exchange.');
+  }
+
+  const tokenUrl = buildIssuerEndpoint(config.okta.issuer, 'token');
+  const requestBody = new URLSearchParams({
+    grant_type: 'authorization_code',
+    client_id: config.okta.clientId,
+    redirect_uri: config.okta.redirectUri,
+    code,
+    code_verifier: codeVerifier,
+  });
+
+  const response = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: requestBody,
+    cache: 'no-store',
+  });
+  const body = (await response.json()) as OktaTokenResponse;
+
+  if (!response.ok) {
+    const message =
+      typeof body.error_description === 'string'
+        ? body.error_description
+        : typeof body.error === 'string'
+          ? body.error
+          : `Okta token exchange failed (${response.status}).`;
+
+    throw new Error(message);
+  }
+
+  if (typeof body.id_token !== 'string' || body.id_token.length === 0) {
+    throw new Error('Okta did not return an id token for this callback.');
+  }
+
+  return body;
+}

@@ -10,6 +10,9 @@
     "lint-staged": "lint-staged",
     "commitlint": "commitlint --edit",
     "validate:tags": "node tools/scripts/validate-project-tags.mjs",
+    "redis:up": "docker compose -f tools/docker/dev-services.yml up -d redis",
+    "redis:down": "docker compose -f tools/docker/dev-services.yml down",
+    "web:dev:redis": "node tools/scripts/run-web-app-dev-with-redis.mjs",
     "okta:render": "node tools/scripts/okta/render-auth-config.mjs",
     "okta:bootstrap": "node tools/scripts/okta/bootstrap-okta.mjs",
     "okta:cleanup": "node tools/scripts/okta/cleanup-okta.mjs",
@@ -137,6 +140,7 @@
     "react-native-svg-transformer": "~1.5.1",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.7.2",
+    "redis": "^5.8.2",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.3.6"
   }

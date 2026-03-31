@@ -19,7 +19,7 @@ const syncSessionSchema = z.object({
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const includeDebug = request.nextUrl.searchParams.get('includeDebug') === '1';
 
-  return NextResponse.json(readWebAuthSession(request, { includeDebug }));
+  return NextResponse.json(await readWebAuthSession(request, { includeDebug }));
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -68,7 +68,7 @@ export async function DELETE(request: NextRequest): Promise<NextResponse> {
       },
     });
 
-    clearWebAuthSession(request, response);
+    await clearWebAuthSession(request, response);
 
     return response;
   } catch (error) {

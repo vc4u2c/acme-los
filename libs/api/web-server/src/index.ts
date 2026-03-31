@@ -4,8 +4,8 @@ export {
   readServerApplicationStepState,
   saveApplicationStep,
   submitApplicationFlow,
-  writeApplicationFlowCookie,
 } from './lib/application-flow';
+export { buildSignInRedirectPath } from './lib/auth-routing';
 export {
   clearWebAuthLogoutArtifacts,
   clearWebAuthSession,
@@ -18,6 +18,7 @@ export {
 export { getServerWebAuthConfig } from './lib/config';
 export { assertValidCsrf, issueCsrfToken, writeCsrfToken } from './lib/csrf';
 export {
+  clearCustomerProfile,
   readCustomerProfile,
   writeCustomerProfile,
 } from './lib/customer-profile';
@@ -25,3 +26,20 @@ export {
   getServerWebAuthSession,
   requireServerWebAuthSession,
 } from './lib/server-session';
+export {
+  readSecurityInspectorServerSnapshot,
+  type SecurityInspectorServerSnapshot,
+} from './lib/security-inspector';
+export {
+  clearStoredWebAuthSession,
+  createStoredWebAuthSession,
+  readStoredWebAuthSession,
+} from './lib/session-store';
+export { getWebStateStoreMode } from './lib/state-store';
+export {
+  clearWebAuthTransaction,
+  exchangeOktaAuthorizationCode,
+  readWebAuthTransaction,
+  startOktaAuthTransaction,
+  writeWebAuthTransaction,
+} from './lib/okta-auth-flow';

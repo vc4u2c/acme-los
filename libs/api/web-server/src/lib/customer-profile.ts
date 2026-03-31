@@ -1,10 +1,12 @@
 import type { CustomerProfile, WebAuthSession } from '@acme-los/api/contracts';
-import type { NextRequest, NextResponse } from 'next/server';
 import {
-  CUSTOMER_PROFILE_COOKIE_NAME,
-  readSignedCookie,
-  setSignedCookie,
-} from './cookies';
+  deleteStateValue,
+  readStateValue,
+  writeStateValue,
+} from './state-store';
+
+const CUSTOMER_PROFILE_NAMESPACE = 'customer-profile';
+const CUSTOMER_PROFILE_TTL_SECONDS = 60 * 60 * 24 * 30;
 
 const emptyCustomerProfile: CustomerProfile = {
   email: '',
@@ -16,43 +18,61 @@ const emptyCustomerProfile: CustomerProfile = {
   zipCode: '',
 };
 
-type CustomerProfileCookiePayload = {
+type StoredCustomerProfile = {
   profile: CustomerProfile;
 };
 
-export function readCustomerProfile(
-  request: NextRequest,
+function getCustomerProfileKey(session: WebAuthSession): string | null {
+  return session.user?.id ?? null;
+}
+
+export async function readCustomerProfile(
   session: WebAuthSession,
-): CustomerProfile {
-  const cookiePayload = readSignedCookie<CustomerProfileCookiePayload>(
-    request,
-    CUSTOMER_PROFILE_COOKIE_NAME,
-  );
+): Promise<CustomerProfile> {
+  const customerProfileKey = getCustomerProfileKey(session);
+  const storedProfile = customerProfileKey
+    ? await readStateValue<StoredCustomerProfile>(
+        CUSTOMER_PROFILE_NAMESPACE,
+        customerProfileKey,
+      )
+    : null;
 
   const email =
-    cookiePayload?.profile.email ||
+    storedProfile?.profile.email ||
     session.user?.email ||
     emptyCustomerProfile.email;
 
   return {
     ...emptyCustomerProfile,
-    ...cookiePayload?.profile,
+    ...storedProfile?.profile,
     email,
   };
 }
 
-export function writeCustomerProfile(
-  request: NextRequest,
-  response: NextResponse,
+export async function writeCustomerProfile(
+  session: WebAuthSession,
   profile: CustomerProfile,
-): void {
-  setSignedCookie(
-    response,
-    request,
-    CUSTOMER_PROFILE_COOKIE_NAME,
-    { profile } satisfies CustomerProfileCookiePayload,
-    {
-      maxAge: 60 * 60 * 24 * 30,
-    },
+): Promise<void> {
+  const customerProfileKey = getCustomerProfileKey(session);
+  if (!customerProfileKey) {
+    return;
+  }
+
+  await writeStateValue(
+    CUSTOMER_PROFILE_NAMESPACE,
+    customerProfileKey,
+    { profile } satisfies StoredCustomerProfile,
+    CUSTOMER_PROFILE_TTL_SECONDS,
   );
+}
+
+export async function clearCustomerProfile(
+  session: WebAuthSession,
+): Promise<void> {
+  const customerProfileKey = getCustomerProfileKey(session);
+  if (!customerProfileKey) {
+    return;
+  }
+
+  await deleteStateValue(CUSTOMER_PROFILE_NAMESPACE, customerProfileKey);
 }
