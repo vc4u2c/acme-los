@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   clearWebAuthLogoutArtifacts,
   getServerWebAuthConfig,
+  logAuthAuditEvent,
   readLogoutHintIdToken,
 } from '@acme-los/api/web-server';
 
@@ -68,14 +69,35 @@ function buildOktaLogoutUrl(idToken: string): string | null {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const idToken = await readLogoutHintIdToken(request);
-  const fallbackRedirectUri = getSafePostLogoutRedirectUri(request);
-  const logoutDestination = idToken
-    ? (buildOktaLogoutUrl(idToken) ?? fallbackRedirectUri)
-    : fallbackRedirectUri;
-  const response = NextResponse.redirect(logoutDestination);
+  try {
+    const idToken = await readLogoutHintIdToken(request);
+    const fallbackRedirectUri = getSafePostLogoutRedirectUri(request);
+    const logoutDestination = idToken
+      ? (buildOktaLogoutUrl(idToken) ?? fallbackRedirectUri)
+      : fallbackRedirectUri;
+    const response = NextResponse.redirect(logoutDestination);
 
-  await clearWebAuthLogoutArtifacts(request, response);
+    await clearWebAuthLogoutArtifacts(request, response);
+    logAuthAuditEvent(request, {
+      event: 'auth.logout',
+      outcome: 'success',
+      message: 'Redirected through server-side logout.',
+      metadata: {
+        usedOktaLogout: Boolean(idToken),
+      },
+    });
 
-  return response;
+    return response;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Unable to complete sign-out.';
+
+    logAuthAuditEvent(request, {
+      event: 'auth.logout',
+      outcome: 'failure',
+      message,
+    });
+
+    return NextResponse.redirect(getSafePostLogoutRedirectUri(request));
+  }
 }

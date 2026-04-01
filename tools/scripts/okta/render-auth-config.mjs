@@ -39,15 +39,6 @@ if (!fs.existsSync(environmentFile)) {
 
 const environment = JSON.parse(fs.readFileSync(environmentFile, 'utf8'));
 const brandProfile = JSON.parse(fs.readFileSync(brandProfileFile, 'utf8'));
-const terraformOutputsFile = path.join(
-  repoRoot,
-  'tmp',
-  'okta',
-  `${environmentName}.terraform.outputs.json`,
-);
-const terraformOutputs = fs.existsSync(terraformOutputsFile)
-  ? JSON.parse(fs.readFileSync(terraformOutputsFile, 'utf8'))
-  : {};
 
 function requiredString(value, fieldName) {
   if (typeof value !== 'string' || value.trim().length === 0) {
@@ -66,13 +57,7 @@ function optionalString(value) {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function resolveClientId(value, terraformValue, fallbackFieldName) {
-  const renderedValue = optionalString(terraformValue);
-
-  if (renderedValue) {
-    return renderedValue;
-  }
-
+function resolveClientId(value, fallbackFieldName) {
   const manifestValue = optionalString(value);
   if (manifestValue) {
     return manifestValue;
@@ -107,33 +92,13 @@ function writeFile(relativePath, contents) {
   return targetPath;
 }
 
-function deriveOktaProviderShape(issuerValue) {
-  const issuerUrl = new URL(requiredString(issuerValue, 'okta.issuer'));
-  const hostParts = issuerUrl.hostname.split('.');
-
-  if (hostParts.length < 3) {
-    throw new Error(
-      `Expected Okta issuer host "${issuerUrl.hostname}" to contain an org subdomain and base domain.`,
-    );
-  }
-
-  return {
-    orgName: hostParts[0],
-    baseUrl: hostParts.slice(1).join('.'),
-  };
-}
-
 const issuer = requiredString(environment.okta?.issuer, 'okta.issuer');
-const { orgName: oktaOrgName, baseUrl: oktaBaseUrl } =
-  deriveOktaProviderShape(issuer);
 const webClientId = resolveClientId(
   environment.okta?.webClientId,
-  terraformOutputs.webClientId,
   'web-client-id',
 );
 const mobileClientId = resolveClientId(
   environment.okta?.mobileClientId,
-  terraformOutputs.mobileClientId,
   'mobile-client-id',
 );
 const fundingStepUpAcrValues = requiredString(
@@ -341,62 +306,6 @@ const oktaHostedPages = {
   },
 };
 
-const terraformVariables = {
-  environment_name: environment.environment,
-  okta_org_name: oktaOrgName,
-  okta_base_url: oktaBaseUrl,
-  issuer,
-  web_base_url: webBaseUrl,
-  web_redirect_uri: webRedirectUri,
-  web_post_logout_redirect_uri: webPostLogoutRedirectUri,
-  mobile_redirect_uri: mobileRedirectUri,
-  funding_step_up_acr_values: fundingStepUpAcrValues,
-  web_app_name: `ACME LOS Web (${environment.environment})`,
-  mobile_app_name: `ACME LOS Mobile (${environment.environment})`,
-  customer_group_name: `acme-los-customers-${environment.environment}`,
-  trusted_origin_name: `ACME LOS Web ${environment.environment.toUpperCase()}`,
-  manage_hosted_branding: false,
-  hosted_experience: {
-    remember_user: Boolean(hostedExperience.rememberUser),
-    keep_me_signed_in: Boolean(hostedExperience.keepMeSignedIn),
-    registration_requires_email_verification: Boolean(
-      hostedExperience.registrationRequiresEmailVerification,
-    ),
-    registration_requires_phone_verification: Boolean(
-      hostedExperience.registrationRequiresPhoneVerification,
-    ),
-    adaptive_mfa_on_sign_in: Boolean(hostedExperience.adaptiveMfaOnSignIn),
-    funding_route_step_up: Boolean(hostedExperience.fundingRouteStepUp),
-  },
-  branding: {
-    default_brand_name: hostedBranding.DefaultBrandName,
-    brand_name: hostedBranding.BrandName,
-    product_name: hostedBranding.ProductName,
-    support_phone: hostedBranding.SupportPhone,
-    support_hours: hostedBranding.SupportHours,
-    logo_url: hostedBranding.LogoUrl,
-    favicon_url: hostedBranding.FaviconUrl,
-    primary_color: hostedBranding.PrimaryColor,
-    primary_contrast_color: hostedBranding.PrimaryContrastColor,
-    secondary_color: hostedBranding.SecondaryColor,
-    background_color: hostedBranding.BackgroundColor,
-    surface_color: hostedBranding.SurfaceColor,
-    text_color: hostedBranding.TextColor,
-    muted_text_color: hostedBranding.MutedTextColor,
-    link_color: hostedBranding.LinkColor,
-    border_color: hostedBranding.BorderColor,
-    focus_color: hostedBranding.FocusColor,
-    accent_color: hostedBranding.AccentColor,
-    privacy_policy_url: hostedBranding.PrivacyPolicyUrl,
-    terms_url: hostedBranding.TermsUrl,
-    help_url: hostedBranding.HelpUrl,
-    sign_in_title: hostedBranding.SignInTitle,
-    sign_in_subtitle: hostedBranding.SignInSubtitle,
-    sign_up_title: hostedBranding.SignUpTitle,
-    sign_up_subtitle: hostedBranding.SignUpSubtitle,
-  },
-};
-
 const webEnvPath = writeFile('apps/web-app/.env.local', webEnvContents);
 const mobileEnvPath = writeFile(
   'apps/mobile-app/.env.local',
@@ -418,10 +327,6 @@ const oktaApplicationsPath = writeFile(
   `tmp/okta/${environmentName}.okta-applications.json`,
   `${JSON.stringify(oktaApplications, null, 2)}\n`,
 );
-const terraformVariablesPath = writeFile(
-  `tmp/okta/${environmentName}.terraform.auto.tfvars.json`,
-  `${JSON.stringify(terraformVariables, null, 2)}\n`,
-);
 
 console.log(`Rendered Okta config for "${environmentName}".`);
 console.log(`- Web env: ${path.relative(repoRoot, webEnvPath)}`);
@@ -432,6 +337,3 @@ console.log(
 );
 console.log(`- Hosted pages: ${path.relative(repoRoot, hostedPagesPath)}`);
 console.log(`- Okta apps: ${path.relative(repoRoot, oktaApplicationsPath)}`);
-console.log(
-  `- Terraform vars: ${path.relative(repoRoot, terraformVariablesPath)}`,
-);

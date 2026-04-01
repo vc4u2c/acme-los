@@ -6,6 +6,7 @@ export {
   submitApplicationFlow,
 } from './lib/application-flow';
 export { buildSignInRedirectPath } from './lib/auth-routing';
+export { logAuthAuditEvent } from './lib/auth-audit';
 export {
   clearWebAuthLogoutArtifacts,
   clearWebAuthSession,
@@ -30,6 +31,12 @@ export {
   readSecurityInspectorServerSnapshot,
   type SecurityInspectorServerSnapshot,
 } from './lib/security-inspector';
+export {
+  applyRateLimitHeaders,
+  checkRateLimit,
+  type RateLimitPolicy,
+  type RateLimitResult,
+} from './lib/rate-limit';
 export {
   clearStoredWebAuthSession,
   createStoredWebAuthSession,

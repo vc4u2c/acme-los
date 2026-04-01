@@ -1,15 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
+  applyRateLimitHeaders,
   buildSignInRedirectPath,
+  checkRateLimit,
   clearWebAuthTransaction,
   exchangeOktaAuthorizationCode,
+  logAuthAuditEvent,
   readWebAuthTransaction,
   syncWebAuthSession,
   writeWebAuthSession,
 } from '@acme-los/api/web-server';
 
 export const runtime = 'nodejs';
+
+const authCallbackRateLimitPolicy = {
+  namespace: 'auth-callback',
+  limit: 24,
+  windowSeconds: 60,
+} as const;
 
 const authCallbackQuerySchema = z.object({
   code: z.string().min(1).optional(),
@@ -38,6 +47,27 @@ function buildSignInErrorResponse(request: NextRequest, authError: string) {
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
+    const rateLimit = await checkRateLimit(
+      request,
+      authCallbackRateLimitPolicy,
+    );
+
+    if (!rateLimit.allowed) {
+      const response = buildSignInErrorResponse(
+        request,
+        'Too many secure callback attempts. Please start sign-in again.',
+      );
+
+      applyRateLimitHeaders(response, rateLimit);
+      logAuthAuditEvent(request, {
+        event: 'auth.callback',
+        outcome: 'rate_limited',
+        message: 'Secure callback rate limit exceeded.',
+      });
+
+      return response;
+    }
+
     const query = authCallbackQuerySchema.parse(
       Object.fromEntries(request.nextUrl.searchParams.entries()),
     );
@@ -93,11 +123,28 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     writeWebAuthSession(request, response, syncedSession);
     clearWebAuthTransaction(request, response);
+    applyRateLimitHeaders(response, rateLimit);
+    logAuthAuditEvent(request, {
+      event: 'auth.callback',
+      outcome: 'success',
+      message: 'Completed secure callback exchange.',
+      session: syncedSession.response.session,
+      metadata: {
+        returnTo: transaction.returnTo,
+        minimumAssuranceLevel: transaction.minimumAssuranceLevel,
+      },
+    });
 
     return response;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Unable to complete sign-in.';
+
+    logAuthAuditEvent(request, {
+      event: 'auth.callback',
+      outcome: 'failure',
+      message,
+    });
 
     return buildSignInErrorResponse(request, message);
   }

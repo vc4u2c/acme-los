@@ -156,15 +156,12 @@ npm run okta:bootstrap -- dev
   - current working Okta write path for apps, policies, branding, hosted pages, and IDs
 - `npm run okta:cleanup -- dev`
   - deletes the dev apps for a clean-room retest, clears stale IDs, and rerenders local config
-- `npm run okta:terraform -- dev ...`
-  - secondary path only; keep for future promotion work, not day-to-day setup
 
 ### Current Okta Reality
 
 - hosted Okta sign-in is the primary sign-in and registration path
 - there is no separate local create-account flow anymore
 - bootstrap is the working admin-plane path today
-- Terraform still exists, but it is not the main local provisioning path
 - funding step-up remains an application-runtime concern on top of the Okta baseline
 
 ## GitHub Setup
@@ -354,12 +351,10 @@ npm run okta:bootstrap -- dev
 Important note:
 
 - MJS scripts are the real working Okta write path today
-- Terraform is still present, but it is not the primary provisioning path yet
 
 Read these docs for the deeper Okta setup story:
 
 - [infra/okta/README.md](./infra/okta/README.md)
-- [infra/okta/terraform/README.md](./infra/okta/terraform/README.md)
 
 ## Architecture
 
@@ -727,5 +722,5 @@ chore(repo): refresh dependency policy
 - replace the temporary web-server customer profile and application flow stores with backend persistence when the BFF arrives
 - finish moving generic web icons to `lucide-react` where it is worth the swap
 - back customer profile persistence with the future BFF instead of local browser storage
-- continue reducing overlap between MJS and Terraform in the Okta admin plane
+- keep the Okta bootstrap docs and generated artifacts aligned with the MJS admin-plane path
 - expand shared query/data access patterns as the BFF solidifies

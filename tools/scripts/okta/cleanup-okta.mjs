@@ -42,12 +42,6 @@ const bootstrapOutputsPath = path.join(
   'okta',
   `${environmentName}.bootstrap.outputs.json`,
 );
-const terraformOutputsPath = path.join(
-  repoRoot,
-  'tmp',
-  'okta',
-  `${environmentName}.terraform.outputs.json`,
-);
 const cleanupOutputsPath = path.join(
   repoRoot,
   'tmp',
@@ -611,7 +605,7 @@ environment.okta.webClientId = '';
 environment.okta.mobileClientId = '';
 writeJsonFile(environmentPath, environment);
 
-for (const filePath of [bootstrapOutputsPath, terraformOutputsPath]) {
+for (const filePath of [bootstrapOutputsPath]) {
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);
   }
