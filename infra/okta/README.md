@@ -18,11 +18,10 @@ Do not commit:
 - PEM private keys
 - generated `.env.local` files
 - generated `tmp/okta/*` files
-- Terraform state
 
-## The Three Scripts
+## The Working Scripts
 
-There are three different Okta scripts because they do different jobs.
+There are three practical Okta commands in this repo because they do different jobs.
 
 ## Which Command Should I Use?
 
@@ -31,9 +30,8 @@ Use this quick rule:
 - want to generate local app config only -> `npm run okta:render -- <env>`
 - want to create or update the dev Okta org -> `npm run okta:bootstrap -- <env>`
 - want to remove the Okta apps for a clean-room retest -> `npm run okta:cleanup -- <env>`
-- want to experiment with the future Terraform promotion path -> `npm run okta:terraform -- <env> ...`
 
-If you are unsure, use `okta:bootstrap`, not Terraform.
+If you are unsure, use `okta:bootstrap`.
 
 ### `npm run okta:render -- <env>`
 
@@ -56,7 +54,6 @@ Outputs:
 - `tmp/okta/<env>.bff.authsettings.json`
 - `tmp/okta/<env>.okta-hosted-branding.json`
 - `tmp/okta/<env>.okta-applications.json`
-- `tmp/okta/<env>.terraform.auto.tfvars.json`
 
 ### `npm run okta:bootstrap -- <env>`
 
@@ -91,28 +88,6 @@ It currently handles:
 - policy assignment to the created apps
 
 It also writes resolved IDs and client IDs back into the local generated files, and it updates the environment manifest when app client IDs are created.
-
-### `npm run okta:terraform -- <env> ...`
-
-Script:
-
-- `tools/scripts/okta/run-terraform.mjs`
-
-Purpose:
-
-- wraps Terraform
-- feeds the rendered tfvars file into `infra/okta/terraform`
-- supports either service-app OAuth or SSWS token auth
-
-This is **not** the main recommended path today.
-
-Why:
-
-- the Okta Terraform provider write path has been unreliable in this dev org
-- the clean service-app OAuth apply path failed even for basic `apply` operations
-- token-backed bootstrap through the MJS script is currently the path that actually works
-
-So Terraform is still useful as a target shape, but it is secondary right now.
 
 ## Recommended Dev Flow
 
@@ -166,19 +141,7 @@ These parts are solid:
 
 ## What Is Still Messy
 
-The only genuinely awkward part right now is that there are **two write paths**:
-
-- `okta:bootstrap`
-- `okta:terraform`
-
-That overlap exists because the Okta Terraform provider path did not end up being reliable enough for the current org/provider combination.
-
-So the honest status is:
-
-- `okta:bootstrap` is the real working path today
-- `okta:terraform` is a secondary path we keep because it is still the cleaner long-term promotion shape if the provider becomes reliable enough
-
-That is not ideal, but it is contained and documented instead of being buried in runtime code.
+The remaining awkwardness is not Terraform anymore. It is that some deeper Okta plan and API surfaces still require a few manual checks or deferred work even though the repo now has one clear admin-plane path.
 
 ## What Is Still Manual Or Limited
 
@@ -215,7 +178,7 @@ Short version:
 Why:
 
 - the token path works today
-- the service-app Terraform write path did not
+- the service-app promotion path did not
 - using the token only for admin bootstrap is acceptable
 - using the token for runtime auth would be wrong, and we are **not** doing that
 
@@ -232,4 +195,3 @@ If you want the simple mental model, read these in order:
 2. `infra/okta/brand/acme-los.json`
 3. `tools/scripts/okta/render-auth-config.mjs`
 4. `tools/scripts/okta/bootstrap-okta.mjs`
-5. `infra/okta/terraform/README.md`
