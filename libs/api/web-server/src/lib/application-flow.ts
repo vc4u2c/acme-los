@@ -11,18 +11,12 @@ import type {
 } from '@acme-los/api/contracts';
 import { applicationStepKeys } from '@acme-los/api/contracts';
 import type { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { APPLICATION_FLOW_COOKIE_NAME, clearCookie } from './cookies';
 import {
-  APPLICATION_FLOW_COOKIE_NAME,
-  clearCookie,
-  parseSignedCookieValue,
-  readSignedCookie,
-  setSignedCookie,
-} from './cookies';
-
-type ApplicationFlowCookiePayload = {
-  flowId: string;
-};
+  deleteStateValue,
+  readStateValue,
+  writeStateValue,
+} from './state-store';
 
 type ApplicationFlowState = {
   flowId: string;
@@ -34,20 +28,14 @@ type ApplicationFlowState = {
 };
 
 const APPLICATION_FLOW_TTL_SECONDS = 60 * 60 * 8;
-const applicationFlowStore = new Map<string, ApplicationFlowState>();
+const APPLICATION_FLOW_NAMESPACE = 'application-flow';
 
 function getCurrentEpochSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-function pruneExpiredFlows(): void {
-  const currentEpochSeconds = getCurrentEpochSeconds();
-
-  for (const [flowId, state] of applicationFlowStore.entries()) {
-    if (state.expiresAt <= currentEpochSeconds) {
-      applicationFlowStore.delete(flowId);
-    }
-  }
+function getApplicationFlowKey(session: WebAuthSession): string | null {
+  return session.user?.id ?? null;
 }
 
 function buildApplicationFlowSummary(
@@ -75,18 +63,24 @@ function getCompletedSteps(
   );
 }
 
-function getFlowState(
-  flowId: string,
+async function getFlowState(
   session: WebAuthSession,
-): ApplicationFlowState | null {
-  pruneExpiredFlows();
-  const state = applicationFlowStore.get(flowId);
+): Promise<ApplicationFlowState | null> {
+  const applicationFlowKey = getApplicationFlowKey(session);
+  if (!applicationFlowKey) {
+    return null;
+  }
+
+  const state = await readStateValue<ApplicationFlowState>(
+    APPLICATION_FLOW_NAMESPACE,
+    applicationFlowKey,
+  );
   if (!state) {
     return null;
   }
 
   if (state.expiresAt <= getCurrentEpochSeconds()) {
-    applicationFlowStore.delete(flowId);
+    await deleteStateValue(APPLICATION_FLOW_NAMESPACE, applicationFlowKey);
     return null;
   }
 
@@ -95,22 +89,6 @@ function getFlowState(
   }
 
   return state;
-}
-
-function readFlowIdFromRequest(request: NextRequest): string | null {
-  const cookiePayload = readSignedCookie<ApplicationFlowCookiePayload>(
-    request,
-    APPLICATION_FLOW_COOKIE_NAME,
-  );
-
-  return cookiePayload?.flowId ?? null;
-}
-
-function readFlowIdFromCookieValue(rawCookieValue?: string): string | null {
-  const cookiePayload =
-    parseSignedCookieValue<ApplicationFlowCookiePayload>(rawCookieValue);
-
-  return cookiePayload?.flowId ?? null;
 }
 
 function toApplicationStepState(
@@ -124,26 +102,12 @@ function toApplicationStepState(
   };
 }
 
-export function writeApplicationFlowCookie(
-  request: NextRequest,
-  response: NextResponse,
-  flowId: string,
-): void {
-  setSignedCookie(response, request, APPLICATION_FLOW_COOKIE_NAME, {
-    flowId,
-  } satisfies ApplicationFlowCookiePayload);
-}
-
-function deleteFlow(flowId: string): void {
-  applicationFlowStore.delete(flowId);
-}
-
-function upsertApplicationFlow(
+async function upsertApplicationFlow(
   session: WebAuthSession,
   step: ApplicationStepKey,
   payload: Record<string, unknown>,
-  existingState?: ApplicationFlowState | null,
-): ApplicationFlowState {
+): Promise<ApplicationFlowState> {
+  const existingState = await getFlowState(session);
   const baseState =
     existingState ??
     ({
@@ -171,21 +135,26 @@ function upsertApplicationFlow(
     expiresAt: getCurrentEpochSeconds() + APPLICATION_FLOW_TTL_SECONDS,
   };
 
-  applicationFlowStore.set(nextState.flowId, nextState);
+  const applicationFlowKey = getApplicationFlowKey(session);
+  if (!applicationFlowKey) {
+    return nextState;
+  }
+
+  await writeStateValue(
+    APPLICATION_FLOW_NAMESPACE,
+    applicationFlowKey,
+    nextState,
+    APPLICATION_FLOW_TTL_SECONDS,
+  );
+
   return nextState;
 }
 
-export function readApplicationStepState(
-  request: NextRequest,
+export async function readApplicationStepState(
   session: WebAuthSession,
   step: ApplicationStepKey,
-): ApplicationStepState | null {
-  const flowId = readFlowIdFromRequest(request);
-  if (!flowId) {
-    return null;
-  }
-
-  const state = getFlowState(flowId, session);
+): Promise<ApplicationStepState | null> {
+  const state = await getFlowState(session);
   if (!state) {
     return null;
   }
@@ -197,64 +166,37 @@ export async function readServerApplicationStepState(
   session: WebAuthSession,
   step: ApplicationStepKey,
 ): Promise<ApplicationStepState | null> {
-  const cookieStore = await cookies();
-  const flowId = readFlowIdFromCookieValue(
-    cookieStore.get(APPLICATION_FLOW_COOKIE_NAME)?.value,
-  );
-
-  if (!flowId) {
-    return null;
-  }
-
-  const state = getFlowState(flowId, session);
-  if (!state) {
-    return null;
-  }
-
-  return toApplicationStepState(state, step);
+  return readApplicationStepState(session, step);
 }
 
-export function saveApplicationStep(
+export async function saveApplicationStep(
   session: WebAuthSession,
   step: ApplicationStepKey,
   payload: SaveApplicationStepRequest,
-  request: NextRequest,
-): SaveApplicationStepResponse & { flowId: string } {
-  const existingFlowId = readFlowIdFromRequest(request);
-  const existingState = existingFlowId
-    ? getFlowState(existingFlowId, session)
-    : null;
-  const nextState = upsertApplicationFlow(
-    session,
-    step,
-    payload.payload,
-    existingState,
-  );
+): Promise<SaveApplicationStepResponse> {
+  const nextState = await upsertApplicationFlow(session, step, payload.payload);
 
   return {
-    flowId: nextState.flowId,
     stepState: toApplicationStepState(nextState, step),
   };
 }
 
-export function submitApplicationFlow(
+export async function submitApplicationFlow(
   session: WebAuthSession,
   payload: SubmitApplicationRequest,
-  request: NextRequest,
-): SubmitApplicationResponse {
-  const existingFlowId = readFlowIdFromRequest(request);
-  const existingState = existingFlowId
-    ? getFlowState(existingFlowId, session)
-    : null;
-  const nextState = upsertApplicationFlow(
+): Promise<SubmitApplicationResponse> {
+  const nextState = await upsertApplicationFlow(
     session,
     payload.step,
     payload.payload ?? {},
-    existingState,
   );
   const submittedAt = new Date().toISOString();
+  const applicationFlowKey = getApplicationFlowKey(session);
 
-  deleteFlow(nextState.flowId);
+  if (applicationFlowKey) {
+    await deleteStateValue(APPLICATION_FLOW_NAMESPACE, applicationFlowKey);
+  }
+
   return {
     summary: {
       ...nextState.summary,
@@ -265,13 +207,14 @@ export function submitApplicationFlow(
   };
 }
 
-export function clearApplicationFlow(
+export async function clearApplicationFlow(
+  session: WebAuthSession,
   request: NextRequest,
   response: NextResponse,
-): void {
-  const flowId = readFlowIdFromRequest(request);
-  if (flowId) {
-    deleteFlow(flowId);
+): Promise<void> {
+  const applicationFlowKey = getApplicationFlowKey(session);
+  if (applicationFlowKey) {
+    await deleteStateValue(APPLICATION_FLOW_NAMESPACE, applicationFlowKey);
   }
 
   clearCookie(response, request, APPLICATION_FLOW_COOKIE_NAME);

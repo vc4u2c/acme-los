@@ -9,7 +9,6 @@ import {
   readApplicationStepState,
   requireAuthenticatedWebSession,
   saveApplicationStep,
-  writeApplicationFlowCookie,
 } from '@acme-los/api/web-server';
 
 export const runtime = 'nodejs';
@@ -30,10 +29,10 @@ export async function GET(
   try {
     const { step } = await context.params;
     const parsedStep = applicationStepSchema.parse(step) as ApplicationStepKey;
-    const session = requireAuthenticatedWebSession(request);
+    const session = await requireAuthenticatedWebSession(request);
 
     return NextResponse.json({
-      stepState: readApplicationStepState(request, session, parsedStep),
+      stepState: await readApplicationStepState(session, parsedStep),
     });
   } catch (error) {
     const message =
@@ -57,19 +56,15 @@ export async function PUT(
     assertValidCsrf(request);
     const { step } = await context.params;
     const parsedStep = applicationStepSchema.parse(step) as ApplicationStepKey;
-    const session = requireAuthenticatedWebSession(request);
+    const session = await requireAuthenticatedWebSession(request);
     const payload = saveStepSchema.parse(await request.json());
-    const { flowId, ...saveResponse } = saveApplicationStep(
+    const saveResponse = await saveApplicationStep(
       session,
       parsedStep,
       payload,
-      request,
     );
-    const response = NextResponse.json(saveResponse);
 
-    writeApplicationFlowCookie(request, response, flowId);
-
-    return response;
+    return NextResponse.json(saveResponse);
   } catch (error) {
     const message =
       error instanceof Error

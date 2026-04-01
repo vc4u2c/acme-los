@@ -1,4 +1,5 @@
 import type { WebAuthSession } from '@acme-los/api/contracts';
+import { buildSignInRedirectPath } from './auth-routing';
 import {
   isAssuranceSatisfied,
   MOCK_AUTH_STORAGE_KEY,
@@ -9,29 +10,8 @@ import { redirect } from 'next/navigation';
 import { getServerWebAuthConfig } from './config';
 import { AUTH_SESSION_COOKIE_NAME } from './cookies';
 import { readSessionCookiePayload } from './auth-session';
+import { readStoredWebAuthSession } from './session-store';
 import { getAssuranceLevelFromAuthenticationMethods } from './assurance';
-
-function getSafeReturnTo(returnTo: string): string {
-  return returnTo.startsWith('/') ? returnTo : '/account/profile';
-}
-
-function buildSignInRedirectPath(
-  returnTo: string,
-  minimumAssuranceLevel: Exclude<
-    WebAuthRequirement['minimumAssuranceLevel'],
-    undefined
-  > = 'aal1',
-): string {
-  const searchParams = new URLSearchParams({
-    returnTo: getSafeReturnTo(returnTo),
-  });
-
-  if (minimumAssuranceLevel === 'aal2') {
-    searchParams.set('aal', 'aal2');
-  }
-
-  return `/account/sign-in?${searchParams.toString()}`;
-}
 
 function readMockServerSession(cookieValue?: string): WebAuthSession | null {
   if (!cookieValue) {
@@ -69,9 +49,12 @@ export async function getServerWebAuthSession(): Promise<WebAuthSession | null> 
   }
 
   const sessionCookie = cookieStore.get(AUTH_SESSION_COOKIE_NAME)?.value;
-  const sessionPayload = readSessionCookiePayload(sessionCookie);
+  const sessionCookiePayload = readSessionCookiePayload(sessionCookie);
+  const storedSession = sessionCookiePayload
+    ? await readStoredWebAuthSession(sessionCookiePayload.sessionId)
+    : null;
 
-  return sessionPayload?.session ?? null;
+  return storedSession?.session ?? null;
 }
 
 export async function requireServerWebAuthSession(options: {
@@ -98,10 +81,10 @@ export async function requireServerWebAuthSession(options: {
 
   if (!session?.isAuthenticated || session.user === null) {
     redirect(
-      buildSignInRedirectPath(
-        options.returnTo,
-        requirement.minimumAssuranceLevel ?? 'aal1',
-      ),
+      buildSignInRedirectPath({
+        returnTo: options.returnTo,
+        minimumAssuranceLevel: requirement.minimumAssuranceLevel ?? 'aal1',
+      }),
     );
   }
 
@@ -113,10 +96,10 @@ export async function requireServerWebAuthSession(options: {
     )
   ) {
     redirect(
-      buildSignInRedirectPath(
-        options.returnTo,
-        requirement.minimumAssuranceLevel,
-      ),
+      buildSignInRedirectPath({
+        returnTo: options.returnTo,
+        minimumAssuranceLevel: requirement.minimumAssuranceLevel,
+      }),
     );
   }
 

@@ -7,9 +7,10 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { webAppRelease } from '../../lib/app-release';
+import { isSecurityInspectorEnabled } from '../../lib/security-demo';
 import { AcmeMarkIcon } from './icons';
 
-const quickLinks = [
+const baseQuickLinks = [
   { href: '/', label: 'Home' },
   { href: '/apply/personal-info', label: 'Application' },
   { href: '/account/profile', label: 'Customer dashboard' },
@@ -36,6 +37,10 @@ const footerNavLinkClassName =
   'block w-full rounded-[1.15rem] border border-[var(--border-strong)] bg-[var(--surface-strong)] px-3.5 py-2.5 text-[15px] font-medium text-[var(--foreground)] shadow-sm shadow-[color:var(--shadow-soft)] transition hover:border-[var(--brand)] hover:bg-[var(--surface-accent)] hover:shadow-[0_12px_24px_var(--shadow-soft)] lg:max-w-[15.5rem] lg:px-3 lg:py-2 lg:text-sm';
 
 export function SiteFooter(): React.ReactElement {
+  const quickLinks = isSecurityInspectorEnabled()
+    ? [...baseQuickLinks, { href: '/security', label: 'Security demo' }]
+    : baseQuickLinks;
+
   return (
     <footer className="border-t border-[var(--border)] bg-[color:var(--surface)/0.94] text-[var(--foreground)]">
       <div className="site-shell py-10 lg:py-12">

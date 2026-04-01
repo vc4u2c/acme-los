@@ -18,12 +18,12 @@ const submitApplicationSchema = z.object({
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     assertValidCsrf(request);
-    const session = requireAuthenticatedWebSession(request);
+    const session = await requireAuthenticatedWebSession(request);
     const payload = submitApplicationSchema.parse(await request.json());
-    const submitResponse = submitApplicationFlow(session, payload, request);
+    const submitResponse = await submitApplicationFlow(session, payload);
     const response = NextResponse.json(submitResponse);
 
-    clearApplicationFlow(request, response);
+    await clearApplicationFlow(session, request, response);
 
     return response;
   } catch (error) {

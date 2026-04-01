@@ -21,10 +21,10 @@ const customerProfileSchema = z.object({
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
-    const session = requireAuthenticatedWebSession(request);
+    const session = await requireAuthenticatedWebSession(request);
 
     return NextResponse.json({
-      profile: readCustomerProfile(request, session),
+      profile: await readCustomerProfile(session),
     });
   } catch (error) {
     const message =
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 export async function PUT(request: NextRequest): Promise<NextResponse> {
   try {
     assertValidCsrf(request);
-    const session = requireAuthenticatedWebSession(request);
+    const session = await requireAuthenticatedWebSession(request);
     const payload = z
       .object({
         profile: customerProfileSchema,
@@ -49,7 +49,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     };
     const response = NextResponse.json({ profile });
 
-    writeCustomerProfile(request, response, profile);
+    await writeCustomerProfile(session, profile);
 
     return response;
   } catch (error) {

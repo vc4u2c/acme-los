@@ -12,46 +12,21 @@ import {
   createMockAuthUser,
   EMPTY_AUTH_SESSION,
   getAssuranceLevelFromAuthenticationMethods,
+  getSafeAuthReturnTo,
   isAssuranceSatisfied,
   MOCK_AUTH_STORAGE_KEY,
 } from '@acme-los/auth/core';
 import { getWebAuthConfig } from './config';
 import { getStoredLeadId } from './lead-id';
-import { getOktaAuthClient } from './okta-client';
-import { parseJwtClaims } from './token-claims';
 
 type AuthContextValue = {
   session: AuthSession;
   signIn: (request?: SignInRequest) => Promise<void>;
   signOut: () => Promise<void>;
-  handleCallback: () => Promise<void>;
   refreshSession: () => Promise<void>;
 };
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
-
-const firstApplicationStepPath = '/apply/personal-info';
-let authRedirectInFlight = false;
-
-function normalizeReturnTo(returnTo: string): string {
-  if (returnTo === '/apply') {
-    return firstApplicationStepPath;
-  }
-
-  if (returnTo.startsWith('/apply?')) {
-    return `${firstApplicationStepPath}${returnTo.slice('/apply'.length)}`;
-  }
-
-  return returnTo;
-}
-
-function getSafeReturnTo(returnTo?: string): string {
-  if (!returnTo || !returnTo.startsWith('/')) {
-    return firstApplicationStepPath;
-  }
-
-  return normalizeReturnTo(returnTo);
-}
 
 function toAuthenticatedSession(
   user: AuthUser,
@@ -181,18 +156,13 @@ export function AuthProvider({
       return;
     }
 
-    const oktaAuth = getOktaAuthClient(config.okta);
-    if (typeof window !== 'undefined' && oktaAuth.isLoginRedirect()) {
-      return;
-    }
-
     void refreshSession();
   }, [config, refreshSession]);
 
   const signIn = React.useCallback(
     async (request?: SignInRequest) => {
       const minimumAssuranceLevel = request?.minimumAssuranceLevel ?? 'aal1';
-      const returnTo = getSafeReturnTo(request?.returnTo);
+      const returnTo = getSafeAuthReturnTo(request?.returnTo);
 
       if (config.provider === 'mock') {
         const nextUser = createMockAuthUser(minimumAssuranceLevel);
@@ -207,24 +177,22 @@ export function AuthProvider({
         return;
       }
 
-      const oktaAuth = getOktaAuthClient(config.okta);
-      if (authRedirectInFlight) {
-        return;
-      }
-
-      authRedirectInFlight = true;
-      oktaAuth.setOriginalUri(returnTo);
-
       try {
-        await oktaAuth.signInWithRedirect({
-          originalUri: returnTo,
-          acrValues:
-            minimumAssuranceLevel === 'aal2'
-              ? config.okta.fundingStepUpAcrValues
-              : undefined,
+        const searchParams = new URLSearchParams({
+          returnTo,
         });
+
+        if (minimumAssuranceLevel === 'aal2') {
+          searchParams.set('aal', 'aal2');
+        }
+
+        const leadId = getStoredLeadId();
+        if (leadId) {
+          searchParams.set('leadId', leadId);
+        }
+
+        window.location.assign(`/api/auth/start?${searchParams.toString()}`);
       } catch (error) {
-        authRedirectInFlight = false;
         const message =
           error instanceof Error
             ? error.message
@@ -249,82 +217,19 @@ export function AuthProvider({
       window.location.assign('/');
       return;
     }
-
-    const oktaAuth = getOktaAuthClient(config.okta);
     setSession(toUnauthenticatedSession('okta'));
 
-    oktaAuth.tokenManager.clear();
-    oktaAuth.clearStorage();
-    try {
-      await webApiClient.auth.clearSession();
-    } catch {
-      // Fall through to the logout route, which also clears cookies.
-    }
     window.location.assign('/api/auth/logout');
-  }, [config, webApiClient]);
-
-  const handleCallback = React.useCallback(async () => {
-    if (config.provider === 'mock') {
-      window.location.assign(firstApplicationStepPath);
-      return;
-    }
-
-    if (config.configurationError || !config.okta) {
-      setSession(toUnauthenticatedSession('okta', config.configurationError));
-      return;
-    }
-
-    try {
-      const oktaAuth = getOktaAuthClient(config.okta);
-      await oktaAuth.storeTokensFromRedirect();
-      const originalUri = getSafeReturnTo(
-        oktaAuth.getOriginalUri() ?? firstApplicationStepPath,
-      );
-      oktaAuth.removeOriginalUri();
-      const tokens = await oktaAuth.tokenManager.getTokens();
-
-      if (!tokens.idToken?.idToken) {
-        throw new Error('Unable to capture the Okta id token after callback.');
-      }
-
-      await webApiClient.auth.syncSession({
-        idToken: tokens.idToken.idToken,
-        leadId: getStoredLeadId() ?? undefined,
-        accessTokenClaims: parseJwtClaims(tokens.accessToken?.accessToken),
-      });
-      const serverSession = await webApiClient.auth.getSession();
-
-      if (
-        !serverSession.session.isAuthenticated ||
-        serverSession.session.user === null
-      ) {
-        throw new Error(
-          'Unable to persist the secure server session after the Okta callback.',
-        );
-      }
-
-      setSession(serverSession.session);
-      oktaAuth.tokenManager.clear();
-      oktaAuth.clearStorage();
-      authRedirectInFlight = false;
-      window.location.replace(originalUri);
-    } catch (error) {
-      authRedirectInFlight = false;
-      const message =
-        error instanceof Error ? error.message : 'Unable to complete sign-in.';
-      setSession(toUnauthenticatedSession('okta', message));
-    }
-  }, [config, webApiClient]);
+  }, [config]);
 
   const value = React.useMemo<AuthContextValue>(
     () => ({
       session,
       signIn,
       signOut,
-      handleCallback,
       refreshSession,
     }),
-    [handleCallback, refreshSession, session, signIn, signOut],
+    [refreshSession, session, signIn, signOut],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

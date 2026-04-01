@@ -68,14 +68,14 @@ function buildOktaLogoutUrl(idToken: string): string | null {
 }
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const idToken = readLogoutHintIdToken(request);
+  const idToken = await readLogoutHintIdToken(request);
   const fallbackRedirectUri = getSafePostLogoutRedirectUri(request);
   const logoutDestination = idToken
     ? (buildOktaLogoutUrl(idToken) ?? fallbackRedirectUri)
     : fallbackRedirectUri;
   const response = NextResponse.redirect(logoutDestination);
 
-  clearWebAuthLogoutArtifacts(request, response);
+  await clearWebAuthLogoutArtifacts(request, response);
 
   return response;
 }

@@ -9,8 +9,9 @@ import type { NextRequest, NextResponse } from 'next/server';
 import { clearApplicationFlow } from './application-flow';
 import { getAssuranceLevelFromAuthenticationMethods } from './assurance';
 import {
-  AUTH_LOGOUT_HINT_COOKIE_NAME,
+  APPLICATION_FLOW_COOKIE_NAME,
   AUTH_SESSION_COOKIE_NAME,
+  AUTH_TRANSACTION_COOKIE_NAME,
   CSRF_COOKIE_NAME,
   CUSTOMER_PROFILE_COOKIE_NAME,
   clearCookie,
@@ -18,22 +19,29 @@ import {
   setSignedCookie,
 } from './cookies';
 import { verifyOktaIdToken } from './okta-id-token';
+import {
+  clearStoredWebAuthSession,
+  createStoredWebAuthSession,
+  readStoredWebAuthSession,
+  type StoredWebAuthTokenSet,
+} from './session-store';
+
+const LEGACY_AUTH_LOGOUT_HINT_COOKIE_NAME = 'acme-los.auth-logout';
 
 export type SessionCookiePayload = {
-  session: WebAuthSession;
-  expiresAt: number;
-};
-
-export type LogoutHintCookiePayload = {
-  idToken: string;
-  expiresAt: number;
+  sessionId: string;
 };
 
 export type SyncedWebAuthSession = {
-  cookiePayload: SessionCookiePayload;
-  logoutHintCookiePayload: LogoutHintCookiePayload;
+  storedSessionId: string;
   maxAge: number;
   response: SyncWebAuthSessionResponse;
+};
+
+type ResolvedStoredSession = {
+  sessionId: string;
+  session: WebAuthSession;
+  tokens: StoredWebAuthTokenSet;
 };
 
 function buildUnauthenticatedSession(errorMessage?: string): WebAuthSession {
@@ -84,9 +92,6 @@ function buildAuthUserFromClaims(
     'Customer';
   const id =
     (typeof claims.sub === 'string' && claims.sub) || email || 'okta-user';
-  const authenticationMethods = Array.isArray(claims.amr)
-    ? claims.amr.filter((value): value is string => typeof value === 'string')
-    : undefined;
 
   return {
     id,
@@ -96,7 +101,9 @@ function buildAuthUserFromClaims(
     lastName,
     leadId,
     customerId,
-    authenticationMethods,
+    authenticationMethods: Array.isArray(claims.amr)
+      ? claims.amr.filter((value): value is string => typeof value === 'string')
+      : undefined,
   };
 }
 
@@ -120,15 +127,39 @@ function buildAuthenticatedSession(
   };
 }
 
-export function readWebAuthSession(
+async function readStoredSessionFromRequest(
   request: NextRequest,
-  options: { includeDebug?: boolean } = {},
-): GetWebAuthSessionResponse {
-  const cookiePayload = readSessionCookiePayload(
+): Promise<ResolvedStoredSession | null> {
+  const sessionCookiePayload = readSessionCookiePayload(
     request.cookies.get(AUTH_SESSION_COOKIE_NAME)?.value,
   );
 
-  if (cookiePayload === null) {
+  if (!sessionCookiePayload) {
+    return null;
+  }
+
+  const storedSession = await readStoredWebAuthSession(
+    sessionCookiePayload.sessionId,
+  );
+
+  if (!storedSession) {
+    return null;
+  }
+
+  return {
+    sessionId: storedSession.sessionId,
+    session: storedSession.session,
+    tokens: storedSession.tokens,
+  };
+}
+
+export async function readWebAuthSession(
+  request: NextRequest,
+  options: { includeDebug?: boolean } = {},
+): Promise<GetWebAuthSessionResponse> {
+  const storedSession = await readStoredSessionFromRequest(request);
+
+  if (storedSession === null) {
     return {
       session: buildUnauthenticatedSession(),
       ...(options.includeDebug
@@ -138,7 +169,7 @@ export function readWebAuthSession(
   }
 
   return {
-    session: cookiePayload.session,
+    session: storedSession.session,
     ...(options.includeDebug
       ? { debug: { idTokenClaims: null, accessTokenClaims: null } }
       : {}),
@@ -148,44 +179,38 @@ export function readWebAuthSession(
 export function readSessionCookiePayload(
   rawCookieValue?: string,
 ): SessionCookiePayload | null {
-  const cookiePayload =
-    parseSignedCookieValue<SessionCookiePayload>(rawCookieValue);
-
-  if (cookiePayload === null) {
-    return null;
-  }
-
-  const currentEpochSeconds = Math.floor(Date.now() / 1000);
-  if (cookiePayload.expiresAt <= currentEpochSeconds) {
-    return null;
-  }
-
-  return cookiePayload;
+  return parseSignedCookieValue<SessionCookiePayload>(rawCookieValue);
 }
 
 export async function syncWebAuthSession(
   payload: SyncWebAuthSessionRequest,
+  options: {
+    expectedNonce?: string;
+    serverTokens?: Omit<StoredWebAuthTokenSet, 'idToken'>;
+  } = {},
 ): Promise<SyncedWebAuthSession> {
-  const verifiedIdTokenClaims = await verifyOktaIdToken(payload.idToken);
+  const verifiedIdTokenClaims = await verifyOktaIdToken(payload.idToken, {
+    expectedNonce: options.expectedNonce,
+  });
   const session = buildAuthenticatedSession(
     verifiedIdTokenClaims,
     payload.leadId,
   );
-
   const expiresAt =
     typeof verifiedIdTokenClaims.exp === 'number'
       ? Math.trunc(verifiedIdTokenClaims.exp)
       : Math.floor(Date.now() / 1000) + 60 * 60;
+  const storedSession = await createStoredWebAuthSession({
+    session,
+    tokens: {
+      idToken: payload.idToken,
+      ...options.serverTokens,
+    },
+    expiresAt,
+  });
 
   return {
-    cookiePayload: {
-      session,
-      expiresAt,
-    },
-    logoutHintCookiePayload: {
-      idToken: payload.idToken,
-      expiresAt,
-    },
+    storedSessionId: storedSession.sessionId,
     maxAge: Math.max(expiresAt - Math.floor(Date.now() / 1000), 60),
     response: { session },
   };
@@ -200,61 +225,50 @@ export function writeWebAuthSession(
     response,
     request,
     AUTH_SESSION_COOKIE_NAME,
-    payload.cookiePayload,
-    {
-      maxAge: payload.maxAge,
-    },
-  );
-  setSignedCookie(
-    response,
-    request,
-    AUTH_LOGOUT_HINT_COOKIE_NAME,
-    payload.logoutHintCookiePayload,
+    { sessionId: payload.storedSessionId },
     {
       maxAge: payload.maxAge,
     },
   );
 }
 
-export function clearWebAuthSession(
+export async function clearWebAuthSession(
   request: NextRequest,
   response: NextResponse,
-): void {
-  clearApplicationFlow(request, response);
+): Promise<void> {
+  const storedSession = await readStoredSessionFromRequest(request);
+
+  if (storedSession) {
+    await clearStoredWebAuthSession(storedSession.sessionId);
+    await clearApplicationFlow(storedSession.session, request, response);
+  } else {
+    clearCookie(response, request, APPLICATION_FLOW_COOKIE_NAME);
+  }
+
   clearCookie(response, request, AUTH_SESSION_COOKIE_NAME);
+  clearCookie(response, request, LEGACY_AUTH_LOGOUT_HINT_COOKIE_NAME);
+  clearCookie(response, request, AUTH_TRANSACTION_COOKIE_NAME);
   clearCookie(response, request, CUSTOMER_PROFILE_COOKIE_NAME);
   clearCookie(response, request, CSRF_COOKIE_NAME);
 }
 
-export function clearWebAuthLogoutArtifacts(
+export async function clearWebAuthLogoutArtifacts(
   request: NextRequest,
   response: NextResponse,
-): void {
-  clearWebAuthSession(request, response);
-  clearCookie(response, request, AUTH_LOGOUT_HINT_COOKIE_NAME);
+): Promise<void> {
+  await clearWebAuthSession(request, response);
 }
 
-export function readLogoutHintIdToken(request: NextRequest): string | null {
-  const cookiePayload = parseSignedCookieValue<LogoutHintCookiePayload>(
-    request.cookies.get(AUTH_LOGOUT_HINT_COOKIE_NAME)?.value,
-  );
-
-  if (cookiePayload === null) {
-    return null;
-  }
-
-  const currentEpochSeconds = Math.floor(Date.now() / 1000);
-  if (cookiePayload.expiresAt <= currentEpochSeconds) {
-    return null;
-  }
-
-  return cookiePayload.idToken;
-}
-
-export function requireAuthenticatedWebSession(
+export async function readLogoutHintIdToken(
   request: NextRequest,
-): WebAuthSession {
-  const { session } = readWebAuthSession(request);
+): Promise<string | null> {
+  return (await readStoredSessionFromRequest(request))?.tokens.idToken ?? null;
+}
+
+export async function requireAuthenticatedWebSession(
+  request: NextRequest,
+): Promise<WebAuthSession> {
+  const { session } = await readWebAuthSession(request);
 
   if (!session.isAuthenticated || session.user === null) {
     throw new Error('Authentication is required for this request.');

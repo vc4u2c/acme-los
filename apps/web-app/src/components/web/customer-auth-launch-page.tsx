@@ -26,6 +26,7 @@ type CustomerAuthLaunchPageProps = {
   description: string;
   actionLabel: string;
   launchingLabel: string;
+  errorMessage?: string;
 };
 
 export function CustomerAuthLaunchPage({
@@ -36,10 +37,12 @@ export function CustomerAuthLaunchPage({
   description,
   actionLabel,
   launchingLabel,
+  errorMessage,
 }: CustomerAuthLaunchPageProps): React.ReactElement {
   const { signIn } = useAuthSession();
   const [isLaunching, setIsLaunching] = React.useState(false);
   const hasAutoLaunchedRef = React.useRef(false);
+  const allowAutoLaunch = shouldAutoLaunch && !errorMessage;
 
   const launch = React.useCallback(() => {
     setIsLaunching(true);
@@ -47,13 +50,13 @@ export function CustomerAuthLaunchPage({
   }, [minimumAssuranceLevel, returnTo, signIn]);
 
   React.useEffect(() => {
-    if (!shouldAutoLaunch || hasAutoLaunchedRef.current) {
+    if (!allowAutoLaunch || hasAutoLaunchedRef.current) {
       return;
     }
 
     hasAutoLaunchedRef.current = true;
     launch();
-  }, [launch]);
+  }, [allowAutoLaunch, launch]);
 
   return (
     <>
@@ -74,6 +77,11 @@ export function CustomerAuthLaunchPage({
                 </p>
               </CardHeader>
               <CardContent className="space-y-5">
+                {errorMessage ? (
+                  <div className="rounded-[1.5rem] border border-[color:var(--critical)/0.28] bg-[color:var(--critical)/0.08] p-4 text-sm font-medium text-[var(--critical)]">
+                    {errorMessage}
+                  </div>
+                ) : null}
                 <Button
                   className="w-full rounded-full bg-[var(--brand)] text-[var(--brand-contrast)] hover:bg-[var(--brand-strong)]"
                   onClick={launch}
