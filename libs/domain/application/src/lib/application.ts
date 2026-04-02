@@ -7,24 +7,25 @@ import type {
 export type ApplicationStage =
   | 'intake'
   | 'processing'
-  | 'underwriting'
+  | 'review'
   | 'closing'
   | 'funded'
   | 'withdrawn';
 
 export type ApplicationChannel = 'retail' | 'broker' | 'consumer-direct';
 
-export interface LoanApplication extends AuditFields {
+export interface ApplicationRecord extends AuditFields {
   applicationId: EntityId;
-  borrowerId: EntityId;
-  loanId: EntityId;
+  customerId: EntityId;
   stage: ApplicationStage;
   channel: ApplicationChannel;
   assignedTo?: UserReference;
   submittedAt?: string;
 }
 
-export function isApplicationSubmitted(application: LoanApplication): boolean {
+export function isApplicationSubmitted(
+  application: ApplicationRecord,
+): boolean {
   return (
     typeof application.submittedAt === 'string' &&
     application.submittedAt.length > 0

@@ -19,12 +19,8 @@
       "@acme-los/core/utils": ["libs/core/utils/src/index.ts"],
       "@acme-los/core/config": ["libs/core/config/src/index.ts"],
       "@acme-los/core/logger": ["libs/core/logger/src/index.ts"],
-      "@acme-los/domain/loan": ["libs/domain/loan/src/index.ts"],
-      "@acme-los/domain/borrower": ["libs/domain/borrower/src/index.ts"],
+      "@acme-los/domain/customer": ["libs/domain/customer/src/index.ts"],
       "@acme-los/domain/application": ["libs/domain/application/src/index.ts"],
-      "@acme-los/domain/underwriting": [
-        "libs/domain/underwriting/src/index.ts"
-      ],
       "@acme-los/api/contracts": ["libs/api/contracts/src/index.ts"],
       "@acme-los/api/web-client": ["libs/api/web-client/src/index.ts"],
       "@acme-los/api/domain-client": ["libs/api/domain-client/src/index.ts"],

@@ -1,0 +1,9 @@
+{
+  "name": "customer",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/domain/customer/src",
+  "projectType": "library",
+  "tags": ["scope:domain", "domain:customer"],
+  "// targets": "to see all targets run: nx show project customer --web",
+  "targets": {}
+}

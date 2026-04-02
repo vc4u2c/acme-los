@@ -1,9 +1,0 @@
-{
-  "name": "borrower",
-  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "libs/domain/borrower/src",
-  "projectType": "library",
-  "tags": ["scope:domain", "domain:borrower"],
-  "// targets": "to see all targets run: nx show project borrower --web",
-  "targets": {}
-}
