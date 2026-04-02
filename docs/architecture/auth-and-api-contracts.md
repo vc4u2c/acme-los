@@ -1,94 +1,153 @@
-# Auth and API Contract Documentation
+# Auth And API Contracts
 
-This document defines the default authentication and contract strategy for the ACME LOS monorepo.
+This doc describes the contract and auth boundaries the repo uses today, plus
+the rules we want to preserve as the backend evolves.
 
-## Authentication Strategy
+For the current implemented redirect, callback, session, and logout diagrams,
+see [auth-server-flows.md](./auth-server-flows.md).
 
-Recommended default:
+## What Exists Today
 
-- OpenID Connect / OAuth 2.1 compatible identity provider
-- short-lived access tokens
-- refresh token flow handled by the backend or secure platform-specific storage policy
+The current split is:
 
-## Web App Auth
+- `@acme-los/api/contracts`
+  - transport contracts and shared DTOs
+- `@acme-los/api/web-client`
+  - browser-safe wrappers that call the web app's own `/api/*` routes
+- `@acme-los/api/domain-client`
+  - server-side customer/application transport layer
+- `@acme-los/api/web-server`
+  - server-only helpers for the Next web facade
+- `@acme-los/auth/*`
+  - auth contracts, core helpers, and web integration helpers
 
-`apps/web-app` should prefer:
+That means the browser talks to app-owned endpoints, not directly to Okta or
+to backend-specific storage details.
 
-- server-aware auth flows
-- secure HTTP-only session cookies when possible
-- middleware or server-side route protection for authenticated areas
+## Web Auth Shape
 
-Recommended split:
+The web app currently uses:
 
-- authentication state orchestration in app code
-- token/session types in `@acme-los/api/contracts` or `@acme-los/core/types`
-- reusable auth helpers in a future `libs/core/auth` or `libs/api/client`
+- server-side PKCE initiation
+- server-side callback code exchange
+- one opaque HTTP-only auth session cookie
+- one CSRF cookie for mutating web routes
+- one short-lived auth transaction cookie during the Okta redirect handshake
+- server-side session, customer, and application flow state
 
-## Mobile App Auth
+Important rule:
 
-`apps/mobile-app` should prefer:
+- the browser is not the source of truth for authenticated state
 
-- PKCE-capable login flow
-- secure token storage
-- no long-lived secrets embedded in the app bundle
+## Mobile Auth Direction
 
-Recommended mobile rules:
+The mobile app is still earlier in its auth evolution than the web app.
 
-- treat the mobile app as a public client
-- never hardcode API secrets
-- rotate and revoke refresh tokens where supported
+Current design intent:
 
-## Authorization
+- treat mobile as a public client
+- use PKCE-capable sign-in
+- use secure token storage
+- never embed client secrets in the app
+- keep the mobile auth shape separate from the web session-cookie model
 
-Recommended baseline roles:
+## API Client Split
 
-- borrower
-- loan-officer
-- processor
-- underwriter
-- admin
+### `@acme-los/api/contracts`
 
-Recommended claims or derived permissions:
-
-- tenant access
-- application access scope
-- servicing or underwriting permissions
-- feature flags by role
-
-## API Contract Boundaries
-
-Use `@acme-los/api/contracts` for transport contracts only.
-
-Place here:
+Owns:
 
 - request and response DTOs
-- pagination envelopes
-- API error shapes
-- auth/session payloads
-- versioned contract types
+- auth/session payload shapes
+- error envelopes
+- contract-level enums and unions
 
-Do not place here:
+Must not own:
 
 - UI component props
 - app-local form state
 - business rule implementations
 
-Use `@acme-los/domain/*` for business models and invariants.
+### `@acme-los/api/web-client`
 
-## Versioning
+Owns:
 
-Recommended contract rules:
+- browser wrappers for the web app's `/api/*` facade
+- CSRF-aware request behavior
+- typed responses for browser code
 
-- version breaking contract changes explicitly
-- keep DTO names stable and explicit
-- prefer additive evolution over mutation
+Must not own:
+
+- Okta SDK details
+- browser storage decisions
+- cookie manipulation
+- domain/business logic
+
+### `@acme-los/api/domain-client`
+
+Owns:
+
+- server-side customer and application transport calls
+- the current bridge point to future backend or BFF endpoints
+
+Must not own:
+
+- browser concerns
+- cookie/session concerns
+- UI behavior
+
+### `@acme-los/api/web-server`
+
+Owns:
+
+- auth/session helpers for the Next facade
+- callback handling support
+- CSRF and cookie helpers
+- server-side state access for auth, customer, and application flow
+
+Must stay:
+
+- server-only
+- thin enough that a future .NET BFF can replace or subsume it cleanly
+
+## Authorization Today
+
+Authorization in the repo is mostly:
+
+- route-level authentication
+- route-level assurance checks
+- thin session-based access control
 
 Examples:
 
-- `CreateApplicationRequest`
-- `CreateApplicationResponse`
-- `ApplicationSummaryDto`
-- `UnderwritingDecisionDto`
+- public marketing routes
+  - no session required
+- `/account/profile`
+  - authenticated session required
+- most `/apply/*`
+  - authenticated session required
+- funding-sensitive routes
+  - stronger assurance required
+
+That is different from a heavy role-based permission system. Deeper business
+permissions still belong in the backend/BFF layer as that grows.
+
+## Contract Rules
+
+Keep these rules stable:
+
+- keep transport DTOs in `@acme-los/api/contracts`
+- keep business invariants in `@acme-los/domain/*`
+- keep app-local interaction state inside apps
+- prefer additive contract evolution over breaking mutation
+- keep DTO names explicit and boring
+
+Examples:
+
+- `GetSessionResponse`
+- `SaveApplicationStepRequest`
+- `SaveApplicationStepResponse`
+- `CustomerProfile`
 - `ApiErrorDto`
 
 ## Error Shape
@@ -104,7 +163,7 @@ type ApiErrorDto = {
 };
 ```
 
-Recommended characteristics:
+Good characteristics:
 
 - machine-readable `code`
 - human-readable `message`
@@ -113,7 +172,7 @@ Recommended characteristics:
 
 ## Sensitive Data Rules
 
-Never expose in logs or broad client payloads:
+Never expose broadly in logs or client payloads:
 
 - SSN
 - bank account numbers
@@ -129,11 +188,12 @@ Prefer:
 - correlation IDs
 - status and workflow metadata
 
-## Suggested Next Libraries
+## Evolution Guidance
 
-Good next additions after this backbone:
+As the repo moves toward a .NET BFF:
 
-- `libs/core/auth`
-- `libs/core/request-context`
-- `libs/api/http`
-- `libs/api/auth-client`
+- keep UI code calling app-owned contracts
+- keep the web facade thin
+- keep customer and application contracts shaped around the product flow, not
+  raw backend endpoints
+- keep auth/session concerns separate from domain data models

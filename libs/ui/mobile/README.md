@@ -2,6 +2,8 @@
 
 Shared mobile UI primitives for the Expo app.
 
+For repo setup and runtime commands, start at [README.md](../../../README.md). This README is only for the `@acme-los/ui-mobile` package surface.
+
 Current exports:
 
 - `GluestackUIProvider`
