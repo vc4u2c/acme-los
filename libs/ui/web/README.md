@@ -2,6 +2,8 @@
 
 Shared web UI foundation for the Next.js app.
 
+For repo setup and runtime commands, start at [README.md](../../../README.md). This README is only for the `@acme-los/ui-web` package surface.
+
 Current exports:
 
 - `Accordion`

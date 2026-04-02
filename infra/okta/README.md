@@ -2,6 +2,8 @@
 
 This folder keeps the Okta setup intent in git.
 
+For the repo-level quick start, start at [README.md](../../README.md) and [docs/getting-started/local-development.md](../../docs/getting-started/local-development.md). This README is only for the Okta admin plane.
+
 Source of truth:
 
 - `infra/okta/environments/dev.json`
