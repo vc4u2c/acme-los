@@ -91,6 +91,21 @@ It currently handles:
 
 It also writes resolved IDs and client IDs back into the local generated files, and it updates the environment manifest when app client IDs are created.
 
+Live dev org state last verified from the Admin API:
+
+- web app exists and is active
+- mobile app exists and is active
+- localhost trusted origin exists with `CORS` and `REDIRECT`
+- customer brand exists
+- customer brand custom sign-in page exists
+- customer brand custom error page exists
+- `lead_id` and `customer_id` claims exist for both ID and access tokens
+- custom profile attributes exist:
+  - `leadId`
+  - `customerId`
+- email, password, and Okta Verify authenticators are active
+- phone authenticator is still inactive
+
 ## Recommended Dev Flow
 
 For local development, use this flow:
@@ -143,7 +158,7 @@ These parts are solid:
 
 ## What Is Still Messy
 
-The remaining awkwardness is not Terraform anymore. It is that some deeper Okta plan and API surfaces still require a few manual checks or deferred work even though the repo now has one clear admin-plane path.
+The remaining awkwardness is that some deeper Okta plan and API surfaces still require a few manual checks or deferred work even though the repo now has one clear admin-plane path.
 
 ## What Is Still Manual Or Limited
 
@@ -154,14 +169,16 @@ Current limitations:
 - phone verification is deferred until telephony is set up
 - the pre-auth "remember user" checkbox still needs one admin-console verification
 - route-specific funding step-up still belongs in application runtime logic
-- hosted sign-in page HTML/content customization is deferred until a custom domain is mapped to the customer brand
+- custom-domain linking is still a manual tenant step because DNS ownership and certificate validation happen outside the repo bootstrap
 - profile-enrollment stays on the Okta system default rule because the rule API rejected automated replacement for the default/catch-all rule
 
 That means:
 
 - branding colors, logo, and favicon are automated
-- deeper hosted sign-in page HTML/content control is not fully automated here yet
+- hosted sign-in and error page HTML/content are automated after the custom domain is linked
 - registration is working against the system default profile-enrollment rule, not a fully custom rule
+- the current dev org already has the custom domain linked manually:
+  - `auth.avanai.net`
 
 Current auth shape in this repo:
 
@@ -170,24 +187,23 @@ Current auth shape in this repo:
 - adaptive sign-in, when the high-risk rule is supported and triggered, steps up to 2FA with password required as the first factor
 - the funding step is still enforced in application runtime with `acr_values` and `prompt=login`, which is the correct place for route-level step-up
 
-## Token Vs Service App
+## Current Admin Auth Path
 
 Short version:
 
 - use an **SSWS token** for local dev bootstrap right now
-- keep the **service app** as the long-term target for CI/CD and promotion
 
 Why:
 
 - the token path works today
-- the service-app promotion path did not
 - using the token only for admin bootstrap is acceptable
 - using the token for runtime auth would be wrong, and we are **not** doing that
 
 So the current recommendation is:
 
 - local/dev bootstrap: `OKTA_API_TOKEN`
-- future promotion hardening: revisit service-app automation when the provider path is reliable enough
+
+If you find an old admin service app in the Okta org that is not referenced by this repo, treat it as leftover infrastructure and remove it. It is not part of the current repo-driven bootstrap path.
 
 ## Files To Read First
 

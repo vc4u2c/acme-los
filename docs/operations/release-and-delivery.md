@@ -29,6 +29,19 @@ Optional helper:
 
 - `tools/scripts/setup-github-environments.ps1` can scaffold or refresh the GitHub environments from the repo side once `gh` is authenticated
 
+Environment naming rule:
+
+- there is no separate `test` environment
+- `qa` is the shared validation environment, including Okta/auth verification
+
+Current Okta mapping:
+
+- `local` -> Okta `dev`
+- `dev` -> Okta `dev`
+- `qa` -> Okta `qa`
+- `stg` -> aligned to Okta `qa` at first or split later
+- `prod` -> Okta `prod`
+
 ## Release Model
 
 - `web-app` and `mobile-app` version independently
@@ -61,3 +74,15 @@ npm run release
 - run the full local verification sweep before promotion
 - treat release commits as generated outputs, not working branches
 - prefer one promotion branch per coherent slice instead of mixing unrelated cleanup and feature work
+
+## Environment Visibility
+
+Both apps should expose the active environment in the UI.
+
+Expected labels:
+
+- local developer run: `local`
+- deployed development: `dev`
+- deployed validation: `qa`
+- deployed staging: `stg`
+- deployed production: `prod`
