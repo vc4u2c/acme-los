@@ -30,11 +30,14 @@ path:
 ## Operations
 
 - [Release and delivery](./operations/release-and-delivery.md)
+- [Azure platform plan](./operations/azure-platform-plan.md)
+- [GitHub and Azure environments](./operations/github-azure-environments.md)
 
 ## Reference
 
 - [Tech stack and tooling](./reference/tech-stack.md)
 - [VS Code setup](./reference/vscode-setup.md)
+- [Azure naming standard](./reference/azure-resource-naming-standard.md)
 
 ## Infra And Admin Plane
 

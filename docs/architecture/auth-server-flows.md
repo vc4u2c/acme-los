@@ -140,9 +140,9 @@ That means:
 ```mermaid
 flowchart LR
   C[Opaque auth cookie] --> S[Server session record]
-  S --> P[/account/profile]
-  S --> A[/apply/*]
-  S --> L[/api/auth/logout]
+  S --> P["/account/profile"]
+  S --> A["/apply/*"]
+  S --> L["/api/auth/logout"]
 ```
 
 ## Sign-Out Flow
