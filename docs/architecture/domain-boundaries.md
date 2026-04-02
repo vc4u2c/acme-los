@@ -47,7 +47,7 @@ Examples:
 Purpose:
 
 - business concepts and workflow rules for LOS
-- borrower, loan, application, and underwriting models
+- customer and application models
 
 Can depend on:
 
@@ -56,10 +56,8 @@ Can depend on:
 
 Examples:
 
-- `@acme-los/domain/loan`
-- `@acme-los/domain/borrower`
+- `@acme-los/domain/customer`
 - `@acme-los/domain/application`
-- `@acme-los/domain/underwriting`
 
 ### `scope:api`
 
@@ -167,23 +165,19 @@ That means:
 
 ## LOS Workflow Ownership
 
-### `domain/borrower`
+Only two top-level domain libraries remain in active use here:
+
+- `domain/customer`
+- `domain/application`
+
+### `domain/customer`
 
 Owns:
 
-- borrower identity model
+- customer identity model
 - contact information
 - consent state
-- borrower profile status
-
-### `domain/loan`
-
-Owns:
-
-- loan product selection
-- loan terms
-- pricing inputs
-- amortization-related value objects
+- customer profile status
 
 ### `domain/application`
 
@@ -192,16 +186,8 @@ Owns:
 - application lifecycle state
 - application submission payload
 - milestones and status transitions
-- relationship between borrower and selected loan
-
-### `domain/underwriting`
-
-Owns:
-
-- underwriting decision state
-- conditions
-- findings
-- approval / decline / suspend outcomes
+- relationship to the signed-in customer
+- workflow stages such as review, closing, and funding
 
 ## Practical Rules
 

@@ -77,7 +77,7 @@ If you want the fastest path to running the repo, start at:
 ### Domain
 
 - `libs/domain/*`
-  - application, borrower, loan, and underwriting models
+  - customer and application models
 
 ### Core
 

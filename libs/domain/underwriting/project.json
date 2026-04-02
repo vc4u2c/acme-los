@@ -1,9 +1,0 @@
-{
-  "name": "underwriting",
-  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "libs/domain/underwriting/src",
-  "projectType": "library",
-  "tags": ["scope:domain", "domain:underwriting"],
-  "// targets": "to see all targets run: nx show project underwriting --web",
-  "targets": {}
-}

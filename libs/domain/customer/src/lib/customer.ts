@@ -11,14 +11,14 @@ export type EmploymentStatus =
   | 'retired'
   | 'unemployed';
 
-export interface BorrowerName {
+export interface CustomerName {
   firstName: string;
   middleName?: string;
   lastName: string;
   suffix?: string;
 }
 
-export interface BorrowerEmployment {
+export interface CustomerEmployment {
   employerName: string;
   title: string;
   status: EmploymentStatus;
@@ -26,18 +26,18 @@ export interface BorrowerEmployment {
   startDate: string;
 }
 
-export interface BorrowerProfile extends AuditFields {
-  borrowerId: EntityId;
-  name: BorrowerName;
+export interface CustomerProfile extends AuditFields {
+  customerId: EntityId;
+  name: CustomerName;
   contact: ContactInfo;
   dateOfBirth: string;
   primaryAddress: Address;
   mailingAddress?: Address;
-  employment: BorrowerEmployment;
+  employment: CustomerEmployment;
   creditScore?: number;
 }
 
-export function getBorrowerDisplayName(name: BorrowerName): string {
+export function getCustomerDisplayName(name: CustomerName): string {
   return [name.firstName, name.middleName, name.lastName, name.suffix]
     .filter(Boolean)
     .join(' ');
