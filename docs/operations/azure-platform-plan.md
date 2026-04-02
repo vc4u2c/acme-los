@@ -191,6 +191,39 @@ Persistent environments:
 
 These are long-lived promotion environments, not short-lived previews.
 
+Important rule for this repo:
+
+- there is no separate `test` environment
+- `qa` is the shared validation environment for both broader QA and Okta/auth checks
+
+Current environment and Okta mapping:
+
+- `local`
+  - local developer runs
+  - points to Okta `dev`
+- `dev`
+  - shared cloud development environment
+  - points to Okta `dev`
+- `qa`
+  - shared validation environment
+  - points to Okta `qa`
+- `stg`
+  - pre-production environment
+  - can stay aligned to Okta `qa` at first or split later if needed
+- `prod`
+  - production environment
+  - points to Okta `prod`
+
+UI expectation for both apps:
+
+- always show the active environment somewhere visible in the shell
+- local runs should display `local`
+- deployed environments should display their environment name exactly:
+  - `dev`
+  - `qa`
+  - `stg`
+  - `prod`
+
 ### Subscription Strategy
 
 Best balanced target:
@@ -498,7 +531,7 @@ Use ADE for:
 - ephemeral preview environments
 - on-demand demo environments
 - developer sandboxes
-- temporary integration test environments
+- temporary integration validation environments
 
 Do not use ADE first for:
 

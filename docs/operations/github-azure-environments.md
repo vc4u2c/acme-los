@@ -18,11 +18,33 @@ The repo already has four GitHub deployment environments:
 - `stg`
 - `prod`
 
+Important naming rule:
+
+- there is no separate `test` environment
+- `qa` is the shared validation environment for both QA and Okta/auth checks
+
 Current observed state:
 
 - all four environments exist already
 - `qa`, `stg`, and `prod` already have required reviewer protection
 - `dev` is open, which is appropriate for the first automation path
+
+Recommended environment meaning:
+
+- `dev`
+  - shared development environment
+  - points to Okta `dev`
+- `qa`
+  - shared validation environment
+  - points to Okta `qa`
+- `stg`
+  - pre-production environment
+  - can stay aligned to Okta `qa` at first or split later
+- `prod`
+  - production environment
+  - points to Okta `prod`
+
+Local runs are not a GitHub environment, but both apps should still show `local` in the UI when running on a developer workstation.
 
 The repo also already has a helper script:
 
@@ -95,6 +117,7 @@ Use GitHub environment variables for non-secret values that differ by environmen
 - `AZURE_SUBSCRIPTION_ID`
 - `AZURE_RESOURCE_GROUP_NAME`
 - `AZURE_ENVIRONMENT_NAME`
+- `APP_ENVIRONMENT_NAME`
 - `AZURE_DEPLOYMENT_STACK_NAME`
 - `AZURE_WEB_APP_NAME`
 - `AZURE_FRONTDOOR_PROFILE_NAME`
@@ -108,6 +131,15 @@ Optional:
 - `AZURE_MONITOR_WORKSPACE_NAME`
 - `EXPO_CHANNEL`
 - `EXPO_ENVIRONMENT_NAME`
+
+Recommendation:
+
+- keep `APP_ENVIRONMENT_NAME` aligned to what the user should see in the UI:
+  - `local`
+  - `dev`
+  - `qa`
+  - `stg`
+  - `prod`
 
 ### Environment Secrets
 
