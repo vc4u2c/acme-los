@@ -1,0 +1,100 @@
+name: Teardown Web Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: Environment to tear down
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - stg
+          - prod
+      confirm_production_teardown:
+        description: Type DELETE_PROD to allow prod teardown
+        required: false
+        default: ''
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: teardown-web-${{ inputs.environment_name }}
+  cancel-in-progress: false
+
+jobs:
+  teardown_web:
+    name: Teardown Web ${{ inputs.environment_name }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate Azure environment contract
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        run: |
+          if [[ -z "${AZURE_CLIENT_ID:-}" || -z "${AZURE_SUBSCRIPTION_ID:-}" ]]; then
+            echo "Missing required Azure environment variables for teardown" >&2
+            exit 1
+          fi
+
+      - name: Require explicit production confirmation
+        if: ${{ inputs.environment_name == 'prod' }}
+        shell: bash
+        run: |
+          if [[ "${{ inputs.confirm_production_teardown }}" != "DELETE_PROD" ]]; then
+            echo "Production teardown requires confirm_production_teardown=DELETE_PROD" >&2
+            exit 1
+          fi
+
+      - name: Teardown workload
+        shell: pwsh
+        run: |
+          $teardownResult = ./tools/scripts/azure/teardown-web-environment.ps1 `
+            -EnvironmentName '${{ inputs.environment_name }}' `
+            -SubscriptionId '${{ vars.AZURE_SUBSCRIPTION_ID }}' `
+            -WaitForDeletion `
+            -AllowProductionTeardown:${{ inputs.environment_name == 'prod' }}
+
+          $teardownResult | Set-Content -Path teardown-result.json -Encoding utf8
+          Get-Content teardown-result.json
+
+      - name: Summarize teardown
+        shell: bash
+        run: |
+          resource_group="$(node -p "require('./teardown-result.json').resourceGroupName")"
+          subscription_stack="$(node -p "require('./teardown-result.json').subscriptionStackName")"
+          resource_group_stack="$(node -p "require('./teardown-result.json').resourceGroupStackName")"
+          key_vault="$(node -p "require('./teardown-result.json').keyVaultName")"
+          key_vault_purged="$(node -p "require('./teardown-result.json').keyVaultPurged")"
+
+          {
+            echo "## Web Teardown Summary"
+            echo ""
+            echo "- Environment: \`${{ inputs.environment_name }}\`"
+            echo "- Subscription stack: \`${subscription_stack}\`"
+            echo "- Resource-group stack: \`${resource_group_stack}\`"
+            echo "- Resource group: \`${resource_group}\`"
+            echo "- Key Vault: \`${key_vault}\`"
+            echo "- Key Vault purged: \`${key_vault_purged}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,135 @@
+{
+  "managementGroupHierarchy": {
+    "root": "mg-acme",
+    "platform": "mg-acme-platform",
+    "landingZones": "mg-acme-landingzones",
+    "online": "mg-acme-online",
+    "sandbox": "mg-acme-sandbox"
+  },
+  "subscriptionPlacement": [
+    {
+      "displayName": "sub-acme-platform",
+      "managementGroup": "mg-acme-platform",
+      "purpose": "shared platform services, monitoring, edge, and networking"
+    },
+    {
+      "displayName": "sub-acme-nonprod-online",
+      "managementGroup": "mg-acme-online",
+      "purpose": "non-production online workloads such as dev, qa, and stg"
+    },
+    {
+      "displayName": "sub-acme-prod-online",
+      "managementGroup": "mg-acme-online",
+      "purpose": "production online workloads"
+    },
+    {
+      "displayName": "sub-acme-sandbox",
+      "managementGroup": "mg-acme-sandbox",
+      "purpose": "ephemeral sandbox and ADE-style experiments"
+    }
+  ],
+  "humanAccessGroups": [
+    {
+      "name": "entra-acme-platform-admins",
+      "persona": "platform-admin",
+      "recommendedRoles": ["Contributor", "User Access Administrator"],
+      "recommendedScope": "sub-acme-platform"
+    },
+    {
+      "name": "entra-acme-platform-readers",
+      "persona": "platform-reader",
+      "recommendedRoles": ["Reader"],
+      "recommendedScope": "sub-acme-platform"
+    },
+    {
+      "name": "entra-acme-network-admins",
+      "persona": "network-admin",
+      "recommendedRoles": ["Network Contributor"],
+      "recommendedScope": "rg-acme-hub-network-cus-01"
+    },
+    {
+      "name": "entra-acme-security-admins",
+      "persona": "security-admin",
+      "recommendedRoles": ["Key Vault Administrator", "Monitoring Contributor"],
+      "recommendedScope": "platform security and monitoring resources"
+    },
+    {
+      "name": "entra-acme-los-nonprod-readers",
+      "persona": "workload-reader",
+      "recommendedRoles": ["Reader"],
+      "recommendedScope": "sub-acme-nonprod-online"
+    },
+    {
+      "name": "entra-acme-los-prod-readers",
+      "persona": "workload-reader",
+      "recommendedRoles": ["Reader"],
+      "recommendedScope": "sub-acme-prod-online"
+    },
+    {
+      "name": "entra-acme-los-support-readers",
+      "persona": "support",
+      "recommendedRoles": ["Reader", "Monitoring Reader"],
+      "recommendedScope": "workload resource groups only"
+    }
+  ],
+  "deploymentIdentities": [
+    {
+      "name": "gha-acme-los-dev",
+      "environment": "dev",
+      "recommendedRoles": ["Contributor", "User Access Administrator"],
+      "recommendedScope": "sub-acme-nonprod-online",
+      "targetScope": "rg-acme-los-web-dev-cus-01"
+    },
+    {
+      "name": "gha-acme-los-qa",
+      "environment": "qa",
+      "recommendedRoles": ["Contributor", "User Access Administrator"],
+      "recommendedScope": "sub-acme-nonprod-online",
+      "targetScope": "rg-acme-los-web-qa-cus-01"
+    },
+    {
+      "name": "gha-acme-los-stg",
+      "environment": "stg",
+      "recommendedRoles": ["Contributor", "User Access Administrator"],
+      "recommendedScope": "sub-acme-nonprod-online",
+      "targetScope": "rg-acme-los-web-stg-cus-01"
+    },
+    {
+      "name": "gha-acme-los-prod",
+      "environment": "prod",
+      "recommendedRoles": ["Contributor", "User Access Administrator"],
+      "recommendedScope": "sub-acme-prod-online",
+      "targetScope": "rg-acme-los-web-prod-cus-01"
+    }
+  ],
+  "costGuardrails": {
+    "defaultSubscriptionBudget": {
+      "currency": "USD",
+      "timeGrain": "Monthly",
+      "actualThresholds": [50, 80, 100],
+      "forecastThresholds": [100]
+    },
+    "subscriptionBudgets": [
+      {
+        "name": "bdg-acme-platform-monthly-01",
+        "subscriptionDisplayName": "sub-acme-platform",
+        "amount": 10
+      },
+      {
+        "name": "bdg-acme-nonprod-online-monthly-01",
+        "subscriptionDisplayName": "sub-acme-nonprod-online",
+        "amount": 20
+      },
+      {
+        "name": "bdg-acme-prod-online-monthly-01",
+        "subscriptionDisplayName": "sub-acme-prod-online",
+        "amount": 15
+      },
+      {
+        "name": "bdg-acme-sandbox-monthly-01",
+        "subscriptionDisplayName": "sub-acme-sandbox",
+        "amount": 5
+      }
+    ]
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "organizationName": "ACME",
+  "organizationShortName": "acme",
+  "workloadName": "ACME LOS",
+  "workloadShortName": "los",
+  "projectName": "acme-los",
+  "primaryLocation": "centralus",
+  "primaryRegionShortName": "cus",
+  "resourceNameSuffix": "v42c",
+  "platformResources": {
+    "networkResourceGroupName": "rg-acme-hub-network-cus-01",
+    "privateDnsZones": {
+      "keyVault": "privatelink.vaultcore.azure.net",
+      "managedRedis": "privatelink.redis.azure.net"
+    }
+  },
+  "managementGroups": {
+    "root": "mg-acme",
+    "platform": "mg-acme-platform",
+    "landingZones": "mg-acme-landingzones",
+    "online": "mg-acme-online",
+    "sandbox": "mg-acme-sandbox"
+  },
+  "subscriptions": {
+    "platform": "sub-acme-platform",
+    "nonprodOnline": "sub-acme-nonprod-online",
+    "prodOnline": "sub-acme-prod-online",
+    "sandbox": "sub-acme-sandbox"
+  },
+  "environments": {
+    "dev": {
+      "subscriptionRole": "nonprod",
+      "appEnvironmentName": "dev",
+      "oktaEnvironmentName": "dev",
+      "network": {
+        "workloadVnetAddressSpace": "10.20.0.0/24",
+        "acaInfrastructureSubnetAddressPrefix": "10.20.0.0/27",
+        "privateEndpointSubnetAddressPrefix": "10.20.0.32/27"
+      }
+    },
+    "qa": {
+      "subscriptionRole": "nonprod",
+      "appEnvironmentName": "qa",
+      "oktaEnvironmentName": "qa",
+      "network": {
+        "workloadVnetAddressSpace": "10.21.0.0/24",
+        "acaInfrastructureSubnetAddressPrefix": "10.21.0.0/27",
+        "privateEndpointSubnetAddressPrefix": "10.21.0.32/27"
+      }
+    },
+    "stg": {
+      "subscriptionRole": "nonprod",
+      "appEnvironmentName": "stg",
+      "oktaEnvironmentName": "qa",
+      "network": {
+        "workloadVnetAddressSpace": "10.22.0.0/24",
+        "acaInfrastructureSubnetAddressPrefix": "10.22.0.0/27",
+        "privateEndpointSubnetAddressPrefix": "10.22.0.32/27"
+      }
+    },
+    "prod": {
+      "subscriptionRole": "prod",
+      "appEnvironmentName": "prod",
+      "oktaEnvironmentName": "prod",
+      "network": {
+        "workloadVnetAddressSpace": "10.30.0.0/24",
+        "acaInfrastructureSubnetAddressPrefix": "10.30.0.0/27",
+        "privateEndpointSubnetAddressPrefix": "10.30.0.32/27"
+      }
+    }
+  }
+}

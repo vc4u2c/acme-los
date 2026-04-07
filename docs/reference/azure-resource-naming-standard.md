@@ -107,6 +107,7 @@ Use these prefixes unless a service forces a different name format.
 - virtual network: `vnet`
 - subnet: `snet`
 - private endpoint: `pep`
+- private DNS virtual network link: `pdzlnk`
 - network security group: `nsg`
 - route table: `rt`
 - public IP: `pip`
@@ -116,10 +117,9 @@ Use these prefixes unless a service forces a different name format.
 
 ### Compute And App Hosting
 
-- App Service plan: `asp`
-- web app: `app`
-- deployment slot: `slot`
-- user-assigned managed identity: `uami`
+- container apps environment: `cae`
+- container app: `ca`
+- user-assigned managed identity: `id`
 
 ### Data And State
 
@@ -174,7 +174,7 @@ Examples:
 - storage account:
   - `stacmeloswebdevcus01`
 - container registry:
-  - `acracmelossharedcus01`
+  - `acracmelosnonprodcus01v42c`
 
 ## Recommended Resource Names
 
@@ -184,17 +184,16 @@ Examples:
   - `rg-acme-hub-edge-cus-01`
   - `rg-acme-hub-monitor-cus-01`
   - `rg-acme-hub-network-cus-01`
-  - `rg-acme-hub-images-cus-01`
 - management group:
   - `mg-acme`
   - `mg-acme-platform`
   - `mg-acme-landingzones`
-  - `mg-acme-nonprod`
-  - `mg-acme-prod`
+  - `mg-acme-online`
+  - `mg-acme-sandbox`
 - subscription display name:
   - `sub-acme-platform`
-  - `sub-acme-nonprod`
-  - `sub-acme-prod`
+  - `sub-acme-nonprod-online`
+  - `sub-acme-prod-online`
 - Front Door profile:
   - `afd-acme-hub-nonprod-global-01`
   - `afd-acme-hub-prod-global-01`
@@ -209,18 +208,39 @@ Examples:
   - `rg-acme-los-web-qa-cus-01`
   - `rg-acme-los-web-stg-cus-01`
   - `rg-acme-los-web-prod-cus-01`
-- App Service plan:
-  - `asp-acme-los-web-dev-cus-01`
-- web app:
-  - `app-acme-los-web-dev-cus-01`
+- workload spoke virtual network:
+  - `vnet-acme-los-web-dev-cus-01`
+- ACA infrastructure subnet:
+  - `snet-acme-los-aca-infra-dev-cus-01`
+- private endpoint subnet:
+  - `snet-acme-los-pe-dev-cus-01`
+- shared images resource group:
+  - `rg-acme-los-images-nonprod-cus-01`
+  - `rg-acme-los-images-prod-cus-01`
+- Azure Container Registry:
+  - `acracmelosnonprodcus01v42c`
+  - `acracmelosprodcus01v42c`
+- Container Apps environment:
+  - `cae-acme-los-dev-cus-01`
+- container app:
+  - `ca-acme-los-web-dev-cus-01`
+- user-assigned managed identity:
+  - `id-acme-los-web-dev-cus-01`
 - Key Vault:
-  - `kv-acme-los-web-dev-cus-01`
+  - `kvacmelosdevcus01v42c`
 - Redis:
-  - `redis-acme-hub-nonprod-cus-01`
-  - `redis-acme-hub-prod-cus-01`
+  - `redis-acme-los-dev-cus-01`
+  - `redis-acme-los-prod-cus-01`
+- Key Vault private endpoint:
+  - `pep-acme-los-kv-dev-cus-01`
+- Redis private endpoint:
+  - `pep-acme-los-redis-dev-cus-01`
+- private DNS virtual network links:
+  - `pdzlnk-acme-los-kv-dev-cus-01`
+  - `pdzlnk-acme-los-redis-dev-cus-01`
 - Log Analytics:
-  - `log-acme-hub-nonprod-cus-01`
-  - `log-acme-hub-prod-cus-01`
+  - `log-acme-los-dev-cus-01`
+  - `log-acme-los-prod-cus-01`
 
 ### Blob Containers
 

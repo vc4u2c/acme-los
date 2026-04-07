@@ -11,51 +11,20 @@ on:
         description: Workflow run ID that produced the artifact
         required: true
         type: string
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
-
-permissions:
-  actions: read
-  contents: read
-
-concurrency:
-  group: deploy-qa
-  cancel-in-progress: false
+      source_ref:
+        description: Source ref recorded for the artifact
+        required: false
+        default: ''
+        type: string
 
 jobs:
   deploy_qa:
     name: Deploy To QA
-    runs-on: ubuntu-latest
-    environment:
-      name: qa
-
-    steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v5
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ inputs.artifact_run_id }}
-          name: ${{ inputs.artifact_name }}
-          path: dist/deployable
-
-      - name: Inspect deploy artifact
-        shell: bash
-        run: |
-          mkdir -p dist/deployable/extracted
-          tar -xzf dist/deployable/${{ inputs.artifact_name }}.tgz -C dist/deployable/extracted
-          commit_sha="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').commitSha")"
-          web_version="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').webVersion")"
-          mobile_version="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').mobileVersion")"
-          echo "Deploy artifact bundle: ${{ inputs.artifact_name }}.tgz"
-          echo "Artifact commit SHA: ${commit_sha}"
-          echo "Deploy artifact web package version: ${web_version}"
-          echo "Deploy artifact mobile package version: ${mobile_version}"
-          echo "Friendly deploy artifact label: acme-los-deployable-web-${web_version}-mobile-${mobile_version}-${commit_sha}.tgz"
-
-      - name: Placeholder deploy
-        run: |
-          echo "Deploying selected artifact to qa environment"
-          echo "Artifact name: ${{ inputs.artifact_name }}"
-          echo "Artifact run ID: ${{ inputs.artifact_run_id }}"
-          echo "Replace this step with the real QA deployment command"
+    uses: ./.github/workflows/deploy-web-environment.yml
+    secrets: inherit
+    with:
+      environment_name: qa
+      artifact_name: ${{ inputs.artifact_name }}
+      artifact_run_id: ${{ inputs.artifact_run_id }}
+      source_ref: ${{ inputs.source_ref }}
+      bicep_parameter_file: infra/azure/bicep/qa.bicepparam

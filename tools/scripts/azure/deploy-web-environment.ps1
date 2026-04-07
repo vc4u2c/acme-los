@@ -1,0 +1,861 @@
+[CmdletBinding()]
+param(
+  [ValidateSet('dev', 'qa', 'stg', 'prod')]
+  [Parameter(Mandatory = $true)]
+  [string]$EnvironmentName,
+
+  [string]$SubscriptionId,
+  [string]$PlatformSubscriptionId,
+  [string]$TenantId,
+  [string]$Location = 'centralus',
+  [ValidateSet('file', 'redis')]
+  [string]$StateStoreMode,
+  [string]$ImageTag,
+  [string]$WebImageRepository = 'acme-los-web',
+  [string]$ConfigurationPath,
+  [string]$ParameterFile,
+  [string]$WorkloadTemplateFile,
+  [string]$WebTemplateFile,
+  [string]$WebRuntimeTemplateFile,
+  [string]$PlatformWorkloadLinksTemplateFile,
+  [string]$ImagesSubscriptionTemplateFile,
+  [string]$ImagesResourceTemplateFile
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+if (-not $ParameterFile) {
+  $ParameterFile = Join-Path $PSScriptRoot "..\..\..\infra\azure\bicep\$EnvironmentName.bicepparam"
+}
+
+if (-not $ConfigurationPath) {
+  $ConfigurationPath = Join-Path $PSScriptRoot '..\..\..\infra\azure\config\platform.json'
+}
+
+if (-not $WorkloadTemplateFile) {
+  $WorkloadTemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\main.workload.sub.bicep'
+}
+
+if (-not $WebTemplateFile) {
+  $WebTemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\main.web.rg.bicep'
+}
+
+if (-not $ImagesSubscriptionTemplateFile) {
+  $ImagesSubscriptionTemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\main.images.sub.bicep'
+}
+
+if (-not $ImagesResourceTemplateFile) {
+  $ImagesResourceTemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\main.images.rg.bicep'
+}
+
+if (-not $WebRuntimeTemplateFile) {
+  $WebRuntimeTemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\main.web.runtime.rg.bicep'
+}
+
+if (-not $PlatformWorkloadLinksTemplateFile) {
+  $PlatformWorkloadLinksTemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\main.platform.workload-links.rg.bicep'
+}
+
+function Test-RequiredCommand {
+  param([string]$Name)
+
+  if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+    throw "Required command '$Name' was not found on PATH."
+  }
+}
+
+function Get-JsonFile {
+  param([string]$Path)
+
+  return Get-Content -Raw -Path $Path | ConvertFrom-Json
+}
+
+function ConvertTo-ObjectArray {
+  param($InputObject)
+
+  if ($null -eq $InputObject) {
+    return [object[]]@()
+  }
+
+  $items = New-Object System.Collections.Generic.List[object]
+
+  foreach ($item in $InputObject) {
+    [void]$items.Add($item)
+  }
+
+  return [object[]]$items.ToArray()
+}
+
+function Get-EnvironmentConfiguration {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  $property = $Configuration.environments.PSObject.Properties[$EnvironmentName]
+
+  if (-not $property) {
+    throw "Unknown environment '$EnvironmentName'."
+  }
+
+  return $property.Value
+}
+
+function Resolve-SubscriptionIdFromConfiguration {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  $environmentConfiguration = Get-EnvironmentConfiguration -Configuration $Configuration -EnvironmentName $EnvironmentName
+  $targetDisplayName = if ($environmentConfiguration.subscriptionRole -eq 'prod') {
+    $Configuration.subscriptions.prodOnline
+  } else {
+    $Configuration.subscriptions.nonprodOnline
+  }
+
+  return Resolve-SubscriptionIdByDisplayName -DisplayName $targetDisplayName -FailureMessage "Unable to resolve the subscription '$targetDisplayName' for environment '$EnvironmentName'."
+}
+
+function Resolve-SubscriptionIdByDisplayName {
+  param(
+    [string]$DisplayName,
+    [string]$FailureMessage
+  )
+
+  $subscriptions = ConvertTo-ObjectArray (Invoke-AzJson -Arguments @('account', 'subscription', 'list'))
+  $subscription = @(
+    $subscriptions |
+      Where-Object { $_.displayName -eq $DisplayName } |
+      Select-Object -First 1
+  )
+
+  if ($subscription.Count -gt 0 -and $subscription[0]) {
+    return [string]$subscription[0].subscriptionId
+  }
+
+  $entities = ConvertTo-ObjectArray (Invoke-AzJson -Arguments @('account', 'management-group', 'entities', 'list'))
+  $entity = @(
+    $entities |
+      Where-Object {
+        $_.type -eq '/subscriptions' -and $_.displayName -eq $DisplayName
+      } |
+      Select-Object -First 1
+  )
+
+  if ($entity.Count -gt 0 -and $entity[0]) {
+    return [string]$entity[0].name
+  }
+
+  throw $FailureMessage
+}
+
+function Resolve-PlatformSubscriptionIdFromConfiguration {
+  param($Configuration)
+
+  return Resolve-SubscriptionIdByDisplayName -DisplayName $Configuration.subscriptions.platform -FailureMessage "Unable to resolve the platform subscription '$($Configuration.subscriptions.platform)'."
+}
+
+function Ensure-RegisteredResourceProviders {
+  param(
+    [string]$SubscriptionId,
+    [string[]]$Namespaces
+  )
+
+  foreach ($namespace in $Namespaces) {
+    $registrationState = az provider show --subscription $SubscriptionId --namespace $namespace --query registrationState --output tsv
+
+    if ($registrationState -eq 'Registered') {
+      continue
+    }
+
+    az provider register --subscription $SubscriptionId --namespace $namespace --wait --output none
+  }
+}
+
+function Invoke-AzJson {
+  param([string[]]$Arguments)
+
+  $resolvedArguments = New-Object System.Collections.Generic.List[string]
+
+  foreach ($argument in $Arguments) {
+    [void]$resolvedArguments.Add($argument)
+  }
+
+  if (-not ($resolvedArguments -contains '--output') -and -not ($resolvedArguments -contains '-o')) {
+    [void]$resolvedArguments.Add('--output')
+    [void]$resolvedArguments.Add('json')
+  }
+
+  if (-not ($resolvedArguments -contains '--only-show-errors')) {
+    [void]$resolvedArguments.Add('--only-show-errors')
+  }
+
+  $resolvedArgumentsArray = $resolvedArguments.ToArray()
+  $commandOutput = az @resolvedArgumentsArray 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $errorMessage = [string]::Join([Environment]::NewLine, $commandOutput)
+    throw "Azure CLI command failed: az $($Arguments -join ' ')`n$errorMessage"
+  }
+
+  if ($null -eq $commandOutput) {
+    return $null
+  }
+
+  $jsonPayload = [string]::Join([Environment]::NewLine, $commandOutput)
+  if ([string]::IsNullOrWhiteSpace($jsonPayload)) {
+    return $null
+  }
+
+  return $jsonPayload | ConvertFrom-Json
+}
+
+function Invoke-AzNoOutput {
+  param([string[]]$Arguments)
+
+  $resolvedArguments = New-Object System.Collections.Generic.List[string]
+
+  foreach ($argument in $Arguments) {
+    [void]$resolvedArguments.Add($argument)
+  }
+
+  if (-not ($resolvedArguments -contains '--only-show-errors')) {
+    [void]$resolvedArguments.Add('--only-show-errors')
+  }
+
+  $resolvedArgumentsArray = $resolvedArguments.ToArray()
+  $commandOutput = az @resolvedArgumentsArray 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $errorMessage = [string]::Join([Environment]::NewLine, $commandOutput)
+    throw "Azure CLI command failed: az $($Arguments -join ' ')`n$errorMessage"
+  }
+}
+
+function Test-ContainerRegistryTagExists {
+  param(
+    [string]$SubscriptionId,
+    [string]$RegistryName,
+    [string]$RepositoryName,
+    [string]$Tag
+  )
+
+  $query = "[?@=='$Tag'] | length(@)"
+  $tagCount = az acr repository show-tags `
+    --subscription $SubscriptionId `
+    --name $RegistryName `
+    --repository $RepositoryName `
+    --query $query `
+    --output tsv `
+    --only-show-errors 2>$null
+
+  if ($LASTEXITCODE -ne 0) {
+    return $false
+  }
+
+  return [int]$tagCount -gt 0
+}
+
+function Get-WorkloadResourceGroupName {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  return "rg-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
+function Get-SubscriptionStackName {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
+function Get-ResourceGroupStackName {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-app-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
+function Get-ImagesSubscriptionRole {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  $environmentConfiguration = Get-EnvironmentConfiguration -Configuration $Configuration -EnvironmentName $EnvironmentName
+
+  if ($environmentConfiguration.subscriptionRole -eq 'prod') {
+    return 'prod'
+  }
+
+  return 'nonprod'
+}
+
+function Get-EnvironmentNetworkConfiguration {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  $environmentConfiguration = Get-EnvironmentConfiguration -Configuration $Configuration -EnvironmentName $EnvironmentName
+
+  if (-not $environmentConfiguration.network) {
+    throw "Environment '$EnvironmentName' is missing network configuration in platform.json."
+  }
+
+  return $environmentConfiguration.network
+}
+
+function Get-ImagesResourceGroupName {
+  param(
+    $Configuration,
+    [string]$SubscriptionRole
+  )
+
+  return "rg-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-images-$SubscriptionRole-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
+function Get-ImagesSubscriptionStackName {
+  param(
+    $Configuration,
+    [string]$SubscriptionRole
+  )
+
+  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-images-$SubscriptionRole-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
+function Get-ImagesResourceGroupStackName {
+  param(
+    $Configuration,
+    [string]$SubscriptionRole
+  )
+
+  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-images-registry-$SubscriptionRole-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
+function Get-PlatformNetworkResourceGroupName {
+  param($Configuration)
+
+  return [string]$Configuration.platformResources.networkResourceGroupName
+}
+
+function Get-PlatformWorkloadLinksStackName {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-dns-links-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
+function Get-ContainerRegistryName {
+  param(
+    $Configuration,
+    [string]$SubscriptionRole
+  )
+
+  return "acr$($Configuration.organizationShortName)$($Configuration.workloadShortName)$SubscriptionRole$($Configuration.primaryRegionShortName)01$($Configuration.resourceNameSuffix)".ToLowerInvariant()
+}
+
+function Get-ResolvedImageTag {
+  param([string]$ExplicitTag)
+
+  if ($ExplicitTag) {
+    return $ExplicitTag
+  }
+
+  if ($env:GITHUB_SHA) {
+    return $env:GITHUB_SHA.ToLowerInvariant()
+  }
+
+  try {
+    $gitCommit = (git rev-parse HEAD 2>$null).Trim()
+    if ($gitCommit) {
+      return $gitCommit.ToLowerInvariant()
+    }
+  } catch {
+  }
+
+  throw 'Unable to resolve an image tag. Pass -ImageTag explicitly or run inside a git checkout.'
+}
+
+function Get-StringOutputValue {
+  param(
+    $Outputs,
+    [string]$Name
+  )
+
+  if ($null -eq $Outputs) {
+    return ''
+  }
+
+  $property = $Outputs.PSObject.Properties[$Name]
+  if (-not $property -or $null -eq $property.Value) {
+    return ''
+  }
+
+  return [string]$property.Value.value
+}
+
+function Get-IntegerOutputValue {
+  param(
+    $Outputs,
+    [string]$Name
+  )
+
+  if ($null -eq $Outputs) {
+    return 0
+  }
+
+  $property = $Outputs.PSObject.Properties[$Name]
+  if (-not $property -or $null -eq $property.Value) {
+    return 0
+  }
+
+  return [int]$property.Value.value
+}
+
+function Get-DeploymentOutputs {
+  param($DeploymentResult)
+
+  if ($null -eq $DeploymentResult) {
+    return $null
+  }
+
+  if ($DeploymentResult.PSObject.Properties.Name -contains 'outputs') {
+    return $DeploymentResult.outputs
+  }
+
+  if (
+    ($DeploymentResult.PSObject.Properties.Name -contains 'properties') -and
+    $DeploymentResult.properties -and
+    ($DeploymentResult.properties.PSObject.Properties.Name -contains 'outputs')
+  ) {
+    return $DeploymentResult.properties.outputs
+  }
+
+  return $null
+}
+
+function New-ContainerBuildContext {
+  param([string]$RepositoryRoot)
+
+  $buildContextPath = Join-Path ([System.IO.Path]::GetTempPath()) ("acme-los-acr-build-" + [guid]::NewGuid().ToString('N'))
+  New-Item -ItemType Directory -Path $buildContextPath -Force | Out-Null
+
+  $excludedDirectoryNames = @(
+    '.git',
+    '.github',
+    '.nx',
+    '.next',
+    '.expo',
+    'coverage',
+    'dist',
+    'node_modules',
+    'playwright-report',
+    'test-results',
+    'tmp'
+  )
+
+  $excludedFileNames = @('.env.local')
+
+  function Copy-FilteredDirectory {
+    param(
+      [string]$SourcePath,
+      [string]$DestinationPath
+    )
+
+    New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null
+
+    foreach ($child in Get-ChildItem -LiteralPath $SourcePath -Force) {
+      if ($child.PSIsContainer) {
+        if ($excludedDirectoryNames -contains $child.Name) {
+          continue
+        }
+
+        Copy-FilteredDirectory -SourcePath $child.FullName -DestinationPath (Join-Path $DestinationPath $child.Name)
+        continue
+      }
+
+      if ($excludedFileNames -contains $child.Name) {
+        continue
+      }
+
+      Copy-Item -LiteralPath $child.FullName -Destination (Join-Path $DestinationPath $child.Name) -Force
+    }
+  }
+
+  Copy-FilteredDirectory -SourcePath $RepositoryRoot -DestinationPath $buildContextPath
+
+  return $buildContextPath
+}
+
+function New-CompiledParameterFile {
+  param([string]$SourceParameterFile)
+
+  $compiledParameterFile = Join-Path ([System.IO.Path]::GetTempPath()) ("acme-los-bicep-params-" + [guid]::NewGuid().ToString('N') + '.json')
+  az bicep build-params --file $SourceParameterFile --outfile $compiledParameterFile --output none
+  return $compiledParameterFile
+}
+
+function Get-UriEncodedString {
+  param([string]$Value)
+
+  return [System.Uri]::EscapeDataString($Value)
+}
+
+Test-RequiredCommand -Name 'az'
+
+if (-not (Test-Path -LiteralPath $ConfigurationPath)) {
+  throw "Configuration file '$ConfigurationPath' was not found."
+}
+
+if (-not (Test-Path -LiteralPath $ParameterFile)) {
+  throw "Bicep parameter file '$ParameterFile' was not found."
+}
+
+if (-not (Test-Path -LiteralPath $WorkloadTemplateFile)) {
+  throw "Subscription-scope template '$WorkloadTemplateFile' was not found."
+}
+
+if (-not (Test-Path -LiteralPath $WebTemplateFile)) {
+  throw "Resource-group-scope template '$WebTemplateFile' was not found."
+}
+
+if (-not (Test-Path -LiteralPath $ImagesSubscriptionTemplateFile)) {
+  throw "Images subscription-scope template '$ImagesSubscriptionTemplateFile' was not found."
+}
+
+if (-not (Test-Path -LiteralPath $ImagesResourceTemplateFile)) {
+  throw "Images resource-group template '$ImagesResourceTemplateFile' was not found."
+}
+
+if (-not (Test-Path -LiteralPath $WebRuntimeTemplateFile)) {
+  throw "Runtime resource-group template '$WebRuntimeTemplateFile' was not found."
+}
+
+$platformConfigurationTemplateExists = Test-Path -LiteralPath $PlatformWorkloadLinksTemplateFile
+if (-not $platformConfigurationTemplateExists) {
+  throw "Platform workload-links template '$PlatformWorkloadLinksTemplateFile' was not found."
+}
+
+$configuration = Get-JsonFile -Path $ConfigurationPath
+$environmentConfiguration = Get-EnvironmentConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName
+$account = az account show --output json | ConvertFrom-Json
+$resolvedSubscriptionId = if ($SubscriptionId) { $SubscriptionId } else { Resolve-SubscriptionIdFromConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName }
+$resolvedPlatformSubscriptionId = if ($PlatformSubscriptionId) { $PlatformSubscriptionId } else { Resolve-PlatformSubscriptionIdFromConfiguration -Configuration $configuration }
+$resolvedTenantId = if ($TenantId) { $TenantId } else { $account.tenantId }
+$resolvedImageTag = Get-ResolvedImageTag -ExplicitTag $ImageTag
+$resolvedStateStoreMode = if ($StateStoreMode) { $StateStoreMode } else { 'redis' }
+$imagesSubscriptionRole = Get-ImagesSubscriptionRole -Configuration $configuration -EnvironmentName $EnvironmentName
+$networkConfiguration = Get-EnvironmentNetworkConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName
+$repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
+$compiledParameterFile = New-CompiledParameterFile -SourceParameterFile $ParameterFile
+
+Ensure-RegisteredResourceProviders -SubscriptionId $resolvedSubscriptionId -Namespaces @(
+  'Microsoft.App',
+  'Microsoft.Cache',
+  'Microsoft.ContainerRegistry',
+  'Microsoft.Insights',
+  'Microsoft.KeyVault',
+  'Microsoft.Network',
+  'Microsoft.OperationalInsights'
+)
+
+$resourceGroupName = Get-WorkloadResourceGroupName -Configuration $configuration -EnvironmentName $EnvironmentName
+$subscriptionStackName = Get-SubscriptionStackName -Configuration $configuration -EnvironmentName $EnvironmentName
+$resourceGroupStackName = Get-ResourceGroupStackName -Configuration $configuration -EnvironmentName $EnvironmentName
+$imagesResourceGroupName = Get-ImagesResourceGroupName -Configuration $configuration -SubscriptionRole $imagesSubscriptionRole
+$imagesSubscriptionStackName = Get-ImagesSubscriptionStackName -Configuration $configuration -SubscriptionRole $imagesSubscriptionRole
+$imagesResourceGroupStackName = Get-ImagesResourceGroupStackName -Configuration $configuration -SubscriptionRole $imagesSubscriptionRole
+$containerRegistryName = Get-ContainerRegistryName -Configuration $configuration -SubscriptionRole $imagesSubscriptionRole
+$platformNetworkResourceGroupName = Get-PlatformNetworkResourceGroupName -Configuration $configuration
+$platformWorkloadLinksStackName = Get-PlatformWorkloadLinksStackName -Configuration $configuration -EnvironmentName $EnvironmentName
+
+if ($EnvironmentName -eq 'prod') {
+  Write-Warning 'Production uses the same ACA deployment pattern, but teardown remains explicitly guarded and image promotions should be reviewed carefully.'
+}
+
+$subscriptionDeploymentArguments = @(
+  'stack', 'sub', 'create',
+  '--subscription', $resolvedSubscriptionId,
+  '--name', $subscriptionStackName,
+  '--location', $Location,
+  '--template-file', $WorkloadTemplateFile,
+  '--parameters', "environmentName=$EnvironmentName", "location=$Location",
+  '--action-on-unmanage', 'deleteResources',
+  '--deny-settings-mode', 'none',
+  '--description', "ACME LOS subscription-scope stack for $EnvironmentName web infrastructure",
+  '--yes'
+)
+
+$imagesSubscriptionDeploymentArguments = @(
+  'stack', 'sub', 'create',
+  '--subscription', $resolvedSubscriptionId,
+  '--name', $imagesSubscriptionStackName,
+  '--location', $Location,
+  '--template-file', $ImagesSubscriptionTemplateFile,
+  '--parameters', "subscriptionRole=$imagesSubscriptionRole", "location=$Location",
+  '--action-on-unmanage', 'detachAll',
+  '--deny-settings-mode', 'none',
+  '--description', "ACME LOS subscription-scope stack for $imagesSubscriptionRole shared images infrastructure",
+  '--yes'
+)
+
+$imagesResourceGroupDeploymentArguments = @(
+  'stack', 'group', 'create',
+  '--subscription', $resolvedSubscriptionId,
+  '--name', $imagesResourceGroupStackName,
+  '--resource-group', $imagesResourceGroupName,
+  '--template-file', $ImagesResourceTemplateFile,
+  '--parameters', "subscriptionRole=$imagesSubscriptionRole", "location=$Location",
+  '--action-on-unmanage', 'detachAll',
+  '--deny-settings-mode', 'none',
+  '--description', "ACME LOS shared $imagesSubscriptionRole ACR stack",
+  '--yes'
+)
+
+$webDeploymentArguments = @(
+  'stack', 'group', 'create',
+  '--subscription', $resolvedSubscriptionId,
+  '--name', $resourceGroupStackName,
+  '--resource-group', $resourceGroupName,
+  '--template-file', $WebTemplateFile,
+  '--parameters', "@$compiledParameterFile", "tenantId=$resolvedTenantId",
+  '--parameters', "platformSubscriptionId=$resolvedPlatformSubscriptionId",
+  '--parameters', "platformNetworkResourceGroupName=$platformNetworkResourceGroupName",
+  '--parameters', "containerRegistryName=$containerRegistryName",
+  '--parameters', "containerRegistryResourceGroupName=$imagesResourceGroupName",
+  '--parameters', "workloadVnetAddressSpace=$($networkConfiguration.workloadVnetAddressSpace)",
+  '--parameters', "acaInfrastructureSubnetAddressPrefix=$($networkConfiguration.acaInfrastructureSubnetAddressPrefix)",
+  '--parameters', "privateEndpointSubnetAddressPrefix=$($networkConfiguration.privateEndpointSubnetAddressPrefix)",
+  '--parameters', "containerImage=",
+  '--parameters', "containerRegistryLoginServer=",
+  '--action-on-unmanage', 'deleteResources',
+  '--deny-settings-mode', 'none',
+  '--description', "ACME LOS resource-group ACA stack for $EnvironmentName",
+  '--yes'
+)
+
+$runtimeDeploymentArguments = @()
+
+$webDeploymentArguments += @('--parameters', "stateStoreMode=$resolvedStateStoreMode")
+
+Invoke-AzNoOutput -Arguments $subscriptionDeploymentArguments
+Invoke-AzNoOutput -Arguments $imagesSubscriptionDeploymentArguments
+Invoke-AzNoOutput -Arguments $imagesResourceGroupDeploymentArguments
+$imagesDeployment = Invoke-AzJson -Arguments @(
+  'stack', 'group', 'show',
+  '--subscription', $resolvedSubscriptionId,
+  '--resource-group', $imagesResourceGroupName,
+  '--name', $imagesResourceGroupStackName
+)
+
+$imagesOutputs = Get-DeploymentOutputs -DeploymentResult $imagesDeployment
+$resolvedContainerRegistryName = Get-StringOutputValue -Outputs $imagesOutputs -Name 'containerRegistryName'
+$resolvedContainerRegistryLoginServer = Get-StringOutputValue -Outputs $imagesOutputs -Name 'containerRegistryLoginServer'
+
+if (-not $resolvedContainerRegistryName) {
+  $resolvedContainerRegistryName = $containerRegistryName
+}
+
+if (-not $resolvedContainerRegistryLoginServer) {
+  throw 'Container registry login server was not returned from the shared images deployment.'
+}
+
+$imageReference = "$resolvedContainerRegistryLoginServer/${WebImageRepository}:$resolvedImageTag"
+
+if (-not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionId -RegistryName $resolvedContainerRegistryName -RepositoryName $WebImageRepository -Tag $resolvedImageTag)) {
+  $containerBuildContextPath = New-ContainerBuildContext -RepositoryRoot $repositoryRoot
+
+  try {
+    az acr build `
+      --subscription $resolvedSubscriptionId `
+      --registry $resolvedContainerRegistryName `
+      --image "${WebImageRepository}:$resolvedImageTag" `
+      --file apps/web-app/Dockerfile `
+      --no-logs `
+      --only-show-errors `
+      $containerBuildContextPath `
+      --output none
+
+    if ($LASTEXITCODE -ne 0) {
+      throw "ACR build failed for image '${WebImageRepository}:$resolvedImageTag'."
+    }
+  } finally {
+    Remove-Item -LiteralPath $containerBuildContextPath -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+
+for ($index = 0; $index -lt $webDeploymentArguments.Count; $index++) {
+  if ($webDeploymentArguments[$index] -eq 'containerImage=') {
+    $webDeploymentArguments[$index] = "containerImage=$imageReference"
+  }
+
+  if ($webDeploymentArguments[$index] -eq 'containerRegistryLoginServer=') {
+    $webDeploymentArguments[$index] = "containerRegistryLoginServer=$resolvedContainerRegistryLoginServer"
+  }
+}
+
+Invoke-AzNoOutput -Arguments $webDeploymentArguments
+$webDeployment = Invoke-AzJson -Arguments @(
+  'stack', 'group', 'show',
+  '--subscription', $resolvedSubscriptionId,
+  '--resource-group', $resourceGroupName,
+  '--name', $resourceGroupStackName
+)
+$outputs = Get-DeploymentOutputs -DeploymentResult $webDeployment
+$workloadVirtualNetworkId = Get-StringOutputValue -Outputs $outputs -Name 'workloadVirtualNetworkId'
+
+if (-not $workloadVirtualNetworkId) {
+  throw 'Workload virtual network id was not returned from the workload deployment.'
+}
+
+$managedEnvironmentId = Get-StringOutputValue -Outputs $outputs -Name 'containerAppEnvironmentId'
+$userAssignedIdentityResourceId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityResourceId'
+$applicationInsightsConnectionString = Get-StringOutputValue -Outputs $outputs -Name 'applicationInsightsConnectionString'
+$keyVaultName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultName'
+$keyVaultUri = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultUri'
+$redisDatabaseId = Get-StringOutputValue -Outputs $outputs -Name 'redisDatabaseId'
+$redisHostName = Get-StringOutputValue -Outputs $outputs -Name 'redisHostName'
+$redisPort = Get-IntegerOutputValue -Outputs $outputs -Name 'redisPort'
+$redisConnectionSecretName = Get-StringOutputValue -Outputs $outputs -Name 'redisConnectionSecretName'
+
+$platformWorkloadLinksDeploymentArguments = @(
+  'stack', 'group', 'create',
+  '--subscription', $resolvedPlatformSubscriptionId,
+  '--name', $platformWorkloadLinksStackName,
+  '--resource-group', $platformNetworkResourceGroupName,
+  '--template-file', $PlatformWorkloadLinksTemplateFile,
+  '--parameters', "environmentName=$EnvironmentName", "workloadVirtualNetworkId=$workloadVirtualNetworkId",
+  '--action-on-unmanage', 'deleteResources',
+  '--deny-settings-mode', 'none',
+  '--description', "ACME LOS platform DNS link stack for $EnvironmentName workload networking",
+  '--yes'
+)
+
+Invoke-AzNoOutput -Arguments $platformWorkloadLinksDeploymentArguments
+$platformWorkloadLinksDeployment = Invoke-AzJson -Arguments @(
+  'stack', 'group', 'show',
+  '--subscription', $resolvedPlatformSubscriptionId,
+  '--resource-group', $platformNetworkResourceGroupName,
+  '--name', $platformWorkloadLinksStackName
+)
+$platformOutputs = Get-DeploymentOutputs -DeploymentResult $platformWorkloadLinksDeployment
+
+$runtimeDeploymentArguments = @(
+  'deployment', 'group', 'create',
+  '--subscription', $resolvedSubscriptionId,
+  '--resource-group', $resourceGroupName,
+  '--name', "runtime-$EnvironmentName",
+  '--template-file', $WebRuntimeTemplateFile,
+  '--parameters', "environmentName=$EnvironmentName",
+  '--parameters', "organizationShortName=$($configuration.organizationShortName)",
+  '--parameters', "workloadShortName=$($configuration.workloadShortName)",
+  '--parameters', "regionShortName=$($configuration.primaryRegionShortName)",
+  '--parameters', "ownerTag=vc4u2c",
+  '--parameters', "costCenterTag=playg",
+  '--parameters', "containerRegistryLoginServer=$resolvedContainerRegistryLoginServer",
+  '--parameters', "containerImage=$imageReference",
+  '--parameters', "managedEnvironmentId=$managedEnvironmentId",
+  '--parameters', "userAssignedIdentityResourceId=$userAssignedIdentityResourceId",
+  '--parameters', "applicationInsightsConnectionString=$applicationInsightsConnectionString",
+  '--parameters', "keyVaultName=$keyVaultName",
+  '--parameters', "keyVaultUri=$keyVaultUri",
+  '--output', 'json'
+)
+
+$runtimeDeploymentArguments += @('--parameters', "stateStoreMode=$resolvedStateStoreMode")
+
+if ($resolvedStateStoreMode -eq 'redis') {
+  if (-not $redisDatabaseId) {
+    throw 'Redis database id was not returned from the workload deployment.'
+  }
+
+  if (-not $keyVaultName) {
+    throw 'Key Vault name was not returned from the workload deployment.'
+  }
+
+  $redisClusterName = Get-StringOutputValue -Outputs $outputs -Name 'redisClusterName'
+  $redisDatabaseName = Get-StringOutputValue -Outputs $outputs -Name 'redisDatabaseName'
+
+  if (-not $redisClusterName) {
+    throw 'Redis cluster name was not returned from the workload deployment.'
+  }
+
+  if (-not $redisDatabaseName) {
+    throw 'Redis database name was not returned from the workload deployment.'
+  }
+
+  if (-not $redisHostName) {
+    throw 'Redis host name was not returned from the workload deployment.'
+  }
+
+  if ($redisPort -le 0) {
+    throw 'Redis port was not returned from the workload deployment.'
+  }
+
+  $runtimeDeploymentArguments += @(
+    '--parameters', "redisClusterName=$redisClusterName",
+    '--parameters', "redisDatabaseName=$redisDatabaseName",
+    '--parameters', "redisHostName=$redisHostName",
+    '--parameters', "redisPort=$redisPort",
+    '--parameters', "redisSecretName=$redisConnectionSecretName",
+    '--parameters', "redisSecretKeyVaultUrl=${keyVaultUri}secrets/${redisConnectionSecretName}"
+  )
+}
+
+$runtimeDeployment = Invoke-AzJson -Arguments $runtimeDeploymentArguments
+$runtimeOutputs = Get-DeploymentOutputs -DeploymentResult $runtimeDeployment
+
+Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyContinue
+
+[ordered]@{
+  environmentName = $EnvironmentName
+  stateStoreMode = $resolvedStateStoreMode
+  subscriptionId = $resolvedSubscriptionId
+  platformSubscriptionId = $resolvedPlatformSubscriptionId
+  tenantId = $resolvedTenantId
+  resourceGroupName = $resourceGroupName
+  subscriptionStackName = $subscriptionStackName
+  resourceGroupStackName = $resourceGroupStackName
+  platformNetworkResourceGroupName = $platformNetworkResourceGroupName
+  platformWorkloadLinksStackName = $platformWorkloadLinksStackName
+  imagesSubscriptionRole = $imagesSubscriptionRole
+  imagesResourceGroupName = $imagesResourceGroupName
+  imagesSubscriptionStackName = $imagesSubscriptionStackName
+  imagesResourceGroupStackName = $imagesResourceGroupStackName
+  containerRegistryName = $resolvedContainerRegistryName
+  containerRegistryLoginServer = $resolvedContainerRegistryLoginServer
+  webImageRepository = $WebImageRepository
+  imageTag = $resolvedImageTag
+  imageReference = $imageReference
+  containerAppEnvironmentName = Get-StringOutputValue -Outputs $outputs -Name 'containerAppEnvironmentName'
+  containerAppName = Get-StringOutputValue -Outputs $runtimeOutputs -Name 'containerAppName'
+  containerAppLatestRevisionFqdn = Get-StringOutputValue -Outputs $runtimeOutputs -Name 'containerAppLatestRevisionFqdn'
+  userAssignedIdentityName = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityName'
+  userAssignedIdentityClientId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityClientId'
+  workloadVirtualNetworkName = Get-StringOutputValue -Outputs $outputs -Name 'workloadVirtualNetworkName'
+  workloadVirtualNetworkId = $workloadVirtualNetworkId
+  acaInfrastructureSubnetName = Get-StringOutputValue -Outputs $outputs -Name 'acaInfrastructureSubnetName'
+  privateEndpointSubnetName = Get-StringOutputValue -Outputs $outputs -Name 'privateEndpointSubnetName'
+  keyVaultName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultName'
+  keyVaultPrivateEndpointName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultPrivateEndpointName'
+  applicationInsightsName = Get-StringOutputValue -Outputs $outputs -Name 'appInsightsName'
+  logAnalyticsWorkspaceName = Get-StringOutputValue -Outputs $outputs -Name 'logAnalyticsWorkspaceName'
+  redisClusterName = Get-StringOutputValue -Outputs $outputs -Name 'redisClusterName'
+  managedRedisPrivateEndpointName = Get-StringOutputValue -Outputs $outputs -Name 'managedRedisPrivateEndpointName'
+  redisDatabaseName = Get-StringOutputValue -Outputs $outputs -Name 'redisDatabaseName'
+  redisHostName = Get-StringOutputValue -Outputs $outputs -Name 'redisHostName'
+  redisPort = Get-IntegerOutputValue -Outputs $outputs -Name 'redisPort'
+  redisConnectionSecretName = Get-StringOutputValue -Outputs $outputs -Name 'redisConnectionSecretName'
+  keyVaultDnsLinkName = Get-StringOutputValue -Outputs $platformOutputs -Name 'keyVaultVirtualNetworkLinkName'
+  managedRedisDnsLinkName = Get-StringOutputValue -Outputs $platformOutputs -Name 'managedRedisVirtualNetworkLinkName'
+} | ConvertTo-Json -Depth 5

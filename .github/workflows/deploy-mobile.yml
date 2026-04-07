@@ -1,0 +1,71 @@
+name: Deploy Mobile
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment_name:
+        description: Target environment for the mobile release
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - stg
+          - prod
+      source_ref:
+        description: Branch, tag, or commit to release from
+        required: true
+        default: main
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-mobile-${{ inputs.environment_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy_mobile:
+    name: Deploy Mobile To ${{ inputs.environment_name }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Summarize target mobile deployment
+        shell: bash
+        run: |
+          {
+            echo "## Mobile Deployment Plan"
+            echo ""
+            echo "- Environment: \`${{ inputs.environment_name }}\`"
+            echo "- Source ref: \`${{ inputs.source_ref }}\`"
+            echo "- Expo channel: \`${{ vars.EXPO_CHANNEL }}\`"
+            echo "- App environment label: \`${{ vars.APP_ENVIRONMENT_NAME }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Placeholder mobile deployment
+        shell: bash
+        run: |
+          echo "Deploying mobile app to ${{ inputs.environment_name }}"
+          echo "Source ref: ${{ inputs.source_ref }}"
+          echo "Expo channel: ${{ vars.EXPO_CHANNEL }}"
+          echo "Replace this step with the real EAS / store release command sequence"

@@ -39,6 +39,7 @@ jobs:
     with:
       artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
       artifact_run_id: ${{ github.event.workflow_run.id }}
+      source_ref: ${{ github.event.workflow_run.head_sha }}
 
   deploy_stg:
     name: Deploy To Staging
@@ -49,6 +50,7 @@ jobs:
     with:
       artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
       artifact_run_id: ${{ github.event.workflow_run.id }}
+      source_ref: ${{ github.event.workflow_run.head_sha }}
 
   deploy_prod:
     name: Deploy To Production
@@ -59,3 +61,4 @@ jobs:
     with:
       artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
       artifact_run_id: ${{ github.event.workflow_run.id }}
+      source_ref: ${{ github.event.workflow_run.head_sha }}

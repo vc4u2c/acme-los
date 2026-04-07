@@ -1,0 +1,271 @@
+# Azure Bootstrap And Teardown
+
+This doc is the practical command path for the current Azure scaffold.
+
+Related docs:
+
+- [Azure platform plan](./azure-platform-plan.md)
+- [Azure governance and lifecycle](./azure-governance-and-lifecycle.md)
+- [GitHub and Azure environments](./github-azure-environments.md)
+- [Azure infrastructure scaffold](../../infra/azure/README.md)
+
+## Prerequisites
+
+- Azure CLI authenticated
+- GitHub CLI authenticated
+- repository checked out locally
+- PowerShell available
+
+Optional later:
+
+- additional subscriptions created and placed into the landing-zone hierarchy
+
+## Set The Cost Guardrail First
+
+Create or update the monthly subscription budget before you bootstrap anything
+else:
+
+```powershell
+npm run azure:budget
+```
+
+Current default behavior:
+
+- applies the configured monthly budgets across the target subscriptions
+- current split:
+  - `platform` `$10`
+  - `nonprod-online` `$20`
+  - `prod-online` `$15`
+  - `sandbox` `$5`
+- emails the signed-in user when possible
+- sends notifications at `50%`, `80%`, `100%`, and `100% forecast`
+
+Budget defaults live in:
+
+- [governance.json](../../infra/azure/config/governance.json)
+
+## Bootstrap Tenant Governance
+
+Show the tenant-governance plan first:
+
+```powershell
+npm run azure:show-governance
+```
+
+Apply the management-group hierarchy and move the current subscription into the
+target workload group:
+
+```powershell
+npm run azure:bootstrap:governance
+```
+
+Current governance bootstrap scope:
+
+- ensure the target management-group hierarchy exists
+- place subscriptions under the target management groups
+- keep the management-group hierarchy and subscription layout aligned to the
+  target landing-zone model
+
+## Deploy The Platform Network Foundation
+
+Deploy the persistent platform network layer before the first workload:
+
+```powershell
+npm run azure:deploy:platform-network
+```
+
+Current platform network scope:
+
+- `rg-acme-hub-network-cus-01`
+- shared private DNS zones for:
+  - `privatelink.vaultcore.azure.net`
+  - `privatelink.redis.azure.net`
+
+These are persistent platform resources. Workload environments should attach to
+them, not recreate them.
+
+## Bootstrap The GitHub And Azure Automation Contract
+
+Show the resolved plan first:
+
+```powershell
+npm run azure:show-plan
+```
+
+Bootstrap or refresh the GitHub environment contract:
+
+```powershell
+npm run azure:bootstrap
+```
+
+Refresh variables and environment metadata without recreating identities:
+
+```powershell
+npm run azure:sync-environments
+```
+
+Current bootstrap scope:
+
+- GitHub environments
+- repo variables
+- environment variables
+- Entra app registrations / service principals for deployment
+- GitHub OIDC federated credentials
+- scoped platform-network access for deployment identities so they can manage
+  environment-specific private DNS links
+
+Current bootstrap non-scope:
+
+- management groups
+- subscriptions
+- shared hub resources
+- application runtime secrets
+
+## Deploy The First Web Environment
+
+Deploy `dev`:
+
+```powershell
+npm run azure:deploy:platform-network
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev
+```
+
+Deploy `qa`:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName qa
+```
+
+The deploy script is idempotent:
+
+- it creates or updates a subscription-scope deployment stack for the workload resource group
+- then creates or updates a resource-group-scope deployment stack for the web infrastructure
+- then creates or updates the ACA runtime deployment for the container app revision
+- it skips the ACR rebuild if the requested image tag already exists
+
+If you need to force a new container image after runtime or Docker changes, pass
+an explicit tag:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -ImageTag aca-fix-20260407-telemetry
+```
+
+Optional state-store override:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -StateStoreMode redis
+```
+
+Current infrastructure scope:
+
+- platform DNS link stack in `rg-acme-hub-network-cus-01`
+- resource group
+- shared images resource group per subscription role
+- workload spoke VNet
+- ACA infrastructure subnet
+- private endpoint subnet
+- Azure Container Registry
+- Azure Container Apps environment
+- container app
+- user-assigned managed identity
+- Log Analytics
+- Application Insights
+- Key Vault
+- Azure Managed Redis
+- Key Vault private endpoint
+- Azure Managed Redis private endpoint
+
+Current runtime secret wiring:
+
+- the deploy template writes the final `rediss://` URL into the environment Key Vault
+- the container app reads that value through a Key Vault secret reference
+- the container app uses managed identity for both Key Vault access and ACR pulls
+- the container app stays public for now so the workload can be validated before
+  Front Door is introduced
+
+Current proven state:
+
+- the `dev` environment is deployed in `sub-acme-nonprod-online`
+- the web workload is running in `Azure Container Apps`
+- `Key Vault` and `Azure Managed Redis` are private-only
+- the ACA ingress is public for now
+- the current proven health endpoint is:
+  - `https://ca-acme-los-web-dev-cus-01.icyrock-b2ec4b26.centralus.azurecontainerapps.io/api/health`
+
+Practical smoke-check path after a deploy:
+
+```powershell
+az containerapp show `
+  --subscription 7df9ce70-48a3-4495-9361-4ca7b2637748 `
+  --resource-group rg-acme-los-web-dev-cus-01 `
+  --name ca-acme-los-web-dev-cus-01 `
+  --query "{runningStatus:properties.runningStatus,latestReadyRevisionName:properties.latestReadyRevisionName,ingressFqdn:properties.configuration.ingress.fqdn}" `
+  --output json
+
+(Invoke-WebRequest -UseBasicParsing -Uri 'https://ca-acme-los-web-dev-cus-01.icyrock-b2ec4b26.centralus.azurecontainerapps.io/api/health' -TimeoutSec 120).Content
+```
+
+Current observability wiring:
+
+- the container app receives an `APPLICATIONINSIGHTS_CONNECTION_STRING`
+- the Node runtime starts Azure Monitor OpenTelemetry before the standalone
+  Next server boots
+- `Application Insights` receives traces, exceptions, and metrics
+- `Log Analytics` receives container stdout/stderr and ACA platform logs
+- `/api/health` is filtered from App Insights so liveness/readiness probes do
+  not dominate telemetry volume
+- trace sampling is rate-limited by environment:
+  - `dev`, `qa`, `stg`: `2` traces per second
+  - `prod`: `5` traces per second
+
+## Tear Down A Non-Production Environment
+
+Teardown `dev` and wait for completion:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -WaitForDeletion
+```
+
+Teardown `qa`:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName qa -WaitForDeletion
+```
+
+Teardown behavior:
+
+- delete the platform DNS link stack for the environment
+- delete the resource-group-scope deployment stack
+- delete the subscription-scope deployment stack
+- wait for deletion when requested
+- purge the matching deleted Key Vault if Azure has soft-deleted it
+
+This keeps non-production cost under control while preserving the governance
+structure.
+
+Production teardown exists but is intentionally guarded:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName prod -WaitForDeletion -AllowProductionTeardown
+```
+
+That path should only be used deliberately and never as part of normal
+operations.
+
+## Cost Discipline
+
+For a pay-as-you-go subscription, the intended daily rhythm is:
+
+1. keep the subscription budget in place
+2. keep governance and identity structure persistent
+3. deploy workload resources only when needed
+4. validate the environment
+5. tear down non-production workloads quickly
+
+Do not tear down:
+
+- subscription budgets
+- management groups
+- subscriptions
+- GitHub environments
+- deployment identities
