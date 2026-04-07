@@ -10,6 +10,7 @@ on:
       - main
 
 permissions:
+  id-token: write
   actions: read
   contents: read
 
@@ -24,6 +25,10 @@ jobs:
       github.event_name == 'workflow_run' &&
       github.event.workflow_run.conclusion == 'success'
     uses: ./.github/workflows/deploy-dev.yml
+    permissions:
+      id-token: write
+      actions: read
+      contents: read
     secrets: inherit
     with:
       artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
@@ -35,6 +40,10 @@ jobs:
     needs:
       - deploy_dev
     uses: ./.github/workflows/deploy-qa.yml
+    permissions:
+      id-token: write
+      actions: read
+      contents: read
     secrets: inherit
     with:
       artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
@@ -46,6 +55,10 @@ jobs:
     needs:
       - deploy_qa
     uses: ./.github/workflows/deploy-stg.yml
+    permissions:
+      id-token: write
+      actions: read
+      contents: read
     secrets: inherit
     with:
       artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}
@@ -57,6 +70,10 @@ jobs:
     needs:
       - deploy_stg
     uses: ./.github/workflows/deploy-prod.yml
+    permissions:
+      id-token: write
+      actions: read
+      contents: read
     secrets: inherit
     with:
       artifact_name: acme-los-deployable-${{ github.event.workflow_run.head_sha }}

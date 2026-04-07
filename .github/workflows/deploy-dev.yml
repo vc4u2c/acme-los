@@ -20,6 +20,10 @@ jobs:
   deploy_dev:
     name: Deploy To Dev
     uses: ./.github/workflows/deploy-web-environment.yml
+    permissions:
+      id-token: write
+      actions: read
+      contents: read
     secrets: inherit
     with:
       environment_name: dev
