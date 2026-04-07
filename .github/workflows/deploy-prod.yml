@@ -21,6 +21,10 @@ jobs:
   deploy_prod:
     name: Deploy To Production
     uses: ./.github/workflows/deploy-web-environment.yml
+    permissions:
+      id-token: write
+      actions: read
+      contents: read
     secrets: inherit
     with:
       environment_name: prod
