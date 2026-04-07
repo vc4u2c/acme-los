@@ -68,6 +68,12 @@ test-results/
 apps/web-app/.env.local
 apps/mobile-app/.env.local
 tmp/okta/
+infra/azure/bicep/*.json
+infra/azure/bicep/modules/**/*.json
 
 # TypeScript incremental build output
 *.tsbuildinfo
+
+.nx/polygraph
+.claude/worktrees
+.claude/settings.local.json

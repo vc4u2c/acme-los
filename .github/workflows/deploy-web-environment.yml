@@ -1,0 +1,183 @@
+name: Deploy Web Environment
+
+on:
+  workflow_call:
+    inputs:
+      environment_name:
+        description: GitHub environment name to deploy
+        required: true
+        type: string
+      artifact_name:
+        description: Artifact name to deploy
+        required: true
+        type: string
+      artifact_run_id:
+        description: Workflow run ID that produced the artifact
+        required: true
+        type: string
+      source_ref:
+        description: Source ref recorded for the artifact
+        required: false
+        default: ''
+        type: string
+      bicep_parameter_file:
+        description: Bicep parameter file for the target environment
+        required: true
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+permissions:
+  id-token: write
+  actions: read
+  contents: read
+
+concurrency:
+  group: deploy-web-${{ inputs.environment_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy_web:
+    name: Deploy Web To ${{ inputs.environment_name }}
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment_name }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.source_ref != '' && inputs.source_ref || github.sha }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v5
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.artifact_run_id }}
+          name: ${{ inputs.artifact_name }}
+          path: dist/deployable
+
+      - name: Inspect deploy artifact
+        shell: bash
+        run: |
+          mkdir -p dist/deployable/extracted
+          tar -xzf dist/deployable/${{ inputs.artifact_name }}.tgz -C dist/deployable/extracted
+          commit_sha="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').commitSha")"
+          web_version="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').webVersion")"
+          mobile_version="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').mobileVersion")"
+          echo "Deploy artifact bundle: ${{ inputs.artifact_name }}.tgz"
+          echo "Artifact commit SHA: ${commit_sha}"
+          echo "Deploy artifact web package version: ${web_version}"
+          echo "Deploy artifact mobile package version: ${mobile_version}"
+          echo "Friendly deploy artifact label: acme-los-deployable-web-${web_version}-mobile-${mobile_version}-${commit_sha}.tgz"
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Validate Azure environment contract
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          AZURE_LOCATION_PRIMARY: ${{ vars.AZURE_LOCATION_PRIMARY }}
+          AZURE_RESOURCE_GROUP_NAME: ${{ vars.AZURE_RESOURCE_GROUP_NAME }}
+          AZURE_IMAGES_RESOURCE_GROUP_NAME: ${{ vars.AZURE_IMAGES_RESOURCE_GROUP_NAME }}
+          AZURE_CONTAINER_REGISTRY_NAME: ${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}
+          AZURE_CONTAINER_APPS_ENVIRONMENT_NAME: ${{ vars.AZURE_CONTAINER_APPS_ENVIRONMENT_NAME }}
+          AZURE_CONTAINER_APP_NAME: ${{ vars.AZURE_CONTAINER_APP_NAME }}
+        run: |
+          required_vars=(
+            AZURE_CLIENT_ID
+            AZURE_TENANT_ID
+            AZURE_SUBSCRIPTION_ID
+            AZURE_LOCATION_PRIMARY
+            AZURE_RESOURCE_GROUP_NAME
+            AZURE_IMAGES_RESOURCE_GROUP_NAME
+            AZURE_CONTAINER_REGISTRY_NAME
+            AZURE_CONTAINER_APPS_ENVIRONMENT_NAME
+            AZURE_CONTAINER_APP_NAME
+          )
+
+          for var_name in "${required_vars[@]}"; do
+            if [[ -z "${!var_name:-}" ]]; then
+              echo "Missing required environment variable: ${var_name}" >&2
+              exit 1
+            fi
+          done
+
+      - name: Provision Azure web infrastructure and deploy container app
+        shell: pwsh
+        run: |
+          $deploymentResult = ./tools/scripts/azure/deploy-web-environment.ps1 `
+            -EnvironmentName '${{ inputs.environment_name }}' `
+            -TenantId '${{ vars.AZURE_TENANT_ID }}' `
+            -SubscriptionId '${{ vars.AZURE_SUBSCRIPTION_ID }}' `
+            -Location '${{ vars.AZURE_LOCATION_PRIMARY }}' `
+            -ParameterFile '${{ inputs.bicep_parameter_file }}'
+
+          $deploymentResult | Set-Content -Path deployment-result.json -Encoding utf8
+          Get-Content deployment-result.json
+
+      - name: Summarize infrastructure deployment
+        shell: bash
+        run: |
+          resource_group="$(node -p "require('./deployment-result.json').resourceGroupName")"
+          subscription_stack="$(node -p "require('./deployment-result.json').subscriptionStackName")"
+          resource_group_stack="$(node -p "require('./deployment-result.json').resourceGroupStackName")"
+          images_rg="$(node -p "require('./deployment-result.json').imagesResourceGroupName")"
+          images_stack="$(node -p "require('./deployment-result.json').imagesResourceGroupStackName")"
+          container_registry="$(node -p "require('./deployment-result.json').containerRegistryName")"
+          container_app_environment="$(node -p "require('./deployment-result.json').containerAppEnvironmentName")"
+          container_app="$(node -p "require('./deployment-result.json').containerAppName")"
+          key_vault="$(node -p "require('./deployment-result.json').keyVaultName")"
+          app_insights="$(node -p "require('./deployment-result.json').applicationInsightsName")"
+          image_reference="$(node -p "require('./deployment-result.json').imageReference")"
+          revision_fqdn="$(node -p "require('./deployment-result.json').containerAppLatestRevisionFqdn")"
+
+          {
+            echo "## Web Infrastructure Deployment"
+            echo ""
+            echo "- Environment: \`${{ inputs.environment_name }}\`"
+            echo "- Subscription stack: \`${subscription_stack}\`"
+            echo "- Resource-group stack: \`${resource_group_stack}\`"
+            echo "- Resource group: \`${resource_group}\`"
+            echo "- Shared images resource group: \`${images_rg}\`"
+            echo "- Shared images stack: \`${images_stack}\`"
+            echo "- Container registry: \`${container_registry}\`"
+            echo "- Container Apps environment: \`${container_app_environment}\`"
+            echo "- Container app: \`${container_app}\`"
+            echo "- Key Vault: \`${key_vault}\`"
+            echo "- Application Insights: \`${app_insights}\`"
+            echo "- Image: \`${image_reference}\`"
+            echo "- Latest revision FQDN: \`${revision_fqdn}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize target web deployment
+        shell: bash
+        run: |
+          {
+            echo "## Web Deployment Contract"
+            echo ""
+            echo "- Environment: \`${{ inputs.environment_name }}\`"
+            echo "- Source ref: \`${{ inputs.source_ref }}\`"
+            echo "- Resource group: \`${{ vars.AZURE_RESOURCE_GROUP_NAME }}\`"
+            echo "- Shared images resource group: \`${{ vars.AZURE_IMAGES_RESOURCE_GROUP_NAME }}\`"
+            echo "- Container registry: \`${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}\`"
+            echo "- Container Apps environment: \`${{ vars.AZURE_CONTAINER_APPS_ENVIRONMENT_NAME }}\`"
+            echo "- Container app: \`${{ vars.AZURE_CONTAINER_APP_NAME }}\`"
+            echo "- Key Vault: \`${{ vars.AZURE_KEY_VAULT_NAME }}\`"
+            echo "- Bicep params: \`${{ inputs.bicep_parameter_file }}\`"
+            echo "- Image repository: \`${{ vars.AZURE_WEB_IMAGE_REPOSITORY }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

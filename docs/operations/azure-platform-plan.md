@@ -12,18 +12,69 @@ It is intentionally opinionated:
 Related docs:
 
 - [Release and delivery](./release-and-delivery.md)
+- [Azure governance and lifecycle](./azure-governance-and-lifecycle.md)
+- [Azure bootstrap and teardown](./azure-bootstrap-and-teardown.md)
 - [Azure naming standard](../reference/azure-resource-naming-standard.md)
 - [GitHub and Azure environments](./github-azure-environments.md)
 - [Current platform architecture](../architecture/current-platform.md)
 
-## Current Observed Starting State
+## Current Observed Platform State
 
 Current confirmed state from the local CLI setup:
 
 - Azure CLI is authenticated
+- current visible tenants:
+  - `73521cbe-9858-4230-996d-319b8074e103`
+    - `Default Directory`
+    - `vc4u2cgmail.onmicrosoft.com`
+    - active Azure tenant for the current subscription
+  - `b907d549-84e1-4733-b7be-d459594670c4`
+    - `b2c-vc4u2cmsaldemo-dev`
+    - legacy `AAD B2C` tenant candidate for retirement review
+  - `ddf05cf2-068e-4463-9996-aa1c61b2439b`
+    - `react-swa-b2c-demo`
+    - legacy `AAD B2C` tenant candidate for retirement review
 - currently visible subscription:
-  - `sub-vc4u2c-demo`
-  - subscription id `7a75b50d-e8d6-49fe-ab21-cbb159c3fed6`
+  - `sub-acme-platform`
+    - subscription id `b582269b-60ff-4bb0-b30b-6fb2796edf11`
+  - `sub-acme-nonprod-online`
+    - subscription id `7df9ce70-48a3-4495-9361-4ca7b2637748`
+  - `sub-acme-prod-online`
+    - subscription id `b85326eb-4485-480a-9849-40669d306e44`
+  - `sub-acme-sandbox`
+    - subscription id `8c1de55b-9d38-4cfa-bc91-ec053bdaf275`
+- current management groups:
+  - tenant root group `73521cbe-9858-4230-996d-319b8074e103`
+  - `mg-acme`
+  - `mg-acme-platform`
+  - `mg-acme-landingzones`
+  - `mg-acme-online`
+  - `mg-acme-sandbox`
+- current subscription placement:
+  - `sub-acme-platform` is attached to `mg-acme-platform`
+  - `sub-acme-nonprod-online` is attached to `mg-acme-online`
+  - `sub-acme-prod-online` is attached to `mg-acme-online`
+  - `sub-acme-sandbox` is attached to `mg-acme-sandbox`
+- current budget state:
+  - monthly budget `bdg-acme-platform-monthly-01` exists on `sub-acme-platform`
+    - amount `$10`
+  - monthly budget `bdg-acme-nonprod-online-monthly-01` exists on `sub-acme-nonprod-online`
+    - amount `$20`
+  - monthly budget `bdg-acme-prod-online-monthly-01` exists on `sub-acme-prod-online`
+    - amount `$15`
+  - monthly budget `bdg-acme-sandbox-monthly-01` exists on `sub-acme-sandbox`
+    - amount `$5`
+- current platform network state:
+  - `rg-acme-hub-network-cus-01` exists in `sub-acme-platform`
+  - shared private DNS zones exist for:
+    - `privatelink.vaultcore.azure.net`
+    - `privatelink.redis.azure.net`
+- current workload proof point:
+  - `dev` is deployed in `sub-acme-nonprod-online`
+  - web runtime is on `Azure Container Apps`
+  - `Key Vault` and `Azure Managed Redis` are private-only
+  - ACA ingress remains public for now
+  - current public health endpoint responds successfully
 - GitHub CLI is authenticated
 - GitHub deployment environments already exist:
   - `dev`
@@ -31,16 +82,14 @@ Current confirmed state from the local CLI setup:
   - `stg`
   - `prod`
 
-One important caveat:
-
-- listing management groups failed because the Azure CLI refresh token needs to be refreshed for that command path
-- before we implement the landing zone, refresh Azure CLI auth so we can inspect or create the management-group hierarchy cleanly
-
 That means the current planning assumption is:
 
 - we know the repo side is ready
-- we know at least one Azure subscription is available now
-- we should design for the enterprise target shape immediately, even if the first rollout starts in the current subscription
+- the target platform, non-production, and production subscriptions now exist
+- the sandbox subscription also exists for controlled experiments and ADE-style work
+- the landing-zone hierarchy now exists and can be expanded cleanly
+- the cost guardrails are on the real target subscriptions
+- the first ACA workload path is proven in `dev`
 
 ## Executive Summary
 
@@ -89,10 +138,10 @@ Main references:
   - https://learn.microsoft.com/azure/deployment-environments/overview-what-is-azure-deployment-environments
 - Azure deployment stacks for Bicep:
   - https://learn.microsoft.com/azure/azure-resource-manager/bicep/deployment-stacks
-- App Service private endpoints:
-  - https://learn.microsoft.com/azure/app-service/networking/private-endpoint
-- Front Door Premium private link to App Service:
-  - https://learn.microsoft.com/azure/frontdoor/standard-premium/how-to-enable-private-link-web-app
+- Azure Container Apps workload profiles:
+  - https://learn.microsoft.com/azure/container-apps/workload-profiles-overview
+- Front Door Premium private link to Container Apps:
+  - https://learn.microsoft.com/azure/container-apps/how-to-integrate-with-azure-front-door
 - Azure Managed Redis:
   - https://learn.microsoft.com/azure/azure-cache-for-redis/managed-redis/managed-redis-overview
 - GitHub Actions deployment environments:
@@ -144,18 +193,22 @@ Recommended lightweight enterprise hierarchy:
   - shared platform controls
 - `mg-acme-landingzones`
   - workload landing zones
-- `mg-acme-nonprod`
-  - non-production workload subscriptions
-- `mg-acme-prod`
-  - production workload subscriptions
-- optional `mg-acme-sandbox`
-  - ephemeral or ADE-based environments later
+- `mg-acme-online`
+  - online workload archetype, including ACME LOS
+- `mg-acme-sandbox`
+  - sandbox subscription and ADE-style ephemeral environments
 
 This gives you:
 
 - policy inheritance
 - clean separation of shared platform and workloads
 - room for multiple applications later
+
+Important nuance:
+
+- keep the management-group hierarchy archetype-focused
+- keep environment separation at the subscription and workload layer
+- do **not** create management groups just for `dev`, `qa`, `stg`, and `prod`
 
 ### Hub-And-Spoke Direction
 
@@ -232,22 +285,20 @@ Best balanced target:
    - shared edge and hub resources
    - shared private DNS
    - shared monitoring
-   - optional shared ACR
-   - optional shared non-production Redis
 
-2. `nonprod` subscription
+2. `nonprod-online` subscription
    - `dev`
    - `qa`
    - `stg`
+   - shared non-production ACR
 
-3. `prod` subscription
+3. `prod-online` subscription
    - `prod`
 
-Optional later:
-
 4. `sandbox` subscription
-   - ADE or temporary preview environments
-   - playground workloads
+
+- ADE or temporary preview environments
+- playground workloads
 
 Why this is the right balance:
 
@@ -261,8 +312,9 @@ If you want the absolute cheapest first step, you can start with a single subscr
 Recommended interpretation of that target for this repo:
 
 - `platform`
-- `nonprod`
-- `prod`
+- `nonprod-online`
+- `prod-online`
+- `sandbox`
 
 Keep those subscriptions persistent. Tear down workloads, not subscriptions.
 
@@ -292,24 +344,21 @@ Keep shared services out of the app resource groups.
 
 Recommended now:
 
-- deploy the Next.js web app to `Azure App Service for Linux`
-- package it as a production web artifact that App Service can run predictably
+- deploy the Next.js web app to `Azure Container Apps`
+- build and publish a container image to a shared `Azure Container Registry` in the target subscription role
+- use a user-assigned managed identity for runtime access to `Key Vault` and `ACR`
 
-Why not default to Container Apps right now:
+Why ACA is the better fit now:
 
-- App Service is simpler for this repo today
-- private endpoint and Front Door Premium patterns with App Service are mature and well-documented
-- the repo is still one main web workload, not a microservice fleet
-
-When to choose Container Apps instead:
-
-- if the web tier becomes one of several independently scaled services
-- if you want Dapr, jobs, sidecars, or a more service-oriented topology
+- it keeps the workload container-native from the start
+- it aligns better with later service expansion than App Service
+- it works cleanly with managed identity for image pulls and secret references
+- it keeps the future Front Door + private-link path open once the base workload is stable
 
 Current recommendation:
 
-- `App Service` is the cleaner fit today
-- revisit `Container Apps` later only if the workload shape changes
+- `Container Apps` is the primary path
+- `App Service` is no longer the target deployment model for this repo
 
 ### Mobile App
 
@@ -343,7 +392,7 @@ Recommended:
 Why Premium:
 
 - private link origin support is the main reason
-- it lets Front Door reach the App Service origin privately
+- it lets Front Door reach the `Container Apps` origin privately once the workload-profiles environment is in place
 
 Recommended split:
 
@@ -360,7 +409,7 @@ That is the best balance between:
 
 Recommended:
 
-- App Service origin behind `private endpoint`
+- Container Apps origin behind `private endpoint`
 - Front Door Premium connected through `Private Link`
 - lock down public reachability of the origin as far as the service capabilities allow
 
@@ -375,8 +424,6 @@ Important nuance:
 
 Examples:
 
-- App Service private endpoint zone:
-  - `privatelink.azurewebsites.net`
 - Key Vault private endpoint zone:
   - `privatelink.vaultcore.azure.net`
 - Storage blob private endpoint zone:
@@ -435,8 +482,9 @@ For this repo, either of these can work:
 
 Recommendation:
 
-- use `user-assigned managed identities` if you want Azure-native lifecycle and clear ownership in the subscription
-- use `app registrations` only if you need tenant-level setup before Azure resources exist
+- use `app registrations` plus service principals for the GitHub OIDC deployment path right now
+- revisit `user-assigned managed identities` later if you move parts of the deployment or runtime deeper into Azure-native automation
+- keep human access and machine deployment identities separate
 
 ### GitHub Environment Names
 
@@ -557,7 +605,7 @@ Recommended flow:
    - infra lints and `what-if`
 2. build web deployable
 3. push web artifact/image
-4. deploy infrastructure
+4. deploy infrastructure through `Deployment Stacks`
 5. deploy web app
 6. smoke checks
 
@@ -598,12 +646,12 @@ This is the exact order I recommend from here:
    - `mg-acme`
    - `mg-acme-platform`
    - `mg-acme-landingzones`
-   - `mg-acme-nonprod`
-   - `mg-acme-prod`
+   - `mg-acme-online`
+   - `mg-acme-sandbox`
 3. decide whether to create the persistent subscriptions now
    - `sub-acme-platform`
-   - `sub-acme-nonprod`
-   - `sub-acme-prod`
+   - `sub-acme-nonprod-online`
+   - `sub-acme-prod-online`
 4. scaffold `infra/azure`
    - hub modules
    - workload modules
@@ -612,12 +660,17 @@ This is the exact order I recommend from here:
    - environment identities
    - repo variables
    - environment variables
-6. deploy `dev` first
-   - App Service on Linux
-   - Key Vault
-   - Redis
+6. deploy the persistent platform network foundation
+   - shared private DNS
+   - hub network resource group
+7. deploy `dev` first
+   - Azure Container Apps
+   - shared non-production ACR
+   - spoke VNet and subnets
+   - Key Vault private endpoint
+   - Redis private endpoint
    - monitoring
-7. add teardown for non-production workload stacks only
+8. add teardown for non-production workload stacks only
 
 That gives us a real landing-zone-aligned implementation without waiting on Front Door.
 
@@ -625,7 +678,7 @@ That gives us a real landing-zone-aligned implementation without waiting on Fron
 
 - deploy the shared hub edge and base monitoring
 - deploy `dev` first
-- validate OIDC, Front Door, private endpoints, Redis, Key Vault
+- validate OIDC, public ACA ingress, private endpoints, Redis, and Key Vault
 
 ### Phase 3
 
@@ -666,10 +719,43 @@ For this repo and this phase, Sentinel is likely premature from a cost perspecti
 
 ## Concrete Next Implementation Steps
 
-1. create `infra/azure` with Bicep entry points and AVM-backed modules
-2. add a formal naming standard and tags
-3. create a GitHub/Azure environment setup script for `dev`, `qa`, `stg`, `prod`
-4. split the deploy workflows into `web` and `mobile`
-5. deploy `dev` first
-6. add a manual `teardown-nonprod` workflow using Deployment Stacks
-7. add `qa`, `stg`, and then `prod`
+The repo now has the first implementation scaffold:
+
+- [infra/azure/README.md](../../infra/azure/README.md)
+- [infra/azure/config/platform.json](../../infra/azure/config/platform.json)
+- [infra/azure/config/governance.json](../../infra/azure/config/governance.json)
+- [infra/azure/bicep/main.hub.sub.bicep](../../infra/azure/bicep/main.hub.sub.bicep)
+- [infra/azure/bicep/main.platform.network.rg.bicep](../../infra/azure/bicep/main.platform.network.rg.bicep)
+- [infra/azure/bicep/main.platform.workload-links.rg.bicep](../../infra/azure/bicep/main.platform.workload-links.rg.bicep)
+- [infra/azure/bicep/main.workload.sub.bicep](../../infra/azure/bicep/main.workload.sub.bicep)
+- [infra/azure/bicep/main.web.rg.bicep](../../infra/azure/bicep/main.web.rg.bicep)
+- [tools/scripts/azure/setup-github-azure-environments.ps1](../../tools/scripts/azure/setup-github-azure-environments.ps1)
+- [tools/scripts/azure/bootstrap-governance.ps1](../../tools/scripts/azure/bootstrap-governance.ps1)
+- [tools/scripts/azure/ensure-subscription-budget.ps1](../../tools/scripts/azure/ensure-subscription-budget.ps1)
+- [tools/scripts/azure/deploy-platform-network.ps1](../../tools/scripts/azure/deploy-platform-network.ps1)
+- [tools/scripts/azure/deploy-web-environment.ps1](../../tools/scripts/azure/deploy-web-environment.ps1)
+- [tools/scripts/azure/teardown-web-environment.ps1](../../tools/scripts/azure/teardown-web-environment.ps1)
+
+Next implementation steps:
+
+1. run `npm run azure:budget`
+2. run `npm run azure:show-governance`
+3. run `npm run azure:deploy:platform-network`
+4. run `npm run azure:show-plan`
+5. run `npm run azure:bootstrap`
+6. use the current stack-backed deploy and teardown scripts for `dev`
+7. use the stack-backed workflow path for `qa` and `stg`
+8. keep the `prod` teardown path explicit and warning-gated
+9. add `qa`, `stg`, and then `prod`
+
+Current implementation note:
+
+- the current platform deploy creates shared private DNS zones in the platform landing zone
+- each workload environment deploy creates its own spoke VNet, private endpoints, and platform DNS link stack
+- the current workload stack deploys one Azure Managed Redis instance per deployed environment
+- the current runtime uses a Redis URL, so the first ACA slice stores that URL in Key Vault and lets the container app read it through managed identity
+- shared ACR is split by subscription role:
+  - `nonprod` ACR for `dev`, `qa`, and `stg`
+  - `prod` ACR for `prod`
+- ACA remains public for now, while Key Vault and Azure Managed Redis are private-only
+- because this is a pay-as-you-go setup, non-production environments should be torn down promptly after validation
