@@ -1,0 +1,17 @@
+.git
+.github
+.nx
+.next
+.expo
+coverage
+dist
+node_modules
+tmp
+test-results
+playwright-report
+apps/mobile-app/.expo
+apps/mobile-app/dist
+apps/web-app/.next
+apps/web-app/.env.local
+apps/mobile-app/.env.local
+infra/azure/bicep/*.json
