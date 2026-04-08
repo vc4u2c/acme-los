@@ -23,6 +23,7 @@ param extraTags object = {}
 param stateStoreMode string = 'file'
 param managedEnvironmentId string
 param userAssignedIdentityResourceId string
+param appBuildId string
 param authProvider string = 'okta'
 param oktaEnvironmentName string = environmentName
 param oktaIssuer string
@@ -105,6 +106,7 @@ module containerApp './modules/web/container-app.bicep' = {
     containerRegistryServer: containerRegistryLoginServer
     containerImage: containerImage
     appEnvironmentName: environmentName
+    appBuildId: appBuildId
     authProvider: authProvider
     oktaEnvironmentName: oktaEnvironmentName
     oktaIssuer: oktaIssuer

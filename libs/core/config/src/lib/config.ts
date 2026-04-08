@@ -20,6 +20,9 @@ export interface AppReleaseInfo {
   name: string;
   version: string;
   versionBadgeLabel: string;
+  buildId?: string;
+  buildBadgeLabel?: string;
+  showBuildBadge: boolean;
   environmentName: AppEnvironmentName;
   environmentBadgeLabel: string;
 }
@@ -67,20 +70,55 @@ export function getDefaultRuntimeConfig(): AppRuntimeConfig {
 export function createAppReleaseInfo(
   target: AppReleaseTarget,
   version: string,
+  buildId?: string | null,
   environmentName?: string | null,
 ): AppReleaseInfo {
   const name = releaseTargetNames[target];
   const normalizedEnvironmentName =
     resolveAppEnvironmentName(environmentName) ?? 'local';
+  const normalizedBuildId = normalizeAppBuildId(buildId);
+  const showBuildBadge =
+    Boolean(normalizedBuildId) &&
+    normalizedEnvironmentName !== 'prod' &&
+    normalizedEnvironmentName !== 'unknown';
 
   return {
     target,
     name,
     version,
     versionBadgeLabel: `${name} v${version}`,
+    buildId: normalizedBuildId,
+    buildBadgeLabel: showBuildBadge ? `Build ${normalizedBuildId}` : undefined,
+    showBuildBadge,
     environmentName: normalizedEnvironmentName,
     environmentBadgeLabel: formatAppEnvironmentLabel(normalizedEnvironmentName),
   };
+}
+
+export function normalizeAppBuildId(value?: string | null): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+
+  const normalizedValue = value.trim();
+  if (!normalizedValue) {
+    return undefined;
+  }
+
+  const shaWithOptionalSuffixMatch = normalizedValue.match(
+    /^([0-9a-f]{7,40})(?:-[a-z0-9._-]+)?$/i,
+  );
+  if (shaWithOptionalSuffixMatch?.[1]) {
+    return shaWithOptionalSuffixMatch[1].slice(0, 8).toLowerCase();
+  }
+
+  if (/^[0-9a-f]{7,40}$/i.test(normalizedValue)) {
+    return normalizedValue.slice(0, 8).toLowerCase();
+  }
+
+  return normalizedValue.length > 24
+    ? normalizedValue.slice(0, 24)
+    : normalizedValue;
 }
 
 export function resolveAppEnvironmentName(

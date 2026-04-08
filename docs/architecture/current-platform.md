@@ -24,6 +24,32 @@ This doc is the current-state snapshot for the repo. It complements:
 - shared release/version wiring through app config
 - auth-ready structure for future Okta mobile integration
 
+## Current Overall State
+
+The platform is in a materially better place than the earlier prototype phase.
+
+What is solid now:
+
+- server-side PKCE initiation and callback exchange are in place
+- one opaque web session is shared across profile, apply, and sign-out
+- the browser is no longer the source of truth for authenticated state
+- Azure landing-zone structure now exists with management groups, subscriptions, budgets, and an ACA-based web runtime path
+- local and Azure `dev` now align to the same Okta `dev` tenant with different allowed callback URLs
+- both apps expose the active environment in the UI
+
+What is true operationally today:
+
+- `dev` is proven live in Azure on `Azure Container Apps`
+- `Key Vault` and `Azure Managed Redis` are private-only in the current Azure design
+- the current working `dev` behavior still needs to stay aligned through the normal merge and CD path
+
+What is still bridge-state rather than final:
+
+- the security inspector is a demo and troubleshooting surface, not a permanent production feature
+- the web-server layer still owns temporary customer and application state instead of a long-term backend service
+- Redis still uses a connection URL stored in Key Vault because the current runtime expects a Redis URL
+- Front Door, WAF, and private ACA ingress are still later phases
+
 ## Current Auth Shape
 
 - public product entry points send users into the application flow
@@ -81,6 +107,22 @@ Still temporary by design:
 - the local file-backed store is a bridge fallback, not the final multi-instance production state path
 - the future .NET BFF should still replace the Next facade implementations while preserving the contracts
 - customer and application state still live in the web-server layer instead of a durable backend service
+
+## Immediate Next Priorities
+
+The highest-value next steps are convergence and operational cleanup, not a structural rewrite.
+
+1. Merge proven environment and auth fixes quickly so CD becomes the source of truth again.
+2. Keep `qa` aligned to the same deployment model that now works in `dev`.
+3. Decide the identity boundary for `leadId` and `customerId`:
+   - `customerId` should be a stable identity or backend-linked value
+   - `leadId` should only stay in tokens if it is truly an identity attribute rather than journey context
+4. Keep the Next facade thin enough that customer and application persistence can move behind a .NET BFF later.
+5. Add the later edge and security layers in order:
+   - Front Door
+   - WAF
+   - private ACA ingress
+   - stricter production observability and operational controls
 
 ## BFF Direction
 

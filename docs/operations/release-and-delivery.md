@@ -103,6 +103,26 @@ every environment.” It is:
 That is intentional because it keeps the deployment behavior owned by the repo
 instead of buried inside GitHub-specific workflow logic.
 
+## Current Operating Reality
+
+The healthiest steady state is:
+
+- prove fixes locally when necessary
+- merge them quickly
+- let CI and CD become the durable deployment path again
+
+Important rule:
+
+- avoid leaving Azure environments ahead of `main` for long
+
+If a local deploy proves an environment fix:
+
+1. run the normal verification sweep
+2. promote the change through the normal branch and PR path
+3. let CD reproduce the same environment behavior from source control
+
+That keeps the repo, the pipeline, and the live environment from drifting apart.
+
 ## Orchestrator Boundary
 
 GitHub Actions is the current orchestrator, not the source of truth for Azure

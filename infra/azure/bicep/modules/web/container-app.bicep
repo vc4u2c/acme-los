@@ -7,6 +7,7 @@ param userAssignedIdentityResourceId string
 param containerRegistryServer string
 param containerImage string
 param appEnvironmentName string
+param appBuildId string
 param authProvider string = 'okta'
 param oktaEnvironmentName string = appEnvironmentName
 param oktaIssuer string
@@ -34,6 +35,10 @@ var telemetryServiceName = 'acme-los-web'
 var telemetryTracesPerSecond = appEnvironmentName == 'prod' ? '5' : '2'
 var telemetryResourceAttributes = 'service.namespace=acme-los,deployment.environment.name=${appEnvironmentName}'
 var environmentVariables = concat([
+  {
+    name: 'APP_BUILD_ID'
+    value: appBuildId
+  }
   {
     name: 'APP_ENVIRONMENT_NAME'
     value: appEnvironmentName

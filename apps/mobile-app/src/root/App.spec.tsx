@@ -11,6 +11,11 @@ test('renders correctly', () => {
   expect(
     getByText(new RegExp(`v${mobileAppRelease.version}`, 'i')),
   ).toBeTruthy();
+  if (mobileAppRelease.showBuildBadge && mobileAppRelease.buildId) {
+    expect(
+      getByText(new RegExp(`build ${mobileAppRelease.buildId}`, 'i')),
+    ).toBeTruthy();
+  }
   expect(
     getByText(new RegExp(`^${mobileAppRelease.environmentBadgeLabel}$`)),
   ).toBeTruthy();

@@ -1,7 +1,23 @@
 //@ts-check
 
 const { composePlugins, withNx } = require('@nx/next');
+const { execSync } = require('node:child_process');
 const { version } = require('./package.json');
+
+function resolveGitBuildId() {
+  try {
+    return execSync('git rev-parse --short HEAD', {
+      cwd: __dirname,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString('utf8')
+      .trim();
+  } catch {
+    return null;
+  }
+}
+
+const buildId = process.env.NEXT_PUBLIC_APP_BUILD ?? resolveGitBuildId() ?? '';
 
 function buildContentSecurityPolicy() {
   const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -54,6 +70,7 @@ const nextConfig = {
   output: 'standalone',
   env: {
     NEXT_PUBLIC_APP_VERSION: version,
+    NEXT_PUBLIC_APP_BUILD: buildId,
   },
   async headers() {
     return [

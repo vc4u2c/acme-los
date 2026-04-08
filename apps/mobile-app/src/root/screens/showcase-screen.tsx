@@ -29,10 +29,12 @@ import {
 
 export function ShowcaseScreen({
   mobileAppVersion,
+  mobileAppBuild,
   mobileAppEnvironment,
   onBack,
 }: {
   mobileAppVersion: string;
+  mobileAppBuild?: string;
   mobileAppEnvironment: string;
   onBack?: () => void;
 }): React.ReactElement {
@@ -58,6 +60,11 @@ export function ShowcaseScreen({
           <Badge variant="warning">
             <BadgeText variant="warning">{mobileAppEnvironment}</BadgeText>
           </Badge>
+          {mobileAppBuild ? (
+            <Badge>
+              <BadgeText>{`Build ${mobileAppBuild}`}</BadgeText>
+            </Badge>
+          ) : null}
           <ScreenTitle>Clean mobile primitives, one place</ScreenTitle>
           <ScreenDescription>
             A compact gallery for checking shared mobile UI before it spreads

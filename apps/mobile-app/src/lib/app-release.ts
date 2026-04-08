@@ -57,8 +57,23 @@ function resolveMobileAppEnvironmentName(): string {
   return 'local';
 }
 
+function resolveMobileAppBuildId(): string | undefined {
+  if (process.env.EXPO_PUBLIC_APP_BUILD) {
+    return process.env.EXPO_PUBLIC_APP_BUILD;
+  }
+
+  const expoConfigBuildId =
+    (Constants.expoConfig?.extra?.appBuild as string | undefined) ??
+    ((Constants.manifest as ExpoManifestLike)?.extra?.appBuild as
+      | string
+      | undefined);
+
+  return expoConfigBuildId;
+}
+
 export const mobileAppRelease = createAppReleaseInfo(
   'mobile',
   resolveMobileAppVersion(),
+  resolveMobileAppBuildId(),
   resolveMobileAppEnvironmentName(),
 );

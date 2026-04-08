@@ -397,6 +397,35 @@ function Get-ResolvedImageTag {
   return "$resolvedTag-$EnvironmentName"
 }
 
+function Get-ResolvedBuildId {
+  param(
+    [string]$ExplicitTag
+  )
+
+  if ($env:GITHUB_SHA) {
+    return $env:GITHUB_SHA.Substring(0, [Math]::Min(8, $env:GITHUB_SHA.Length)).ToLowerInvariant()
+  }
+
+  try {
+    $gitCommit = (git rev-parse --short HEAD 2>$null).Trim()
+    if ($gitCommit) {
+      return $gitCommit.ToLowerInvariant()
+    }
+  } catch {
+  }
+
+  if ($ExplicitTag) {
+    $normalizedTag = $ExplicitTag.ToLowerInvariant()
+    if ($normalizedTag -match '^([0-9a-f]{7,40})(?:-[a-z0-9._-]+)?$') {
+      return $Matches[1].Substring(0, [Math]::Min(8, $Matches[1].Length))
+    }
+
+    return $normalizedTag
+  }
+
+  throw 'Unable to resolve an application build id. Pass -ImageTag explicitly or run inside a git checkout.'
+}
+
 function Get-StringOutputValue {
   param(
     $Outputs,
@@ -653,6 +682,7 @@ $resolvedSubscriptionId = if ($SubscriptionId) { $SubscriptionId } else { Resolv
 $resolvedPlatformSubscriptionId = if ($PlatformSubscriptionId) { $PlatformSubscriptionId } else { Resolve-PlatformSubscriptionIdFromConfiguration -Configuration $configuration }
 $resolvedTenantId = if ($TenantId) { $TenantId } else { $account.tenantId }
 $resolvedImageTag = Get-ResolvedImageTag -ExplicitTag $ImageTag -EnvironmentName $EnvironmentName
+$resolvedBuildId = Get-ResolvedBuildId -ExplicitTag $ImageTag
 $resolvedStateStoreMode = if ($StateStoreMode) { $StateStoreMode } else { 'redis' }
 $imagesSubscriptionRole = Get-ImagesSubscriptionRole -Configuration $configuration -EnvironmentName $EnvironmentName
 $networkConfiguration = Get-EnvironmentNetworkConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName
@@ -850,6 +880,7 @@ if (-not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionI
       --image "${WebImageRepository}:$resolvedImageTag" `
       --file apps/web-app/Dockerfile `
       --build-arg "NEXT_PUBLIC_APP_ENVIRONMENT=$($environmentConfiguration.appEnvironmentName)" `
+      --build-arg "NEXT_PUBLIC_APP_BUILD=$resolvedBuildId" `
       --build-arg 'NEXT_PUBLIC_AUTH_PROVIDER=okta' `
       --build-arg "NEXT_PUBLIC_OKTA_ENVIRONMENT=$oktaEnvironmentName" `
       --build-arg "NEXT_PUBLIC_OKTA_ISSUER=$oktaIssuer" `
@@ -908,6 +939,7 @@ $runtimeDeploymentArguments = @(
   '--parameters', "containerImage=$imageReference",
   '--parameters', "managedEnvironmentId=$managedEnvironmentId",
   '--parameters', "userAssignedIdentityResourceId=$userAssignedIdentityResourceId",
+  '--parameters', "appBuildId=$resolvedBuildId",
   '--parameters', "authProvider=okta",
   '--parameters', "oktaEnvironmentName=$oktaEnvironmentName",
   '--parameters', "oktaIssuer=$oktaIssuer",
@@ -986,6 +1018,7 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   containerRegistryLoginServer = $resolvedContainerRegistryLoginServer
   webImageRepository = $WebImageRepository
   imageTag = $resolvedImageTag
+  appBuildId = $resolvedBuildId
   imageReference = $imageReference
   containerAppEnvironmentName = Get-StringOutputValue -Outputs $outputs -Name 'containerAppEnvironmentName'
   containerAppName = Get-StringOutputValue -Outputs $runtimeOutputs -Name 'containerAppName'
