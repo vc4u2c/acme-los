@@ -132,6 +132,36 @@ Examples:
 That is different from a heavy role-based permission system. Deeper business
 permissions still belong in the backend/BFF layer as that grows.
 
+## Identity Claims Versus Session Fallback
+
+This distinction matters in the current implementation.
+
+- the raw decoded token payload only contains claims that Okta minted
+- the web session can still contain fallback values added by the app during the sign-in flow
+
+Current example:
+
+- `customerId`
+  - should ideally come from an Okta profile-backed claim or later from backend identity data
+- `leadId`
+  - can currently come from the sign-in transaction and be carried into the web session even if Okta did not mint `lead_id` into the token
+
+That means the following can both be true:
+
+- `session.user.leadId` exists
+- the raw decoded JWT payload does not contain `lead_id`
+
+Why this happens:
+
+- Okta only emits `lead_id` and `customer_id` when those profile-backed values exist at token mint time
+- the app can still attach a fallback `leadId` during session creation if the journey already knows it
+
+Design guidance:
+
+- use token claims for stable identity attributes
+- use app or backend session state for journey-scoped context
+- avoid treating a session fallback as proof that a raw JWT claim exists
+
 ## Contract Rules
 
 Keep these rules stable:
