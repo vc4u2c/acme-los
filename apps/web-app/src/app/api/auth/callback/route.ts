@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
   applyRateLimitHeaders,
+  buildPublicRequestUrl,
   buildSignInRedirectPath,
   checkRateLimit,
   clearWebAuthTransaction,
@@ -30,13 +31,13 @@ const authCallbackQuerySchema = z.object({
 function buildSignInErrorResponse(request: NextRequest, authError: string) {
   const transaction = readWebAuthTransaction(request);
   const response = NextResponse.redirect(
-    new URL(
+    buildPublicRequestUrl(
+      request,
       buildSignInRedirectPath({
         returnTo: transaction?.returnTo ?? '/apply/personal-info',
         minimumAssuranceLevel: transaction?.minimumAssuranceLevel ?? 'aal1',
         authError,
       }),
-      request.url,
     ),
   );
 
@@ -118,7 +119,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       },
     );
     const response = NextResponse.redirect(
-      new URL(transaction.returnTo, request.url),
+      buildPublicRequestUrl(request, transaction.returnTo),
     );
 
     writeWebAuthSession(request, response, syncedSession);

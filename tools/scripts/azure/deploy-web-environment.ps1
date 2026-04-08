@@ -365,25 +365,36 @@ function Get-ContainerRegistryName {
 }
 
 function Get-ResolvedImageTag {
-  param([string]$ExplicitTag)
+  param(
+    [string]$ExplicitTag,
+    [string]$EnvironmentName
+  )
+
+  $resolvedTag = $null
 
   if ($ExplicitTag) {
-    return $ExplicitTag
-  }
-
-  if ($env:GITHUB_SHA) {
-    return $env:GITHUB_SHA.ToLowerInvariant()
-  }
-
-  try {
-    $gitCommit = (git rev-parse HEAD 2>$null).Trim()
-    if ($gitCommit) {
-      return $gitCommit.ToLowerInvariant()
+    $resolvedTag = $ExplicitTag
+  } elseif ($env:GITHUB_SHA) {
+    $resolvedTag = $env:GITHUB_SHA.ToLowerInvariant()
+  } else {
+    try {
+      $gitCommit = (git rev-parse HEAD 2>$null).Trim()
+      if ($gitCommit) {
+        $resolvedTag = $gitCommit.ToLowerInvariant()
+      }
+    } catch {
     }
-  } catch {
   }
 
-  throw 'Unable to resolve an image tag. Pass -ImageTag explicitly or run inside a git checkout.'
+  if (-not $resolvedTag) {
+    throw 'Unable to resolve an image tag. Pass -ImageTag explicitly or run inside a git checkout.'
+  }
+
+  if ($resolvedTag.EndsWith("-$EnvironmentName")) {
+    return $resolvedTag
+  }
+
+  return "$resolvedTag-$EnvironmentName"
 }
 
 function Get-StringOutputValue {
@@ -511,6 +522,95 @@ function Get-UriEncodedString {
   return [System.Uri]::EscapeDataString($Value)
 }
 
+function New-SecureRandomBase64Url {
+  param([int]$ByteLength = 48)
+
+  $buffer = New-Object byte[] $ByteLength
+  $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+  try {
+    $rng.GetBytes($buffer)
+  } finally {
+    $rng.Dispose()
+  }
+  return [Convert]::ToBase64String($buffer).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
+function Get-OptionalString {
+  param($Value)
+
+  if ($Value -isnot [string]) {
+    return $null
+  }
+
+  $trimmed = $Value.Trim()
+  if ([string]::IsNullOrWhiteSpace($trimmed)) {
+    return $null
+  }
+
+  return $trimmed
+}
+
+function Join-AbsoluteUrl {
+  param(
+    [string]$BaseUrl,
+    [string]$Path
+  )
+
+  return ([System.Uri]::new([System.Uri]::new($BaseUrl), $Path)).AbsoluteUri
+}
+
+function Get-OktaEnvironmentConfiguration {
+  param(
+    [string]$RepositoryRoot,
+    [string]$OktaEnvironmentName
+  )
+
+  $environmentPath = Join-Path $RepositoryRoot "infra\okta\environments\$OktaEnvironmentName.json"
+  if (-not (Test-Path -LiteralPath $environmentPath)) {
+    throw "Okta environment file '$environmentPath' was not found."
+  }
+
+  return Get-JsonFile -Path $environmentPath
+}
+
+function Resolve-DeployedWebBaseUrl {
+  param($WebConfiguration)
+
+  $configuredBaseUrl = Get-OptionalString $WebConfiguration.deployedBaseUrl
+  if ($configuredBaseUrl) {
+    return $configuredBaseUrl
+  }
+
+  $fallbackBaseUrl = Get-OptionalString $WebConfiguration.baseUrl
+  if ($fallbackBaseUrl) {
+    return $fallbackBaseUrl
+  }
+
+  return (Get-OptionalString $WebConfiguration.localBaseUrl)
+}
+
+function Invoke-AzTsv {
+  param([string[]]$Arguments)
+
+  $resolvedArguments = New-Object System.Collections.Generic.List[string]
+
+  foreach ($argument in $Arguments) {
+    [void]$resolvedArguments.Add($argument)
+  }
+
+  if (-not ($resolvedArguments -contains '--only-show-errors')) {
+    [void]$resolvedArguments.Add('--only-show-errors')
+  }
+
+  $commandOutput = az @($resolvedArguments.ToArray()) 2>&1
+  if ($LASTEXITCODE -ne 0) {
+    $errorMessage = [string]::Join([Environment]::NewLine, $commandOutput)
+    throw "Azure CLI command failed: az $($Arguments -join ' ')`n$errorMessage"
+  }
+
+  return [string]::Join([Environment]::NewLine, $commandOutput).Trim()
+}
+
 Test-RequiredCommand -Name 'az'
 
 if (-not (Test-Path -LiteralPath $ConfigurationPath)) {
@@ -552,7 +652,7 @@ $account = az account show --output json | ConvertFrom-Json
 $resolvedSubscriptionId = if ($SubscriptionId) { $SubscriptionId } else { Resolve-SubscriptionIdFromConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName }
 $resolvedPlatformSubscriptionId = if ($PlatformSubscriptionId) { $PlatformSubscriptionId } else { Resolve-PlatformSubscriptionIdFromConfiguration -Configuration $configuration }
 $resolvedTenantId = if ($TenantId) { $TenantId } else { $account.tenantId }
-$resolvedImageTag = Get-ResolvedImageTag -ExplicitTag $ImageTag
+$resolvedImageTag = Get-ResolvedImageTag -ExplicitTag $ImageTag -EnvironmentName $EnvironmentName
 $resolvedStateStoreMode = if ($StateStoreMode) { $StateStoreMode } else { 'redis' }
 $imagesSubscriptionRole = Get-ImagesSubscriptionRole -Configuration $configuration -EnvironmentName $EnvironmentName
 $networkConfiguration = Get-EnvironmentNetworkConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName
@@ -636,8 +736,6 @@ $webDeploymentArguments = @(
   '--parameters', "workloadVnetAddressSpace=$($networkConfiguration.workloadVnetAddressSpace)",
   '--parameters', "acaInfrastructureSubnetAddressPrefix=$($networkConfiguration.acaInfrastructureSubnetAddressPrefix)",
   '--parameters', "privateEndpointSubnetAddressPrefix=$($networkConfiguration.privateEndpointSubnetAddressPrefix)",
-  '--parameters', "containerImage=",
-  '--parameters', "containerRegistryLoginServer=",
   '--action-on-unmanage', 'deleteResources',
   '--deny-settings-mode', 'none',
   '--description', "ACME LOS resource-group ACA stack for $EnvironmentName",
@@ -672,38 +770,6 @@ if (-not $resolvedContainerRegistryLoginServer) {
 
 $imageReference = "$resolvedContainerRegistryLoginServer/${WebImageRepository}:$resolvedImageTag"
 
-if (-not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionId -RegistryName $resolvedContainerRegistryName -RepositoryName $WebImageRepository -Tag $resolvedImageTag)) {
-  $containerBuildContextPath = New-ContainerBuildContext -RepositoryRoot $repositoryRoot
-
-  try {
-    az acr build `
-      --subscription $resolvedSubscriptionId `
-      --registry $resolvedContainerRegistryName `
-      --image "${WebImageRepository}:$resolvedImageTag" `
-      --file apps/web-app/Dockerfile `
-      --no-logs `
-      --only-show-errors `
-      $containerBuildContextPath `
-      --output none
-
-    if ($LASTEXITCODE -ne 0) {
-      throw "ACR build failed for image '${WebImageRepository}:$resolvedImageTag'."
-    }
-  } finally {
-    Remove-Item -LiteralPath $containerBuildContextPath -Recurse -Force -ErrorAction SilentlyContinue
-  }
-}
-
-for ($index = 0; $index -lt $webDeploymentArguments.Count; $index++) {
-  if ($webDeploymentArguments[$index] -eq 'containerImage=') {
-    $webDeploymentArguments[$index] = "containerImage=$imageReference"
-  }
-
-  if ($webDeploymentArguments[$index] -eq 'containerRegistryLoginServer=') {
-    $webDeploymentArguments[$index] = "containerRegistryLoginServer=$resolvedContainerRegistryLoginServer"
-  }
-}
-
 Invoke-AzNoOutput -Arguments $webDeploymentArguments
 $webDeployment = Invoke-AzJson -Arguments @(
   'stack', 'group', 'show',
@@ -719,6 +785,7 @@ if (-not $workloadVirtualNetworkId) {
 }
 
 $managedEnvironmentId = Get-StringOutputValue -Outputs $outputs -Name 'containerAppEnvironmentId'
+$resolvedContainerAppName = Get-StringOutputValue -Outputs $outputs -Name 'containerAppName'
 $userAssignedIdentityResourceId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityResourceId'
 $applicationInsightsConnectionString = Get-StringOutputValue -Outputs $outputs -Name 'applicationInsightsConnectionString'
 $keyVaultName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultName'
@@ -727,6 +794,81 @@ $redisDatabaseId = Get-StringOutputValue -Outputs $outputs -Name 'redisDatabaseI
 $redisHostName = Get-StringOutputValue -Outputs $outputs -Name 'redisHostName'
 $redisPort = Get-IntegerOutputValue -Outputs $outputs -Name 'redisPort'
 $redisConnectionSecretName = Get-StringOutputValue -Outputs $outputs -Name 'redisConnectionSecretName'
+
+if (-not $resolvedContainerAppName) {
+  throw 'Container app name was not returned from the workload deployment.'
+}
+
+$managedEnvironmentDefaultDomain = Invoke-AzTsv -Arguments @(
+  'containerapp', 'env', 'show',
+  '--ids', $managedEnvironmentId,
+  '--query', 'properties.defaultDomain',
+  '--output', 'tsv'
+)
+
+if (-not $managedEnvironmentDefaultDomain) {
+  throw 'Container Apps environment default domain was not returned by Azure.'
+}
+
+$resolvedContainerAppBaseUrl = "https://$resolvedContainerAppName.$managedEnvironmentDefaultDomain"
+$oktaEnvironmentName = if ($environmentConfiguration.oktaEnvironmentName) {
+  [string]$environmentConfiguration.oktaEnvironmentName
+} else {
+  $EnvironmentName
+}
+$webSessionSecretValue = New-SecureRandomBase64Url
+$oktaEnvironment = Get-OktaEnvironmentConfiguration -RepositoryRoot $repositoryRoot -OktaEnvironmentName $oktaEnvironmentName
+$configuredDeployedWebBaseUrl = Resolve-DeployedWebBaseUrl -WebConfiguration $oktaEnvironment.web
+
+if (
+  $configuredDeployedWebBaseUrl -and
+  ($configuredDeployedWebBaseUrl.TrimEnd('/') -ne $resolvedContainerAppBaseUrl.TrimEnd('/'))
+) {
+  Write-Warning "Okta environment '$oktaEnvironmentName' deployed base URL '$configuredDeployedWebBaseUrl' does not match the current ACA public URL '$resolvedContainerAppBaseUrl'. The deployed container will use the ACA public URL. Update infra/okta/environments/$oktaEnvironmentName.json and rerun okta:bootstrap for this environment."
+}
+
+$oktaIssuer = Get-OptionalString $oktaEnvironment.okta.issuer
+$oktaClientId = Get-OptionalString $oktaEnvironment.okta.webClientId
+$oktaFundingAcrValues = Get-OptionalString $oktaEnvironment.okta.fundingStepUpAcrValues
+$oktaRedirectPath = Get-OptionalString $oktaEnvironment.web.redirectPath
+$oktaPostLogoutRedirectPath = Get-OptionalString $oktaEnvironment.web.postLogoutRedirectPath
+
+if (-not $oktaIssuer -or -not $oktaClientId -or -not $oktaRedirectPath -or -not $oktaPostLogoutRedirectPath) {
+  throw "Okta environment '$oktaEnvironmentName' is missing required web auth settings."
+}
+
+$resolvedOktaRedirectUri = Join-AbsoluteUrl -BaseUrl $resolvedContainerAppBaseUrl -Path $oktaRedirectPath
+$resolvedOktaPostLogoutRedirectUri = Join-AbsoluteUrl -BaseUrl $resolvedContainerAppBaseUrl -Path $oktaPostLogoutRedirectPath
+
+if (-not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionId -RegistryName $resolvedContainerRegistryName -RepositoryName $WebImageRepository -Tag $resolvedImageTag)) {
+  $containerBuildContextPath = New-ContainerBuildContext -RepositoryRoot $repositoryRoot
+
+  try {
+    az acr build `
+      --subscription $resolvedSubscriptionId `
+      --registry $resolvedContainerRegistryName `
+      --image "${WebImageRepository}:$resolvedImageTag" `
+      --file apps/web-app/Dockerfile `
+      --build-arg "NEXT_PUBLIC_APP_ENVIRONMENT=$($environmentConfiguration.appEnvironmentName)" `
+      --build-arg 'NEXT_PUBLIC_AUTH_PROVIDER=okta' `
+      --build-arg "NEXT_PUBLIC_OKTA_ENVIRONMENT=$oktaEnvironmentName" `
+      --build-arg "NEXT_PUBLIC_OKTA_ISSUER=$oktaIssuer" `
+      --build-arg "NEXT_PUBLIC_OKTA_CLIENT_ID=$oktaClientId" `
+      --build-arg "NEXT_PUBLIC_OKTA_REDIRECT_URI=$resolvedOktaRedirectUri" `
+      --build-arg "NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI=$resolvedOktaPostLogoutRedirectUri" `
+      --build-arg "NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES=$oktaFundingAcrValues" `
+      --no-logs `
+      --only-show-errors `
+      $containerBuildContextPath `
+      --output none
+
+    if ($LASTEXITCODE -ne 0) {
+      throw "ACR build failed for image '${WebImageRepository}:$resolvedImageTag'."
+    }
+  } finally {
+    Remove-Item -LiteralPath $containerBuildContextPath -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
 
 $platformWorkloadLinksDeploymentArguments = @(
   'stack', 'group', 'create',
@@ -766,6 +908,14 @@ $runtimeDeploymentArguments = @(
   '--parameters', "containerImage=$imageReference",
   '--parameters', "managedEnvironmentId=$managedEnvironmentId",
   '--parameters', "userAssignedIdentityResourceId=$userAssignedIdentityResourceId",
+  '--parameters', "authProvider=okta",
+  '--parameters', "oktaEnvironmentName=$oktaEnvironmentName",
+  '--parameters', "oktaIssuer=$oktaIssuer",
+  '--parameters', "oktaClientId=$oktaClientId",
+  '--parameters', "oktaRedirectUri=$resolvedOktaRedirectUri",
+  '--parameters', "oktaPostLogoutRedirectUri=$resolvedOktaPostLogoutRedirectUri",
+  '--parameters', "oktaFundingAcrValues=$oktaFundingAcrValues",
+  '--parameters', "sessionSecretValue=$webSessionSecretValue",
   '--parameters', "applicationInsightsConnectionString=$applicationInsightsConnectionString",
   '--parameters', "keyVaultName=$keyVaultName",
   '--parameters', "keyVaultUri=$keyVaultUri",
@@ -839,6 +989,7 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   imageReference = $imageReference
   containerAppEnvironmentName = Get-StringOutputValue -Outputs $outputs -Name 'containerAppEnvironmentName'
   containerAppName = Get-StringOutputValue -Outputs $runtimeOutputs -Name 'containerAppName'
+  containerAppBaseUrl = $resolvedContainerAppBaseUrl
   containerAppLatestRevisionFqdn = Get-StringOutputValue -Outputs $runtimeOutputs -Name 'containerAppLatestRevisionFqdn'
   userAssignedIdentityName = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityName'
   userAssignedIdentityClientId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityClientId'

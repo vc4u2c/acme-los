@@ -57,6 +57,52 @@ function optionalString(value) {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function optionalStringArray(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => optionalString(value))
+    .filter((value) => typeof value === 'string');
+}
+
+function getUniqueValues(values) {
+  return [...new Set(values.filter((value) => typeof value === 'string'))];
+}
+
+function resolveLocalWebBaseUrl(webConfig) {
+  const baseUrl =
+    optionalString(webConfig?.localBaseUrl) ??
+    optionalString(webConfig?.baseUrl) ??
+    optionalString(webConfig?.deployedBaseUrl);
+
+  return requiredString(
+    baseUrl,
+    'web.localBaseUrl or web.baseUrl or web.deployedBaseUrl',
+  );
+}
+
+function resolveDeployedWebBaseUrl(webConfig) {
+  const baseUrl =
+    optionalString(webConfig?.deployedBaseUrl) ??
+    optionalString(webConfig?.baseUrl) ??
+    optionalString(webConfig?.localBaseUrl);
+
+  return requiredString(
+    baseUrl,
+    'web.deployedBaseUrl or web.baseUrl or web.localBaseUrl',
+  );
+}
+
+function resolveAllowedWebBaseUrls(webConfig) {
+  return getUniqueValues([
+    resolveLocalWebBaseUrl(webConfig),
+    resolveDeployedWebBaseUrl(webConfig),
+    ...optionalStringArray(webConfig?.additionalBaseUrls),
+  ]);
+}
+
 function resolveClientId(value, fallbackFieldName) {
   const manifestValue = optionalString(value);
   if (manifestValue) {
@@ -105,7 +151,9 @@ const fundingStepUpAcrValues = requiredString(
   environment.okta?.fundingStepUpAcrValues,
   'okta.fundingStepUpAcrValues',
 );
-const webBaseUrl = requiredString(environment.web?.baseUrl, 'web.baseUrl');
+const localWebBaseUrl = resolveLocalWebBaseUrl(environment.web);
+const deployedWebBaseUrl = resolveDeployedWebBaseUrl(environment.web);
+const allowedWebBaseUrls = resolveAllowedWebBaseUrls(environment.web);
 const webRedirectPath = requiredString(
   environment.web?.redirectPath,
   'web.redirectPath',
@@ -123,9 +171,9 @@ const mobileRedirectPath = requiredString(
   'mobile.redirectPath',
 );
 
-const webRedirectUri = toAbsoluteUrl(webBaseUrl, webRedirectPath);
+const webRedirectUri = toAbsoluteUrl(localWebBaseUrl, webRedirectPath);
 const webPostLogoutRedirectUri = toAbsoluteUrl(
-  webBaseUrl,
+  localWebBaseUrl,
   webPostLogoutRedirectPath,
 );
 const mobileRedirectUri = toMobileRedirectUri(mobileScheme, mobileRedirectPath);
@@ -153,11 +201,11 @@ const hostedBranding = {
   SupportPhone: requiredString(brandProfile.supportPhone, 'brand.supportPhone'),
   SupportHours: requiredString(brandProfile.supportHours, 'brand.supportHours'),
   LogoUrl: toAbsoluteUrl(
-    webBaseUrl,
+    deployedWebBaseUrl,
     requiredString(brandProfile.logoPath, 'brand.logoPath'),
   ),
   FaviconUrl: toAbsoluteUrl(
-    webBaseUrl,
+    deployedWebBaseUrl,
     requiredString(brandProfile.iconPath, 'brand.iconPath'),
   ),
   PrimaryColor: requiredString(brandProfile.primaryColor, 'brand.primaryColor'),
@@ -184,15 +232,15 @@ const hostedBranding = {
   FocusColor: requiredString(brandProfile.focusColor, 'brand.focusColor'),
   AccentColor: requiredString(brandProfile.accentColor, 'brand.accentColor'),
   PrivacyPolicyUrl: toAbsoluteUrl(
-    webBaseUrl,
+    deployedWebBaseUrl,
     requiredString(brandProfile.privacyPolicyPath, 'brand.privacyPolicyPath'),
   ),
   TermsUrl: toAbsoluteUrl(
-    webBaseUrl,
+    deployedWebBaseUrl,
     requiredString(brandProfile.termsPath, 'brand.termsPath'),
   ),
   HelpUrl: toAbsoluteUrl(
-    webBaseUrl,
+    deployedWebBaseUrl,
     requiredString(brandProfile.helpPath, 'brand.helpPath'),
   ),
   SignInTitle: requiredString(brandProfile.signInTitle, 'brand.signInTitle'),
@@ -210,6 +258,7 @@ const hostedBranding = {
 const webEnvContents = [
   `# Generated from infra/okta/environments/${environmentName}.json`,
   `# Policy intent: ${policySummary}`,
+  'NEXT_PUBLIC_APP_ENVIRONMENT=local',
   'NEXT_PUBLIC_AUTH_PROVIDER=okta',
   `NEXT_PUBLIC_OKTA_ENVIRONMENT=${environment.environment}`,
   `NEXT_PUBLIC_OKTA_ISSUER=${issuer}`,
@@ -223,6 +272,7 @@ const webEnvContents = [
 const mobileEnvContents = [
   `# Generated from infra/okta/environments/${environmentName}.json`,
   `# Policy intent: ${policySummary}`,
+  'EXPO_PUBLIC_APP_ENVIRONMENT=local',
   'EXPO_PUBLIC_AUTH_PROVIDER=okta',
   `EXPO_PUBLIC_OKTA_ENVIRONMENT=${environment.environment}`,
   `EXPO_PUBLIC_OKTA_ISSUER=${issuer}`,
@@ -273,9 +323,13 @@ const oktaApplications = {
     ApplicationType: 'browser-spa-pkce',
     Issuer: issuer,
     ClientId: webClientId,
-    BaseUrl: webBaseUrl,
-    RedirectUris: [webRedirectUri],
-    PostLogoutRedirectUris: [webPostLogoutRedirectUri],
+    BaseUrl: deployedWebBaseUrl,
+    RedirectUris: allowedWebBaseUrls.map((baseUrl) =>
+      toAbsoluteUrl(baseUrl, webRedirectPath),
+    ),
+    PostLogoutRedirectUris: allowedWebBaseUrls.map((baseUrl) =>
+      toAbsoluteUrl(baseUrl, webPostLogoutRedirectPath),
+    ),
     RegistrationHandledByOkta: true,
   },
   Mobile: {

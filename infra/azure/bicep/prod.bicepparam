@@ -15,15 +15,9 @@ param platformSubscriptionId = '00000000-0000-0000-0000-000000000000'
 param platformNetworkResourceGroupName = 'rg-acme-placeholder-network-cus-01'
 param containerRegistryName = 'acrplaceholder'
 param containerRegistryResourceGroupName = 'rg-acme-placeholder-images-cus-01'
-param containerRegistryLoginServer = 'acrplaceholder.azurecr.io'
-param containerImage = 'acrplaceholder.azurecr.io/acme-los-web:placeholder'
 param workloadVnetAddressSpace = '10.30.0.0/24'
 param acaInfrastructureSubnetAddressPrefix = '10.30.0.0/27'
 param privateEndpointSubnetAddressPrefix = '10.30.0.32/27'
-param containerCpu = '0.5'
-param containerMemory = '1Gi'
-param minReplicas = 1
-param maxReplicas = 2
 param extraTags = {
   'acme:okta-environment': 'prod'
 }

@@ -1,6 +1,7 @@
 const { version } = require('./package.json');
 
 process.env.EXPO_PUBLIC_APP_VERSION ??= version;
+process.env.EXPO_PUBLIC_APP_ENVIRONMENT ??= 'local';
 
 const authProvider = process.env.EXPO_PUBLIC_AUTH_PROVIDER ?? 'mock';
 const oktaIssuer = process.env.EXPO_PUBLIC_OKTA_ISSUER ?? null;
@@ -36,6 +37,7 @@ module.exports = {
     },
     extra: {
       appVersion: version,
+      appEnvironment: process.env.EXPO_PUBLIC_APP_ENVIRONMENT,
       auth: {
         provider: authProvider,
         okta: {

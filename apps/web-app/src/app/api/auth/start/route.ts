@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
   applyRateLimitHeaders,
+  buildPublicRequestUrl,
   buildSignInRedirectPath,
   clearWebAuthTransaction,
   checkRateLimit,
@@ -38,13 +39,13 @@ function buildErrorRedirect(
   },
 ): NextResponse {
   const response = NextResponse.redirect(
-    new URL(
+    buildPublicRequestUrl(
+      request,
       buildSignInRedirectPath({
         returnTo: returnTo ?? '/apply/personal-info',
         minimumAssuranceLevel,
         authError,
       }),
-      request.url,
     ),
   );
 

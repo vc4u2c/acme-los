@@ -68,9 +68,11 @@ function BrandMark(): React.ReactElement {
 
 export function DashboardScreen({
   mobileAppVersion,
+  mobileAppEnvironment,
   onOpenShowcase,
 }: {
   mobileAppVersion: string;
+  mobileAppEnvironment: string;
   onOpenShowcase: () => void;
 }): React.ReactElement {
   return (
@@ -92,6 +94,9 @@ export function DashboardScreen({
             </Badge>
             <Badge variant="warning">
               <BadgeText variant="warning">{`Mobile App v${mobileAppVersion}`}</BadgeText>
+            </Badge>
+            <Badge variant="info">
+              <BadgeText variant="info">{mobileAppEnvironment}</BadgeText>
             </Badge>
           </View>
           <ScreenTitle testID="heading">

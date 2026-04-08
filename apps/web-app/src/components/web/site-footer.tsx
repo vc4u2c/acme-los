@@ -9,6 +9,7 @@ import {
 import { webAppRelease } from '../../lib/app-release';
 import { isSecurityInspectorEnabled } from '../../lib/security-demo';
 import { AcmeMarkIcon } from './icons';
+import { RuntimeEnvironmentBadge } from './runtime-environment-badge';
 
 const baseQuickLinks = [
   { href: '/', label: 'Home' },
@@ -188,6 +189,9 @@ export function SiteFooter(): React.ReactElement {
               <div className="inline-flex w-fit items-center rounded-full border border-[var(--accent)] bg-[var(--surface-spot)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-ink)]">
                 {webAppRelease.versionBadgeLabel}
               </div>
+              <RuntimeEnvironmentBadge
+                initialLabel={webAppRelease.environmentBadgeLabel}
+              />
               <p>
                 &copy; {new Date().getFullYear()} ACME LOS. All rights reserved.
               </p>

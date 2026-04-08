@@ -2,7 +2,7 @@
   "environment": "dev",
   "okta": {
     "issuer": "https://auth.avanai.net/oauth2/default",
-    "webClientId": "0oa114q11xglWPVKJ698",
+    "webClientId": "0oa11q8f1zuFhBCeE698",
     "mobileClientId": "0oa114pxwpwIRfEnb698",
     "fundingStepUpAcrValues": "urn:okta:loa:2fa:any",
     "hostedExperience": {
@@ -16,6 +16,7 @@
   },
   "web": {
     "baseUrl": "http://localhost:3000",
+    "deployedBaseUrl": "https://ca-acme-los-web-dev-cus-01.icyrock-b2ec4b26.centralus.azurecontainerapps.io",
     "redirectPath": "/auth/callback",
     "postLogoutRedirectPath": "/"
   },

@@ -29,9 +29,11 @@ import {
 
 export function ShowcaseScreen({
   mobileAppVersion,
+  mobileAppEnvironment,
   onBack,
 }: {
   mobileAppVersion: string;
+  mobileAppEnvironment: string;
   onBack?: () => void;
 }): React.ReactElement {
   return (
@@ -52,6 +54,9 @@ export function ShowcaseScreen({
           ) : null}
           <Badge variant="info">
             <BadgeText variant="info">Mobile Showcase</BadgeText>
+          </Badge>
+          <Badge variant="warning">
+            <BadgeText variant="warning">{mobileAppEnvironment}</BadgeText>
           </Badge>
           <ScreenTitle>Clean mobile primitives, one place</ScreenTitle>
           <ScreenDescription>

@@ -7,10 +7,20 @@ param userAssignedIdentityResourceId string
 param containerRegistryServer string
 param containerImage string
 param appEnvironmentName string
+param authProvider string = 'okta'
+param oktaEnvironmentName string = appEnvironmentName
+param oktaIssuer string
+param oktaClientId string
+param oktaRedirectUri string
+param oktaPostLogoutRedirectUri string
+param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
 param stateStoreMode string
 param redisKeyPrefix string = ''
 param applicationInsightsConnectionString string
 param keyVaultUri string
+param sessionSecretName string = 'web-session-secret'
+@secure()
+param sessionSecretKeyVaultUrl string
 param targetPort int = 3000
 param containerCpu string = '0.5'
 param containerMemory string = '1Gi'
@@ -27,6 +37,38 @@ var environmentVariables = concat([
   {
     name: 'APP_ENVIRONMENT_NAME'
     value: appEnvironmentName
+  }
+  {
+    name: 'NEXT_PUBLIC_APP_ENVIRONMENT'
+    value: appEnvironmentName
+  }
+  {
+    name: 'NEXT_PUBLIC_AUTH_PROVIDER'
+    value: authProvider
+  }
+  {
+    name: 'NEXT_PUBLIC_OKTA_ENVIRONMENT'
+    value: oktaEnvironmentName
+  }
+  {
+    name: 'NEXT_PUBLIC_OKTA_ISSUER'
+    value: oktaIssuer
+  }
+  {
+    name: 'NEXT_PUBLIC_OKTA_CLIENT_ID'
+    value: oktaClientId
+  }
+  {
+    name: 'NEXT_PUBLIC_OKTA_REDIRECT_URI'
+    value: oktaRedirectUri
+  }
+  {
+    name: 'NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI'
+    value: oktaPostLogoutRedirectUri
+  }
+  {
+    name: 'NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES'
+    value: oktaFundingAcrValues
   }
   {
     name: 'ACME_WEB_STATE_STORE'
@@ -60,6 +102,10 @@ var environmentVariables = concat([
     name: 'KEY_VAULT_URI'
     value: keyVaultUri
   }
+  {
+    name: 'ACME_WEB_SESSION_SECRET'
+    secretRef: sessionSecretName
+  }
 ], stateStoreMode == 'redis' ? [
   {
     name: 'ACME_REDIS_KEY_PREFIX'
@@ -71,13 +117,19 @@ var environmentVariables = concat([
   }
 ] : [])
 
-var secrets = stateStoreMode == 'redis' ? [
+var secrets = concat([
+  {
+    name: sessionSecretName
+    keyVaultUrl: sessionSecretKeyVaultUrl
+    identity: userAssignedIdentityResourceId
+  }
+], stateStoreMode == 'redis' ? [
   {
     name: redisSecretName
     keyVaultUrl: redisSecretKeyVaultUrl
     identity: userAssignedIdentityResourceId
   }
-] : []
+] : [])
 
 resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: name

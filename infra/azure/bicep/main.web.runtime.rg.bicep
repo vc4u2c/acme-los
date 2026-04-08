@@ -23,11 +23,21 @@ param extraTags object = {}
 param stateStoreMode string = 'file'
 param managedEnvironmentId string
 param userAssignedIdentityResourceId string
+param authProvider string = 'okta'
+param oktaEnvironmentName string = environmentName
+param oktaIssuer string
+param oktaClientId string
+param oktaRedirectUri string
+param oktaPostLogoutRedirectUri string
+param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
 param containerRegistryLoginServer string
 param containerImage string
 param applicationInsightsConnectionString string
 param keyVaultName string
 param keyVaultUri string
+param sessionSecretName string = 'sec-acme-los-web-session-secret'
+@secure()
+param sessionSecretValue string
 param redisClusterName string = ''
 param redisDatabaseName string = 'default'
 param redisHostName string = ''
@@ -54,6 +64,14 @@ var redisConnectionString = stateStoreMode == 'redis'
 
 resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
+}
+
+resource sessionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVaultResource
+  name: sessionSecretName
+  properties: {
+    value: sessionSecretValue
+  }
 }
 
 resource redisConnectionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (stateStoreMode == 'redis') {
@@ -87,10 +105,19 @@ module containerApp './modules/web/container-app.bicep' = {
     containerRegistryServer: containerRegistryLoginServer
     containerImage: containerImage
     appEnvironmentName: environmentName
+    authProvider: authProvider
+    oktaEnvironmentName: oktaEnvironmentName
+    oktaIssuer: oktaIssuer
+    oktaClientId: oktaClientId
+    oktaRedirectUri: oktaRedirectUri
+    oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
+    oktaFundingAcrValues: oktaFundingAcrValues
     stateStoreMode: stateStoreMode
     redisKeyPrefix: redisKeyPrefix
     applicationInsightsConnectionString: applicationInsightsConnectionString
     keyVaultUri: keyVaultUri
+    sessionSecretName: sessionSecretName
+    sessionSecretKeyVaultUrl: '${keyVaultUri}secrets/${sessionSecretName}'
     targetPort: containerTargetPort
     containerCpu: containerCpu
     containerMemory: containerMemory
@@ -100,6 +127,7 @@ module containerApp './modules/web/container-app.bicep' = {
     redisSecretKeyVaultUrl: redisSecretKeyVaultUrl
   }
   dependsOn: [
+    sessionSecret
     redisConnectionSecret
   ]
 }
