@@ -69,6 +69,9 @@ function DashboardRoute({
   return (
     <DashboardScreen
       mobileAppVersion={mobileAppRelease.version}
+      mobileAppBuild={
+        mobileAppRelease.showBuildBadge ? mobileAppRelease.buildId : undefined
+      }
       mobileAppEnvironment={mobileAppRelease.environmentBadgeLabel}
       onOpenShowcase={() => navigation.navigate('showcase')}
     />
@@ -79,6 +82,9 @@ function ShowcaseRoute(): React.ReactElement {
   return (
     <ShowcaseScreen
       mobileAppVersion={mobileAppRelease.version}
+      mobileAppBuild={
+        mobileAppRelease.showBuildBadge ? mobileAppRelease.buildId : undefined
+      }
       mobileAppEnvironment={mobileAppRelease.environmentBadgeLabel}
     />
   );
@@ -109,6 +115,9 @@ function WebAppShell(): React.ReactElement {
     return (
       <ShowcaseScreen
         mobileAppVersion={mobileAppRelease.version}
+        mobileAppBuild={
+          mobileAppRelease.showBuildBadge ? mobileAppRelease.buildId : undefined
+        }
         mobileAppEnvironment={mobileAppRelease.environmentBadgeLabel}
         onBack={() => navigate('dashboard')}
       />
@@ -118,6 +127,9 @@ function WebAppShell(): React.ReactElement {
   return (
     <DashboardScreen
       mobileAppVersion={mobileAppRelease.version}
+      mobileAppBuild={
+        mobileAppRelease.showBuildBadge ? mobileAppRelease.buildId : undefined
+      }
       mobileAppEnvironment={mobileAppRelease.environmentBadgeLabel}
       onOpenShowcase={() => navigate('showcase')}
     />

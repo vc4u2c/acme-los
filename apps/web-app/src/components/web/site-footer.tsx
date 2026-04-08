@@ -189,6 +189,11 @@ export function SiteFooter(): React.ReactElement {
               <div className="inline-flex w-fit items-center rounded-full border border-[var(--accent)] bg-[var(--surface-spot)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--accent-ink)]">
                 {webAppRelease.versionBadgeLabel}
               </div>
+              {webAppRelease.showBuildBadge && webAppRelease.buildBadgeLabel ? (
+                <div className="inline-flex w-fit items-center rounded-full border border-[var(--border-strong)] bg-[var(--surface-strong)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+                  {webAppRelease.buildBadgeLabel}
+                </div>
+              ) : null}
               <RuntimeEnvironmentBadge
                 initialLabel={webAppRelease.environmentBadgeLabel}
               />

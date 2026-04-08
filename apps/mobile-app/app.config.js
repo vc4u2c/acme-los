@@ -1,7 +1,22 @@
+const { execSync } = require('node:child_process');
 const { version } = require('./package.json');
+
+function resolveGitBuildId() {
+  try {
+    return execSync('git rev-parse --short HEAD', {
+      cwd: __dirname,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+      .toString('utf8')
+      .trim();
+  } catch {
+    return null;
+  }
+}
 
 process.env.EXPO_PUBLIC_APP_VERSION ??= version;
 process.env.EXPO_PUBLIC_APP_ENVIRONMENT ??= 'local';
+process.env.EXPO_PUBLIC_APP_BUILD ??= resolveGitBuildId() ?? '';
 
 const authProvider = process.env.EXPO_PUBLIC_AUTH_PROVIDER ?? 'mock';
 const oktaIssuer = process.env.EXPO_PUBLIC_OKTA_ISSUER ?? null;
@@ -37,6 +52,7 @@ module.exports = {
     },
     extra: {
       appVersion: version,
+      appBuild: process.env.EXPO_PUBLIC_APP_BUILD,
       appEnvironment: process.env.EXPO_PUBLIC_APP_ENVIRONMENT,
       auth: {
         provider: authProvider,
