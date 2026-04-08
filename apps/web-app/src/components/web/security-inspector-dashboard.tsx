@@ -11,7 +11,6 @@ import {
   CardHeader,
   CardTitle,
 } from '@acme-los/ui-web';
-import { SiteFooter } from './site-footer';
 import { SiteHeader } from './site-header';
 
 type SecurityInspectorServerSnapshot = {
@@ -459,8 +458,6 @@ export function SecurityInspectorDashboard(): React.ReactElement {
           ) : null}
         </div>
       </section>
-
-      <SiteFooter />
     </main>
   );
 }

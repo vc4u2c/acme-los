@@ -107,7 +107,7 @@ If you want the fastest path to running the repo, start at:
 - opaque HTTP-only auth session cookie
 - CSRF protection on mutating web routes
 - centralized server-side state for auth, customer, and application flow
-- explicit opt-in security inspector for demos only
+- security inspector enabled by default in `local` and `dev`, opt-in elsewhere
 
 ### Server State
 

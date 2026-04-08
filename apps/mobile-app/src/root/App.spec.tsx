@@ -11,6 +11,9 @@ test('renders correctly', () => {
   expect(
     getByText(new RegExp(`v${mobileAppRelease.version}`, 'i')),
   ).toBeTruthy();
+  expect(
+    getByText(new RegExp(`^${mobileAppRelease.environmentBadgeLabel}$`)),
+  ).toBeTruthy();
   fireEvent.press(getByText(/Open mobile showcase/i));
   expect(getByText(/Gluestack primitives in one place/i)).toBeTruthy();
   expect(getByText(/Input primitives/i)).toBeTruthy();

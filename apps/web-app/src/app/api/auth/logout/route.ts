@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
+  buildPublicRequestUrl,
   clearWebAuthLogoutArtifacts,
   getServerWebAuthConfig,
   logAuthAuditEvent,
@@ -12,7 +13,7 @@ function getSafePostLogoutRedirectUri(request: NextRequest): string {
   const config = getServerWebAuthConfig();
 
   if (config.provider !== 'okta' || !config.okta) {
-    return new URL('/', request.url).toString();
+    return buildPublicRequestUrl(request, '/').toString();
   }
 
   return config.okta.postLogoutRedirectUri;

@@ -66,6 +66,61 @@ function requiredString(value, fieldName) {
   return value.trim();
 }
 
+function optionalString(value) {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function optionalStringArray(values) {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  return values
+    .map((value) => optionalString(value))
+    .filter((value) => typeof value === 'string');
+}
+
+function getUniqueValues(values) {
+  return [...new Set(values.filter((value) => typeof value === 'string'))];
+}
+
+function resolveLocalWebBaseUrl(webConfig) {
+  const baseUrl =
+    optionalString(webConfig?.localBaseUrl) ??
+    optionalString(webConfig?.baseUrl) ??
+    optionalString(webConfig?.deployedBaseUrl);
+
+  return requiredString(
+    baseUrl,
+    'web.localBaseUrl or web.baseUrl or web.deployedBaseUrl',
+  );
+}
+
+function resolveDeployedWebBaseUrl(webConfig) {
+  const baseUrl =
+    optionalString(webConfig?.deployedBaseUrl) ??
+    optionalString(webConfig?.baseUrl) ??
+    optionalString(webConfig?.localBaseUrl);
+
+  return requiredString(
+    baseUrl,
+    'web.deployedBaseUrl or web.baseUrl or web.localBaseUrl',
+  );
+}
+
+function resolveAllowedWebBaseUrls(webConfig) {
+  return getUniqueValues([
+    resolveLocalWebBaseUrl(webConfig),
+    resolveDeployedWebBaseUrl(webConfig),
+    ...optionalStringArray(webConfig?.additionalBaseUrls),
+  ]);
+}
+
 function toAbsoluteUrl(baseUrl, pathname) {
   return new URL(
     requiredString(pathname, 'path'),
@@ -304,6 +359,18 @@ async function createApplication(payload) {
   return oktaRequest('POST', '/api/v1/apps', payload);
 }
 
+async function deleteApplication(app) {
+  if (!app) {
+    return;
+  }
+
+  if (app.status !== 'INACTIVE') {
+    await oktaRequest('POST', `/api/v1/apps/${app.id}/lifecycle/deactivate`);
+  }
+
+  await oktaRequest('DELETE', `/api/v1/apps/${app.id}`);
+}
+
 async function findTrustedOriginByOrigin(origin) {
   const trustedOrigins = await oktaRequest(
     'GET',
@@ -323,6 +390,14 @@ async function findTrustedOriginByOrigin(origin) {
 
 async function createTrustedOrigin(payload) {
   return oktaRequest('POST', '/api/v1/trustedOrigins', payload);
+}
+
+async function deleteTrustedOrigin(trustedOrigin) {
+  if (!trustedOrigin) {
+    return;
+  }
+
+  await oktaRequest('DELETE', `/api/v1/trustedOrigins/${trustedOrigin.id}`);
 }
 
 async function listBrands() {
@@ -849,32 +924,36 @@ function authorizationServerClaimMatches(existingClaim, expectedClaim) {
   );
 }
 
-const webBaseUrl = requiredString(environment.web?.baseUrl, 'web.baseUrl');
-const webRedirectUri = toAbsoluteUrl(
-  webBaseUrl,
-  requiredString(environment.web?.redirectPath, 'web.redirectPath'),
+const localWebBaseUrl = resolveLocalWebBaseUrl(environment.web);
+const deployedWebBaseUrl = resolveDeployedWebBaseUrl(environment.web);
+const allowedWebBaseUrls = resolveAllowedWebBaseUrls(environment.web);
+const webRedirectPath = requiredString(
+  environment.web?.redirectPath,
+  'web.redirectPath',
 );
+const webPostLogoutRedirectPath = requiredString(
+  environment.web?.postLogoutRedirectPath,
+  'web.postLogoutRedirectPath',
+);
+const webRedirectUri = toAbsoluteUrl(localWebBaseUrl, webRedirectPath);
 const webPostLogoutRedirectUri = toAbsoluteUrl(
-  webBaseUrl,
-  requiredString(
-    environment.web?.postLogoutRedirectPath,
-    'web.postLogoutRedirectPath',
-  ),
+  localWebBaseUrl,
+  webPostLogoutRedirectPath,
 );
 const mobileRedirectUri = toMobileRedirectUri(
   requiredString(environment.mobile?.scheme, 'mobile.scheme'),
   requiredString(environment.mobile?.redirectPath, 'mobile.redirectPath'),
 );
 const privacyPolicyUrl = toAbsoluteUrl(
-  webBaseUrl,
+  deployedWebBaseUrl,
   requiredString(brandProfile.privacyPolicyPath, 'brand.privacyPolicyPath'),
 );
 const termsUrl = toAbsoluteUrl(
-  webBaseUrl,
+  deployedWebBaseUrl,
   requiredString(brandProfile.termsPath, 'brand.termsPath'),
 );
 const helpUrl = toAbsoluteUrl(
-  webBaseUrl,
+  deployedWebBaseUrl,
   requiredString(brandProfile.helpPath, 'brand.helpPath'),
 );
 const hostedExperience = environment.okta?.hostedExperience ?? {};
@@ -898,11 +977,11 @@ const hostedBranding = {
   SupportPhone: requiredString(brandProfile.supportPhone, 'brand.supportPhone'),
   SupportHours: requiredString(brandProfile.supportHours, 'brand.supportHours'),
   LogoUrl: toAbsoluteUrl(
-    webBaseUrl,
+    deployedWebBaseUrl,
     requiredString(brandProfile.logoPath, 'brand.logoPath'),
   ),
   FaviconUrl: toAbsoluteUrl(
-    webBaseUrl,
+    deployedWebBaseUrl,
     requiredString(brandProfile.iconPath, 'brand.iconPath'),
   ),
   PrimaryColor: requiredString(brandProfile.primaryColor, 'brand.primaryColor'),
@@ -965,8 +1044,12 @@ const expectedWebApp = {
   applicationType: 'browser',
   grantTypes: ['authorization_code', 'refresh_token'],
   responseTypes: ['code'],
-  redirectUris: [webRedirectUri],
-  postLogoutRedirectUris: [webPostLogoutRedirectUri],
+  redirectUris: allowedWebBaseUrls.map((baseUrl) =>
+    toAbsoluteUrl(baseUrl, webRedirectPath),
+  ),
+  postLogoutRedirectUris: allowedWebBaseUrls.map((baseUrl) =>
+    toAbsoluteUrl(baseUrl, webPostLogoutRedirectPath),
+  ),
   payload: {
     name: 'oidc_client',
     label: `ACME LOS Web (${environment.environment})`,
@@ -979,13 +1062,17 @@ const expectedWebApp = {
     settings: {
       oauthClient: {
         application_type: 'browser',
-        redirect_uris: [webRedirectUri],
-        post_logout_redirect_uris: [webPostLogoutRedirectUri],
+        redirect_uris: allowedWebBaseUrls.map((baseUrl) =>
+          toAbsoluteUrl(baseUrl, webRedirectPath),
+        ),
+        post_logout_redirect_uris: allowedWebBaseUrls.map((baseUrl) =>
+          toAbsoluteUrl(baseUrl, webPostLogoutRedirectPath),
+        ),
         response_types: ['code'],
         grant_types: ['authorization_code', 'refresh_token'],
-        initiate_login_uri: webBaseUrl,
+        initiate_login_uri: deployedWebBaseUrl,
         logo_uri: toAbsoluteUrl(
-          webBaseUrl,
+          deployedWebBaseUrl,
           requiredString(brandProfile.logoPath, 'brand.logoPath'),
         ),
         tos_uri: termsUrl,
@@ -1025,17 +1112,22 @@ const expectedMobileApp = {
   },
 };
 
-const expectedTrustedOrigin = {
-  name: `ACME LOS Web ${environment.environment.toUpperCase()}`,
-  origin: webBaseUrl,
-  scopes: ['CORS', 'REDIRECT'],
-  payload: {
-    name: `ACME LOS Web ${environment.environment.toUpperCase()}`,
-    origin: webBaseUrl,
-    status: 'ACTIVE',
-    scopes: [{ type: 'CORS' }, { type: 'REDIRECT' }],
-  },
-};
+const expectedTrustedOrigins = allowedWebBaseUrls.map((origin) => {
+  const hostLabel = new URL(origin).host.replace(/[^a-z0-9]+/gi, '-');
+  const name = `ACME LOS Web ${environment.environment.toUpperCase()} ${hostLabel}`;
+
+  return {
+    name,
+    origin,
+    scopes: ['CORS', 'REDIRECT'],
+    payload: {
+      name,
+      origin,
+      status: 'ACTIVE',
+      scopes: [{ type: 'CORS' }, { type: 'REDIRECT' }],
+    },
+  };
+});
 
 if (dryRun) {
   writeJsonFile(bootstrapOutputsPath, {
@@ -1044,7 +1136,9 @@ if (dryRun) {
     oktaApiBaseUrl,
     web: expectedWebApp.payload,
     mobile: expectedMobileApp.payload,
-    trustedOrigin: expectedTrustedOrigin.payload,
+    trustedOrigins: expectedTrustedOrigins.map(
+      (trustedOrigin) => trustedOrigin.payload,
+    ),
     branding: {
       logoAssetPath: brandProfile.hostedLogoAssetPath,
       faviconAssetPath: brandProfile.hostedFaviconAssetPath,
@@ -1097,9 +1191,15 @@ for (const expectedApp of [expectedWebApp, expectedMobileApp]) {
       expectedApp.label,
     );
     if (mismatches.length > 0) {
-      throw new Error(
-        `Existing Okta app "${expectedApp.label}" does not match the repo intent.\n${mismatches.join('\n')}`,
-      );
+      await deleteApplication(existingApp);
+      const recreatedApp = await createApplication(expectedApp.payload);
+
+      results[expectedApp.label] = {
+        mode: 'recreated',
+        id: recreatedApp.id,
+        clientId: extractClientId(recreatedApp),
+      };
+      continue;
     }
 
     results[expectedApp.label] = {
@@ -1117,39 +1217,54 @@ for (const expectedApp of [expectedWebApp, expectedMobileApp]) {
   }
 }
 
-const existingTrustedOrigin = await findTrustedOriginByOrigin(
-  expectedTrustedOrigin.origin,
-);
-if (existingTrustedOrigin) {
-  const existingScopes = (existingTrustedOrigin.scopes ?? []).map(
-    (scope) => scope.type,
-  );
-  const missingScopes = expectedTrustedOrigin.scopes.filter(
-    (scope) => !existingScopes.includes(scope),
+results.trustedOrigins = [];
+
+for (const expectedTrustedOrigin of expectedTrustedOrigins) {
+  const existingTrustedOrigin = await findTrustedOriginByOrigin(
+    expectedTrustedOrigin.origin,
   );
 
-  if (
-    existingTrustedOrigin.status !== 'ACTIVE' ||
-    existingTrustedOrigin.name !== expectedTrustedOrigin.name ||
-    missingScopes.length > 0
-  ) {
-    throw new Error(
-      `Existing trusted origin "${expectedTrustedOrigin.origin}" does not match the repo intent.`,
+  if (existingTrustedOrigin) {
+    const existingScopes = (existingTrustedOrigin.scopes ?? []).map(
+      (scope) => scope.type,
     );
+    const missingScopes = expectedTrustedOrigin.scopes.filter(
+      (scope) => !existingScopes.includes(scope),
+    );
+
+    if (
+      existingTrustedOrigin.status !== 'ACTIVE' ||
+      existingTrustedOrigin.name !== expectedTrustedOrigin.name ||
+      missingScopes.length > 0
+    ) {
+      await deleteTrustedOrigin(existingTrustedOrigin);
+      const recreatedTrustedOrigin = await createTrustedOrigin(
+        expectedTrustedOrigin.payload,
+      );
+      results.trustedOrigins.push({
+        mode: 'recreated',
+        id: recreatedTrustedOrigin.id,
+        origin: expectedTrustedOrigin.origin,
+      });
+      continue;
+    }
+
+    results.trustedOrigins.push({
+      mode: 'existing',
+      id: existingTrustedOrigin.id,
+      origin: expectedTrustedOrigin.origin,
+    });
+    continue;
   }
 
-  results.trustedOrigin = {
-    mode: 'existing',
-    id: existingTrustedOrigin.id,
-  };
-} else {
   const createdTrustedOrigin = await createTrustedOrigin(
     expectedTrustedOrigin.payload,
   );
-  results.trustedOrigin = {
+  results.trustedOrigins.push({
     mode: 'created',
     id: createdTrustedOrigin.id,
-  };
+    origin: expectedTrustedOrigin.origin,
+  });
 }
 
 const brands = await listBrands();
@@ -1823,7 +1938,11 @@ writeJsonFile(bootstrapOutputsPath, {
   webClientId: results[expectedWebApp.label].clientId,
   mobileAppId: results[expectedMobileApp.label].id,
   mobileClientId: results[expectedMobileApp.label].clientId,
-  trustedOriginId: results.trustedOrigin.id,
+  trustedOriginId: results.trustedOrigins[0]?.id ?? '',
+  trustedOriginIds: results.trustedOrigins.map(
+    (trustedOrigin) => trustedOrigin.id,
+  ),
+  trustedOrigins: results.trustedOrigins,
   defaultBrandId: results.defaultBrand.id,
   defaultBrandThemeId: results.defaultBrandTheme.id,
   customerBrandId: results.customerBrand.id,
@@ -1856,7 +1975,7 @@ console.log(
   `- Mobile app (${results[expectedMobileApp.label].mode}): ${results[expectedMobileApp.label].clientId}`,
 );
 console.log(
-  `- Trusted origin (${results.trustedOrigin.mode}): ${expectedTrustedOrigin.origin}`,
+  `- Trusted origins: ${results.trustedOrigins.map((trustedOrigin) => `${trustedOrigin.origin} (${trustedOrigin.mode})`).join(', ')}`,
 );
 console.log(`- Default brand: ${results.defaultBrand.name}`);
 console.log(

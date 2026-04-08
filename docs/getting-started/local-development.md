@@ -111,19 +111,21 @@ If you need any of these, also complete the Okta setup in [infra/okta/README.md]
 
 ### Security Inspector
 
-The `/security` route is demo-only and off by default.
+The `/security` route is available by default in `local` and `dev`.
 
-To enable it locally:
+For `qa`, `stg`, and `prod`, it stays opt-in only.
+
+To force it on anywhere:
 
 ```powershell
 $env:ACME_ENABLE_SECURITY_INSPECTOR='true'
 npx.cmd nx run web-app:dev
 ```
 
-Or add this to `apps/web-app/.env.local`:
+To force it off even in `local` or `dev`, add this to `apps/web-app/.env.local`:
 
 ```text
-ACME_ENABLE_SECURITY_INSPECTOR=true
+ACME_ENABLE_SECURITY_INSPECTOR=false
 ```
 
 ## Notes

@@ -43,6 +43,7 @@ export {
   readStoredWebAuthSession,
 } from './lib/session-store';
 export { getWebStateStoreMode } from './lib/state-store';
+export { buildPublicRequestUrl, getRequestOrigin } from './lib/request-url';
 export {
   clearWebAuthTransaction,
   exchangeOktaAuthorizationCode,

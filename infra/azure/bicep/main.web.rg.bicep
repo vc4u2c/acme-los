@@ -26,13 +26,6 @@ param platformNetworkResourceGroupName string
 param stateStoreMode string = 'file'
 param containerRegistryName string
 param containerRegistryResourceGroupName string
-param containerRegistryLoginServer string
-param containerImage string
-param containerTargetPort int = 3000
-param containerCpu string = '0.5'
-param containerMemory string = '1Gi'
-param minReplicas int = 0
-param maxReplicas int = 1
 param redisSkuName string = 'Balanced_B0'
 param redisClusteringPolicy string = 'NoCluster'
 param acaWorkloadProfileName string = 'consumption'

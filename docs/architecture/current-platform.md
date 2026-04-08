@@ -73,11 +73,11 @@ In place now:
 - server-driven logout
 - centralized server-side state for auth session, customer profile, and application flow
 - rate limiting and audit logging on auth-sensitive routes
-- explicit opt-in security inspector for demos
+- security inspector enabled by default in `local` and `dev`, opt-in elsewhere
 
 Still temporary by design:
 
-- the security inspector route is demo-only and should stay opt-in outside local work
+- the security inspector route is meant for local and dev troubleshooting and should stay opt-in outside those environments
 - the local file-backed store is a bridge fallback, not the final multi-instance production state path
 - the future .NET BFF should still replace the Next facade implementations while preserving the contracts
 - customer and application state still live in the web-server layer instead of a durable backend service

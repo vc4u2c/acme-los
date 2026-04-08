@@ -68,6 +68,7 @@ test('shows the web home, rendering demos, and showcase route', async ({
       name: /A steadier installment application from first answer to funding/i,
     }),
   ).toBeVisible();
+  await expect(page.getByText(/^Local$/)).toBeVisible();
   await expect(
     hero.getByRole('button', { name: /Start application/i }),
   ).toBeVisible();

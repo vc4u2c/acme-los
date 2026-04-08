@@ -41,7 +41,24 @@ function resolveMobileAppVersion(): string {
   return '0.0.0';
 }
 
+function resolveMobileAppEnvironmentName(): string {
+  if (process.env.EXPO_PUBLIC_APP_ENVIRONMENT) {
+    return process.env.EXPO_PUBLIC_APP_ENVIRONMENT;
+  }
+
+  const expoConfigEnvironment =
+    (Constants.expoConfig?.extra?.appEnvironment as string | undefined) ??
+    (Constants.manifest as ExpoManifestLike)?.extra?.appEnvironment;
+
+  if (expoConfigEnvironment) {
+    return expoConfigEnvironment;
+  }
+
+  return 'local';
+}
+
 export const mobileAppRelease = createAppReleaseInfo(
   'mobile',
   resolveMobileAppVersion(),
+  resolveMobileAppEnvironmentName(),
 );
