@@ -6,6 +6,7 @@ Related docs:
 
 - [Azure platform plan](./azure-platform-plan.md)
 - [Azure governance and lifecycle](./azure-governance-and-lifecycle.md)
+- [Azure monitoring and workbooks](./azure-monitoring-and-workbooks.md)
 - [GitHub and Azure environments](./github-azure-environments.md)
 - [Azure infrastructure scaffold](../../infra/azure/README.md)
 
@@ -141,6 +142,11 @@ The deploy script is idempotent:
 - it creates or updates a subscription-scope deployment stack for the workload resource group
 - then creates or updates a resource-group-scope deployment stack for the web infrastructure
 - then creates or updates the ACA runtime deployment for the container app revision
+- then creates or updates the environment monitoring stack in the platform monitor RG:
+  - workbook
+  - action group
+  - log alerts
+- then syncs the workbook definition so the live workbook content stays aligned to the repo template
 - it skips the ACR rebuild if the requested image tag already exists
 
 If you need to force a new container image after runtime or Docker changes, pass
@@ -159,21 +165,27 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/az
 Current infrastructure scope:
 
 - platform DNS link stack in `rg-acme-hub-network-cus-01`
+- platform monitoring stack in `rg-acme-hub-monitor-cus-01`
+  - `Log Analytics`
+  - `Application Insights`
+  - workbook
+  - action group
+  - log alerts
 - resource group
 - shared images resource group per subscription role
 - workload spoke VNet
-- ACA infrastructure subnet
-- private endpoint subnet
+- app subnet for the ACA environment
+- data subnet for private endpoints
 - Azure Container Registry
 - Azure Container Apps environment
 - container app
 - user-assigned managed identity
-- Log Analytics
-- Application Insights
 - Key Vault
 - Azure Managed Redis
 - Key Vault private endpoint
+- Key Vault private-endpoint NIC
 - Azure Managed Redis private endpoint
+- Azure Managed Redis private-endpoint NIC
 
 Current runtime secret wiring:
 
@@ -189,8 +201,8 @@ Current proven state:
 - the web workload is running in `Azure Container Apps`
 - `Key Vault` and `Azure Managed Redis` are private-only
 - the ACA ingress is public for now
-- the current proven health endpoint is:
-  - `https://ca-acme-los-web-dev-cus-01.icyrock-b2ec4b26.centralus.azurecontainerapps.io/api/health`
+- the public endpoint is discovered from the current ACA deployment output
+- use `/api/health` on that resolved base URL for smoke checks
 
 Practical smoke-check path after a deploy:
 
@@ -202,7 +214,14 @@ az containerapp show `
   --query "{runningStatus:properties.runningStatus,latestReadyRevisionName:properties.latestReadyRevisionName,ingressFqdn:properties.configuration.ingress.fqdn}" `
   --output json
 
-(Invoke-WebRequest -UseBasicParsing -Uri 'https://ca-acme-los-web-dev-cus-01.icyrock-b2ec4b26.centralus.azurecontainerapps.io/api/health' -TimeoutSec 120).Content
+$ingressFqdn = az containerapp show `
+  --subscription 7df9ce70-48a3-4495-9361-4ca7b2637748 `
+  --resource-group rg-acme-los-web-dev-cus-01 `
+  --name ca-acme-los-web-dev-cus-01 `
+  --query 'properties.configuration.ingress.fqdn' `
+  --output tsv
+
+(Invoke-WebRequest -UseBasicParsing -Uri "https://$ingressFqdn/api/health" -TimeoutSec 120).Content
 ```
 
 Current observability wiring:
@@ -211,12 +230,30 @@ Current observability wiring:
 - the Node runtime starts Azure Monitor OpenTelemetry before the standalone
   Next server boots
 - `Application Insights` receives traces, exceptions, and metrics
+- the shared server logger also emits application log records into
+  `Application Insights`
 - `Log Analytics` receives container stdout/stderr and ACA platform logs
 - `/api/health` is filtered from App Insights so liveness/readiness probes do
   not dominate telemetry volume
 - trace sampling is rate-limited by environment:
   - `dev`, `qa`, `stg`: `2` traces per second
   - `prod`: `5` traces per second
+
+Current monitoring deployment for each environment:
+
+- Azure Monitor workbook
+- action group
+- scheduled query alerts for:
+  - failed request spikes
+  - exception spikes
+  - auth and security failure spikes
+  - ACA platform/system errors
+
+Current follow-up note:
+
+- the action group is deployed now
+- receiver routing still needs to be added deliberately
+- until then, alerts are visible in Azure Monitor but are not yet a paging path
 
 ## Tear Down A Non-Production Environment
 
@@ -235,6 +272,7 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/az
 Teardown behavior:
 
 - delete the platform DNS link stack for the environment
+- delete the platform monitoring stack for the environment
 - delete the resource-group-scope deployment stack
 - delete the subscription-scope deployment stack
 - wait for deletion when requested

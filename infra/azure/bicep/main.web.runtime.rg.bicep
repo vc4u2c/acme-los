@@ -34,6 +34,7 @@ param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
 param containerRegistryLoginServer string
 param containerImage string
 param applicationInsightsConnectionString string
+param logAnalyticsWorkspaceId string
 param keyVaultName string
 param keyVaultUri string
 param sessionSecretName string = 'sec-acme-los-web-session-secret'
@@ -55,6 +56,7 @@ param workloadProfileName string = 'consumption'
 
 var resolvedContainerAppName = toLower('ca-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var redisKeyPrefix = '${organizationShortName}-${workloadShortName}:web:${environmentName}'
+var resolvedContainerAppDiagnosticSettingsName = toLower('diag-${organizationShortName}-${workloadShortName}-ca-${environmentName}-${regionShortName}-${instanceNumber}')
 var redisDatabaseResourceId = stateStoreMode == 'redis'
   ? resourceId('Microsoft.Cache/redisEnterprise/databases', redisClusterName, redisDatabaseName)
   : ''
@@ -134,5 +136,27 @@ module containerApp './modules/web/container-app.bicep' = {
   ]
 }
 
+resource containerAppResource 'Microsoft.App/containerApps@2025-01-01' existing = {
+  name: resolvedContainerAppName
+}
+
+resource containerAppDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: resolvedContainerAppDiagnosticSettingsName
+  scope: containerAppResource
+  dependsOn: [
+    containerApp
+  ]
+  properties: {
+    workspaceId: logAnalyticsWorkspaceId
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
+  }
+}
+
 output containerAppName string = containerApp.outputs.name
+output containerAppId string = containerApp.outputs.id
 output containerAppLatestRevisionFqdn string = containerApp.outputs.latestRevisionFqdn

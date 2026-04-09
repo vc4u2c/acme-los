@@ -20,6 +20,10 @@ Current proven state:
 - `dev` is deployed to `Azure Container Apps` in `sub-acme-nonprod-online`
 - `Key Vault` and `Azure Managed Redis` are private-only
 - ACA stays public for now until Front Door is introduced later
+- `dev` now has a first Azure-native operations pack:
+  - workbook
+  - action group
+  - log alerts
 
 What is here now:
 
@@ -130,7 +134,14 @@ The web deployment path is now proven end to end for `dev`.
 Current public health check:
 
 ```powershell
-(Invoke-WebRequest -UseBasicParsing -Uri 'https://ca-acme-los-web-dev-cus-01.icyrock-b2ec4b26.centralus.azurecontainerapps.io/api/health' -TimeoutSec 120).Content
+$ingressFqdn = az containerapp show `
+  --subscription 7df9ce70-48a3-4495-9361-4ca7b2637748 `
+  --resource-group rg-acme-los-web-dev-cus-01 `
+  --name ca-acme-los-web-dev-cus-01 `
+  --query 'properties.configuration.ingress.fqdn' `
+  --output tsv
+
+(Invoke-WebRequest -UseBasicParsing -Uri "https://$ingressFqdn/api/health" -TimeoutSec 120).Content
 ```
 
 If the runtime image changes and you want to force a new image build instead of
@@ -153,18 +164,24 @@ The first web workload scaffold currently deploys:
 - persistent platform network resources:
   - shared private DNS zone for Key Vault
   - shared private DNS zone for Azure Managed Redis
+- persistent platform monitoring resources in `rg-acme-hub-monitor-cus-01`:
+  - environment-scoped `Log Analytics`
+  - workspace-based `Application Insights`
+  - workbook
+  - action group
+  - log alerts
 - `Azure Container Apps`
 - workload spoke VNet
-- ACA infrastructure subnet
-- private endpoint subnet
+- app subnet for the ACA environment
+- data subnet for Key Vault and Redis private endpoints
 - shared `Azure Container Registry` per subscription role
 - `user-assigned managed identity` for the web runtime
-- workspace-based `Application Insights`
-- `Log Analytics`
 - `Key Vault`
 - `Azure Managed Redis`
-- Key Vault private endpoint
-- Azure Managed Redis private endpoint
+- Key Vault private endpoint in the data/private-endpoint subnet
+- Key Vault private-endpoint NIC with deterministic naming
+- Azure Managed Redis private endpoint in the data/private-endpoint subnet
+- Azure Managed Redis private-endpoint NIC with deterministic naming
 - environment-specific platform DNS links
 
 Runtime secret handling:
@@ -185,6 +202,17 @@ Runtime telemetry:
 - OpenTelemetry sampling is rate-limited by environment:
   - `dev`, `qa`, `stg`: `2` traces/second
   - `prod`: `5` traces/second
+- the shared server logger emits to both:
+  - structured container stdout/stderr
+  - the OpenTelemetry logs API, so app logs also land in Application Insights
+- per-environment monitoring resources are created through a platform-owned stack during the web deploy and the workbook content is synced after deployment:
+  - workbook
+  - action group
+  - log alerts for failed requests, exceptions, auth failures, and ACA platform errors
+
+Operations dashboard details live in:
+
+- [Azure monitoring and workbooks](../../docs/operations/azure-monitoring-and-workbooks.md)
 
 Current implementation note:
 

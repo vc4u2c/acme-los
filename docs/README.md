@@ -30,9 +30,11 @@ path:
 ## Operations
 
 - [Release and delivery](./operations/release-and-delivery.md)
+- [Azure and website demo runbook](./operations/azure-and-website-demo-runbook.md)
 - [Azure platform plan](./operations/azure-platform-plan.md)
 - [Azure governance and lifecycle](./operations/azure-governance-and-lifecycle.md)
 - [Azure bootstrap and teardown](./operations/azure-bootstrap-and-teardown.md)
+- [Azure monitoring and workbooks](./operations/azure-monitoring-and-workbooks.md)
 - [GitHub and Azure environments](./operations/github-azure-environments.md)
 - [Pipeline portability](./operations/pipeline-portability.md)
 - [Azure infrastructure scaffold](../infra/azure/README.md)

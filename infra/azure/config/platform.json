@@ -8,6 +8,7 @@
   "primaryRegionShortName": "cus",
   "resourceNameSuffix": "v42c",
   "platformResources": {
+    "monitorResourceGroupName": "rg-acme-hub-monitor-cus-01",
     "networkResourceGroupName": "rg-acme-hub-network-cus-01",
     "privateDnsZones": {
       "keyVault": "privatelink.vaultcore.azure.net",
@@ -32,6 +33,10 @@
       "subscriptionRole": "nonprod",
       "appEnvironmentName": "dev",
       "oktaEnvironmentName": "dev",
+      "runtime": {
+        "minReplicas": 2,
+        "maxReplicas": 2
+      },
       "network": {
         "workloadVnetAddressSpace": "10.20.0.0/24",
         "acaInfrastructureSubnetAddressPrefix": "10.20.0.0/27",
@@ -42,6 +47,10 @@
       "subscriptionRole": "nonprod",
       "appEnvironmentName": "qa",
       "oktaEnvironmentName": "qa",
+      "runtime": {
+        "minReplicas": 0,
+        "maxReplicas": 1
+      },
       "network": {
         "workloadVnetAddressSpace": "10.21.0.0/24",
         "acaInfrastructureSubnetAddressPrefix": "10.21.0.0/27",
@@ -52,6 +61,10 @@
       "subscriptionRole": "nonprod",
       "appEnvironmentName": "stg",
       "oktaEnvironmentName": "qa",
+      "runtime": {
+        "minReplicas": 0,
+        "maxReplicas": 1
+      },
       "network": {
         "workloadVnetAddressSpace": "10.22.0.0/24",
         "acaInfrastructureSubnetAddressPrefix": "10.22.0.0/27",
@@ -62,6 +75,10 @@
       "subscriptionRole": "prod",
       "appEnvironmentName": "prod",
       "oktaEnvironmentName": "prod",
+      "runtime": {
+        "minReplicas": 1,
+        "maxReplicas": 2
+      },
       "network": {
         "workloadVnetAddressSpace": "10.30.0.0/24",
         "acaInfrastructureSubnetAddressPrefix": "10.30.0.0/27",
