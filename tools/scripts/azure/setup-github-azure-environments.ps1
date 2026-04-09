@@ -283,6 +283,12 @@ function Get-PlatformNetworkResourceGroupName {
   return [string]$Configuration.platformResources.networkResourceGroupName
 }
 
+function Get-PlatformMonitorResourceGroupName {
+  param($Configuration)
+
+  return [string]$Configuration.platformResources.monitorResourceGroupName
+}
+
 function Get-WorkloadVirtualNetworkName {
   param(
     $Configuration,
@@ -527,6 +533,7 @@ function Get-EnvironmentVariables {
     AZURE_LOCATION_PRIMARY = $Configuration.primaryLocation
     AZURE_PRIMARY_REGION_SHORT = $Configuration.primaryRegionShortName
     AZURE_PLATFORM_NETWORK_RESOURCE_GROUP_NAME = Get-PlatformNetworkResourceGroupName -Configuration $Configuration
+    AZURE_PLATFORM_MONITOR_RESOURCE_GROUP_NAME = Get-PlatformMonitorResourceGroupName -Configuration $Configuration
     AZURE_RESOURCE_GROUP_NAME = Get-WorkloadResourceGroupName -Configuration $Configuration -EnvironmentName $EnvironmentName
     AZURE_DEPLOYMENT_STACK_NAME = Get-DeploymentStackName -Configuration $Configuration -EnvironmentName $EnvironmentName
     AZURE_IMAGES_SUBSCRIPTION_ROLE = $imagesSubscriptionRole
@@ -588,9 +595,14 @@ $environmentNames = Get-EnvironmentNames -Configuration $configuration
 
 if ($Mode -in @('bootstrap-platform', 'bootstrap-automation')) {
   $platformNetworkResourceGroupName = Get-PlatformNetworkResourceGroupName -Configuration $configuration
+  $platformMonitorResourceGroupName = Get-PlatformMonitorResourceGroupName -Configuration $configuration
 
   if (-not (Test-ResourceGroupExists -SubscriptionId $azureContext.PlatformSubscriptionId -ResourceGroupName $platformNetworkResourceGroupName)) {
     throw "Platform network resource group '$platformNetworkResourceGroupName' does not exist in the platform subscription. Run 'npm run azure:deploy:platform-network' first."
+  }
+
+  if (-not (Test-ResourceGroupExists -SubscriptionId $azureContext.PlatformSubscriptionId -ResourceGroupName $platformMonitorResourceGroupName)) {
+    throw "Platform monitor resource group '$platformMonitorResourceGroupName' does not exist in the platform subscription. Deploy the platform monitoring resources first."
   }
 }
 
@@ -645,9 +657,11 @@ foreach ($environmentName in $environmentNames) {
       $targetSubscriptionId = Get-EnvironmentSubscriptionId -Configuration $configuration -AzureContext $azureContext -EnvironmentName $environmentName
       $targetSubscriptionScope = "/subscriptions/$targetSubscriptionId"
       $platformNetworkScope = "/subscriptions/$($azureContext.PlatformSubscriptionId)/resourceGroups/$(Get-PlatformNetworkResourceGroupName -Configuration $configuration)"
+      $platformMonitorScope = "/subscriptions/$($azureContext.PlatformSubscriptionId)/resourceGroups/$(Get-PlatformMonitorResourceGroupName -Configuration $configuration)"
       Ensure-RoleAssignment -PrincipalAppId $application.appId -RoleName 'Contributor' -Scope $targetSubscriptionScope
       Ensure-RoleAssignment -PrincipalAppId $application.appId -RoleName 'User Access Administrator' -Scope $targetSubscriptionScope
       Ensure-RoleAssignment -PrincipalAppId $application.appId -RoleName 'Contributor' -Scope $platformNetworkScope
+      Ensure-RoleAssignment -PrincipalAppId $application.appId -RoleName 'Contributor' -Scope $platformMonitorScope
       $appId = $application.appId
     }
   }
