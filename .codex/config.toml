@@ -1,0 +1,25 @@
+#:schema https://developers.openai.com/codex/config-schema.json
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+web_search = "live"
+persistent_instructions = "Follow the repository AGENTS.md. Keep Azure, Okta, and monitoring changes traceable and verify changes before promotion."
+
+[features]
+multi_agent = true
+
+[agents]
+max_threads = 4
+max_depth = 1
+
+[agents.explorer]
+description = "Read-only codebase explorer for tracing execution paths before changes."
+config_file = "agents/explorer.toml"
+
+[agents.reviewer]
+description = "Reviewer focused on correctness, security, regressions, and missing tests."
+config_file = "agents/reviewer.toml"
+
+[agents.docs_researcher]
+description = "Documentation researcher for framework, cloud, and API verification."
+config_file = "agents/docs-researcher.toml"
