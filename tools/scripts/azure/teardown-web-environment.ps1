@@ -155,6 +155,21 @@ function Get-PlatformWorkloadLinksStackName {
   return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-dns-links-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
 }
 
+function Get-PlatformMonitorResourceGroupName {
+  param($Configuration)
+
+  return [string]$Configuration.platformResources.monitorResourceGroupName
+}
+
+function Get-PlatformMonitoringStackName {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-monitor-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
 Test-RequiredCommand -Name 'az'
 
 if (-not (Test-Path -LiteralPath $ConfigurationPath)) {
@@ -169,6 +184,8 @@ $subscriptionStackName = Get-SubscriptionStackName -Configuration $configuration
 $resourceGroupStackName = Get-ResourceGroupStackName -Configuration $configuration -EnvironmentName $EnvironmentName
 $platformWorkloadLinksStackName = Get-PlatformWorkloadLinksStackName -Configuration $configuration -EnvironmentName $EnvironmentName
 $platformNetworkResourceGroupName = Get-PlatformNetworkResourceGroupName -Configuration $configuration
+$platformMonitorResourceGroupName = Get-PlatformMonitorResourceGroupName -Configuration $configuration
+$platformMonitoringStackName = Get-PlatformMonitoringStackName -Configuration $configuration -EnvironmentName $EnvironmentName
 $resourceGroupName = Get-WorkloadResourceGroupName -Configuration $configuration -EnvironmentName $EnvironmentName
 $keyVaultName = Get-KeyVaultName -Configuration $configuration -EnvironmentName $EnvironmentName
 
@@ -185,6 +202,12 @@ try {
 try {
   az stack group show --subscription $resolvedPlatformSubscriptionId --name $platformWorkloadLinksStackName --resource-group $platformNetworkResourceGroupName --output none
   az stack group delete --subscription $resolvedPlatformSubscriptionId --name $platformWorkloadLinksStackName --resource-group $platformNetworkResourceGroupName --action-on-unmanage deleteResources --yes --output none
+} catch {
+}
+
+try {
+  az stack group show --subscription $resolvedPlatformSubscriptionId --name $platformMonitoringStackName --resource-group $platformMonitorResourceGroupName --output none
+  az stack group delete --subscription $resolvedPlatformSubscriptionId --name $platformMonitoringStackName --resource-group $platformMonitorResourceGroupName --action-on-unmanage deleteResources --yes --output none
 } catch {
 }
 
@@ -238,6 +261,8 @@ if ($PurgeDeletedKeyVault.IsPresent) {
   resourceGroupStackName = $resourceGroupStackName
   platformWorkloadLinksStackName = $platformWorkloadLinksStackName
   platformNetworkResourceGroupName = $platformNetworkResourceGroupName
+  platformMonitorResourceGroupName = $platformMonitorResourceGroupName
+  platformMonitoringStackName = $platformMonitoringStackName
   resourceGroupName = $resourceGroupName
   resourceGroupExists = ($resourceGroupExists -eq 'true')
   keyVaultName = $keyVaultName

@@ -48,6 +48,34 @@ var environmentVariables = concat([
     value: appEnvironmentName
   }
   {
+    name: 'ACME_AUTH_PROVIDER'
+    value: authProvider
+  }
+  {
+    name: 'ACME_OKTA_ENVIRONMENT'
+    value: oktaEnvironmentName
+  }
+  {
+    name: 'ACME_OKTA_ISSUER'
+    value: oktaIssuer
+  }
+  {
+    name: 'ACME_OKTA_CLIENT_ID'
+    value: oktaClientId
+  }
+  {
+    name: 'ACME_OKTA_REDIRECT_URI'
+    value: oktaRedirectUri
+  }
+  {
+    name: 'ACME_OKTA_POST_LOGOUT_REDIRECT_URI'
+    value: oktaPostLogoutRedirectUri
+  }
+  {
+    name: 'ACME_OKTA_FUNDING_ACR_VALUES'
+    value: oktaFundingAcrValues
+  }
+  {
     name: 'NEXT_PUBLIC_AUTH_PROVIDER'
     value: authProvider
   }

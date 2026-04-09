@@ -17,9 +17,11 @@ param(
   [string]$WorkloadTemplateFile,
   [string]$WebTemplateFile,
   [string]$WebRuntimeTemplateFile,
+  [string]$WebMonitoringTemplateFile,
   [string]$PlatformWorkloadLinksTemplateFile,
   [string]$ImagesSubscriptionTemplateFile,
-  [string]$ImagesResourceTemplateFile
+  [string]$ImagesResourceTemplateFile,
+  [string]$WorkbookSyncScriptFile
 )
 
 Set-StrictMode -Version Latest
@@ -53,8 +55,16 @@ if (-not $WebRuntimeTemplateFile) {
   $WebRuntimeTemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\main.web.runtime.rg.bicep'
 }
 
+if (-not $WebMonitoringTemplateFile) {
+  $WebMonitoringTemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\main.web.monitoring.rg.bicep'
+}
+
 if (-not $PlatformWorkloadLinksTemplateFile) {
   $PlatformWorkloadLinksTemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\main.platform.workload-links.rg.bicep'
+}
+
+if (-not $WorkbookSyncScriptFile) {
+  $WorkbookSyncScriptFile = Join-Path $PSScriptRoot 'sync-monitoring-workbook.ps1'
 }
 
 function Test-RequiredCommand {
@@ -346,6 +356,12 @@ function Get-PlatformNetworkResourceGroupName {
   return [string]$Configuration.platformResources.networkResourceGroupName
 }
 
+function Get-PlatformMonitorResourceGroupName {
+  param($Configuration)
+
+  return [string]$Configuration.platformResources.monitorResourceGroupName
+}
+
 function Get-PlatformWorkloadLinksStackName {
   param(
     $Configuration,
@@ -353,6 +369,15 @@ function Get-PlatformWorkloadLinksStackName {
   )
 
   return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-dns-links-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
+function Get-PlatformMonitoringStackName {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-monitor-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
 }
 
 function Get-ContainerRegistryName {
@@ -670,9 +695,18 @@ if (-not (Test-Path -LiteralPath $WebRuntimeTemplateFile)) {
   throw "Runtime resource-group template '$WebRuntimeTemplateFile' was not found."
 }
 
+$webMonitoringTemplateExists = Test-Path -LiteralPath $WebMonitoringTemplateFile
+if (-not $webMonitoringTemplateExists) {
+  throw "Monitoring resource-group template '$WebMonitoringTemplateFile' was not found."
+}
+
 $platformConfigurationTemplateExists = Test-Path -LiteralPath $PlatformWorkloadLinksTemplateFile
 if (-not $platformConfigurationTemplateExists) {
   throw "Platform workload-links template '$PlatformWorkloadLinksTemplateFile' was not found."
+}
+
+if (-not (Test-Path -LiteralPath $WorkbookSyncScriptFile)) {
+  throw "Workbook sync script '$WorkbookSyncScriptFile' was not found."
 }
 
 $configuration = Get-JsonFile -Path $ConfigurationPath
@@ -686,6 +720,16 @@ $resolvedBuildId = Get-ResolvedBuildId -ExplicitTag $ImageTag
 $resolvedStateStoreMode = if ($StateStoreMode) { $StateStoreMode } else { 'redis' }
 $imagesSubscriptionRole = Get-ImagesSubscriptionRole -Configuration $configuration -EnvironmentName $EnvironmentName
 $networkConfiguration = Get-EnvironmentNetworkConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName
+$runtimeMinReplicas = if ($environmentConfiguration.runtime -and $null -ne $environmentConfiguration.runtime.minReplicas) {
+  [int]$environmentConfiguration.runtime.minReplicas
+} else {
+  0
+}
+$runtimeMaxReplicas = if ($environmentConfiguration.runtime -and $null -ne $environmentConfiguration.runtime.maxReplicas) {
+  [int]$environmentConfiguration.runtime.maxReplicas
+} else {
+  1
+}
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $compiledParameterFile = New-CompiledParameterFile -SourceParameterFile $ParameterFile
 
@@ -699,6 +743,11 @@ Ensure-RegisteredResourceProviders -SubscriptionId $resolvedSubscriptionId -Name
   'Microsoft.OperationalInsights'
 )
 
+Ensure-RegisteredResourceProviders -SubscriptionId $resolvedPlatformSubscriptionId -Namespaces @(
+  'Microsoft.Insights',
+  'Microsoft.OperationalInsights'
+)
+
 $resourceGroupName = Get-WorkloadResourceGroupName -Configuration $configuration -EnvironmentName $EnvironmentName
 $subscriptionStackName = Get-SubscriptionStackName -Configuration $configuration -EnvironmentName $EnvironmentName
 $resourceGroupStackName = Get-ResourceGroupStackName -Configuration $configuration -EnvironmentName $EnvironmentName
@@ -707,7 +756,9 @@ $imagesSubscriptionStackName = Get-ImagesSubscriptionStackName -Configuration $c
 $imagesResourceGroupStackName = Get-ImagesResourceGroupStackName -Configuration $configuration -SubscriptionRole $imagesSubscriptionRole
 $containerRegistryName = Get-ContainerRegistryName -Configuration $configuration -SubscriptionRole $imagesSubscriptionRole
 $platformNetworkResourceGroupName = Get-PlatformNetworkResourceGroupName -Configuration $configuration
+$platformMonitorResourceGroupName = Get-PlatformMonitorResourceGroupName -Configuration $configuration
 $platformWorkloadLinksStackName = Get-PlatformWorkloadLinksStackName -Configuration $configuration -EnvironmentName $EnvironmentName
+$platformMonitoringStackName = Get-PlatformMonitoringStackName -Configuration $configuration -EnvironmentName $EnvironmentName
 
 if ($EnvironmentName -eq 'prod') {
   Write-Warning 'Production uses the same ACA deployment pattern, but teardown remains explicitly guarded and image promotions should be reviewed carefully.'
@@ -761,6 +812,7 @@ $webDeploymentArguments = @(
   '--parameters', "@$compiledParameterFile", "tenantId=$resolvedTenantId",
   '--parameters', "platformSubscriptionId=$resolvedPlatformSubscriptionId",
   '--parameters', "platformNetworkResourceGroupName=$platformNetworkResourceGroupName",
+  '--parameters', "platformMonitorResourceGroupName=$platformMonitorResourceGroupName",
   '--parameters', "containerRegistryName=$containerRegistryName",
   '--parameters', "containerRegistryResourceGroupName=$imagesResourceGroupName",
   '--parameters', "workloadVnetAddressSpace=$($networkConfiguration.workloadVnetAddressSpace)",
@@ -800,6 +852,49 @@ if (-not $resolvedContainerRegistryLoginServer) {
 
 $imageReference = "$resolvedContainerRegistryLoginServer/${WebImageRepository}:$resolvedImageTag"
 
+$monitoringBootstrapArguments = @(
+  'stack', 'group', 'create',
+  '--subscription', $resolvedPlatformSubscriptionId,
+  '--name', $platformMonitoringStackName,
+  '--resource-group', $platformMonitorResourceGroupName,
+  '--template-file', $WebMonitoringTemplateFile,
+  '--parameters', "environmentName=$EnvironmentName",
+  '--parameters', "organizationShortName=$($configuration.organizationShortName)",
+  '--parameters', "workloadShortName=$($configuration.workloadShortName)",
+  '--parameters', "regionShortName=$($configuration.primaryRegionShortName)",
+  '--parameters', "ownerTag=vc4u2c",
+  '--parameters', "costCenterTag=playg",
+  '--parameters', "telemetryServiceName=acme-los-web",
+  '--action-on-unmanage', 'deleteResources',
+  '--deny-settings-mode', 'none',
+  '--description', "ACME LOS platform monitoring stack for $EnvironmentName",
+  '--yes'
+)
+
+Invoke-AzNoOutput -Arguments $monitoringBootstrapArguments
+$monitoringBootstrapDeployment = Invoke-AzJson -Arguments @(
+  'stack', 'group', 'show',
+  '--subscription', $resolvedPlatformSubscriptionId,
+  '--resource-group', $platformMonitorResourceGroupName,
+  '--name', $platformMonitoringStackName
+)
+$monitoringBootstrapOutputs = Get-DeploymentOutputs -DeploymentResult $monitoringBootstrapDeployment
+$platformLogAnalyticsWorkspaceName = Get-StringOutputValue -Outputs $monitoringBootstrapOutputs -Name 'logAnalyticsWorkspaceName'
+$platformLogAnalyticsWorkspaceId = Get-StringOutputValue -Outputs $monitoringBootstrapOutputs -Name 'logAnalyticsWorkspaceId'
+$platformApplicationInsightsName = Get-StringOutputValue -Outputs $monitoringBootstrapOutputs -Name 'appInsightsName'
+$platformApplicationInsightsId = Get-StringOutputValue -Outputs $monitoringBootstrapOutputs -Name 'appInsightsId'
+$platformApplicationInsightsConnectionString = Get-StringOutputValue -Outputs $monitoringBootstrapOutputs -Name 'applicationInsightsConnectionString'
+
+if (-not $platformLogAnalyticsWorkspaceName -or -not $platformLogAnalyticsWorkspaceId) {
+  throw 'Platform Log Analytics workspace outputs were not returned from the monitoring deployment.'
+}
+
+if (-not $platformApplicationInsightsId -or -not $platformApplicationInsightsConnectionString) {
+  throw 'Platform Application Insights outputs were not returned from the monitoring deployment.'
+}
+
+$webDeploymentArguments += @('--parameters', "platformLogAnalyticsWorkspaceName=$platformLogAnalyticsWorkspaceName")
+
 Invoke-AzNoOutput -Arguments $webDeploymentArguments
 $webDeployment = Invoke-AzJson -Arguments @(
   'stack', 'group', 'show',
@@ -817,7 +912,6 @@ if (-not $workloadVirtualNetworkId) {
 $managedEnvironmentId = Get-StringOutputValue -Outputs $outputs -Name 'containerAppEnvironmentId'
 $resolvedContainerAppName = Get-StringOutputValue -Outputs $outputs -Name 'containerAppName'
 $userAssignedIdentityResourceId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityResourceId'
-$applicationInsightsConnectionString = Get-StringOutputValue -Outputs $outputs -Name 'applicationInsightsConnectionString'
 $keyVaultName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultName'
 $keyVaultUri = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultUri'
 $redisDatabaseId = Get-StringOutputValue -Outputs $outputs -Name 'redisDatabaseId'
@@ -948,9 +1042,12 @@ $runtimeDeploymentArguments = @(
   '--parameters', "oktaPostLogoutRedirectUri=$resolvedOktaPostLogoutRedirectUri",
   '--parameters', "oktaFundingAcrValues=$oktaFundingAcrValues",
   '--parameters', "sessionSecretValue=$webSessionSecretValue",
-  '--parameters', "applicationInsightsConnectionString=$applicationInsightsConnectionString",
+  '--parameters', "applicationInsightsConnectionString=$platformApplicationInsightsConnectionString",
+  '--parameters', "logAnalyticsWorkspaceId=$platformLogAnalyticsWorkspaceId",
   '--parameters', "keyVaultName=$keyVaultName",
   '--parameters', "keyVaultUri=$keyVaultUri",
+  '--parameters', "minReplicas=$runtimeMinReplicas",
+  '--parameters', "maxReplicas=$runtimeMaxReplicas",
   '--output', 'json'
 )
 
@@ -997,6 +1094,58 @@ if ($resolvedStateStoreMode -eq 'redis') {
 $runtimeDeployment = Invoke-AzJson -Arguments $runtimeDeploymentArguments
 $runtimeOutputs = Get-DeploymentOutputs -DeploymentResult $runtimeDeployment
 
+$monitoringDeploymentArguments = @(
+  'stack', 'group', 'create',
+  '--subscription', $resolvedPlatformSubscriptionId,
+  '--name', $platformMonitoringStackName,
+  '--resource-group', $platformMonitorResourceGroupName,
+  '--template-file', $WebMonitoringTemplateFile,
+  '--parameters', "environmentName=$EnvironmentName",
+  '--parameters', "organizationShortName=$($configuration.organizationShortName)",
+  '--parameters', "workloadShortName=$($configuration.workloadShortName)",
+  '--parameters', "regionShortName=$($configuration.primaryRegionShortName)",
+  '--parameters', "ownerTag=vc4u2c",
+  '--parameters', "costCenterTag=playg",
+  '--parameters', "containerAppResourceId=$(Get-StringOutputValue -Outputs $runtimeOutputs -Name 'containerAppId')",
+  '--parameters', "containerAppEnvironmentResourceId=$(Get-StringOutputValue -Outputs $outputs -Name 'containerAppEnvironmentId')",
+  '--parameters', "keyVaultResourceId=$(Get-StringOutputValue -Outputs $outputs -Name 'keyVaultId')",
+  '--parameters', "keyVaultUri=$(Get-StringOutputValue -Outputs $outputs -Name 'keyVaultUri')",
+  '--parameters', "telemetryServiceName=acme-los-web",
+  '--action-on-unmanage', 'deleteResources',
+  '--deny-settings-mode', 'none',
+  '--description', "ACME LOS platform monitoring stack for $EnvironmentName",
+  '--yes'
+)
+
+Invoke-AzNoOutput -Arguments $monitoringDeploymentArguments
+$monitoringDeployment = Invoke-AzJson -Arguments @(
+  'stack', 'group', 'show',
+  '--subscription', $resolvedPlatformSubscriptionId,
+  '--resource-group', $platformMonitorResourceGroupName,
+  '--name', $platformMonitoringStackName
+)
+$monitoringOutputs = Get-DeploymentOutputs -DeploymentResult $monitoringDeployment
+$workbookResourceName = Get-StringOutputValue -Outputs $monitoringOutputs -Name 'workbookResourceName'
+$workbookDisplayName = Get-StringOutputValue -Outputs $monitoringOutputs -Name 'workbookDisplayName'
+
+if ($workbookResourceName -and $workbookDisplayName) {
+  & $WorkbookSyncScriptFile `
+    -PlatformSubscriptionId $resolvedPlatformSubscriptionId `
+    -PlatformMonitorResourceGroupName $platformMonitorResourceGroupName `
+    -WorkbookResourceName $workbookResourceName `
+    -WorkbookDisplayName $workbookDisplayName `
+    -ApplicationInsightsResourceId $platformApplicationInsightsId `
+    -WorkspaceResourceId $platformLogAnalyticsWorkspaceId `
+    -ContainerAppResourceId (Get-StringOutputValue -Outputs $runtimeOutputs -Name 'containerAppId') `
+    -ContainerAppEnvironmentResourceId (Get-StringOutputValue -Outputs $outputs -Name 'containerAppEnvironmentId') `
+    -KeyVaultResourceId (Get-StringOutputValue -Outputs $outputs -Name 'keyVaultId') `
+    -KeyVaultUri (Get-StringOutputValue -Outputs $outputs -Name 'keyVaultUri') `
+    -RedisResourceId (Get-StringOutputValue -Outputs $outputs -Name 'redisClusterId') `
+    -RedisName (Get-StringOutputValue -Outputs $outputs -Name 'redisClusterName') `
+    -TelemetryServiceName 'acme-los-web' `
+    -Location $Location | Out-Null
+}
+
 Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyContinue
 
 [ordered]@{
@@ -1009,7 +1158,9 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   subscriptionStackName = $subscriptionStackName
   resourceGroupStackName = $resourceGroupStackName
   platformNetworkResourceGroupName = $platformNetworkResourceGroupName
+  platformMonitorResourceGroupName = $platformMonitorResourceGroupName
   platformWorkloadLinksStackName = $platformWorkloadLinksStackName
+  platformMonitoringStackName = $platformMonitoringStackName
   imagesSubscriptionRole = $imagesSubscriptionRole
   imagesResourceGroupName = $imagesResourceGroupName
   imagesSubscriptionStackName = $imagesSubscriptionStackName
@@ -1028,18 +1179,26 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   userAssignedIdentityClientId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityClientId'
   workloadVirtualNetworkName = Get-StringOutputValue -Outputs $outputs -Name 'workloadVirtualNetworkName'
   workloadVirtualNetworkId = $workloadVirtualNetworkId
+  appSubnetName = Get-StringOutputValue -Outputs $outputs -Name 'appSubnetName'
+  dataSubnetName = Get-StringOutputValue -Outputs $outputs -Name 'dataSubnetName'
   acaInfrastructureSubnetName = Get-StringOutputValue -Outputs $outputs -Name 'acaInfrastructureSubnetName'
   privateEndpointSubnetName = Get-StringOutputValue -Outputs $outputs -Name 'privateEndpointSubnetName'
   keyVaultName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultName'
   keyVaultPrivateEndpointName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultPrivateEndpointName'
-  applicationInsightsName = Get-StringOutputValue -Outputs $outputs -Name 'appInsightsName'
-  logAnalyticsWorkspaceName = Get-StringOutputValue -Outputs $outputs -Name 'logAnalyticsWorkspaceName'
+  keyVaultPrivateEndpointNetworkInterfaceName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultPrivateEndpointNetworkInterfaceName'
+  applicationInsightsName = $platformApplicationInsightsName
+  applicationInsightsId = $platformApplicationInsightsId
+  logAnalyticsWorkspaceName = $platformLogAnalyticsWorkspaceName
+  logAnalyticsWorkspaceId = $platformLogAnalyticsWorkspaceId
   redisClusterName = Get-StringOutputValue -Outputs $outputs -Name 'redisClusterName'
   managedRedisPrivateEndpointName = Get-StringOutputValue -Outputs $outputs -Name 'managedRedisPrivateEndpointName'
+  managedRedisPrivateEndpointNetworkInterfaceName = Get-StringOutputValue -Outputs $outputs -Name 'managedRedisPrivateEndpointNetworkInterfaceName'
   redisDatabaseName = Get-StringOutputValue -Outputs $outputs -Name 'redisDatabaseName'
   redisHostName = Get-StringOutputValue -Outputs $outputs -Name 'redisHostName'
   redisPort = Get-IntegerOutputValue -Outputs $outputs -Name 'redisPort'
   redisConnectionSecretName = Get-StringOutputValue -Outputs $outputs -Name 'redisConnectionSecretName'
   keyVaultDnsLinkName = Get-StringOutputValue -Outputs $platformOutputs -Name 'keyVaultVirtualNetworkLinkName'
   managedRedisDnsLinkName = Get-StringOutputValue -Outputs $platformOutputs -Name 'managedRedisVirtualNetworkLinkName'
+  workbookDisplayName = $workbookDisplayName
+  workbookResourceName = $workbookResourceName
 } | ConvertTo-Json -Depth 5

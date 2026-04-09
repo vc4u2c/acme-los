@@ -107,6 +107,8 @@ Use these prefixes unless a service forces a different name format.
 - virtual network: `vnet`
 - subnet: `snet`
 - private endpoint: `pep`
+- load balancer: `lb`
+- network interface: `nic`
 - private DNS virtual network link: `pdzlnk`
 - network security group: `nsg`
 - route table: `rt`
@@ -135,6 +137,8 @@ Use these prefixes unless a service forces a different name format.
 - Log Analytics workspace: `log`
 - Application Insights: `appi`
 - action group: `ag`
+- alert rule: `alrt`
+- workbook display name: `wbk`
 - monitor private link scope: `ampls`
 
 ### Images And Packaging
@@ -210,10 +214,10 @@ Examples:
   - `rg-acme-los-web-prod-cus-01`
 - workload spoke virtual network:
   - `vnet-acme-los-web-dev-cus-01`
-- ACA infrastructure subnet:
-  - `snet-acme-los-aca-infra-dev-cus-01`
-- private endpoint subnet:
-  - `snet-acme-los-pe-dev-cus-01`
+- app subnet for ACA environment infrastructure:
+  - `snet-acme-los-app-dev-cus-01`
+- data subnet for Key Vault and Redis private endpoints:
+  - `snet-acme-los-data-dev-cus-01`
 - shared images resource group:
   - `rg-acme-los-images-nonprod-cus-01`
   - `rg-acme-los-images-prod-cus-01`
@@ -233,14 +237,45 @@ Examples:
   - `redis-acme-los-prod-cus-01`
 - Key Vault private endpoint:
   - `pep-acme-los-kv-dev-cus-01`
+- Key Vault private endpoint NIC:
+  - `nic-acme-los-kv-dev-cus-01`
 - Redis private endpoint:
   - `pep-acme-los-redis-dev-cus-01`
+- Redis private endpoint NIC:
+  - `nic-acme-los-redis-dev-cus-01`
 - private DNS virtual network links:
   - `pdzlnk-acme-los-kv-dev-cus-01`
   - `pdzlnk-acme-los-redis-dev-cus-01`
 - Log Analytics:
   - `log-acme-los-dev-cus-01`
   - `log-acme-los-prod-cus-01`
+
+### ACA Managed Infrastructure Note
+
+Azure Container Apps creates some infrastructure components inside its managed
+infrastructure resource group.
+
+Use deterministic naming for:
+
+- the managed environment
+- the managed infrastructure resource group
+- workload VNets, subnets, private endpoints, and user-owned networking
+
+Use deterministic naming for user-owned networking resources such as:
+
+- private endpoints
+- private-endpoint NICs
+- virtual network links
+
+Do not try to force custom naming for Azure-managed ACA internals such as:
+
+- load balancers
+- NICs
+- service-association links
+
+Those are Azure-owned implementation details. The enterprise control point is
+the deterministic ACA infrastructure resource group name, not every internal
+child resource name.
 
 ### Blob Containers
 

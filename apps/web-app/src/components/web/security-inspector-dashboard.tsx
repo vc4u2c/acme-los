@@ -291,13 +291,16 @@ export function SecurityInspectorDashboard(): React.ReactElement {
                 <AlertDescription className="space-y-2 text-[var(--foreground)]">
                   <p>
                     Stronger now: server-side PKCE start, server-side callback
-                    exchange, opaque auth session cookie, and tokens off the
-                    browser in the normal flow.
+                    exchange, opaque auth session cookie, server-side auth
+                    state, and tokens off the browser in the normal flow. In
+                    Azure, the shared session and demo state now sit behind
+                    Redis with secrets coming from Key Vault.
                   </p>
                   <p>
-                    Still temporary: this inspector page itself, the in-memory
-                    session store, and the remaining cookie-backed customer and
-                    application demo state.
+                    Still temporary: this inspector page itself, the bridge
+                    customer and application demo data model, and the current
+                    Redis connection-string model before we move to direct
+                    managed-identity auth for Redis.
                   </p>
                 </AlertDescription>
               </Alert>

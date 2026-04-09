@@ -292,13 +292,31 @@ function Get-WorkloadVirtualNetworkName {
   return "vnet-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
 }
 
+function Get-AppSubnetName {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  return "snet-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-app-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
+function Get-DataSubnetName {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  return "snet-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-data-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
 function Get-AcaInfrastructureSubnetName {
   param(
     $Configuration,
     [string]$EnvironmentName
   )
 
-  return "snet-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-aca-infra-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return Get-AppSubnetName -Configuration $Configuration -EnvironmentName $EnvironmentName
 }
 
 function Get-PrivateEndpointSubnetName {
@@ -307,7 +325,7 @@ function Get-PrivateEndpointSubnetName {
     [string]$EnvironmentName
   )
 
-  return "snet-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-pe-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return Get-DataSubnetName -Configuration $Configuration -EnvironmentName $EnvironmentName
 }
 
 function Ensure-GitHubEnvironment {
@@ -518,6 +536,8 @@ function Get-EnvironmentVariables {
     AZURE_CONTAINER_APP_NAME = Get-ContainerAppName -Configuration $Configuration -EnvironmentName $EnvironmentName
     AZURE_USER_ASSIGNED_IDENTITY_NAME = Get-UserAssignedIdentityName -Configuration $Configuration -EnvironmentName $EnvironmentName
     AZURE_WORKLOAD_VNET_NAME = Get-WorkloadVirtualNetworkName -Configuration $Configuration -EnvironmentName $EnvironmentName
+    AZURE_APP_SUBNET_NAME = Get-AppSubnetName -Configuration $Configuration -EnvironmentName $EnvironmentName
+    AZURE_DATA_SUBNET_NAME = Get-DataSubnetName -Configuration $Configuration -EnvironmentName $EnvironmentName
     AZURE_ACA_INFRA_SUBNET_NAME = Get-AcaInfrastructureSubnetName -Configuration $Configuration -EnvironmentName $EnvironmentName
     AZURE_PRIVATE_ENDPOINT_SUBNET_NAME = Get-PrivateEndpointSubnetName -Configuration $Configuration -EnvironmentName $EnvironmentName
     AZURE_KEY_VAULT_NAME = Get-KeyVaultName -Configuration $Configuration -EnvironmentName $EnvironmentName

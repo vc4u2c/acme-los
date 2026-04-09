@@ -19,6 +19,7 @@ param ownerTag string = 'vc4u2c'
 param costCenterTag string = 'playg'
 param platformSubscriptionId string
 param platformNetworkResourceGroupName string
+param platformMonitorResourceGroupName string = toLower('rg-${organizationShortName}-hub-monitor-${regionShortName}-${instanceNumber}')
 @allowed([
   'file'
   'redis'
@@ -26,6 +27,7 @@ param platformNetworkResourceGroupName string
 param stateStoreMode string = 'file'
 param containerRegistryName string
 param containerRegistryResourceGroupName string
+param platformLogAnalyticsWorkspaceName string = toLower('log-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
 param redisSkuName string = 'Balanced_B0'
 param redisClusteringPolicy string = 'NoCluster'
 param acaWorkloadProfileName string = 'consumption'
@@ -42,16 +44,17 @@ param extraTags object = {}
 var resolvedKeyVaultName = toLower('kv${organizationShortName}${workloadShortName}${environmentName}${regionShortName}${instanceNumber}${uniqueShortSuffix}')
 var resolvedRedisClusterName = toLower('redis-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedRedisDatabaseName = 'default'
-var resolvedLogAnalyticsWorkspaceName = toLower('log-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
-var resolvedApplicationInsightsName = toLower('appi-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedContainerAppEnvironmentName = toLower('cae-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedContainerAppEnvironmentInfrastructureResourceGroupName = toLower('rg-${organizationShortName}-${workloadShortName}-cae-infra-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedContainerAppName = toLower('ca-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedUserAssignedIdentityName = toLower('id-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedVirtualNetworkName = toLower('vnet-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
-var resolvedAcaInfrastructureSubnetName = toLower('snet-${organizationShortName}-${workloadShortName}-aca-infra-${environmentName}-${regionShortName}-${instanceNumber}')
-var resolvedPrivateEndpointSubnetName = toLower('snet-${organizationShortName}-${workloadShortName}-pe-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedAppSubnetName = toLower('snet-${organizationShortName}-${workloadShortName}-app-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedDataSubnetName = toLower('snet-${organizationShortName}-${workloadShortName}-data-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedKeyVaultPrivateEndpointName = toLower('pep-${organizationShortName}-${workloadShortName}-kv-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedManagedRedisPrivateEndpointName = toLower('pep-${organizationShortName}-${workloadShortName}-redis-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedKeyVaultPrivateEndpointNetworkInterfaceName = toLower('nic-${organizationShortName}-${workloadShortName}-kv-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedManagedRedisPrivateEndpointNetworkInterfaceName = toLower('nic-${organizationShortName}-${workloadShortName}-redis-${environmentName}-${regionShortName}-${instanceNumber}')
 var redisConnectionSecretName = 'sec-acme-los-redis-url'
 var resolvedRedisHostName = stateStoreMode == 'redis' ? redis!.outputs.hostName : ''
 var resolvedRedisPort = stateStoreMode == 'redis' ? redis!.outputs.port : 0
@@ -61,6 +64,9 @@ var resolvedManagedRedisPrivateDnsZoneId = resourceId(
   'Microsoft.Network/privateDnsZones',
   managedRedisPrivateDnsZoneName
 )
+var resolvedKeyVaultDiagnosticSettingsName = toLower('diag-${organizationShortName}-${workloadShortName}-kv-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedManagedEnvironmentDiagnosticSettingsName = toLower('diag-${organizationShortName}-${workloadShortName}-cae-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedManagedRedisDiagnosticSettingsName = toLower('diag-${organizationShortName}-${workloadShortName}-redis-${environmentName}-${regionShortName}-${instanceNumber}')
 var keyVaultSecretsUserRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '4633458b-17de-408a-b874-0445c86b69e6'
@@ -69,6 +75,11 @@ var keyVaultSecretsUserRoleDefinitionId = subscriptionResourceId(
 resource keyVaultPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' existing = {
   scope: resourceGroup(platformSubscriptionId, platformNetworkResourceGroupName)
   name: keyVaultPrivateDnsZoneName
+}
+
+resource platformLogAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
+  scope: resourceGroup(platformSubscriptionId, platformMonitorResourceGroupName)
+  name: platformLogAnalyticsWorkspaceName
 }
 
 module tags './modules/foundation/tags.bicep' = {
@@ -91,29 +102,10 @@ module workloadSpokeNetwork './modules/network/workload-spoke-network.bicep' = {
     addressPrefixes: [
       workloadVnetAddressSpace
     ]
-    acaInfrastructureSubnetName: resolvedAcaInfrastructureSubnetName
-    acaInfrastructureSubnetAddressPrefix: acaInfrastructureSubnetAddressPrefix
-    privateEndpointSubnetName: resolvedPrivateEndpointSubnetName
-    privateEndpointSubnetAddressPrefix: privateEndpointSubnetAddressPrefix
-  }
-}
-
-module workspace './modules/monitoring/log-analytics-workspace.bicep' = {
-  name: 'log-${environmentName}'
-  params: {
-    name: resolvedLogAnalyticsWorkspaceName
-    location: location
-    tags: tags.outputs.tags
-  }
-}
-
-module appInsights './modules/monitoring/application-insights.bicep' = {
-  name: 'appi-${environmentName}'
-  params: {
-    name: resolvedApplicationInsightsName
-    location: location
-    tags: tags.outputs.tags
-    workspaceResourceId: workspace.outputs.id
+    appSubnetName: resolvedAppSubnetName
+    appSubnetAddressPrefix: acaInfrastructureSubnetAddressPrefix
+    dataSubnetName: resolvedDataSubnetName
+    dataSubnetAddressPrefix: privateEndpointSubnetAddressPrefix
   }
 }
 
@@ -176,25 +168,91 @@ module acrPullRoleAssignment './modules/shared/acr-pull-role-assignment.bicep' =
   }
 }
 
+#disable-next-line no-unnecessary-dependson
 module containerAppEnvironment './modules/web/container-app-environment.bicep' = {
   name: 'cae-${environmentName}'
   params: {
     name: resolvedContainerAppEnvironmentName
     location: location
     tags: tags.outputs.tags
-    infrastructureSubnetId: workloadSpokeNetwork.outputs.acaInfrastructureSubnetId
-    logAnalyticsWorkspaceCustomerId: reference(
-      resourceId('Microsoft.OperationalInsights/workspaces', resolvedLogAnalyticsWorkspaceName),
-      '2023-09-01'
-    ).customerId
-    logAnalyticsWorkspaceSharedKey: listKeys(
-      resourceId('Microsoft.OperationalInsights/workspaces', resolvedLogAnalyticsWorkspaceName),
-      '2023-09-01'
-    ).primarySharedKey
+    infrastructureSubnetId: workloadSpokeNetwork.outputs.appSubnetId
+    logAnalyticsWorkspaceCustomerId: platformLogAnalyticsWorkspace.properties.customerId
+    logAnalyticsWorkspaceSharedKey: platformLogAnalyticsWorkspace.listKeys().primarySharedKey
     workloadProfileName: acaWorkloadProfileName
     workloadProfileType: acaWorkloadProfileType
     minimumCount: acaWorkloadProfileMinimumCount
     maximumCount: acaWorkloadProfileMaximumCount
+    infrastructureResourceGroup: resolvedContainerAppEnvironmentInfrastructureResourceGroupName
+  }
+}
+
+resource managedEnvironmentResource 'Microsoft.App/managedEnvironments@2025-01-01' existing = {
+  name: resolvedContainerAppEnvironmentName
+}
+
+#disable-next-line no-unnecessary-dependson
+resource keyVaultDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: resolvedKeyVaultDiagnosticSettingsName
+  scope: keyVaultResource
+  dependsOn: [
+    keyVault
+  ]
+  properties: {
+    workspaceId: platformLogAnalyticsWorkspace.id
+    logs: [
+      {
+        category: 'AuditEvent'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
+  }
+}
+
+#disable-next-line no-unnecessary-dependson
+resource managedEnvironmentDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: resolvedManagedEnvironmentDiagnosticSettingsName
+  scope: managedEnvironmentResource
+  dependsOn: [
+    containerAppEnvironment
+  ]
+  properties: {
+    workspaceId: platformLogAnalyticsWorkspace.id
+    logs: [
+      {
+        categoryGroup: 'allLogs'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
+  }
+}
+
+#disable-next-line no-unnecessary-dependson
+resource managedRedisDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (stateStoreMode == 'redis') {
+  name: resolvedManagedRedisDiagnosticSettingsName
+  scope: redisEnterpriseResource
+  dependsOn: [
+    redis
+  ]
+  properties: {
+    workspaceId: platformLogAnalyticsWorkspace.id
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
   }
 }
 
@@ -204,12 +262,13 @@ module keyVaultPrivateEndpoint './modules/network/private-endpoint.bicep' = {
     name: resolvedKeyVaultPrivateEndpointName
     location: location
     tags: tags.outputs.tags
-    subnetId: workloadSpokeNetwork.outputs.privateEndpointSubnetId
+    subnetId: workloadSpokeNetwork.outputs.dataSubnetId
     privateLinkServiceId: keyVault.outputs.id
     groupIds: [
       'vault'
     ]
     connectionName: '${resolvedKeyVaultPrivateEndpointName}-conn'
+    customNetworkInterfaceName: resolvedKeyVaultPrivateEndpointNetworkInterfaceName
     privateDnsZoneIds: [
       keyVaultPrivateDnsZone.id
     ]
@@ -222,20 +281,26 @@ module managedRedisPrivateEndpoint './modules/network/private-endpoint.bicep' = 
     name: resolvedManagedRedisPrivateEndpointName
     location: location
     tags: tags.outputs.tags
-    subnetId: workloadSpokeNetwork.outputs.privateEndpointSubnetId
+    subnetId: workloadSpokeNetwork.outputs.dataSubnetId
     privateLinkServiceId: redis!.outputs.id
     groupIds: [
       'redisEnterprise'
     ]
     connectionName: '${resolvedManagedRedisPrivateEndpointName}-conn'
+    customNetworkInterfaceName: resolvedManagedRedisPrivateEndpointNetworkInterfaceName
     privateDnsZoneIds: [
       resolvedManagedRedisPrivateDnsZoneId
     ]
   }
 }
 
+resource redisEnterpriseResource 'Microsoft.Cache/redisEnterprise@2025-07-01' existing = if (stateStoreMode == 'redis') {
+  name: resolvedRedisClusterName
+}
+
 output containerAppEnvironmentName string = containerAppEnvironment.outputs.name
 output containerAppEnvironmentId string = containerAppEnvironment.outputs.id
+output containerAppEnvironmentInfrastructureResourceGroupName string = resolvedContainerAppEnvironmentInfrastructureResourceGroupName
 output containerAppName string = resolvedContainerAppName
 output containerAppLatestRevisionFqdn string = ''
 output userAssignedIdentityName string = userAssignedIdentity.outputs.name
@@ -243,20 +308,25 @@ output userAssignedIdentityClientId string = userAssignedIdentity.outputs.client
 output userAssignedIdentityResourceId string = userAssignedIdentity.outputs.id
 output workloadVirtualNetworkName string = workloadSpokeNetwork.outputs.name
 output workloadVirtualNetworkId string = workloadSpokeNetwork.outputs.id
-output acaInfrastructureSubnetName string = workloadSpokeNetwork.outputs.acaInfrastructureSubnetName
-output privateEndpointSubnetName string = workloadSpokeNetwork.outputs.privateEndpointSubnetName
+output appSubnetName string = workloadSpokeNetwork.outputs.appSubnetName
+output dataSubnetName string = workloadSpokeNetwork.outputs.dataSubnetName
+output acaInfrastructureSubnetName string = workloadSpokeNetwork.outputs.appSubnetName
+output privateEndpointSubnetName string = workloadSpokeNetwork.outputs.dataSubnetName
 output keyVaultName string = keyVault.outputs.name
+output keyVaultId string = keyVault.outputs.id
 output keyVaultUri string = keyVault.outputs.vaultUri
 output keyVaultPrivateEndpointName string = keyVaultPrivateEndpoint.outputs.name
-output appInsightsName string = appInsights.outputs.name
-output applicationInsightsConnectionString string = appInsights.outputs.connectionString
-output logAnalyticsWorkspaceName string = workspace.outputs.name
+output keyVaultPrivateEndpointNetworkInterfaceName string = resolvedKeyVaultPrivateEndpointNetworkInterfaceName
+output logAnalyticsWorkspaceName string = platformLogAnalyticsWorkspace.name
+output logAnalyticsWorkspaceId string = platformLogAnalyticsWorkspace.id
 output containerRegistryName string = containerRegistryName
 output containerRegistryResourceGroupName string = containerRegistryResourceGroupName
 output redisClusterName string = stateStoreMode == 'redis' ? resolvedRedisClusterName : ''
+output redisClusterId string = stateStoreMode == 'redis' ? redis!.outputs.id : ''
 output redisDatabaseName string = stateStoreMode == 'redis' ? resolvedRedisDatabaseName : ''
 output redisDatabaseId string = stateStoreMode == 'redis' ? redis!.outputs.databaseId : ''
 output redisHostName string = stateStoreMode == 'redis' ? resolvedRedisHostName : ''
 output redisPort int = stateStoreMode == 'redis' ? resolvedRedisPort : 0
 output redisConnectionSecretName string = stateStoreMode == 'redis' ? redisConnectionSecretName : ''
 output managedRedisPrivateEndpointName string = stateStoreMode == 'redis' ? resolvedManagedRedisPrivateEndpointName : ''
+output managedRedisPrivateEndpointNetworkInterfaceName string = stateStoreMode == 'redis' ? resolvedManagedRedisPrivateEndpointNetworkInterfaceName : ''

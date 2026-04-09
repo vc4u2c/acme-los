@@ -4,6 +4,7 @@ param subnetId string
 param privateLinkServiceId string
 param groupIds array
 param connectionName string = '${name}-conn'
+param customNetworkInterfaceName string = ''
 param tags object = {}
 param privateDnsZoneIds array = []
 
@@ -12,6 +13,7 @@ resource privateEndpoint 'Microsoft.Network/privateEndpoints@2024-05-01' = {
   location: location
   tags: tags
   properties: {
+    customNetworkInterfaceName: empty(customNetworkInterfaceName) ? null : customNetworkInterfaceName
     subnet: {
       id: subnetId
     }

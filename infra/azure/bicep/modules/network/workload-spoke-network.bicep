@@ -2,10 +2,10 @@ param name string
 param location string
 param tags object = {}
 param addressPrefixes array
-param acaInfrastructureSubnetName string
-param acaInfrastructureSubnetAddressPrefix string
-param privateEndpointSubnetName string
-param privateEndpointSubnetAddressPrefix string
+param appSubnetName string
+param appSubnetAddressPrefix string
+param dataSubnetName string
+param dataSubnetAddressPrefix string
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: name
@@ -18,11 +18,11 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   }
 }
 
-resource acaInfrastructureSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-05-01' = {
+resource appSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-05-01' = {
   parent: virtualNetwork
-  name: acaInfrastructureSubnetName
+  name: appSubnetName
   properties: {
-    addressPrefix: acaInfrastructureSubnetAddressPrefix
+    addressPrefix: appSubnetAddressPrefix
     delegations: [
       {
         name: 'aca-environments'
@@ -36,11 +36,11 @@ resource acaInfrastructureSubnet 'Microsoft.Network/virtualNetworks/subnets@2024
   }
 }
 
-resource privateEndpointSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-05-01' = {
+resource dataSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-05-01' = {
   parent: virtualNetwork
-  name: privateEndpointSubnetName
+  name: dataSubnetName
   properties: {
-    addressPrefix: privateEndpointSubnetAddressPrefix
+    addressPrefix: dataSubnetAddressPrefix
     privateEndpointNetworkPolicies: 'Disabled'
     privateLinkServiceNetworkPolicies: 'Enabled'
   }
@@ -48,7 +48,7 @@ resource privateEndpointSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-0
 
 output name string = virtualNetwork.name
 output id string = virtualNetwork.id
-output acaInfrastructureSubnetId string = acaInfrastructureSubnet.id
-output acaInfrastructureSubnetName string = acaInfrastructureSubnet.name
-output privateEndpointSubnetId string = privateEndpointSubnet.id
-output privateEndpointSubnetName string = privateEndpointSubnet.name
+output appSubnetId string = appSubnet.id
+output appSubnetName string = appSubnet.name
+output dataSubnetId string = dataSubnet.id
+output dataSubnetName string = dataSubnet.name

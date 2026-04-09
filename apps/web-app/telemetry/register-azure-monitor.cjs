@@ -54,6 +54,7 @@ function registerAzureMonitor() {
     enableLiveMetrics: resolveEnvironmentName() === 'prod',
     enablePerformanceCounters: false,
     enableStandardMetrics: true,
+    enableTraceBasedSamplingForLogs: true,
     browserSdkLoaderOptions: {
       enabled: false,
       connectionString: '',

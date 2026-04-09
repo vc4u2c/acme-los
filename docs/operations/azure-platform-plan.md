@@ -14,6 +14,7 @@ Related docs:
 - [Release and delivery](./release-and-delivery.md)
 - [Azure governance and lifecycle](./azure-governance-and-lifecycle.md)
 - [Azure bootstrap and teardown](./azure-bootstrap-and-teardown.md)
+- [Azure monitoring and workbooks](./azure-monitoring-and-workbooks.md)
 - [Azure naming standard](../reference/azure-resource-naming-standard.md)
 - [GitHub and Azure environments](./github-azure-environments.md)
 - [Current platform architecture](../architecture/current-platform.md)
@@ -74,6 +75,10 @@ Current confirmed state from the local CLI setup:
   - web runtime is on `Azure Container Apps`
   - `Key Vault` and `Azure Managed Redis` are private-only
   - ACA ingress remains public for now
+  - the first Azure Monitor operations pack is deployed in `dev`
+    - workbook
+    - action group
+    - log alerts
   - current public health endpoint responds successfully
 - GitHub CLI is authenticated
 - GitHub deployment environments already exist:

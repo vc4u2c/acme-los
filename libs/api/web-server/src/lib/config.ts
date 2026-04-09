@@ -24,8 +24,21 @@ function trimValue(value?: string): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function getServerConfigValue(
+  runtimeName: string,
+  legacyPublicName: string,
+): string | undefined {
+  return (
+    trimValue(process.env[runtimeName]) ??
+    trimValue(process.env[legacyPublicName])
+  );
+}
+
 export function getServerWebAuthConfig(): ServerWebAuthConfig {
-  const requestedProvider = trimValue(process.env.NEXT_PUBLIC_AUTH_PROVIDER);
+  const requestedProvider = getServerConfigValue(
+    'ACME_AUTH_PROVIDER',
+    'NEXT_PUBLIC_AUTH_PROVIDER',
+  );
 
   if (requestedProvider === 'mock') {
     return { provider: 'mock' };
@@ -39,11 +52,21 @@ export function getServerWebAuthConfig(): ServerWebAuthConfig {
     };
   }
 
-  const issuer = trimValue(process.env.NEXT_PUBLIC_OKTA_ISSUER);
-  const clientId = trimValue(process.env.NEXT_PUBLIC_OKTA_CLIENT_ID);
-  const redirectUri = trimValue(process.env.NEXT_PUBLIC_OKTA_REDIRECT_URI);
-  const postLogoutRedirectUri = trimValue(
-    process.env.NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI,
+  const issuer = getServerConfigValue(
+    'ACME_OKTA_ISSUER',
+    'NEXT_PUBLIC_OKTA_ISSUER',
+  );
+  const clientId = getServerConfigValue(
+    'ACME_OKTA_CLIENT_ID',
+    'NEXT_PUBLIC_OKTA_CLIENT_ID',
+  );
+  const redirectUri = getServerConfigValue(
+    'ACME_OKTA_REDIRECT_URI',
+    'NEXT_PUBLIC_OKTA_REDIRECT_URI',
+  );
+  const postLogoutRedirectUri = getServerConfigValue(
+    'ACME_OKTA_POST_LOGOUT_REDIRECT_URI',
+    'NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI',
   );
 
   if (!issuer || !clientId || !redirectUri || !postLogoutRedirectUri) {
@@ -51,7 +74,7 @@ export function getServerWebAuthConfig(): ServerWebAuthConfig {
       provider: 'okta',
       configurationError:
         process.env.NODE_ENV === 'production'
-          ? 'Set NEXT_PUBLIC_AUTH_PROVIDER=okta and provide the required NEXT_PUBLIC_OKTA_* values before deploying.'
+          ? 'Set ACME_AUTH_PROVIDER=okta and provide the required ACME_OKTA_* values before deploying.'
           : 'Okta auth config is missing. Run "npm run okta:render -- dev" before starting the web app.',
     };
   }
@@ -65,8 +88,10 @@ export function getServerWebAuthConfig(): ServerWebAuthConfig {
       postLogoutRedirectUri,
       scopes: ['openid', 'profile', 'email', 'offline_access'],
       fundingStepUpAcrValues:
-        trimValue(process.env.NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES) ??
-        'urn:okta:loa:2fa:any',
+        getServerConfigValue(
+          'ACME_OKTA_FUNDING_ACR_VALUES',
+          'NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES',
+        ) ?? 'urn:okta:loa:2fa:any',
     },
   };
 }

@@ -146,6 +146,8 @@ Use GitHub environment variables for non-secret values that differ by environmen
 - `AZURE_CONTAINER_APP_NAME`
 - `AZURE_USER_ASSIGNED_IDENTITY_NAME`
 - `AZURE_WORKLOAD_VNET_NAME`
+- `AZURE_APP_SUBNET_NAME`
+- `AZURE_DATA_SUBNET_NAME`
 - `AZURE_ACA_INFRA_SUBNET_NAME`
 - `AZURE_PRIVATE_ENDPOINT_SUBNET_NAME`
 - `AZURE_KEY_VAULT_NAME`
@@ -166,6 +168,10 @@ Recommendation:
   - `qa` -> `qa`
   - `stg` -> `qa`
   - `prod` -> `prod`
+- use `AZURE_APP_SUBNET_NAME` and `AZURE_DATA_SUBNET_NAME` as the primary
+  semantic names in docs and future pipeline work
+- keep `AZURE_ACA_INFRA_SUBNET_NAME` and `AZURE_PRIVATE_ENDPOINT_SUBNET_NAME`
+  only as compatibility aliases while older scripts converge
 
 ### Environment Secrets
 

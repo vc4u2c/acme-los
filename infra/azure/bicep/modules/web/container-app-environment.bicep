@@ -9,6 +9,7 @@ param workloadProfileType string = 'Consumption'
 param minimumCount int = 0
 param maximumCount int = 1
 param infrastructureSubnetId string = ''
+param infrastructureResourceGroup string = ''
 
 resource managedEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = {
   name: name
@@ -39,9 +40,11 @@ resource managedEnvironment 'Microsoft.App/managedEnvironments@2025-01-01' = {
       infrastructureSubnetId: infrastructureSubnetId
       internal: false
     }
+    infrastructureResourceGroup: empty(infrastructureResourceGroup) ? null : infrastructureResourceGroup
   }
 }
 
 output name string = managedEnvironment.name
 output id string = managedEnvironment.id
 output defaultDomain string = managedEnvironment.properties.defaultDomain
+output infrastructureResourceGroup string = infrastructureResourceGroup

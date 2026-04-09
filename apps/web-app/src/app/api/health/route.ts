@@ -1,6 +1,11 @@
+import os from 'node:os';
 import { NextResponse } from 'next/server';
 
 export function GET() {
+  const instanceId = os.hostname();
+  const processId = process.pid;
+  const servedAt = new Date().toISOString();
+
   return NextResponse.json({
     status: 'ok',
     service: 'web-app',
@@ -11,5 +16,8 @@ export function GET() {
       process.env.APP_ENVIRONMENT_NAME ??
       process.env.NEXT_PUBLIC_APP_ENVIRONMENT ??
       'local',
+    instanceId,
+    processId,
+    servedAt,
   });
 }
