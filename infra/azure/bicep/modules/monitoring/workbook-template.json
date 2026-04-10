@@ -19,7 +19,9 @@
         "title": "What This Dashboard Shows",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "table"
       }
     },
@@ -33,7 +35,9 @@
         "title": "Service Health Summary (30m)",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "table"
       }
     },
@@ -47,7 +51,9 @@
         "title": "Customer Traffic Summary (24h)",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "table"
       }
     },
@@ -61,7 +67,9 @@
         "title": "Request Outcome Mix (24h)",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "piechart"
       }
     },
@@ -75,7 +83,9 @@
         "title": "Requests And Failed Requests (24h)",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "timechart"
       }
     },
@@ -89,7 +99,9 @@
         "title": "Top Endpoints By Request Volume",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "barchart"
       }
     },
@@ -103,7 +115,9 @@
         "title": "Auth And Security Event Mix",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "piechart"
       }
     },
@@ -117,7 +131,9 @@
         "title": "Key Vault Dependency Health",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "table"
       }
     },
@@ -131,7 +147,9 @@
         "title": "Redis Metrics Trend",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "timechart"
       }
     },
@@ -145,7 +163,9 @@
         "title": "Recent Failed Requests",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "table"
       }
     },
@@ -159,7 +179,9 @@
         "title": "Recent Exceptions",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "table"
       }
     },
@@ -173,7 +195,9 @@
         "title": "Container Console Warnings And Errors",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "table"
       }
     },
@@ -187,7 +211,9 @@
         "title": "Replica And Revision Activity",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "barchart"
       }
     },
@@ -201,7 +227,9 @@
         "title": "Recent Container Platform Events",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "crossComponentResources": ["__WORKSPACE_RESOURCE_ID__"],
+        "crossComponentResources": [
+          "__WORKSPACE_RESOURCE_ID__"
+        ],
         "visualization": "table"
       }
     }
