@@ -1,0 +1,7 @@
+interface:
+  display_name: 'Okta Web Auth'
+  short_description: 'Repo-specific Okta callbacks, claims, and session guidance'
+  brand_color: '#111827'
+  default_prompt: 'Fix or extend Okta web auth behavior for acme-los'
+policy:
+  allow_implicit_invocation: true
