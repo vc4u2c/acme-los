@@ -74,6 +74,7 @@ Scripts:
 - [bootstrap-governance.ps1](../../tools/scripts/azure/bootstrap-governance.ps1)
 - [setup-github-azure-environments.ps1](../../tools/scripts/azure/setup-github-azure-environments.ps1)
 - [deploy-web-environment.ps1](../../tools/scripts/azure/deploy-web-environment.ps1)
+- [set-web-environment-state.ps1](../../tools/scripts/azure/set-web-environment-state.ps1)
 - [teardown-web-environment.ps1](../../tools/scripts/azure/teardown-web-environment.ps1)
 
 The script reads:
@@ -97,6 +98,7 @@ And they currently handle:
 - subscription-scope `Contributor` role assignment for each environment identity
 - subscription-scope `User Access Administrator` role assignment for each environment identity
 - platform-network `Contributor` role assignment for each environment identity on `rg-acme-hub-network-cus-01`
+- alert-aware pause and resume command paths for the ACA web workload
 - local deploy and teardown command paths for non-production workloads
 
 Current lifecycle model:
@@ -126,6 +128,9 @@ npm run azure:deploy:platform-network
 npm run azure:show-plan
 npm run azure:bootstrap
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -EnvironmentName dev -Action show-plan
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -EnvironmentName dev -Action pause
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -EnvironmentName dev -Action resume
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -WaitForDeletion
 ```
 
@@ -221,6 +226,21 @@ Current implementation note:
 - ACA stays publicly reachable for now
 - Key Vault and Azure Managed Redis are private-only
 - Front Door and a private ACA origin come later once the public workload path is proven
+
+Pause and resume note:
+
+- `set-web-environment-state.ps1` uses the official ACA ARM `start` and `stop`
+  actions for the container app
+- when alert suppression is enabled, it also disables or re-enables the
+  environment's scheduled-query alerts in `rg-acme-hub-monitor-cus-01`
+- this helps avoid alert noise during intentional non-production downtime
+- pause and resume reduce web compute spend, but they do not deallocate:
+  - Azure Managed Redis
+  - Key Vault
+  - ACR
+  - the ACA environment
+  - monitoring resources
+- for the deepest savings, use teardown instead of pause
 
 Portability rule:
 

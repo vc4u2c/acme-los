@@ -39,6 +39,12 @@ path:
 - [Pipeline portability](./operations/pipeline-portability.md)
 - [Azure infrastructure scaffold](../infra/azure/README.md)
 
+Current Azure cost-control flow for non-production workloads:
+
+- `npm run azure:show-state -- -EnvironmentName dev`
+- `npm run azure:pause:web -- -EnvironmentName dev`
+- `npm run azure:resume:web -- -EnvironmentName dev`
+
 ## Reference
 
 - [Tech stack and tooling](./reference/tech-stack.md)

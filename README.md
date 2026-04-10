@@ -180,6 +180,11 @@ acme-los/
 
 - package manager is `npm`
 - use `npx.cmd nx ...` on Windows
+- Azure non-prod workload cost-control commands live in:
+  - [Azure bootstrap and teardown](./docs/operations/azure-bootstrap-and-teardown.md)
+  - `npm run azure:show-state -- -EnvironmentName dev`
+  - `npm run azure:pause:web -- -EnvironmentName dev`
+  - `npm run azure:resume:web -- -EnvironmentName dev`
 - `npx.cmd nx run web-app:dev` uses the file-backed local state path by default
 - `npm run web:dev:redis` uses the Redis-backed local state path and requires Docker Desktop
 - `npm run redis:down` stops the local Redis container started for the hardened web path

@@ -162,6 +162,44 @@ Optional state-store override:
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -StateStoreMode redis
 ```
 
+## Pause And Resume A Non-Production Workload
+
+Show the current workload state and the alert resources the script would manage:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -EnvironmentName dev -Action show-plan
+```
+
+Pause `dev`:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -EnvironmentName dev -Action pause
+```
+
+Resume `dev`:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -EnvironmentName dev -Action resume
+```
+
+Pause and resume behavior:
+
+- uses the official ACA ARM `stop` and `start` actions for the container app
+- optionally disables scheduled-query alerts before pause and re-enables them after resume
+- waits for `Stopped` or `Running` by default so the command behaves predictably in automation
+- blocks `prod` pause unless `-AllowProductionPause` is passed explicitly
+
+Important cost note:
+
+- pause and resume only affect the ACA web workload and its environment-specific alerts
+- they do not deallocate:
+  - Azure Managed Redis
+  - Key Vault
+  - ACR
+  - the ACA environment
+  - platform monitoring resources
+- if you want the lowest non-production cost, use teardown instead of pause
+
 Current infrastructure scope:
 
 - platform DNS link stack in `rg-acme-hub-network-cus-01`

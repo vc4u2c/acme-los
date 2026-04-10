@@ -1,0 +1,7 @@
+interface:
+  display_name: 'Azure Landing Zone'
+  short_description: 'Repo-specific Azure landing zone, ACA, and monitoring guidance'
+  brand_color: '#0078D4'
+  default_prompt: 'Make a safe Azure landing zone or ACA change for acme-los'
+policy:
+  allow_implicit_invocation: true
