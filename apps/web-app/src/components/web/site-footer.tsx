@@ -27,11 +27,15 @@ const legalLinks = [
   { href: '/legal/licenses', label: 'State licenses' },
 ];
 
-const socialChannels: Array<{ label: string; icon: LucideIcon }> = [
-  { label: 'LinkedIn', icon: Linkedin },
-  { label: 'Instagram', icon: Instagram },
-  { label: 'Facebook', icon: Facebook },
-  { label: 'YouTube', icon: Youtube },
+const socialChannels: Array<{
+  label: string;
+  icon: LucideIcon;
+  href: string;
+}> = [
+  { label: 'LinkedIn', icon: Linkedin, href: 'https://www.linkedin.com/' },
+  { label: 'Instagram', icon: Instagram, href: 'https://www.instagram.com/' },
+  { label: 'Facebook', icon: Facebook, href: 'https://www.facebook.com/' },
+  { label: 'YouTube', icon: Youtube, href: 'https://www.youtube.com/' },
 ];
 
 const footerNavLinkClassName =
@@ -125,16 +129,21 @@ export function SiteFooter(): React.ReactElement {
                   const Icon = channel.icon;
 
                   return (
-                    <span
+                    <a
                       key={channel.label}
-                      className="inline-flex items-center gap-2 rounded-full border border-[var(--overlay-border)] bg-[color:var(--overlay-surface)/0.96] px-3.5 py-2 text-sm font-medium text-[var(--foreground)] shadow-sm shadow-[color:var(--shadow-soft)]"
+                      href={channel.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={channel.label}
+                      title={channel.label}
+                      className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--overlay-border)] bg-[color:var(--overlay-surface)/0.96] text-[var(--foreground)] shadow-sm shadow-[color:var(--shadow-soft)] transition hover:border-[var(--brand)] hover:bg-[var(--surface-accent)] hover:text-[var(--brand-strong)] hover:shadow-[0_12px_24px_var(--shadow-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] sm:h-auto sm:w-auto sm:gap-2 sm:px-3.5 sm:py-2"
                     >
                       <Icon
-                        className="h-4 w-4 text-[var(--brand)]"
+                        className="h-4.5 w-4.5 text-[var(--brand)]"
                         aria-hidden="true"
                       />
-                      {channel.label}
-                    </span>
+                      <span className="hidden sm:inline">{channel.label}</span>
+                    </a>
                   );
                 })}
               </div>
