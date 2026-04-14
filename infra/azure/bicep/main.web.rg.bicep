@@ -51,6 +51,8 @@ var resolvedUserAssignedIdentityName = toLower('id-${organizationShortName}-${wo
 var resolvedVirtualNetworkName = toLower('vnet-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedAppSubnetName = toLower('snet-${organizationShortName}-${workloadShortName}-app-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedDataSubnetName = toLower('snet-${organizationShortName}-${workloadShortName}-data-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedAppNetworkSecurityGroupName = toLower('nsg-${organizationShortName}-${workloadShortName}-app-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedDataNetworkSecurityGroupName = toLower('nsg-${organizationShortName}-${workloadShortName}-data-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedKeyVaultPrivateEndpointName = toLower('pep-${organizationShortName}-${workloadShortName}-kv-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedManagedRedisPrivateEndpointName = toLower('pep-${organizationShortName}-${workloadShortName}-redis-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedKeyVaultPrivateEndpointNetworkInterfaceName = toLower('nic-${organizationShortName}-${workloadShortName}-kv-${environmentName}-${regionShortName}-${instanceNumber}')
@@ -106,6 +108,8 @@ module workloadSpokeNetwork './modules/network/workload-spoke-network.bicep' = {
     appSubnetAddressPrefix: acaInfrastructureSubnetAddressPrefix
     dataSubnetName: resolvedDataSubnetName
     dataSubnetAddressPrefix: privateEndpointSubnetAddressPrefix
+    appNetworkSecurityGroupName: resolvedAppNetworkSecurityGroupName
+    dataNetworkSecurityGroupName: resolvedDataNetworkSecurityGroupName
   }
 }
 
@@ -310,6 +314,8 @@ output workloadVirtualNetworkName string = workloadSpokeNetwork.outputs.name
 output workloadVirtualNetworkId string = workloadSpokeNetwork.outputs.id
 output appSubnetName string = workloadSpokeNetwork.outputs.appSubnetName
 output dataSubnetName string = workloadSpokeNetwork.outputs.dataSubnetName
+output appNetworkSecurityGroupName string = workloadSpokeNetwork.outputs.appNetworkSecurityGroupName
+output dataNetworkSecurityGroupName string = workloadSpokeNetwork.outputs.dataNetworkSecurityGroupName
 output acaInfrastructureSubnetName string = workloadSpokeNetwork.outputs.appSubnetName
 output privateEndpointSubnetName string = workloadSpokeNetwork.outputs.dataSubnetName
 output keyVaultName string = keyVault.outputs.name

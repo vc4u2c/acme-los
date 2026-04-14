@@ -6,6 +6,8 @@ param appSubnetName string
 param appSubnetAddressPrefix string
 param dataSubnetName string
 param dataSubnetAddressPrefix string
+param appNetworkSecurityGroupName string
+param dataNetworkSecurityGroupName string
 
 resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' = {
   name: name
@@ -15,6 +17,78 @@ resource virtualNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' = {
     addressSpace: {
       addressPrefixes: addressPrefixes
     }
+  }
+}
+
+resource appNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
+  name: appNetworkSecurityGroupName
+  location: location
+  tags: tags
+  properties: {
+    securityRules: [
+      {
+        name: 'deny-data-subnet-inbound'
+        properties: {
+          access: 'Deny'
+          direction: 'Inbound'
+          priority: 200
+          protocol: '*'
+          sourceAddressPrefix: dataSubnetAddressPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '*'
+        }
+      }
+    ]
+  }
+}
+
+resource dataNetworkSecurityGroup 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
+  name: dataNetworkSecurityGroupName
+  location: location
+  tags: tags
+  properties: {
+    securityRules: [
+      {
+        name: 'allow-app-subnet-to-key-vault'
+        properties: {
+          access: 'Allow'
+          direction: 'Inbound'
+          priority: 100
+          protocol: 'Tcp'
+          sourceAddressPrefix: appSubnetAddressPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '443'
+        }
+      }
+      {
+        name: 'allow-app-subnet-to-managed-redis'
+        properties: {
+          access: 'Allow'
+          direction: 'Inbound'
+          priority: 110
+          protocol: 'Tcp'
+          sourceAddressPrefix: appSubnetAddressPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '10000'
+        }
+      }
+      {
+        name: 'deny-app-subnet-other-inbound'
+        properties: {
+          access: 'Deny'
+          direction: 'Inbound'
+          priority: 120
+          protocol: '*'
+          sourceAddressPrefix: appSubnetAddressPrefix
+          sourcePortRange: '*'
+          destinationAddressPrefix: '*'
+          destinationPortRange: '*'
+        }
+      }
+    ]
   }
 }
 
@@ -33,6 +107,9 @@ resource appSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-05-01' = {
     ]
     privateEndpointNetworkPolicies: 'Enabled'
     privateLinkServiceNetworkPolicies: 'Enabled'
+    networkSecurityGroup: {
+      id: appNetworkSecurityGroup.id
+    }
   }
 }
 
@@ -41,8 +118,11 @@ resource dataSubnet 'Microsoft.Network/virtualNetworks/subnets@2024-05-01' = {
   name: dataSubnetName
   properties: {
     addressPrefix: dataSubnetAddressPrefix
-    privateEndpointNetworkPolicies: 'Disabled'
+    privateEndpointNetworkPolicies: 'NetworkSecurityGroupEnabled'
     privateLinkServiceNetworkPolicies: 'Enabled'
+    networkSecurityGroup: {
+      id: dataNetworkSecurityGroup.id
+    }
   }
 }
 
@@ -52,3 +132,7 @@ output appSubnetId string = appSubnet.id
 output appSubnetName string = appSubnet.name
 output dataSubnetId string = dataSubnet.id
 output dataSubnetName string = dataSubnet.name
+output appNetworkSecurityGroupId string = appNetworkSecurityGroup.id
+output appNetworkSecurityGroupName string = appNetworkSecurityGroup.name
+output dataNetworkSecurityGroupId string = dataNetworkSecurityGroup.id
+output dataNetworkSecurityGroupName string = dataNetworkSecurityGroup.name

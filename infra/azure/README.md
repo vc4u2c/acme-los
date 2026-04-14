@@ -19,6 +19,7 @@ Current proven state:
 - the persistent platform network foundation is deployed
 - `dev` is deployed to `Azure Container Apps` in `sub-acme-nonprod-online`
 - `Key Vault` and `Azure Managed Redis` are private-only
+- subnet-level NSGs are now part of the workload network posture
 - ACA stays public for now until Front Door is introduced later
 - `dev` now has a first Azure-native operations pack:
   - workbook
@@ -179,6 +180,10 @@ The first web workload scaffold currently deploys:
 - workload spoke VNet
 - app subnet for the ACA environment
 - data subnet for Key Vault and Redis private endpoints
+- app-subnet NSG that blocks data-subnet initiated traffic into the ACA subnet
+- data-subnet NSG that only allows app-subnet traffic to the private endpoint ports needed today:
+  - `443` for Key Vault
+  - `10000` for Azure Managed Redis
 - shared `Azure Container Registry` per subscription role
 - `user-assigned managed identity` for the web runtime
 - `Key Vault`
@@ -225,6 +230,7 @@ Current implementation note:
 - the current app runtime still uses a Redis URL, so this first slice uses Redis access keys stored in Key Vault instead of baking secrets into GitHub or plain app settings
 - ACA stays publicly reachable for now
 - Key Vault and Azure Managed Redis are private-only
+- subnet-to-subnet policy is enforced with NSGs, but that does not replace later Front Door and WAF edge hardening
 - Front Door and a private ACA origin come later once the public workload path is proven
 
 Pause and resume note:

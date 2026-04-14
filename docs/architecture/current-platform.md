@@ -108,6 +108,36 @@ Still temporary by design:
 - the future .NET BFF should still replace the Next facade implementations while preserving the contracts
 - customer and application state still live in the web-server layer instead of a durable backend service
 
+## Current Cloud Hardening Posture
+
+The web platform is now beyond prototype quality and into a credible pre-production cloud posture, but it is not yet fully battle-hardened production edge infrastructure.
+
+What is already strong:
+
+- `dev` is live on Azure Container Apps with multiple replicas instead of a single-instance-only runtime
+- the workload runs inside a spoke VNet with separate app and data subnets
+- subnet-level NSGs now make the app-to-data path explicit instead of relying only on subnet separation
+- `Key Vault` and `Azure Managed Redis` are private-only through private endpoints and private DNS
+- secrets are delivered through Key Vault references and managed identity where the runtime supports it
+- auth and session state are server-side and Redis-backed in Azure instead of browser-backed or in-memory only
+- Application Insights, Log Analytics, alerts, and a workbook provide a real operations surface
+- deployment stacks, budgets, and pause or resume controls are in place for cost-aware lifecycle management
+
+What is not fully hardened yet:
+
+- the app is still directly reachable on the ACA hostname
+- Front Door, WAF, stable custom domains, and private-only ACA ingress are still later phases
+- Redis still uses a connection URL stored in Key Vault instead of direct Entra-authenticated runtime access
+- the environment model is proven in `dev`, but still needs the same repeatability proven in `qa`
+- regional failover and broader production resilience controls are not in place yet
+
+Current practical reading:
+
+- cloud architecture: good
+- security posture for `dev`: good and intentional
+- production edge hardening: not done yet
+- operational maturity: real, but still growing toward full production standards
+
 ## Immediate Next Priorities
 
 The highest-value next steps are convergence and operational cleanup, not a structural rewrite.
