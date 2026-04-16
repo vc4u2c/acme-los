@@ -47,7 +47,7 @@ What is still bridge-state rather than final:
 
 - the security inspector is a demo and troubleshooting surface, not a permanent production feature
 - the web-server layer still owns temporary customer and application state instead of a long-term backend service
-- Redis still uses a connection URL stored in Key Vault because the current runtime expects a Redis URL
+- Redis Entra runtime auth is now the target Azure path, with the connection URL path retained for local Docker Redis and rollback
 - Front Door, WAF, and private ACA ingress are still later phases
 
 ## Current Auth Shape
@@ -84,7 +84,9 @@ What is still bridge-state rather than final:
 - one short-lived auth transaction cookie exists only during sign-in
 - `libs/api/web-server`
   - stores auth session data, customer profile data, and application flow state server-side
-  - uses Redis when `ACME_WEB_STATE_STORE=redis` or `ACME_REDIS_URL` is configured
+  - uses Redis when `ACME_WEB_STATE_STORE=redis`, `ACME_REDIS_URL`, or `ACME_REDIS_HOST` is configured
+  - supports connection-string auth for local Docker Redis and rollback
+  - supports Entra auth for Azure runtime identity access
   - otherwise falls back to a file-backed local store under `.next/cache/acme-los-web-state`
 
 ## Current Hardening Status
@@ -127,7 +129,7 @@ What is not fully hardened yet:
 
 - the app is still directly reachable on the ACA hostname
 - Front Door, WAF, stable custom domains, and private-only ACA ingress are still later phases
-- Redis still uses a connection URL stored in Key Vault instead of direct Entra-authenticated runtime access
+- Redis now has a direct Entra-authenticated runtime path using the ACA user-assigned managed identity, but it still needs live `dev` proof before disabling access-key fallback
 - the environment model is proven in `dev`, but still needs the same repeatability proven in `qa`
 - regional failover and broader production resilience controls are not in place yet
 
@@ -137,6 +139,25 @@ Current practical reading:
 - security posture for `dev`: good and intentional
 - production edge hardening: not done yet
 - operational maturity: real, but still growing toward full production standards
+
+## Identity And Persistence Hardening Direction
+
+The next hardening pass should keep deployment identity, runtime identity, and application persistence separate.
+
+Runtime identity:
+
+- keep using a user-assigned managed identity for the ACA runtime
+- keep GitHub or future Azure DevOps deployment identities separate from the app runtime identity
+- continue using managed identity for ACR pulls and Key Vault secret references
+- use direct Entra-authenticated Redis access in Azure deployments where possible
+- keep the Redis connection-string path available for local Docker Redis and controlled rollback until the Entra path is proven in each environment
+
+Persistence:
+
+- keep Redis as shared session and short-lived state infrastructure for the current web runtime
+- do not make Redis the long-term system of record for customer or application data
+- move customer profile and application-flow persistence behind backend services or the future .NET BFF while preserving the contracts in `libs/api/contracts`
+- keep the Next facade thin so this swap does not rewrite the UI or browser client wrappers
 
 ## Immediate Next Priorities
 

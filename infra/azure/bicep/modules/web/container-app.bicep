@@ -15,8 +15,20 @@ param oktaClientId string
 param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
 param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
+@allowed([
+  'file'
+  'redis'
+])
 param stateStoreMode string
+@allowed([
+  'connection-string'
+  'entra'
+])
+param redisAuthMode string = 'connection-string'
 param redisKeyPrefix string = ''
+param redisHostName string = ''
+param redisPort int = 10000
+param redisManagedIdentityClientId string = ''
 param applicationInsightsConnectionString string
 param keyVaultUri string
 param sessionSecretName string = 'web-session-secret'
@@ -34,135 +46,176 @@ param redisSecretKeyVaultUrl string = ''
 var telemetryServiceName = 'acme-los-web'
 var telemetryTracesPerSecond = appEnvironmentName == 'prod' ? '5' : '2'
 var telemetryResourceAttributes = 'service.namespace=acme-los,deployment.environment.name=${appEnvironmentName}'
-var environmentVariables = concat([
-  {
-    name: 'APP_BUILD_ID'
-    value: appBuildId
-  }
-  {
-    name: 'APP_ENVIRONMENT_NAME'
-    value: appEnvironmentName
-  }
-  {
-    name: 'NEXT_PUBLIC_APP_ENVIRONMENT'
-    value: appEnvironmentName
-  }
-  {
-    name: 'ACME_AUTH_PROVIDER'
-    value: authProvider
-  }
-  {
-    name: 'ACME_OKTA_ENVIRONMENT'
-    value: oktaEnvironmentName
-  }
-  {
-    name: 'ACME_OKTA_ISSUER'
-    value: oktaIssuer
-  }
-  {
-    name: 'ACME_OKTA_CLIENT_ID'
-    value: oktaClientId
-  }
-  {
-    name: 'ACME_OKTA_REDIRECT_URI'
-    value: oktaRedirectUri
-  }
-  {
-    name: 'ACME_OKTA_POST_LOGOUT_REDIRECT_URI'
-    value: oktaPostLogoutRedirectUri
-  }
-  {
-    name: 'ACME_OKTA_FUNDING_ACR_VALUES'
-    value: oktaFundingAcrValues
-  }
-  {
-    name: 'NEXT_PUBLIC_AUTH_PROVIDER'
-    value: authProvider
-  }
-  {
-    name: 'NEXT_PUBLIC_OKTA_ENVIRONMENT'
-    value: oktaEnvironmentName
-  }
-  {
-    name: 'NEXT_PUBLIC_OKTA_ISSUER'
-    value: oktaIssuer
-  }
-  {
-    name: 'NEXT_PUBLIC_OKTA_CLIENT_ID'
-    value: oktaClientId
-  }
-  {
-    name: 'NEXT_PUBLIC_OKTA_REDIRECT_URI'
-    value: oktaRedirectUri
-  }
-  {
-    name: 'NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI'
-    value: oktaPostLogoutRedirectUri
-  }
-  {
-    name: 'NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES'
-    value: oktaFundingAcrValues
-  }
-  {
-    name: 'ACME_WEB_STATE_STORE'
-    value: stateStoreMode
-  }
-  {
-    name: 'NEXT_TELEMETRY_DISABLED'
-    value: '1'
-  }
-  {
-    name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
-    value: applicationInsightsConnectionString
-  }
-  {
-    name: 'OTEL_SERVICE_NAME'
-    value: telemetryServiceName
-  }
-  {
-    name: 'OTEL_RESOURCE_ATTRIBUTES'
-    value: telemetryResourceAttributes
-  }
-  {
-    name: 'OTEL_TRACES_SAMPLER'
-    value: 'microsoft.rate_limited'
-  }
-  {
-    name: 'OTEL_TRACES_SAMPLER_ARG'
-    value: telemetryTracesPerSecond
-  }
-  {
-    name: 'KEY_VAULT_URI'
-    value: keyVaultUri
-  }
-  {
-    name: 'ACME_WEB_SESSION_SECRET'
-    secretRef: sessionSecretName
-  }
-], stateStoreMode == 'redis' ? [
-  {
-    name: 'ACME_REDIS_KEY_PREFIX'
-    value: redisKeyPrefix
-  }
-  {
-    name: 'ACME_REDIS_URL'
-    secretRef: redisSecretName
-  }
-] : [])
+var redisBaseEnvironmentVariables = stateStoreMode == 'redis'
+  ? [
+      {
+        name: 'ACME_REDIS_AUTH_MODE'
+        value: redisAuthMode
+      }
+      {
+        name: 'ACME_REDIS_KEY_PREFIX'
+        value: redisKeyPrefix
+      }
+    ]
+  : []
+var redisEntraEnvironmentVariables = stateStoreMode == 'redis' && redisAuthMode == 'entra'
+  ? [
+      {
+        name: 'ACME_REDIS_HOST'
+        value: redisHostName
+      }
+      {
+        name: 'ACME_REDIS_PORT'
+        value: string(redisPort)
+      }
+      {
+        name: 'ACME_REDIS_MANAGED_IDENTITY_CLIENT_ID'
+        value: redisManagedIdentityClientId
+      }
+      {
+        name: 'AZURE_CLIENT_ID'
+        value: redisManagedIdentityClientId
+      }
+    ]
+  : []
+var redisConnectionStringEnvironmentVariables = stateStoreMode == 'redis' && redisAuthMode == 'connection-string'
+  ? [
+      {
+        name: 'ACME_REDIS_URL'
+        secretRef: redisSecretName
+      }
+    ]
+  : []
+var environmentVariables = concat(
+  [
+    {
+      name: 'APP_BUILD_ID'
+      value: appBuildId
+    }
+    {
+      name: 'APP_ENVIRONMENT_NAME'
+      value: appEnvironmentName
+    }
+    {
+      name: 'NEXT_PUBLIC_APP_ENVIRONMENT'
+      value: appEnvironmentName
+    }
+    {
+      name: 'ACME_AUTH_PROVIDER'
+      value: authProvider
+    }
+    {
+      name: 'ACME_OKTA_ENVIRONMENT'
+      value: oktaEnvironmentName
+    }
+    {
+      name: 'ACME_OKTA_ISSUER'
+      value: oktaIssuer
+    }
+    {
+      name: 'ACME_OKTA_CLIENT_ID'
+      value: oktaClientId
+    }
+    {
+      name: 'ACME_OKTA_REDIRECT_URI'
+      value: oktaRedirectUri
+    }
+    {
+      name: 'ACME_OKTA_POST_LOGOUT_REDIRECT_URI'
+      value: oktaPostLogoutRedirectUri
+    }
+    {
+      name: 'ACME_OKTA_FUNDING_ACR_VALUES'
+      value: oktaFundingAcrValues
+    }
+    {
+      name: 'NEXT_PUBLIC_AUTH_PROVIDER'
+      value: authProvider
+    }
+    {
+      name: 'NEXT_PUBLIC_OKTA_ENVIRONMENT'
+      value: oktaEnvironmentName
+    }
+    {
+      name: 'NEXT_PUBLIC_OKTA_ISSUER'
+      value: oktaIssuer
+    }
+    {
+      name: 'NEXT_PUBLIC_OKTA_CLIENT_ID'
+      value: oktaClientId
+    }
+    {
+      name: 'NEXT_PUBLIC_OKTA_REDIRECT_URI'
+      value: oktaRedirectUri
+    }
+    {
+      name: 'NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI'
+      value: oktaPostLogoutRedirectUri
+    }
+    {
+      name: 'NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES'
+      value: oktaFundingAcrValues
+    }
+    {
+      name: 'ACME_WEB_STATE_STORE'
+      value: stateStoreMode
+    }
+    {
+      name: 'NEXT_TELEMETRY_DISABLED'
+      value: '1'
+    }
+    {
+      name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+      value: applicationInsightsConnectionString
+    }
+    {
+      name: 'OTEL_SERVICE_NAME'
+      value: telemetryServiceName
+    }
+    {
+      name: 'OTEL_RESOURCE_ATTRIBUTES'
+      value: telemetryResourceAttributes
+    }
+    {
+      name: 'OTEL_TRACES_SAMPLER'
+      value: 'microsoft.rate_limited'
+    }
+    {
+      name: 'OTEL_TRACES_SAMPLER_ARG'
+      value: telemetryTracesPerSecond
+    }
+    {
+      name: 'KEY_VAULT_URI'
+      value: keyVaultUri
+    }
+    {
+      name: 'ACME_WEB_SESSION_SECRET'
+      secretRef: sessionSecretName
+    }
+  ],
+  redisBaseEnvironmentVariables,
+  redisEntraEnvironmentVariables,
+  redisConnectionStringEnvironmentVariables
+)
 
-var secrets = concat([
-  {
-    name: sessionSecretName
-    keyVaultUrl: sessionSecretKeyVaultUrl
-    identity: userAssignedIdentityResourceId
-  }
-], stateStoreMode == 'redis' ? [
-  {
-    name: redisSecretName
-    keyVaultUrl: redisSecretKeyVaultUrl
-    identity: userAssignedIdentityResourceId
-  }
-] : [])
+var secrets = concat(
+  [
+    {
+      name: sessionSecretName
+      keyVaultUrl: sessionSecretKeyVaultUrl
+      identity: userAssignedIdentityResourceId
+    }
+  ],
+  stateStoreMode == 'redis' && redisAuthMode == 'connection-string'
+    ? [
+        {
+          name: redisSecretName
+          keyVaultUrl: redisSecretKeyVaultUrl
+          identity: userAssignedIdentityResourceId
+        }
+      ]
+    : []
+)
 
 resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: name

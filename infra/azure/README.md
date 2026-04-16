@@ -163,6 +163,12 @@ Optional deploy override:
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -StateStoreMode redis
 ```
 
+Redis auth rollback override:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -StateStoreMode redis -RedisAuthMode connection-string
+```
+
 ## Cost-Conscious Default
 
 The first web workload scaffold currently deploys:
@@ -196,9 +202,11 @@ The first web workload scaffold currently deploys:
 
 Runtime secret handling:
 
-- the Redis connection URL is stored in the environment Key Vault
-- the container app reads it through a Key Vault secret reference
-- the container app uses its user-assigned managed identity for Key Vault access
+- Azure Redis access defaults to Microsoft Entra auth through the container app's user-assigned managed identity
+- the Redis access policy assignment is deployed with Bicep against the Redis database
+- the Redis connection URL path is retained for local Docker Redis and controlled rollback
+- when the connection-string path is selected, the Redis URL is stored in Key Vault and read through a Key Vault secret reference
+- the container app uses its user-assigned managed identity for Key Vault access and Redis token acquisition
 - the container app also uses managed identity for `AcrPull`
 
 Runtime telemetry:
@@ -227,7 +235,8 @@ Operations dashboard details live in:
 Current implementation note:
 
 - Azure Managed Redis supports Microsoft Entra authentication and Microsoft recommends it
-- the current app runtime still uses a Redis URL, so this first slice uses Redis access keys stored in Key Vault instead of baking secrets into GitHub or plain app settings
+- the current Azure target path uses Redis Entra auth from the ACA user-assigned managed identity
+- Redis access keys remain enabled for now so the Key Vault connection-string path is available as a rollback until the Entra path is proven per environment
 - ACA stays publicly reachable for now
 - Key Vault and Azure Managed Redis are private-only
 - subnet-to-subnet policy is enforced with NSGs, but that does not replace later Front Door and WAF edge hardening

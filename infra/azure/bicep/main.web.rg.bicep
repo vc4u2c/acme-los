@@ -57,6 +57,10 @@ var resolvedKeyVaultPrivateEndpointName = toLower('pep-${organizationShortName}-
 var resolvedManagedRedisPrivateEndpointName = toLower('pep-${organizationShortName}-${workloadShortName}-redis-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedKeyVaultPrivateEndpointNetworkInterfaceName = toLower('nic-${organizationShortName}-${workloadShortName}-kv-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedManagedRedisPrivateEndpointNetworkInterfaceName = toLower('nic-${organizationShortName}-${workloadShortName}-redis-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedManagedRedisAccessPolicyAssignmentName = take(
+  'aparedis${uniqueString(resolvedRedisClusterName, resolvedUserAssignedIdentityName)}',
+  60
+)
 var redisConnectionSecretName = 'sec-acme-los-redis-url'
 var resolvedRedisHostName = stateStoreMode == 'redis' ? redis!.outputs.hostName : ''
 var resolvedRedisPort = stateStoreMode == 'redis' ? redis!.outputs.port : 0
@@ -302,6 +306,19 @@ resource redisEnterpriseResource 'Microsoft.Cache/redisEnterprise@2025-07-01' ex
   name: resolvedRedisClusterName
 }
 
+resource redisDatabaseAccessPolicyAssignment 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01' = if (stateStoreMode == 'redis') {
+  name: '${resolvedRedisClusterName}/${resolvedRedisDatabaseName}/${resolvedManagedRedisAccessPolicyAssignmentName}'
+  properties: {
+    accessPolicyName: 'default'
+    user: {
+      objectId: userAssignedIdentity.outputs.principalId
+    }
+  }
+  dependsOn: [
+    redis
+  ]
+}
+
 output containerAppEnvironmentName string = containerAppEnvironment.outputs.name
 output containerAppEnvironmentId string = containerAppEnvironment.outputs.id
 output containerAppEnvironmentInfrastructureResourceGroupName string = resolvedContainerAppEnvironmentInfrastructureResourceGroupName
@@ -334,5 +351,10 @@ output redisDatabaseId string = stateStoreMode == 'redis' ? redis!.outputs.datab
 output redisHostName string = stateStoreMode == 'redis' ? resolvedRedisHostName : ''
 output redisPort int = stateStoreMode == 'redis' ? resolvedRedisPort : 0
 output redisConnectionSecretName string = stateStoreMode == 'redis' ? redisConnectionSecretName : ''
+output redisAccessPolicyAssignmentName string = stateStoreMode == 'redis'
+  ? resolvedManagedRedisAccessPolicyAssignmentName
+  : ''
 output managedRedisPrivateEndpointName string = stateStoreMode == 'redis' ? resolvedManagedRedisPrivateEndpointName : ''
-output managedRedisPrivateEndpointNetworkInterfaceName string = stateStoreMode == 'redis' ? resolvedManagedRedisPrivateEndpointNetworkInterfaceName : ''
+output managedRedisPrivateEndpointNetworkInterfaceName string = stateStoreMode == 'redis'
+  ? resolvedManagedRedisPrivateEndpointNetworkInterfaceName
+  : ''

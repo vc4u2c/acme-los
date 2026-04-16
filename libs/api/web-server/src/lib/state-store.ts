@@ -7,9 +7,16 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { createClient } from 'redis';
+import { DefaultAzureCredential } from '@azure/identity';
+import { createClient, type RedisClientOptions } from '@redis/client';
+import {
+  EntraIdCredentialsProviderFactory,
+  REDIS_SCOPE_DEFAULT,
+} from '@redis/entraid';
+import { createConsoleLogger } from '@acme-los/core/logger';
 
 type WebStateStoreMode = 'file' | 'redis';
+type RedisAuthMode = 'connection-string' | 'entra';
 
 type PersistedStateRecord<T> = {
   expiresAt: number;
@@ -18,6 +25,7 @@ type PersistedStateRecord<T> = {
 
 type RedisClient = ReturnType<typeof createClient>;
 
+const logger = createConsoleLogger();
 let redisClientPromise: Promise<RedisClient> | null = null;
 
 function getConfiguredStoreMode(): WebStateStoreMode {
@@ -35,11 +43,75 @@ function getConfiguredStoreMode(): WebStateStoreMode {
     return 'redis';
   }
 
+  if (process.env.ACME_REDIS_HOST?.trim()) {
+    return 'redis';
+  }
+
   return 'file';
+}
+
+function getRedisAuthMode(): RedisAuthMode {
+  const requestedMode = process.env.ACME_REDIS_AUTH_MODE?.trim().toLowerCase();
+
+  if (!requestedMode) {
+    return process.env.ACME_REDIS_HOST?.trim() ? 'entra' : 'connection-string';
+  }
+
+  if (requestedMode === 'entra') {
+    return 'entra';
+  }
+
+  if (requestedMode === 'connection-string') {
+    return 'connection-string';
+  }
+
+  throw new Error(
+    `Unsupported Redis authentication mode '${requestedMode}'. Use 'entra' or 'connection-string'.`,
+  );
 }
 
 function getRedisUrl(): string {
   return process.env.ACME_REDIS_URL?.trim() || 'redis://127.0.0.1:6379';
+}
+
+function getRedisHostName(): string {
+  const hostName = process.env.ACME_REDIS_HOST?.trim();
+
+  if (!hostName) {
+    throw new Error(
+      'ACME_REDIS_HOST must be set when Redis Entra auth is used.',
+    );
+  }
+
+  return hostName;
+}
+
+function getRedisPort(): number {
+  const rawPort = process.env.ACME_REDIS_PORT?.trim();
+
+  if (!rawPort) {
+    return 10000;
+  }
+
+  const port = Number(rawPort);
+
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error('ACME_REDIS_PORT must be an integer between 1 and 65535.');
+  }
+
+  return port;
+}
+
+function getRedisManagedIdentityClientId(): string | undefined {
+  return (
+    process.env.ACME_REDIS_MANAGED_IDENTITY_CLIENT_ID?.trim() ||
+    process.env.AZURE_CLIENT_ID?.trim() ||
+    undefined
+  );
+}
+
+function getRedisEndpointUrl(): string {
+  return `rediss://${getRedisHostName()}:${getRedisPort()}`;
 }
 
 function getRedisKeyPrefix(): string {
@@ -73,14 +145,52 @@ function createRedisKey(namespace: string, key: string): string {
   return `${getRedisKeyPrefix()}:${namespace}:${key}`;
 }
 
+function createRedisClientOptions(): RedisClientOptions {
+  const authMode = getRedisAuthMode();
+  const options: RedisClientOptions = {
+    url: authMode === 'entra' ? getRedisEndpointUrl() : getRedisUrl(),
+    socket: {
+      reconnectStrategy: (retries) => Math.min(retries * 100, 1000),
+    },
+  };
+
+  if (authMode === 'entra') {
+    const managedIdentityClientId = getRedisManagedIdentityClientId();
+    const credential = new DefaultAzureCredential(
+      managedIdentityClientId
+        ? {
+            managedIdentityClientId,
+            workloadIdentityClientId: managedIdentityClientId,
+          }
+        : undefined,
+    );
+
+    options.credentialsProvider =
+      EntraIdCredentialsProviderFactory.createForDefaultAzureCredential({
+        credential,
+        scopes: REDIS_SCOPE_DEFAULT,
+        tokenManagerConfig: {
+          expirationRefreshRatio: 0.8,
+        },
+        onRetryableError: (error) => {
+          logger.warn('Retryable Redis Entra auth error', {
+            error,
+          });
+        },
+        onReAuthenticationError: (error) => {
+          logger.error('Redis Entra reauthentication failed', {
+            error: error.message,
+          });
+        },
+      });
+  }
+
+  return options;
+}
+
 async function getRedisClient(): Promise<RedisClient> {
   if (!redisClientPromise) {
-    const client = createClient({
-      url: getRedisUrl(),
-      socket: {
-        reconnectStrategy: (retries) => Math.min(retries * 100, 1000),
-      },
-    });
+    const client = createClient(createRedisClientOptions());
 
     redisClientPromise = client
       .connect()
@@ -281,4 +391,8 @@ export async function deleteStateValue(
 
 export function getWebStateStoreMode(): WebStateStoreMode {
   return getConfiguredStoreMode();
+}
+
+export function getWebRedisAuthMode(): RedisAuthMode {
+  return getRedisAuthMode();
 }

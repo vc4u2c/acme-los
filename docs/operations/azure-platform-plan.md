@@ -351,7 +351,7 @@ Recommended now:
 
 - deploy the Next.js web app to `Azure Container Apps`
 - build and publish a container image to a shared `Azure Container Registry` in the target subscription role
-- use a user-assigned managed identity for runtime access to `Key Vault` and `ACR`
+- use a user-assigned managed identity for runtime access to `Key Vault`, `ACR`, and Redis
 
 Why ACA is the better fit now:
 
@@ -579,6 +579,12 @@ Why:
 
 `Azure Deployment Environments (ADE)` is useful here, but not as the primary implementation for the four persistent environments.
 
+Current decision:
+
+- do not replace the `dev`, `qa`, `stg`, and `prod` GitHub Actions promotion path with ADE
+- use ADE later from `sub-acme-sandbox` for on-demand preview, demo, and developer environments
+- keep ADE catalogs pointed at the same Bicep modules and scripts where possible so it does not become a second infrastructure implementation
+
 Use ADE for:
 
 - ephemeral preview environments
@@ -595,7 +601,14 @@ So the right split is:
 - persistent pipeline environments:
   - GitHub Actions + Bicep + Deployment Stacks
 - ephemeral on-demand environments:
-  - ADE later
+  - ADE in the sandbox lane later
+
+First ADE candidate:
+
+- dev center/project scoped to ACME LOS sandbox work
+- environment types for `preview` and `demo`
+- catalog definitions that reuse the workload Bicep entrypoints instead of portal-authored resources
+- cost controls that pair ADE expiration with the existing budget and teardown posture
 
 ## CI/CD Target Model
 
@@ -758,7 +771,8 @@ Current implementation note:
 - the current platform deploy creates shared private DNS zones in the platform landing zone
 - each workload environment deploy creates its own spoke VNet, private endpoints, and platform DNS link stack
 - the current workload stack deploys one Azure Managed Redis instance per deployed environment
-- the current runtime uses a Redis URL, so the first ACA slice stores that URL in Key Vault and lets the container app read it through managed identity
+- the current Azure runtime target uses Microsoft Entra auth to Redis from the ACA user-assigned managed identity
+- the Redis connection-string path is retained only for local Docker Redis and controlled rollback until the Entra path is proven in each environment
 - shared ACR is split by subscription role:
   - `nonprod` ACR for `dev`, `qa`, and `stg`
   - `prod` ACR for `prod`
