@@ -21,8 +21,14 @@ param extraTags object = {}
   'redis'
 ])
 param stateStoreMode string = 'file'
+@allowed([
+  'connection-string'
+  'entra'
+])
+param redisAuthMode string = 'connection-string'
 param managedEnvironmentId string
 param userAssignedIdentityResourceId string
+param userAssignedIdentityClientId string = ''
 param appBuildId string
 param authProvider string = 'okta'
 param oktaEnvironmentName string = environmentName
@@ -57,11 +63,12 @@ param workloadProfileName string = 'consumption'
 var resolvedContainerAppName = toLower('ca-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var redisKeyPrefix = '${organizationShortName}-${workloadShortName}:web:${environmentName}'
 var resolvedContainerAppDiagnosticSettingsName = toLower('diag-${organizationShortName}-${workloadShortName}-ca-${environmentName}-${regionShortName}-${instanceNumber}')
-var redisDatabaseResourceId = stateStoreMode == 'redis'
+var shouldUseRedisConnectionString = stateStoreMode == 'redis' && redisAuthMode == 'connection-string'
+var redisDatabaseResourceId = shouldUseRedisConnectionString
   ? resourceId('Microsoft.Cache/redisEnterprise/databases', redisClusterName, redisDatabaseName)
   : ''
-var redisKeys = stateStoreMode == 'redis' ? listKeys(redisDatabaseResourceId, '2025-07-01') : {}
-var redisConnectionString = stateStoreMode == 'redis'
+var redisKeys = shouldUseRedisConnectionString ? listKeys(redisDatabaseResourceId, '2025-07-01') : {}
+var redisConnectionString = shouldUseRedisConnectionString
   ? 'rediss://:${uriComponent(string(redisKeys.primaryKey))}@${redisHostName}:${redisPort}'
   : ''
 
@@ -77,7 +84,7 @@ resource sessionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   }
 }
 
-resource redisConnectionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (stateStoreMode == 'redis') {
+resource redisConnectionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (shouldUseRedisConnectionString) {
   parent: keyVaultResource
   name: redisSecretName
   properties: {
@@ -117,7 +124,11 @@ module containerApp './modules/web/container-app.bicep' = {
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
     oktaFundingAcrValues: oktaFundingAcrValues
     stateStoreMode: stateStoreMode
+    redisAuthMode: redisAuthMode
     redisKeyPrefix: redisKeyPrefix
+    redisHostName: redisHostName
+    redisPort: redisPort
+    redisManagedIdentityClientId: userAssignedIdentityClientId
     applicationInsightsConnectionString: applicationInsightsConnectionString
     keyVaultUri: keyVaultUri
     sessionSecretName: sessionSecretName
@@ -160,3 +171,4 @@ resource containerAppDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2
 output containerAppName string = containerApp.outputs.name
 output containerAppId string = containerApp.outputs.id
 output containerAppLatestRevisionFqdn string = containerApp.outputs.latestRevisionFqdn
+output redisAuthMode string = stateStoreMode == 'redis' ? redisAuthMode : ''

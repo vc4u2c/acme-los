@@ -10,6 +10,8 @@ param(
   [string]$Location = 'centralus',
   [ValidateSet('file', 'redis')]
   [string]$StateStoreMode,
+  [ValidateSet('connection-string', 'entra')]
+  [string]$RedisAuthMode,
   [string]$ImageTag,
   [string]$WebImageRepository = 'acme-los-web',
   [string]$ConfigurationPath,
@@ -718,6 +720,7 @@ $resolvedTenantId = if ($TenantId) { $TenantId } else { $account.tenantId }
 $resolvedImageTag = Get-ResolvedImageTag -ExplicitTag $ImageTag -EnvironmentName $EnvironmentName
 $resolvedBuildId = Get-ResolvedBuildId -ExplicitTag $ImageTag
 $resolvedStateStoreMode = if ($StateStoreMode) { $StateStoreMode } else { 'redis' }
+$resolvedRedisAuthMode = if ($RedisAuthMode) { $RedisAuthMode } else { 'entra' }
 $imagesSubscriptionRole = Get-ImagesSubscriptionRole -Configuration $configuration -EnvironmentName $EnvironmentName
 $networkConfiguration = Get-EnvironmentNetworkConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName
 $runtimeMinReplicas = if ($environmentConfiguration.runtime -and $null -ne $environmentConfiguration.runtime.minReplicas) {
@@ -912,6 +915,7 @@ if (-not $workloadVirtualNetworkId) {
 $managedEnvironmentId = Get-StringOutputValue -Outputs $outputs -Name 'containerAppEnvironmentId'
 $resolvedContainerAppName = Get-StringOutputValue -Outputs $outputs -Name 'containerAppName'
 $userAssignedIdentityResourceId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityResourceId'
+$userAssignedIdentityClientId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityClientId'
 $keyVaultName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultName'
 $keyVaultUri = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultUri'
 $redisDatabaseId = Get-StringOutputValue -Outputs $outputs -Name 'redisDatabaseId'
@@ -921,6 +925,10 @@ $redisConnectionSecretName = Get-StringOutputValue -Outputs $outputs -Name 'redi
 
 if (-not $resolvedContainerAppName) {
   throw 'Container app name was not returned from the workload deployment.'
+}
+
+if (-not $userAssignedIdentityClientId) {
+  throw 'User-assigned identity client id was not returned from the workload deployment.'
 }
 
 $managedEnvironmentDefaultDomain = Invoke-AzTsv -Arguments @(
@@ -1033,6 +1041,7 @@ $runtimeDeploymentArguments = @(
   '--parameters', "containerImage=$imageReference",
   '--parameters', "managedEnvironmentId=$managedEnvironmentId",
   '--parameters', "userAssignedIdentityResourceId=$userAssignedIdentityResourceId",
+  '--parameters', "userAssignedIdentityClientId=$userAssignedIdentityClientId",
   '--parameters', "appBuildId=$resolvedBuildId",
   '--parameters', "authProvider=okta",
   '--parameters', "oktaEnvironmentName=$oktaEnvironmentName",
@@ -1086,9 +1095,19 @@ if ($resolvedStateStoreMode -eq 'redis') {
     '--parameters', "redisDatabaseName=$redisDatabaseName",
     '--parameters', "redisHostName=$redisHostName",
     '--parameters', "redisPort=$redisPort",
-    '--parameters', "redisSecretName=$redisConnectionSecretName",
-    '--parameters', "redisSecretKeyVaultUrl=${keyVaultUri}secrets/${redisConnectionSecretName}"
+    '--parameters', "redisAuthMode=$resolvedRedisAuthMode"
   )
+
+  if ($resolvedRedisAuthMode -eq 'connection-string') {
+    if (-not $redisConnectionSecretName) {
+      throw 'Redis connection secret name was not returned from the workload deployment.'
+    }
+
+    $runtimeDeploymentArguments += @(
+      '--parameters', "redisSecretName=$redisConnectionSecretName",
+      '--parameters', "redisSecretKeyVaultUrl=${keyVaultUri}secrets/${redisConnectionSecretName}"
+    )
+  }
 }
 
 $runtimeDeployment = Invoke-AzJson -Arguments $runtimeDeploymentArguments
@@ -1151,6 +1170,7 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
 [ordered]@{
   environmentName = $EnvironmentName
   stateStoreMode = $resolvedStateStoreMode
+  redisAuthMode = if ($resolvedStateStoreMode -eq 'redis') { $resolvedRedisAuthMode } else { '' }
   subscriptionId = $resolvedSubscriptionId
   platformSubscriptionId = $resolvedPlatformSubscriptionId
   tenantId = $resolvedTenantId
