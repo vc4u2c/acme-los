@@ -14,6 +14,7 @@ const config = {
     '^@acme-los/core/config$': '<rootDir>/../../libs/core/config/src/index.ts',
     '^@acme-los/ui-web$': '<rootDir>/../../libs/ui/web/src/index.ts',
   },
+  setupFiles: ['<rootDir>/src/test-setup.ts'],
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
   coverageDirectory: '../../coverage/apps/web-app',
   testEnvironment: 'jsdom',

@@ -11,6 +11,7 @@ type AuthAuditEvent =
   | 'auth.start'
   | 'auth.callback'
   | 'auth.session.sync'
+  | 'auth.session.touch'
   | 'auth.session.clear'
   | 'auth.logout'
   | 'security.inspector';

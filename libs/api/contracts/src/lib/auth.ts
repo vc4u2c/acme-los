@@ -26,6 +26,13 @@ export interface WebAuthSession {
   errorMessage?: string;
 }
 
+export interface WebAuthSessionTiming {
+  absoluteExpiresAt: number;
+  idleExpiresAt: number;
+  idleTimeoutSeconds: number;
+  warningSeconds: number;
+}
+
 export interface WebAuthSessionDebugSnapshot {
   idTokenClaims: Record<string, unknown> | null;
   accessTokenClaims: Record<string, unknown> | null;
@@ -33,6 +40,7 @@ export interface WebAuthSessionDebugSnapshot {
 
 export interface GetWebAuthSessionResponse {
   session: WebAuthSession;
+  sessionTiming?: WebAuthSessionTiming;
   debug?: WebAuthSessionDebugSnapshot;
 }
 
@@ -44,6 +52,13 @@ export interface SyncWebAuthSessionRequest {
 
 export interface SyncWebAuthSessionResponse {
   session: WebAuthSession;
+  sessionTiming?: WebAuthSessionTiming;
+}
+
+export interface TouchWebAuthSessionResponse {
+  session: WebAuthSession;
+  sessionTiming?: WebAuthSessionTiming;
+  touched: boolean;
 }
 
 export interface ClearWebAuthSessionResponse {

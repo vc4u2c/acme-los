@@ -18,6 +18,7 @@ The web app now uses:
 - server-side callback exchange
 - one opaque auth session cookie
 - server-side session state
+- server-enforced idle session expiry
 - route-level assurance checks
 - server-driven logout
 
@@ -35,6 +36,28 @@ Current browser-side auth shape:
   - only during the Okta redirect handshake
 
 So the browser has one main logged-in session boundary, and the server resolves the real auth/session data behind it.
+
+## Session Idle Timeout
+
+Authenticated web sessions now have both an absolute expiry and a server-side
+idle expiry.
+
+- the absolute expiry is capped by the verified Okta ID token `exp`
+- the idle expiry is stored with the server-side session record
+- `GET /api/auth/session` reports the current session timing to the client
+- `POST /api/auth/session/touch` is CSRF-protected and extends only the idle
+  expiry, never beyond the absolute expiry
+- browser background reads do not extend the session
+- the client shows a warning modal before idle expiry and signs out when the
+  server idle window is exhausted
+
+Current defaults:
+
+- `local` and Azure `dev`: 120 second idle timeout with a 30 second warning
+- `qa`, `stg`, and `prod`: 15 minute idle timeout with a 2 minute warning
+
+The dev value is intentionally short so the modal and server expiry path are
+easy to test.
 
 ## Sign-In Flow
 
