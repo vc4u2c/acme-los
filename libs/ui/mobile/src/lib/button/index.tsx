@@ -278,8 +278,12 @@ const buttonGroupStyle = tva({
 type IButtonProps = Omit<
   React.ComponentPropsWithoutRef<typeof UIButton>,
   'context'
-> &
-  VariantProps<typeof buttonStyle> & { className?: string };
+> & {
+  action?: 'primary' | 'secondary' | 'positive' | 'negative' | 'default';
+  className?: string;
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  variant?: 'link' | 'outline' | 'solid';
+};
 
 const Button = React.forwardRef<
   React.ElementRef<typeof UIButton>,
@@ -406,6 +410,7 @@ const ButtonGroup = React.forwardRef<
       space = 'md',
       isAttached = false,
       flexDirection = 'column',
+      children,
       ...props
     },
     ref,
@@ -420,7 +425,9 @@ const ButtonGroup = React.forwardRef<
           flexDirection,
         })}
         {...props}
-      />
+      >
+        {children}
+      </UIButton.Group>
     );
   },
 );

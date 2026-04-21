@@ -20,6 +20,9 @@
       "@acme-los/core/utils": ["../../libs/core/utils/src/index.ts"],
       "@acme-los/core/config": ["../../libs/core/config/src/index.ts"],
       "@acme-los/core/logger": ["../../libs/core/logger/src/index.ts"],
+      "@acme-los/core/logger/trace-context": [
+        "../../libs/core/logger/src/lib/trace-context.ts"
+      ],
       "@acme-los/domain/customer": ["../../libs/domain/customer/src/index.ts"],
       "@acme-los/domain/application": [
         "../../libs/domain/application/src/index.ts"

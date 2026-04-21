@@ -324,18 +324,36 @@ Open:
 
 Show:
 
-- the server-rendered trace id
+- the per-action `traceparent` behavior
+- the per-action `X-Correlation-ID` response/request header
 - `Run traced flow`
 - `Emit server-only log`
+- `Log client error`
+- `Log server error`
 
 Talking points:
 
 - server events are written by the Next.js runtime through the shared logger
 - the traced flow first writes `logging.demo.client.browser` in the browser,
-  then posts allowlisted telemetry to the server
+  then posts allowlisted telemetry to the server with the W3C `traceparent`
+  header
 - the server writes `logging.demo.client.received` and
   `logging.demo.server.processed` into the container log stream for that same
   trace id
+- server logs keep the browser span as `parentSpanId`/`incomingTraceparent` and
+  write the server span as `spanId`/`traceparent`, which is the shape future
+  downstream .NET calls should continue through OpenTelemetry propagation
+- the error buttons use controlled throw/catch paths so the demo can show
+  client-origin and server-origin errors without crashing the page
+- `traceparent` is the standard propagation header; `X-TraceId` is a common
+  custom or legacy convention but is not the standard tracing header
+- `X-Correlation-ID` is carried as a separate app/business correlation header
+  and echoed back after server validation
+- every server-side log includes runtime fields such as `environment`,
+  `service`, `version`, and `build`, so local, dev, and future higher
+  environments remain easy to separate
+- logging emission is non-blocking; the app does not wait on a logging transport
+  to keep serving the request
 - the trace id lets the audience follow the same demo event across App
   Insights traces and raw Container Apps console logs
 

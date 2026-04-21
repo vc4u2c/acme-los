@@ -150,7 +150,7 @@ test('shows the web home, rendering demos, and showcase route', async ({
   await navigate(page, '/logging-demo');
   await expect(
     page.getByRole('heading', {
-      name: /Follow one trace from browser telemetry to container logs/i,
+      name: /Follow a traceparent from browser telemetry to container logs/i,
     }),
   ).toBeVisible();
   await expect(page.getByTestId('logging-demo-rendered-at')).toBeVisible();
@@ -160,10 +160,22 @@ test('shows the web home, rendering demos, and showcase route', async ({
   await expect(
     page.getByRole('button', { name: /Run traced flow/i }),
   ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /Log client error/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /Log server error/i }),
+  ).toBeVisible();
   await expect(page.getByTestId('logging-demo-server-result')).toHaveText(
     /No event emitted yet/i,
   );
   await expect(page.getByTestId('logging-demo-client-result')).toHaveText(
+    /No event emitted yet/i,
+  );
+  await expect(page.getByTestId('logging-demo-client-error-result')).toHaveText(
+    /No event emitted yet/i,
+  );
+  await expect(page.getByTestId('logging-demo-server-error-result')).toHaveText(
     /No event emitted yet/i,
   );
 });

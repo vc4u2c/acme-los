@@ -26,13 +26,17 @@ Backend architecture patterns and best practices for scalable server-side applic
 
 - Use the repo logger instead of raw `console` calls when server-side events need to land in Azure Container Apps logs and Application Insights.
 - Treat browser-origin telemetry as untrusted input: validate it with an allowlist schema, bound string lengths, rate-limit the endpoint, and avoid logging cookies, tokens, form values, emails, phone numbers, addresses, or free-form page content.
-- When client behavior must appear in container logs, relay a small client telemetry payload to a server endpoint and log it from the server with a stable event name and trace id.
+- When client behavior must appear in container logs, relay a small client telemetry payload to a server endpoint and log it from the server with a stable event name plus W3C `traceparent`/trace id fields.
+- Keep logging emission non-blocking; application code should not await a logging transport on the critical path. Use `X-Correlation-ID` only as a separate business/process correlation header, not as a replacement for W3C trace propagation.
+- Include runtime context on server logs, especially `environment`, `service`, `version`, and `build`, so local, dev, and future higher-environment telemetry can be separated reliably.
+- Use the shared trace-context helpers for header names, `traceparent` parsing, and server-span `traceparent` creation instead of hand-rolling propagation logic in route handlers.
 - Keep event names stable and queryable, such as `logging.demo.client`, `auth.session.touch`, or `application.submit.failure`.
 
 ### Future .NET Services
 
 - Keep HTTP contracts, event names, and telemetry field names language-neutral so future ASP.NET services can join the same platform without reshaping dashboards.
 - Prefer OpenTelemetry-compatible logging and tracing in .NET services, with structured JSON written to stdout for ACA console logs and exported telemetry for Application Insights.
+- Accept and propagate W3C `traceparent`; forward `X-Correlation-ID` as an app/business correlation header when present.
 - Preserve the existing auth posture when moving work into .NET: browser tokens stay out of client storage, server-side session or token exchange code owns sensitive credentials, and API boundaries validate authorization explicitly.
 - Add `dotnet format`, `dotnet test`, and build checks to the verification loop when a .NET project is introduced.
 

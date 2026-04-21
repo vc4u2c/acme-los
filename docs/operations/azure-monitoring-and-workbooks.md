@@ -123,20 +123,95 @@ The `/logging-demo` route follows that pattern:
 - server render emits `logging.demo.server.render`
 - traced flow emits a local browser console event as
   `logging.demo.client.browser`
-- the browser posts allowlisted telemetry with the same trace id to the server
+- every button action creates a fresh W3C `traceparent` header
+- every button action also sends a fresh `X-Correlation-ID` header for
+  demo/business correlation; this is separate from distributed tracing
+- the browser posts allowlisted telemetry with that trace context to the server
 - the server writes paired container log events:
   `logging.demo.client.received` and `logging.demo.server.processed`
 - standalone server action emits `logging.demo.server.manual`
-- the page render, traced flow, and server-only action carry the same trace id
-  for simple Log Analytics and Application Insights queries
+- controlled error actions emit `logging.demo.client.error.received` and
+  `logging.demo.server.error`
+- server logs include the extracted `traceId`, `parentSpanId`, `spanId`, and
+  `traceparent` fields plus `incomingTraceparent` and `correlationId` for
+  simple Log Analytics and Application Insights queries
+- the shared logger enriches every server log with `application`, `service`,
+  `environment`, `nodeEnv`, `version`, `build`, and `timestamp`
+- logger emission is fire-and-forget; request handling does not await a logging
+  transport before continuing
+
+Local browser logs and local Next.js server logs do not go to the deployed dev
+Application Insights resource unless a local process is deliberately configured
+with that exporter/connection string. Keep normal local development telemetry
+local so the `dev` signal stays clean.
 
 The implementation uses the shared `@acme-los/core/logger` trace logger on the
-server and a small browser trace logger helper under the web app. Keep future
-client-to-server telemetry flows on that shape: typed event name, trace id,
-allowlisted payload, server validation, then structured server log emission.
+server, the runtime-neutral `@acme-los/core/logger/trace-context` helpers for
+header names and W3C parsing, and a small browser trace logger helper under the
+web app. Keep future client-to-server telemetry flows on that shape: typed
+event name, W3C `traceparent`, optional `X-Correlation-ID` for business
+correlation, allowlisted payload, server validation, then structured server log
+emission. Do not invent a custom `X-TraceId` header unless a legacy integration
+specifically requires one.
 
 Do not use this path for arbitrary client blobs, cookies, bearer tokens, form
 values, or customer PII.
+
+### Trace And Correlation Queries
+
+Use the correlation id when you want the business/demo story for one button
+click. Use the trace id when you want the distributed tracing story across the
+browser-origin event, server event, and future downstream services.
+
+Application Insights app traces by correlation id:
+
+```kusto
+let correlationId = "paste-x-correlation-id-here";
+AppTraces
+| where TimeGenerated > ago(2h)
+| where tostring(Properties.correlationId) == correlationId
+| project
+    TimeGenerated,
+    SeverityLevel,
+    Message,
+    event = tostring(Properties.event),
+    traceId = tostring(Properties.traceId),
+    spanId = tostring(Properties.spanId),
+    parentSpanId = tostring(Properties.parentSpanId),
+    environment = tostring(Properties.environment),
+    service = tostring(Properties.service),
+    version = tostring(Properties.version),
+    build = tostring(Properties.build)
+| order by TimeGenerated asc
+```
+
+ACA container logs by trace id:
+
+```kusto
+let traceId = "paste-trace-id-here";
+ContainerAppConsoleLogs
+| where TimeGenerated > ago(2h)
+| where ContainerAppName == "ca-acme-los-web-dev-cus-01"
+| where Log_s has traceId
+| extend payload = parse_json(Log_s)
+| where tostring(payload.traceId) == traceId
+| project
+    TimeGenerated,
+    RevisionName_s,
+    level = tostring(payload.level),
+    message = tostring(payload.message),
+    event = tostring(payload.event),
+    correlationId = tostring(payload.correlationId),
+    spanId = tostring(payload.spanId),
+    parentSpanId = tostring(payload.parentSpanId),
+    incomingTraceparent = tostring(payload.incomingTraceparent),
+    traceparent = tostring(payload.traceparent),
+    environment = tostring(payload.environment),
+    service = tostring(payload.service),
+    version = tostring(payload.version),
+    build = tostring(payload.build)
+| order by TimeGenerated asc
+```
 
 ### Future .NET Services
 
@@ -145,6 +220,10 @@ Future .NET services should keep the same operational contract:
 - structured JSON logs to stdout/stderr for ACA console logs
 - OpenTelemetry-compatible traces and logs for Application Insights
 - stable, language-neutral event names and trace fields
+- accept and propagate the standard W3C `traceparent` header so ASP.NET
+  request/dependency telemetry joins the same distributed trace
+- accept and forward `X-Correlation-ID` when the caller provides it, while
+  treating it as business/process correlation instead of a tracing replacement
 - the same platform-owned Log Analytics and Application Insights resources
 
 ## Workbook Scope

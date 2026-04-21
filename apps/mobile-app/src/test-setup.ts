@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 jest.mock('expo/src/winter/ImportMetaRegistry', () => ({
   ImportMetaRegistry: {
     get url() {
@@ -40,7 +42,7 @@ jest.mock('react-native-safe-area-context', () => {
   const SafeAreaInsetsContext = mockReact.createContext(defaultInsets);
   const SafeAreaFrameContext = mockReact.createContext(defaultFrame);
 
-  const SafeAreaProvider = ({ children }) =>
+  const SafeAreaProvider = ({ children }: { children: ReactNode }) =>
     mockReact.createElement(
       SafeAreaFrameContext.Provider,
       { value: defaultFrame },
@@ -50,7 +52,7 @@ jest.mock('react-native-safe-area-context', () => {
         children,
       ),
     );
-  const SafeAreaView = ({ children }) =>
+  const SafeAreaView = ({ children }: { children: ReactNode }) =>
     mockReact.createElement(mockReact.Fragment, null, children);
 
   SafeAreaProvider.displayName = 'SafeAreaProvider';
