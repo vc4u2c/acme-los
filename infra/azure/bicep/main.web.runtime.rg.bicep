@@ -49,6 +49,10 @@ param containerMemory string = '1Gi'
 param minReplicas int = 0
 param maxReplicas int = 1
 param workloadProfileName string = 'consumption'
+@minValue(1)
+param sessionIdleTimeoutSeconds int = environmentName == 'dev' ? 120 : 900
+@minValue(0)
+param sessionWarningSeconds int = environmentName == 'dev' ? 30 : 120
 
 var resolvedContainerAppName = toLower('ca-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var redisKeyPrefix = '${organizationShortName}-${workloadShortName}:web:${environmentName}'
@@ -111,6 +115,8 @@ module containerApp './modules/web/container-app.bicep' = {
     containerMemory: containerMemory
     minReplicas: minReplicas
     maxReplicas: maxReplicas
+    sessionIdleTimeoutSeconds: sessionIdleTimeoutSeconds
+    sessionWarningSeconds: sessionWarningSeconds
   }
   dependsOn: [
     sessionSecret

@@ -263,6 +263,7 @@ Talking points:
 - one main authenticated web session
 - profile and apply routes share the same session boundary
 - session is opaque and server-side
+- `dev` uses a short 120 second idle window so the inactivity warning modal can be tested quickly
 
 ### 4. Show The Security Demo Page
 

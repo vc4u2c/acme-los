@@ -35,6 +35,8 @@ type SecurityInspectorServerSnapshot = {
     sessionId: string;
     createdAt: number;
     expiresAt: number;
+    lastActivityAt: number;
+    idleExpiresAt: number;
     session: Record<string, unknown>;
     tokens: {
       idToken: {
@@ -292,10 +294,10 @@ export function SecurityInspectorDashboard(): React.ReactElement {
                   <p>
                     Stronger now: server-side PKCE start, server-side callback
                     exchange, opaque auth session cookie, server-side auth
-                    state, and tokens off the browser in the normal flow. In
-                    Azure, the shared session and demo state now sit behind
-                    Redis using managed-identity auth, with the web session
-                    secret coming from Key Vault.
+                    state, server-enforced idle expiry, and tokens off the
+                    browser in the normal flow. In Azure, the shared session and
+                    demo state now sit behind Redis using managed-identity auth,
+                    with the web session secret coming from Key Vault.
                   </p>
                   <p>
                     Still temporary: this inspector page itself, the bridge

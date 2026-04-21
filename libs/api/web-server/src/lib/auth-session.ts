@@ -2,6 +2,7 @@ import type {
   GetWebAuthSessionResponse,
   SyncWebAuthSessionRequest,
   SyncWebAuthSessionResponse,
+  TouchWebAuthSessionResponse,
   WebAuthSession,
   WebAuthSessionUser,
 } from '@acme-los/api/contracts';
@@ -22,7 +23,11 @@ import { verifyOktaIdToken } from './okta-id-token';
 import {
   clearStoredWebAuthSession,
   createStoredWebAuthSession,
+  getStoredWebAuthSessionCookieMaxAge,
+  getStoredWebAuthSessionTiming,
   readStoredWebAuthSession,
+  touchStoredWebAuthSession,
+  type StoredWebAuthSession,
   type StoredWebAuthTokenSet,
 } from './session-store';
 
@@ -38,10 +43,22 @@ export type SyncedWebAuthSession = {
   response: SyncWebAuthSessionResponse;
 };
 
+export type TouchedWebAuthSession = {
+  storedSessionId: string;
+  maxAge: number;
+  response: TouchWebAuthSessionResponse;
+};
+
+type WritableWebAuthSession = Pick<
+  SyncedWebAuthSession | TouchedWebAuthSession,
+  'storedSessionId' | 'maxAge'
+>;
+
 type ResolvedStoredSession = {
   sessionId: string;
   session: WebAuthSession;
   tokens: StoredWebAuthTokenSet;
+  storedSession: StoredWebAuthSession;
 };
 
 function buildUnauthenticatedSession(errorMessage?: string): WebAuthSession {
@@ -150,6 +167,7 @@ async function readStoredSessionFromRequest(
     sessionId: storedSession.sessionId,
     session: storedSession.session,
     tokens: storedSession.tokens,
+    storedSession,
   };
 }
 
@@ -170,6 +188,7 @@ export async function readWebAuthSession(
 
   return {
     session: storedSession.session,
+    sessionTiming: getStoredWebAuthSessionTiming(storedSession.storedSession),
     ...(options.includeDebug
       ? { debug: { idTokenClaims: null, accessTokenClaims: null } }
       : {}),
@@ -211,15 +230,48 @@ export async function syncWebAuthSession(
 
   return {
     storedSessionId: storedSession.sessionId,
-    maxAge: Math.max(expiresAt - Math.floor(Date.now() / 1000), 60),
-    response: { session },
+    maxAge: getStoredWebAuthSessionCookieMaxAge(storedSession),
+    response: {
+      session,
+      sessionTiming: getStoredWebAuthSessionTiming(storedSession),
+    },
+  };
+}
+
+export async function touchWebAuthSession(
+  request: NextRequest,
+): Promise<TouchedWebAuthSession | null> {
+  const sessionCookiePayload = readSessionCookiePayload(
+    request.cookies.get(AUTH_SESSION_COOKIE_NAME)?.value,
+  );
+
+  if (!sessionCookiePayload) {
+    return null;
+  }
+
+  const storedSession = await touchStoredWebAuthSession(
+    sessionCookiePayload.sessionId,
+  );
+
+  if (!storedSession) {
+    return null;
+  }
+
+  return {
+    storedSessionId: storedSession.sessionId,
+    maxAge: getStoredWebAuthSessionCookieMaxAge(storedSession),
+    response: {
+      session: storedSession.session,
+      sessionTiming: getStoredWebAuthSessionTiming(storedSession),
+      touched: true,
+    },
   };
 }
 
 export function writeWebAuthSession(
   request: NextRequest,
   response: NextResponse,
-  payload: SyncedWebAuthSession,
+  payload: WritableWebAuthSession,
 ): void {
   setSignedCookie(
     response,

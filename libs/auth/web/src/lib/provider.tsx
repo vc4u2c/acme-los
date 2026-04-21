@@ -7,6 +7,7 @@ import type {
   AuthUser,
   SignInRequest,
 } from '@acme-los/auth/contracts';
+import type { WebAuthSessionTiming } from '@acme-los/api/contracts';
 import { createWebApiClient } from '@acme-los/api/web-client';
 import {
   createMockAuthUser,
@@ -24,6 +25,8 @@ type AuthContextValue = {
   signIn: (request?: SignInRequest) => Promise<void>;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  touchSession: () => Promise<boolean>;
+  sessionTiming: WebAuthSessionTiming | null;
 };
 
 const AuthContext = React.createContext<AuthContextValue | null>(null);
@@ -117,15 +120,19 @@ export function AuthProvider({
     ...EMPTY_AUTH_SESSION,
     provider: config.provider,
   });
+  const [sessionTiming, setSessionTiming] =
+    React.useState<WebAuthSessionTiming | null>(null);
 
   const refreshSession = React.useCallback(async () => {
     if (config.provider === 'mock') {
       setSession(readMockSession());
+      setSessionTiming(null);
       return;
     }
 
     if (config.configurationError || !config.okta) {
       setSession(toUnauthenticatedSession('okta', config.configurationError));
+      setSessionTiming(null);
       return;
     }
 
@@ -134,25 +141,30 @@ export function AuthProvider({
 
       if (serverSession.session.isAuthenticated) {
         setSession(serverSession.session);
+        setSessionTiming(serverSession.sessionTiming ?? null);
         return;
       }
 
       setSession(toUnauthenticatedSession('okta'));
+      setSessionTiming(null);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Unable to load auth session.';
       setSession(toUnauthenticatedSession('okta', message));
+      setSessionTiming(null);
     }
   }, [config, webApiClient]);
 
   React.useEffect(() => {
     if (config.provider === 'mock') {
       setSession(readMockSession());
+      setSessionTiming(null);
       return;
     }
 
     if (config.configurationError || !config.okta) {
       setSession(toUnauthenticatedSession('okta', config.configurationError));
+      setSessionTiming(null);
       return;
     }
 
@@ -168,12 +180,14 @@ export function AuthProvider({
         const nextUser = createMockAuthUser(minimumAssuranceLevel);
         persistMockUser(nextUser);
         setSession(toAuthenticatedSession(nextUser, 'mock'));
+        setSessionTiming(null);
         window.location.assign(returnTo);
         return;
       }
 
       if (config.configurationError || !config.okta) {
         setSession(toUnauthenticatedSession('okta', config.configurationError));
+        setSessionTiming(null);
         return;
       }
 
@@ -198,6 +212,7 @@ export function AuthProvider({
             ? error.message
             : 'Unable to start the secure sign-in redirect.';
         setSession(toUnauthenticatedSession('okta', message));
+        setSessionTiming(null);
       }
     },
     [config],
@@ -205,6 +220,7 @@ export function AuthProvider({
 
   const signOut = React.useCallback(async () => {
     clearLocalSessionArtifacts();
+    setSessionTiming(null);
 
     if (config.provider === 'mock') {
       setSession(toUnauthenticatedSession('mock'));
@@ -222,14 +238,52 @@ export function AuthProvider({
     window.location.assign('/api/auth/logout');
   }, [config]);
 
+  const touchSession = React.useCallback(async () => {
+    if (config.provider === 'mock') {
+      setSession(readMockSession());
+      setSessionTiming(null);
+      return true;
+    }
+
+    if (config.configurationError || !config.okta) {
+      setSession(toUnauthenticatedSession('okta', config.configurationError));
+      setSessionTiming(null);
+      return false;
+    }
+
+    try {
+      const touchedSession = await webApiClient.auth.touchSession();
+
+      if (touchedSession.session.isAuthenticated) {
+        setSession(touchedSession.session);
+        setSessionTiming(touchedSession.sessionTiming ?? null);
+        return true;
+      }
+
+      setSession(toUnauthenticatedSession('okta'));
+      setSessionTiming(null);
+      return false;
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unable to keep the auth session active.';
+      setSession(toUnauthenticatedSession('okta', message));
+      setSessionTiming(null);
+      return false;
+    }
+  }, [config, webApiClient]);
+
   const value = React.useMemo<AuthContextValue>(
     () => ({
       session,
+      sessionTiming,
       signIn,
       signOut,
       refreshSession,
+      touchSession,
     }),
-    [refreshSession, session, signIn, signOut],
+    [refreshSession, session, sessionTiming, signIn, signOut, touchSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

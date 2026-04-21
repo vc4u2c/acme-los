@@ -21,6 +21,8 @@ type SecurityInspectorStoredSessionSnapshot = {
   sessionId: string;
   createdAt: number;
   expiresAt: number;
+  lastActivityAt: number;
+  idleExpiresAt: number;
   session: StoredWebAuthSession['session'];
   tokens: {
     idToken: SecurityInspectorTokenSnapshot;
@@ -85,6 +87,8 @@ function buildStoredSessionSnapshot(
     sessionId: storedSession.sessionId,
     createdAt: storedSession.createdAt,
     expiresAt: storedSession.expiresAt,
+    lastActivityAt: storedSession.lastActivityAt,
+    idleExpiresAt: storedSession.idleExpiresAt,
     session: storedSession.session,
     tokens: {
       idToken: {

@@ -14,6 +14,7 @@ export {
   readWebAuthSession,
   requireAuthenticatedWebSession,
   syncWebAuthSession,
+  touchWebAuthSession,
   writeWebAuthSession,
 } from './lib/auth-session';
 export { getServerWebAuthConfig } from './lib/config';
@@ -40,8 +41,12 @@ export {
 export {
   clearStoredWebAuthSession,
   createStoredWebAuthSession,
+  getStoredWebAuthSessionCookieMaxAge,
+  getStoredWebAuthSessionTiming,
   readStoredWebAuthSession,
+  touchStoredWebAuthSession,
 } from './lib/session-store';
+export { getWebSessionTimeoutConfig } from './lib/session-timeout';
 export { getWebStateStoreMode } from './lib/state-store';
 export { buildPublicRequestUrl, getRequestOrigin } from './lib/request-url';
 export {

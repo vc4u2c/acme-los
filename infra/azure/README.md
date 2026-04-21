@@ -203,6 +203,14 @@ Runtime secret handling:
 - the container app uses its user-assigned managed identity for Key Vault access and Redis token acquisition
 - the container app also uses managed identity for `AcrPull`
 
+Runtime session behavior:
+
+- authenticated web sessions are enforced server-side with both absolute and idle expiry
+- `sessionIdleTimeoutSeconds` and `sessionWarningSeconds` are Bicep runtime parameters that become `ACME_WEB_SESSION_IDLE_TIMEOUT_SECONDS` and `ACME_WEB_SESSION_WARNING_SECONDS` in the container app
+- `dev` defaults to a 120 second idle timeout and 30 second warning so the inactivity modal is easy to test
+- `qa`, `stg`, and `prod` deploy a 15 minute idle timeout with a 2 minute warning
+- the browser modal calls the CSRF-protected session touch route only after real user activity or an explicit stay-signed-in action
+
 Runtime telemetry:
 
 - the Node server is preloaded with the Azure Monitor OpenTelemetry distro before

@@ -34,6 +34,10 @@ param containerCpu string = '0.5'
 param containerMemory string = '1Gi'
 param minReplicas int = 0
 param maxReplicas int = 1
+@minValue(1)
+param sessionIdleTimeoutSeconds int = appEnvironmentName == 'dev' ? 120 : 900
+@minValue(0)
+param sessionWarningSeconds int = appEnvironmentName == 'dev' ? 30 : 120
 
 var telemetryServiceName = 'acme-los-web'
 var telemetryTracesPerSecond = appEnvironmentName == 'prod' ? '5' : '2'
@@ -143,6 +147,14 @@ var environmentVariables = concat(
     {
       name: 'ACME_WEB_STATE_STORE'
       value: stateStoreMode
+    }
+    {
+      name: 'ACME_WEB_SESSION_IDLE_TIMEOUT_SECONDS'
+      value: string(sessionIdleTimeoutSeconds)
+    }
+    {
+      name: 'ACME_WEB_SESSION_WARNING_SECONDS'
+      value: string(sessionWarningSeconds)
     }
     {
       name: 'NEXT_TELEMETRY_DISABLED'

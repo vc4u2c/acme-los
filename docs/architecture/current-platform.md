@@ -32,6 +32,7 @@ What is solid now:
 
 - server-side PKCE initiation and callback exchange are in place
 - one opaque web session is shared across profile, apply, and sign-out
+- web sessions now have server-enforced idle expiry with a client warning modal
 - the browser is no longer the source of truth for authenticated state
 - Azure landing-zone structure now exists with management groups, subscriptions, budgets, and an ACA-based web runtime path
 - local and Azure `dev` now align to the same Okta `dev` tenant with different allowed callback URLs
@@ -83,8 +84,10 @@ What is still bridge-state rather than final:
 - one opaque auth session cookie identifies the web session
 - one CSRF cookie protects browser mutations
 - one short-lived auth transaction cookie exists only during sign-in
+- authenticated sessions carry an absolute expiry plus a server-side idle expiry
 - `libs/api/web-server`
   - stores auth session data, customer profile data, and application flow state server-side
+  - enforces idle session expiry in the shared state store
   - uses Redis when `ACME_WEB_STATE_STORE=redis`, `ACME_REDIS_URL`, or `ACME_REDIS_HOST` is configured
   - supports connection-string auth for local Docker Redis
   - supports Entra auth for Azure runtime identity access
@@ -97,6 +100,7 @@ In place now:
 - server-side PKCE initiation and callback exchange
 - opaque HTTP-only auth session cookie
 - tokens off the browser in the normal signed-in flow
+- server-enforced idle session timeout with CSRF-protected keep-alive touches
 - server-side guarded route checks
 - CSRF on mutating web facade routes
 - server-driven logout
@@ -202,6 +206,7 @@ Near-term guidance:
 - keep server-rendered route shells
 - keep client form islands focused on interaction only
 - keep the web app using the opaque server-backed auth session cookie as the source of truth
+- keep idle expiry server-enforced; the browser modal should only warn and call the CSRF-protected touch route after real user activity
 - keep hosted Okta focused on sign-in, MFA, reset, and unlock flows
 
 Definition of done:

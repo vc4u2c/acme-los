@@ -34,10 +34,13 @@ The web app currently uses:
 - one CSRF cookie for mutating web routes
 - one short-lived auth transaction cookie during the Okta redirect handshake
 - server-side session, customer, and application flow state
+- server-enforced idle expiry for authenticated web sessions
 
 Important rule:
 
 - the browser is not the source of truth for authenticated state
+- the client warning modal is UX only; the server-side idle expiry is the
+  enforcement point
 
 ## Mobile Auth Direction
 
@@ -59,6 +62,7 @@ Owns:
 
 - request and response DTOs
 - auth/session payload shapes
+- session timing payloads for idle warning and expiry UX
 - error envelopes
 - contract-level enums and unions
 
@@ -75,6 +79,8 @@ Owns:
 - browser wrappers for the web app's `/api/*` facade
 - CSRF-aware request behavior
 - typed responses for browser code
+- session keep-alive calls through the app-owned `/api/auth/session/touch`
+  endpoint
 
 Must not own:
 
@@ -104,6 +110,7 @@ Owns:
 - callback handling support
 - CSRF and cookie helpers
 - server-side state access for auth, customer, and application flow
+- session idle timeout config, server-side idle expiry, and touch handling
 
 Must stay:
 

@@ -11,6 +11,7 @@ import type {
   SubmitApplicationResponse,
   SyncWebAuthSessionRequest,
   SyncWebAuthSessionResponse,
+  TouchWebAuthSessionResponse,
   UpdateCustomerProfileRequest,
   UpdateCustomerProfileResponse,
 } from '@acme-los/api/contracts';
@@ -55,6 +56,7 @@ export function createWebApiClient({
   fetchImpl,
 }: WebApiClientOptions = {}) {
   const authSessionUrl = `${baseUrl}/api/auth/session`;
+  const authSessionTouchUrl = `${authSessionUrl}/touch`;
   const csrfUrl = `${baseUrl}/api/security/csrf`;
   const customerProfileUrl = `${baseUrl}/api/customer/profile`;
   const applicationBaseUrl = `${baseUrl}/api/application`;
@@ -112,6 +114,14 @@ export function createWebApiClient({
         return requestWithCsrf<ClearWebAuthSessionResponse>(authSessionUrl, {
           method: 'DELETE',
         });
+      },
+      touchSession(): Promise<TouchWebAuthSessionResponse> {
+        return requestWithCsrf<TouchWebAuthSessionResponse>(
+          authSessionTouchUrl,
+          {
+            method: 'POST',
+          },
+        );
       },
     },
     security: {
