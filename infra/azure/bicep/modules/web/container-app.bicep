@@ -20,11 +20,6 @@ param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
   'redis'
 ])
 param stateStoreMode string
-@allowed([
-  'connection-string'
-  'entra'
-])
-param redisAuthMode string = 'connection-string'
 param redisKeyPrefix string = ''
 param redisHostName string = ''
 param redisPort int = 10000
@@ -39,9 +34,6 @@ param containerCpu string = '0.5'
 param containerMemory string = '1Gi'
 param minReplicas int = 0
 param maxReplicas int = 1
-param redisSecretName string = 'redis-url'
-@secure()
-param redisSecretKeyVaultUrl string = ''
 
 var telemetryServiceName = 'acme-los-web'
 var telemetryTracesPerSecond = appEnvironmentName == 'prod' ? '5' : '2'
@@ -50,7 +42,7 @@ var redisBaseEnvironmentVariables = stateStoreMode == 'redis'
   ? [
       {
         name: 'ACME_REDIS_AUTH_MODE'
-        value: redisAuthMode
+        value: 'entra'
       }
       {
         name: 'ACME_REDIS_KEY_PREFIX'
@@ -58,7 +50,7 @@ var redisBaseEnvironmentVariables = stateStoreMode == 'redis'
       }
     ]
   : []
-var redisEntraEnvironmentVariables = stateStoreMode == 'redis' && redisAuthMode == 'entra'
+var redisEntraEnvironmentVariables = stateStoreMode == 'redis'
   ? [
       {
         name: 'ACME_REDIS_HOST'
@@ -75,14 +67,6 @@ var redisEntraEnvironmentVariables = stateStoreMode == 'redis' && redisAuthMode 
       {
         name: 'AZURE_CLIENT_ID'
         value: redisManagedIdentityClientId
-      }
-    ]
-  : []
-var redisConnectionStringEnvironmentVariables = stateStoreMode == 'redis' && redisAuthMode == 'connection-string'
-  ? [
-      {
-        name: 'ACME_REDIS_URL'
-        secretRef: redisSecretName
       }
     ]
   : []
@@ -194,28 +178,16 @@ var environmentVariables = concat(
     }
   ],
   redisBaseEnvironmentVariables,
-  redisEntraEnvironmentVariables,
-  redisConnectionStringEnvironmentVariables
+  redisEntraEnvironmentVariables
 )
 
-var secrets = concat(
-  [
-    {
-      name: sessionSecretName
-      keyVaultUrl: sessionSecretKeyVaultUrl
-      identity: userAssignedIdentityResourceId
-    }
-  ],
-  stateStoreMode == 'redis' && redisAuthMode == 'connection-string'
-    ? [
-        {
-          name: redisSecretName
-          keyVaultUrl: redisSecretKeyVaultUrl
-          identity: userAssignedIdentityResourceId
-        }
-      ]
-    : []
-)
+var secrets = [
+  {
+    name: sessionSecretName
+    keyVaultUrl: sessionSecretKeyVaultUrl
+    identity: userAssignedIdentityResourceId
+  }
+]
 
 resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: name

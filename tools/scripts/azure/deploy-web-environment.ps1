@@ -10,8 +10,6 @@ param(
   [string]$Location = 'centralus',
   [ValidateSet('file', 'redis')]
   [string]$StateStoreMode,
-  [ValidateSet('connection-string', 'entra')]
-  [string]$RedisAuthMode,
   [string]$ImageTag,
   [string]$WebImageRepository = 'acme-los-web',
   [string]$ConfigurationPath,
@@ -720,7 +718,6 @@ $resolvedTenantId = if ($TenantId) { $TenantId } else { $account.tenantId }
 $resolvedImageTag = Get-ResolvedImageTag -ExplicitTag $ImageTag -EnvironmentName $EnvironmentName
 $resolvedBuildId = Get-ResolvedBuildId -ExplicitTag $ImageTag
 $resolvedStateStoreMode = if ($StateStoreMode) { $StateStoreMode } else { 'redis' }
-$resolvedRedisAuthMode = if ($RedisAuthMode) { $RedisAuthMode } else { 'entra' }
 $imagesSubscriptionRole = Get-ImagesSubscriptionRole -Configuration $configuration -EnvironmentName $EnvironmentName
 $networkConfiguration = Get-EnvironmentNetworkConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName
 $runtimeMinReplicas = if ($environmentConfiguration.runtime -and $null -ne $environmentConfiguration.runtime.minReplicas) {
@@ -921,7 +918,6 @@ $keyVaultUri = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultUri'
 $redisDatabaseId = Get-StringOutputValue -Outputs $outputs -Name 'redisDatabaseId'
 $redisHostName = Get-StringOutputValue -Outputs $outputs -Name 'redisHostName'
 $redisPort = Get-IntegerOutputValue -Outputs $outputs -Name 'redisPort'
-$redisConnectionSecretName = Get-StringOutputValue -Outputs $outputs -Name 'redisConnectionSecretName'
 
 if (-not $resolvedContainerAppName) {
   throw 'Container app name was not returned from the workload deployment.'
@@ -1071,17 +1067,6 @@ if ($resolvedStateStoreMode -eq 'redis') {
     throw 'Key Vault name was not returned from the workload deployment.'
   }
 
-  $redisClusterName = Get-StringOutputValue -Outputs $outputs -Name 'redisClusterName'
-  $redisDatabaseName = Get-StringOutputValue -Outputs $outputs -Name 'redisDatabaseName'
-
-  if (-not $redisClusterName) {
-    throw 'Redis cluster name was not returned from the workload deployment.'
-  }
-
-  if (-not $redisDatabaseName) {
-    throw 'Redis database name was not returned from the workload deployment.'
-  }
-
   if (-not $redisHostName) {
     throw 'Redis host name was not returned from the workload deployment.'
   }
@@ -1091,23 +1076,9 @@ if ($resolvedStateStoreMode -eq 'redis') {
   }
 
   $runtimeDeploymentArguments += @(
-    '--parameters', "redisClusterName=$redisClusterName",
-    '--parameters', "redisDatabaseName=$redisDatabaseName",
     '--parameters', "redisHostName=$redisHostName",
-    '--parameters', "redisPort=$redisPort",
-    '--parameters', "redisAuthMode=$resolvedRedisAuthMode"
+    '--parameters', "redisPort=$redisPort"
   )
-
-  if ($resolvedRedisAuthMode -eq 'connection-string') {
-    if (-not $redisConnectionSecretName) {
-      throw 'Redis connection secret name was not returned from the workload deployment.'
-    }
-
-    $runtimeDeploymentArguments += @(
-      '--parameters', "redisSecretName=$redisConnectionSecretName",
-      '--parameters', "redisSecretKeyVaultUrl=${keyVaultUri}secrets/${redisConnectionSecretName}"
-    )
-  }
 }
 
 $runtimeDeployment = Invoke-AzJson -Arguments $runtimeDeploymentArguments
@@ -1170,7 +1141,7 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
 [ordered]@{
   environmentName = $EnvironmentName
   stateStoreMode = $resolvedStateStoreMode
-  redisAuthMode = if ($resolvedStateStoreMode -eq 'redis') { $resolvedRedisAuthMode } else { '' }
+  redisAuthMode = if ($resolvedStateStoreMode -eq 'redis') { 'entra' } else { '' }
   subscriptionId = $resolvedSubscriptionId
   platformSubscriptionId = $resolvedPlatformSubscriptionId
   tenantId = $resolvedTenantId
@@ -1216,7 +1187,6 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   redisDatabaseName = Get-StringOutputValue -Outputs $outputs -Name 'redisDatabaseName'
   redisHostName = Get-StringOutputValue -Outputs $outputs -Name 'redisHostName'
   redisPort = Get-IntegerOutputValue -Outputs $outputs -Name 'redisPort'
-  redisConnectionSecretName = Get-StringOutputValue -Outputs $outputs -Name 'redisConnectionSecretName'
   keyVaultDnsLinkName = Get-StringOutputValue -Outputs $platformOutputs -Name 'keyVaultVirtualNetworkLinkName'
   managedRedisDnsLinkName = Get-StringOutputValue -Outputs $platformOutputs -Name 'managedRedisVirtualNetworkLinkName'
   workbookDisplayName = $workbookDisplayName

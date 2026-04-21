@@ -21,11 +21,6 @@ param extraTags object = {}
   'redis'
 ])
 param stateStoreMode string = 'file'
-@allowed([
-  'connection-string'
-  'entra'
-])
-param redisAuthMode string = 'connection-string'
 param managedEnvironmentId string
 param userAssignedIdentityResourceId string
 param userAssignedIdentityClientId string = ''
@@ -46,13 +41,8 @@ param keyVaultUri string
 param sessionSecretName string = 'sec-acme-los-web-session-secret'
 @secure()
 param sessionSecretValue string
-param redisClusterName string = ''
-param redisDatabaseName string = 'default'
 param redisHostName string = ''
 param redisPort int = 0
-param redisSecretName string = 'sec-acme-los-redis-url'
-@secure()
-param redisSecretKeyVaultUrl string = ''
 param containerTargetPort int = 3000
 param containerCpu string = '0.5'
 param containerMemory string = '1Gi'
@@ -63,14 +53,6 @@ param workloadProfileName string = 'consumption'
 var resolvedContainerAppName = toLower('ca-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var redisKeyPrefix = '${organizationShortName}-${workloadShortName}:web:${environmentName}'
 var resolvedContainerAppDiagnosticSettingsName = toLower('diag-${organizationShortName}-${workloadShortName}-ca-${environmentName}-${regionShortName}-${instanceNumber}')
-var shouldUseRedisConnectionString = stateStoreMode == 'redis' && redisAuthMode == 'connection-string'
-var redisDatabaseResourceId = shouldUseRedisConnectionString
-  ? resourceId('Microsoft.Cache/redisEnterprise/databases', redisClusterName, redisDatabaseName)
-  : ''
-var redisKeys = shouldUseRedisConnectionString ? listKeys(redisDatabaseResourceId, '2025-07-01') : {}
-var redisConnectionString = shouldUseRedisConnectionString
-  ? 'rediss://:${uriComponent(string(redisKeys.primaryKey))}@${redisHostName}:${redisPort}'
-  : ''
 
 resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
@@ -81,14 +63,6 @@ resource sessionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   name: sessionSecretName
   properties: {
     value: sessionSecretValue
-  }
-}
-
-resource redisConnectionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (shouldUseRedisConnectionString) {
-  parent: keyVaultResource
-  name: redisSecretName
-  properties: {
-    value: redisConnectionString
   }
 }
 
@@ -124,7 +98,6 @@ module containerApp './modules/web/container-app.bicep' = {
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
     oktaFundingAcrValues: oktaFundingAcrValues
     stateStoreMode: stateStoreMode
-    redisAuthMode: redisAuthMode
     redisKeyPrefix: redisKeyPrefix
     redisHostName: redisHostName
     redisPort: redisPort
@@ -138,12 +111,9 @@ module containerApp './modules/web/container-app.bicep' = {
     containerMemory: containerMemory
     minReplicas: minReplicas
     maxReplicas: maxReplicas
-    redisSecretName: redisSecretName
-    redisSecretKeyVaultUrl: redisSecretKeyVaultUrl
   }
   dependsOn: [
     sessionSecret
-    redisConnectionSecret
   ]
 }
 
@@ -171,4 +141,4 @@ resource containerAppDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2
 output containerAppName string = containerApp.outputs.name
 output containerAppId string = containerApp.outputs.id
 output containerAppLatestRevisionFqdn string = containerApp.outputs.latestRevisionFqdn
-output redisAuthMode string = stateStoreMode == 'redis' ? redisAuthMode : ''
+output redisAuthMode string = stateStoreMode == 'redis' ? 'entra' : ''
