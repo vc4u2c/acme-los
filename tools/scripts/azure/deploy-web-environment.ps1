@@ -427,6 +427,15 @@ function Get-ResolvedBuildId {
     [string]$ExplicitTag
   )
 
+  if ($ExplicitTag) {
+    $normalizedTag = $ExplicitTag.ToLowerInvariant()
+    if ($normalizedTag -match '^([0-9a-f]{7,40})(?:-[a-z0-9._-]+)?$') {
+      return $Matches[1].Substring(0, [Math]::Min(8, $Matches[1].Length))
+    }
+
+    return $normalizedTag
+  }
+
   if ($env:GITHUB_SHA) {
     return $env:GITHUB_SHA.Substring(0, [Math]::Min(8, $env:GITHUB_SHA.Length)).ToLowerInvariant()
   }
@@ -437,15 +446,6 @@ function Get-ResolvedBuildId {
       return $gitCommit.ToLowerInvariant()
     }
   } catch {
-  }
-
-  if ($ExplicitTag) {
-    $normalizedTag = $ExplicitTag.ToLowerInvariant()
-    if ($normalizedTag -match '^([0-9a-f]{7,40})(?:-[a-z0-9._-]+)?$') {
-      return $Matches[1].Substring(0, [Math]::Min(8, $Matches[1].Length))
-    }
-
-    return $normalizedTag
   }
 
   throw 'Unable to resolve an application build id. Pass -ImageTag explicitly or run inside a git checkout.'
