@@ -50,6 +50,9 @@ idle expiry.
 - browser background reads do not extend the session
 - the client shows a warning modal before idle expiry and signs out when the
   server idle window is exhausted
+- the idle warning modal is session-gated rather than route-gated: it is mounted
+  globally, returns nothing for unauthenticated users, and can appear on any
+  route while a valid authenticated web session is active
 - the effective active session expiry is the earlier of the idle expiry and the
   absolute token-backed expiry
 - Redis/file session records and the opaque auth cookie are retained briefly

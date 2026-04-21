@@ -150,7 +150,10 @@ Scanning the recent commit history, the repo has moved through these main phases
 - split browser-facing web API clients from domain-facing server clients
 - moved the web auth flow to server-side PKCE with an opaque session cookie
 - centralized auth, customer, and application state on the server
-- hardened the auth edges, cleaned dependencies, and removed the unused Okta Terraform path
+- added server-enforced idle session expiry with a client warning modal
+- proved the `dev` web runtime on Azure Container Apps with Redis, Key Vault,
+  private endpoints, and Azure-native monitoring
+- cleaned release/deploy behavior, Expo compatibility, and repo automation
 
 ## Workspace Layout
 

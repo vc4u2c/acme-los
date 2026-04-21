@@ -36,6 +36,13 @@ const auditedRoutes = [
     path: '/account/profile',
     waitFor: { role: 'heading', name: /Keep your contact details current/i },
   },
+  {
+    path: '/logging-demo',
+    waitFor: {
+      role: 'heading',
+      name: /Follow one trace from browser telemetry to container logs/i,
+    },
+  },
 ] as const;
 
 type AxeViolation = {

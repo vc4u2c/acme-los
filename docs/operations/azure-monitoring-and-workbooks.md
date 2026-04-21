@@ -110,6 +110,43 @@ Current practical meaning:
 - platform and app teams can also query app logs alongside requests,
   dependencies, and exceptions inside the Application Insights data model
 
+### Browser-Origin Logs
+
+Browser console logs do not naturally appear in ACA container logs. When a demo
+or product workflow needs client-side behavior to be visible in the operational
+log stream, the browser should send a small, allowlisted telemetry payload to a
+server endpoint. The server validates it and writes the final structured event
+through the shared logger.
+
+The `/logging-demo` route follows that pattern:
+
+- server render emits `logging.demo.server.render`
+- traced flow emits a local browser console event as
+  `logging.demo.client.browser`
+- the browser posts allowlisted telemetry with the same trace id to the server
+- the server writes paired container log events:
+  `logging.demo.client.received` and `logging.demo.server.processed`
+- standalone server action emits `logging.demo.server.manual`
+- the page render, traced flow, and server-only action carry the same trace id
+  for simple Log Analytics and Application Insights queries
+
+The implementation uses the shared `@acme-los/core/logger` trace logger on the
+server and a small browser trace logger helper under the web app. Keep future
+client-to-server telemetry flows on that shape: typed event name, trace id,
+allowlisted payload, server validation, then structured server log emission.
+
+Do not use this path for arbitrary client blobs, cookies, bearer tokens, form
+values, or customer PII.
+
+### Future .NET Services
+
+Future .NET services should keep the same operational contract:
+
+- structured JSON logs to stdout/stderr for ACA console logs
+- OpenTelemetry-compatible traces and logs for Application Insights
+- stable, language-neutral event names and trace fields
+- the same platform-owned Log Analytics and Application Insights resources
+
 ## Workbook Scope
 
 The per-environment workbook is meant to be the first operational dashboard for

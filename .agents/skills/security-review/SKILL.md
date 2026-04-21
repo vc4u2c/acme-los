@@ -320,6 +320,27 @@ console.log('User login:', { email, userId });
 console.log('Payment:', { last4: card.last4, userId });
 ```
 
+#### Client Telemetry
+
+Browser telemetry is user input. Keep it narrow, explicit, and non-sensitive.
+
+```typescript
+// PASS: Allowlisted telemetry only
+const telemetrySchema = z.object({
+  traceId: z.string().uuid(),
+  viewport: z.object({
+    width: z.number().int().min(0).max(20000),
+    height: z.number().int().min(0).max(20000),
+  }),
+  language: z.string().max(64),
+  timeZone: z.string().max(128),
+});
+```
+
+Do not accept or log arbitrary client blobs, cookies, bearer tokens, form values,
+customer identifiers, email addresses, phone numbers, addresses, full URLs with
+query strings, or local/session storage contents.
+
 #### Error Messages
 
 ```typescript
@@ -344,6 +365,8 @@ catch (error) {
 #### Verification Steps
 
 - [ ] No passwords, tokens, or secrets in logs
+- [ ] Client telemetry schemas are allowlisted and length-bounded
+- [ ] Client telemetry endpoints are rate-limited and protected against CSRF when browser credentials are involved
 - [ ] Error messages generic for users
 - [ ] Detailed errors only in server logs
 - [ ] No stack traces exposed to users

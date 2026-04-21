@@ -36,6 +36,9 @@ export default defineConfig({
     cwd: join(workspaceRoot, 'apps/web-app'),
     env: {
       ...process.env,
+      ACME_WEB_SESSION_SECRET:
+        process.env['ACME_WEB_SESSION_SECRET'] ||
+        'acme-los-web-e2e-session-secret',
       NEXT_PUBLIC_AUTH_PROVIDER: 'mock',
     },
     timeout: 180000,

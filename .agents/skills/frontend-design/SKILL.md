@@ -25,6 +25,30 @@ Safe-average UI is usually worse than a strong, coherent aesthetic with a few bo
 
 ## Design Workflow
 
+## ACME LOS Stack Defaults
+
+Use the existing platform before inventing new UI primitives:
+
+- Web app:
+  - `apps/web-app` is Next.js with App Router.
+  - Styling is Tailwind CSS plus repo CSS variables in
+    `apps/web-app/src/app/global.css`.
+  - Prefer components from `@acme-los/ui-web`, which wraps the repo's
+    shadcn/Radix-style primitives.
+  - Keep server components as the default and create client islands only for
+    browser state, effects, or event handlers.
+- Mobile app:
+  - `apps/mobile-app` is Expo / React Native.
+  - Styling should align with NativeWind and the shared mobile UI layer under
+    `libs/ui/mobile`.
+  - Gluestack UI packages are available; use them when they match existing
+    mobile patterns instead of hand-rolling primitive behavior.
+- Cross-platform:
+  - Preserve the ACME LOS visual direction across web and mobile, but do not
+    force web-only layout or Radix assumptions into React Native.
+  - Keep copy, spacing, and state treatment aligned so web and mobile feel like
+    the same lending product.
+
 ### 1. Frame the interface first
 
 Before coding, settle:
@@ -102,14 +126,15 @@ Do not scatter generic micro-interactions everywhere. One well-directed load seq
 
 Use atmosphere:
 
-- gradients
-- meshes
-- textures
+- product-relevant imagery
+- restrained textures
 - subtle noise
-- patterns
+- purposeful patterns
 - layered transparency
 
-Flat empty backgrounds are rarely the best answer for a product-facing page.
+Flat empty backgrounds are rarely the best answer for a product-facing page, but
+avoid generic decorative blobs or one-note gradients that do not support the
+product story.
 
 ### Layout
 

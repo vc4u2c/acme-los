@@ -28,6 +28,10 @@ Use this skill with the `verification-loop` skill. GitHub work is not done when 
 
 ## Merge And Promotion
 
+- This repo is squash-merge oriented. Keep PR titles conventional because the PR
+  title becomes the final `type(scope): summary (#PR)` commit subject.
+- Do not use merge commits for normal Codex branches unless the user explicitly
+  asks for one.
 - Merge only after required checks pass or the user explicitly accepts a documented risk.
 - After merge, sync local `main` with `git fetch --prune origin`, `git switch main`, and `git pull --ff-only`.
 - Delete only merged/stale local branches that are no longer needed.
