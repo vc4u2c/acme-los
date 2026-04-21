@@ -1,0 +1,7 @@
+interface:
+  display_name: 'GitHub PR And Actions'
+  short_description: 'ACME LOS PR checks and deploy verification'
+  brand_color: '#2563EB'
+  default_prompt: 'Handle GitHub PR or Actions work for ACME LOS with the repo verification loop.'
+policy:
+  allow_implicit_invocation: true

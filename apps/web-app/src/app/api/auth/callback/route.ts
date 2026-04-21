@@ -5,6 +5,7 @@ import {
   buildPublicRequestUrl,
   buildSignInRedirectPath,
   checkRateLimit,
+  clearReplacedWebAuthSession,
   clearWebAuthTransaction,
   exchangeOktaAuthorizationCode,
   logAuthAuditEvent,
@@ -109,6 +110,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       },
       {
         expectedNonce: transaction.nonce,
+        expectedUserId: transaction.expectedUserId,
         serverTokens: {
           accessToken: tokenResponse.access_token,
           refreshToken: tokenResponse.refresh_token,
@@ -122,6 +124,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       buildPublicRequestUrl(request, transaction.returnTo),
     );
 
+    await clearReplacedWebAuthSession(request, syncedSession.storedSessionId);
     writeWebAuthSession(request, response, syncedSession);
     clearWebAuthTransaction(request, response);
     applyRateLimitHeaders(response, rateLimit);

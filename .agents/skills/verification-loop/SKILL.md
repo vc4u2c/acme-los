@@ -1,136 +1,114 @@
 ---
 name: verification-loop
-description: 'A comprehensive verification system for Claude Code sessions.'
-origin: ECC
+description: ACME LOS verification workflow for code, auth/session, frontend, mobile, Azure/IaC, GitHub PR promotion, and major-change readiness. Use before opening or merging PRs, after significant implementation, when debugging GitHub Actions, or whenever the user asks to verify, promote, release, run checks, run E2E, lint, test, build, or avoid hacks.
 ---
 
-# Verification Loop Skill
+# Verification Loop
 
-A comprehensive verification system for Claude Code sessions.
+Use this skill to prove ACME LOS changes are ready instead of relying on local reasoning alone. Prefer the narrowest verification that covers the risk, then expand when the change crosses app, auth, deployment, or release boundaries.
 
-## When to Use
+## Baseline Rules
 
-Invoke this skill:
+- Start from a clean understanding of `git status --short --branch`; do not revert unrelated user work.
+- Run `prettier`, `lint`, and `test` before PR/promotion unless the user explicitly asks for a smaller check.
+- For auth/session/security changes, include a web build and web E2E when feasible.
+- For major changes, run the full repo sweep below before promotion.
+- If a check cannot run because of sandboxing, missing credentials, a live dependency, or time, say exactly what was skipped and why.
+- Treat a failing check as work to fix, not a report to hand back, unless the failure is clearly unrelated or requires user credentials.
 
-- After completing a feature or significant code change
-- Before creating a PR
-- When you want to ensure quality gates pass
-- After refactoring
+## Quick Local Sweep
 
-## Verification Phases
+Use for narrow docs, copy, or low-risk single-area code edits:
 
-### Phase 1: Build Verification
-
-```bash
-# Check if project builds
-npm run build 2>&1 | tail -20
-# OR
-pnpm build 2>&1 | tail -20
+```powershell
+npx.cmd prettier --check .
+npx.cmd nx run-many -t lint test --all --outputStyle=stream
 ```
 
-If build fails, STOP and fix before continuing.
+## Web/Auth Sweep
 
-### Phase 2: Type Check
+Use for Next.js, web UI, auth, claims, cookies, session, Redis-backed state, CSRF, customer profile, or application-flow changes:
 
-```bash
-# TypeScript projects
-npx tsc --noEmit 2>&1 | head -30
-
-# Python projects
-pyright . 2>&1 | head -30
+```powershell
+npx.cmd prettier --check .
+npx.cmd nx run-many -t lint test --all --outputStyle=stream
+npx.cmd nx run web-app:build --skip-nx-cache
+Remove-Item -Force apps/web-app/.next/dev/lock -ErrorAction SilentlyContinue
+Remove-Item -Force apps/web-app/.next/lock -ErrorAction SilentlyContinue
+npx.cmd nx run web-app-e2e:e2e --outputStyle=stream --skip-nx-cache
 ```
 
-Report all type errors. Fix critical ones before continuing.
+Check the behavior manually or with Playwright when the user reported a live UX issue.
 
-### Phase 3: Lint Check
+## Mobile Sweep
 
-```bash
-# JavaScript/TypeScript
-npm run lint 2>&1 | head -30
+Use when `apps/mobile-app`, shared mobile UI, Expo config, or mobile auth behavior changes:
 
-# Python
-ruff check . 2>&1 | head -30
+```powershell
+npx.cmd prettier --check .
+npx.cmd nx run-many -t lint test --all --outputStyle=stream
+npx.cmd nx run mobile-app-e2e:e2e --outputStyle=stream
 ```
 
-### Phase 4: Test Suite
+## Azure And Deployment Sweep
 
-```bash
-# Run tests with coverage
-npm run test -- --coverage 2>&1 | tail -50
+Use for Bicep, ACA, Redis, Key Vault, GitHub OIDC, workflow, or deployment script changes:
 
-# Check coverage threshold
-# Target: 80% minimum
+```powershell
+npx.cmd prettier --check .
+npx.cmd nx run-many -t lint test --all --outputStyle=stream
+npx.cmd nx run web-app:build --skip-nx-cache
+az bicep build --file infra/azure/bicep/main.web.rg.bicep
+az bicep build --file infra/azure/bicep/main.web.monitoring.rg.bicep
 ```
 
-Report:
+After merge/deploy, verify the live `dev` app when credentials are available:
 
-- Total tests: X
-- Passed: X
-- Failed: X
-- Coverage: X%
-
-### Phase 5: Security Scan
-
-```bash
-# Check for secrets
-grep -rn "sk-" --include="*.ts" --include="*.js" . 2>/dev/null | head -10
-grep -rn "api_key" --include="*.ts" --include="*.js" . 2>/dev/null | head -10
-
-# Check for console.log
-grep -rn "console.log" --include="*.ts" --include="*.tsx" src/ 2>/dev/null | head -10
+```powershell
+gh run list --repo vc4u2c/acme-los --branch main --limit 10
+gh run watch <run-id> --repo vc4u2c/acme-los --interval 30 --exit-status
+az containerapp show --subscription <sub> --resource-group <rg> --name <app> --output json
+Invoke-WebRequest -UseBasicParsing -Uri <dev-health-url> -TimeoutSec 120
 ```
 
-### Phase 6: Diff Review
+Confirm health `version`, `build`, image tag, environment, Redis auth mode, and any runtime settings touched by the change.
 
-```bash
-# Show what changed
-git diff --stat
-git diff HEAD~1 --name-only
+## Major Change Sweep
+
+Use this when a change affects more than one subsystem, auth/session, deployment/release, data handling, or any user-visible production path:
+
+```powershell
+npx.cmd prettier --check .
+npx.cmd nx run-many -t lint test --all --outputStyle=stream
+npx.cmd nx run web-app:build --skip-nx-cache
+npx.cmd nx run mobile-app-e2e:e2e --outputStyle=stream
+Remove-Item -Force apps/web-app/.next/dev/lock -ErrorAction SilentlyContinue
+Remove-Item -Force apps/web-app/.next/lock -ErrorAction SilentlyContinue
+npx.cmd nx run web-app-e2e:e2e --outputStyle=stream --skip-nx-cache
 ```
 
-Review each changed file for:
+Add Azure Bicep builds for infrastructure changes and live `dev` verification after promotion.
 
-- Unintended changes
-- Missing error handling
-- Potential edge cases
+## GitHub PR And Promotion
 
-## Output Format
+- Before opening a PR: run the applicable local sweep, review `git diff --check`, and inspect changed files for secrets or unrelated churn.
+- After opening a PR: watch GitHub checks with `gh pr checks --watch` or `gh run watch`; inspect logs before changing code.
+- Before merge: ensure required checks pass and summarize any skipped local checks.
+- After merge to `main`: watch CI/CD, verify the deployed `dev` revision, and sync local `main`.
+- If an environment does not exist, keep the workflow aligned with real environments instead of leaving a permanent blocked gate.
 
-After running all phases, produce a verification report:
+## Report Format
 
+Use a short readiness report:
+
+```text
+Verification:
+- Prettier: pass/fail/skipped
+- Lint/tests: pass/fail/skipped
+- Build: pass/fail/skipped
+- E2E: pass/fail/skipped
+- Deployment/live check: pass/fail/skipped
+
+Result: ready/not ready
+Notes: blockers, skipped checks, residual risk
 ```
-VERIFICATION REPORT
-==================
-
-Build:     [PASS/FAIL]
-Types:     [PASS/FAIL] (X errors)
-Lint:      [PASS/FAIL] (X warnings)
-Tests:     [PASS/FAIL] (X/Y passed, Z% coverage)
-Security:  [PASS/FAIL] (X issues)
-Diff:      [X files changed]
-
-Overall:   [READY/NOT READY] for PR
-
-Issues to Fix:
-1. ...
-2. ...
-```
-
-## Continuous Mode
-
-For long sessions, run verification every 15 minutes or after major changes:
-
-```markdown
-Set a mental checkpoint:
-
-- After completing each function
-- After finishing a component
-- Before moving to next task
-
-Run: /verify
-```
-
-## Integration with Hooks
-
-This skill complements PostToolUse hooks but provides deeper verification.
-Hooks catch issues immediately; this skill provides comprehensive review.

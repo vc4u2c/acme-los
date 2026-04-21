@@ -12,6 +12,7 @@ import {
 } from './session-timeout';
 
 const AUTH_SESSION_NAMESPACE = 'auth-session';
+const LOGOUT_ARTIFACT_GRACE_SECONDS = 5 * 60;
 
 export type StoredWebAuthTokenSet = {
   idToken: string;
@@ -48,13 +49,19 @@ function getCurrentEpochSeconds(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-function getSessionTtlSeconds(storedSession: StoredWebAuthSession): number {
-  const expiresAt = Math.min(
-    storedSession.expiresAt,
-    storedSession.idleExpiresAt,
-  );
+function getActiveSessionExpiresAt(
+  storedSession: StoredWebAuthSession,
+): number {
+  return Math.min(storedSession.expiresAt, storedSession.idleExpiresAt);
+}
 
-  return Math.max(expiresAt - getCurrentEpochSeconds(), 1);
+function getSessionRetentionTtlSeconds(
+  storedSession: StoredWebAuthSession,
+): number {
+  const retainedUntil =
+    getActiveSessionExpiresAt(storedSession) + LOGOUT_ARTIFACT_GRACE_SECONDS;
+
+  return Math.max(retainedUntil - getCurrentEpochSeconds(), 1);
 }
 
 function getCreatedAtEpochSeconds(createdAt: number): number {
@@ -81,13 +88,18 @@ function normalizeStoredSession(
   };
 }
 
-function isStoredSessionExpired(storedSession: StoredWebAuthSession): boolean {
+function isStoredSessionAbsolutelyExpired(
+  storedSession: StoredWebAuthSession,
+): boolean {
   const currentEpochSeconds = getCurrentEpochSeconds();
 
-  return (
-    storedSession.expiresAt <= currentEpochSeconds ||
-    storedSession.idleExpiresAt <= currentEpochSeconds
-  );
+  return storedSession.expiresAt <= currentEpochSeconds;
+}
+
+function isStoredSessionIdleExpired(
+  storedSession: StoredWebAuthSession,
+): boolean {
+  return storedSession.idleExpiresAt <= getCurrentEpochSeconds();
 }
 
 export async function createStoredWebAuthSession(
@@ -113,14 +125,20 @@ export async function createStoredWebAuthSession(
     ),
   };
 
-  await writeStateValue(
-    AUTH_SESSION_NAMESPACE,
-    sessionId,
-    storedSession,
-    getSessionTtlSeconds(storedSession),
-  );
+  await writeStoredWebAuthSession(storedSession);
 
   return storedSession;
+}
+
+export async function writeStoredWebAuthSession(
+  storedSession: StoredWebAuthSession,
+): Promise<void> {
+  await writeStateValue(
+    AUTH_SESSION_NAMESPACE,
+    storedSession.sessionId,
+    storedSession,
+    getSessionRetentionTtlSeconds(storedSession),
+  );
 }
 
 export async function readStoredWebAuthSession(
@@ -137,10 +155,29 @@ export async function readStoredWebAuthSession(
 
   const storedSession = normalizeStoredSession(persistedSession);
 
-  if (isStoredSessionExpired(storedSession)) {
-    await deleteStateValue(AUTH_SESSION_NAMESPACE, sessionId);
+  if (
+    isStoredSessionAbsolutelyExpired(storedSession) ||
+    isStoredSessionIdleExpired(storedSession)
+  ) {
     return null;
   }
+
+  return storedSession;
+}
+
+export async function readStoredWebAuthSessionForLogout(
+  sessionId: string,
+): Promise<StoredWebAuthSession | null> {
+  const persistedSession = await readStateValue<PersistedStoredWebAuthSession>(
+    AUTH_SESSION_NAMESPACE,
+    sessionId,
+  );
+
+  if (!persistedSession) {
+    return null;
+  }
+
+  const storedSession = normalizeStoredSession(persistedSession);
 
   return storedSession;
 }
@@ -171,12 +208,7 @@ export async function touchStoredWebAuthSession(
     ),
   };
 
-  await writeStateValue(
-    AUTH_SESSION_NAMESPACE,
-    sessionId,
-    nextStoredSession,
-    getSessionTtlSeconds(nextStoredSession),
-  );
+  await writeStoredWebAuthSession(nextStoredSession);
 
   return nextStoredSession;
 }
@@ -184,7 +216,7 @@ export async function touchStoredWebAuthSession(
 export function getStoredWebAuthSessionCookieMaxAge(
   storedSession: StoredWebAuthSession,
 ): number {
-  return getSessionTtlSeconds(storedSession);
+  return getSessionRetentionTtlSeconds(storedSession);
 }
 
 export function getStoredWebAuthSessionTiming(
