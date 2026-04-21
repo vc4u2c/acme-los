@@ -3,9 +3,13 @@ import Constants from 'expo-constants';
 
 type ExpoManifestLike = {
   extra?: {
+    appBuild?: string;
+    appEnvironment?: string;
     appVersion?: string;
     expoClient?: {
       extra?: {
+        appBuild?: string;
+        appEnvironment?: string;
         appVersion?: string;
       };
       version?: string;

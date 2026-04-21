@@ -12,11 +12,24 @@ export interface Logger {
 }
 
 export type TraceLogContext = LogContext & {
+  correlationId?: string;
   event?: string;
   route?: string;
   traceId?: string;
+  traceFlags?: string;
+  incomingTraceparent?: string;
+  traceparent?: string;
   spanId?: string;
   parentSpanId?: string;
+};
+
+type RuntimeLogContext = {
+  application: string;
+  service: string;
+  environment: string;
+  nodeEnv: string;
+  version?: string;
+  build?: string;
 };
 
 export interface TraceLogger {
@@ -90,19 +103,70 @@ function emitOpenTelemetryLog(
   }
 }
 
+function readTrimmedEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value || undefined;
+}
+
+function getRuntimeLogContext(): RuntimeLogContext {
+  return {
+    application: 'acme-los',
+    service:
+      readTrimmedEnv('OTEL_SERVICE_NAME') ??
+      readTrimmedEnv('APP_SERVICE_NAME') ??
+      'web-app',
+    environment:
+      readTrimmedEnv('APP_ENVIRONMENT_NAME') ??
+      readTrimmedEnv('NEXT_PUBLIC_APP_ENVIRONMENT') ??
+      (process.env['NODE_ENV'] === 'production' ? 'production' : 'local'),
+    nodeEnv: process.env['NODE_ENV'] ?? 'development',
+    version: readTrimmedEnv('NEXT_PUBLIC_APP_VERSION'),
+    build:
+      readTrimmedEnv('APP_BUILD_ID') ?? readTrimmedEnv('NEXT_PUBLIC_APP_BUILD'),
+  };
+}
+
 function writeLog(
   level: LogLevel,
   message: string,
   context?: LogContext,
 ): void {
-  const payload = {
-    level,
-    message,
-    ...context,
+  const emit = (): void => {
+    try {
+      const logContext = {
+        ...context,
+        ...getRuntimeLogContext(),
+      };
+      const payload = {
+        timestamp: new Date().toISOString(),
+        level,
+        message,
+        ...logContext,
+      };
+
+      console[level](JSON.stringify(payload));
+      emitOpenTelemetryLog(level, message, logContext);
+    } catch {
+      try {
+        console[level](
+          JSON.stringify({
+            level,
+            message: 'Logger emission failed.',
+            originalMessage: message,
+          }),
+        );
+      } catch {
+        // Logging must never break the application path.
+      }
+    }
   };
 
-  console[level](JSON.stringify(payload));
-  emitOpenTelemetryLog(level, message, context);
+  if (typeof queueMicrotask === 'function') {
+    queueMicrotask(emit);
+    return;
+  }
+
+  setTimeout(emit, 0);
 }
 
 export function createConsoleLogger(): Logger {

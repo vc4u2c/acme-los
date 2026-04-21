@@ -313,7 +313,9 @@ async function readRedisStateValue<T>(
   }
 
   try {
-    const record = JSON.parse(rawValue) as PersistedStateRecord<T>;
+    const record = JSON.parse(
+      Buffer.isBuffer(rawValue) ? rawValue.toString('utf8') : rawValue,
+    ) as PersistedStateRecord<T>;
 
     if (record.expiresAt <= Date.now()) {
       await client.del(createRedisKey(namespace, key));

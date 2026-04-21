@@ -16,6 +16,7 @@ const baseQuickLinks = [
   { href: '/apply/personal-info', label: 'Application' },
   { href: '/account/profile', label: 'Customer dashboard' },
   { href: '/rendering-demo', label: 'Rendering demo' },
+  { href: '/logging-demo', label: 'Logging demo' },
   { href: '/showcase', label: 'Showcase' },
 ];
 

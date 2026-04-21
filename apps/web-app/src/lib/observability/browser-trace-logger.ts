@@ -1,4 +1,17 @@
+import {
+  correlationIdHeaderName,
+  createTraceparentHeader,
+  traceparentHeaderName,
+} from '@acme-los/core/logger/trace-context';
+
 export type BrowserLogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+export type BrowserTraceContext = {
+  correlationId: string;
+  traceId: string;
+  spanId: string;
+  traceparent: string;
+};
 
 export type BrowserTelemetry = {
   emittedAt: string;
@@ -27,6 +40,11 @@ export type BrowserTelemetry = {
     rtt?: number;
     saveData?: boolean;
   };
+};
+
+export type BrowserErrorTelemetry = {
+  name: string;
+  message: string;
 };
 
 type NetworkInformation = {
@@ -70,6 +88,13 @@ export type BrowserTraceLogger = {
   ): void;
 };
 
+export type BrowserLogScope = {
+  headers: Record<string, string>;
+  logger: BrowserTraceLogger;
+  route: string;
+  traceContext: BrowserTraceContext;
+};
+
 export function collectBrowserTelemetry(): BrowserTelemetry {
   const navigatorWithTelemetry = navigator as NavigatorWithTelemetry;
   const connection = navigatorWithTelemetry.connection;
@@ -106,11 +131,77 @@ export function collectBrowserTelemetry(): BrowserTelemetry {
   };
 }
 
-export function createBrowserTraceLogger({
-  traceId,
+function createRandomHex(byteLength: number): string {
+  const bytes = new Uint8Array(byteLength);
+
+  do {
+    crypto.getRandomValues(bytes);
+  } while (bytes.every((byte) => byte === 0));
+
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(
+    '',
+  );
+}
+
+export function createBrowserTraceContext(): BrowserTraceContext {
+  const traceId = createRandomHex(16);
+  const spanId = createRandomHex(8);
+
+  return {
+    correlationId: crypto.randomUUID(),
+    traceId,
+    spanId,
+    traceparent: createTraceparentHeader({
+      traceId,
+      spanId,
+      traceFlags: '01',
+    }),
+  };
+}
+
+export function createBrowserTraceHeaders(
+  traceContext: BrowserTraceContext,
+): Record<string, string> {
+  return {
+    [correlationIdHeaderName]: traceContext.correlationId,
+    [traceparentHeaderName]: traceContext.traceparent,
+  };
+}
+
+export function serializeBrowserError(error: unknown): BrowserErrorTelemetry {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+    };
+  }
+
+  return {
+    name: 'Error',
+    message: 'Unknown browser error.',
+  };
+}
+
+export function createBrowserLogScope({
   route,
 }: {
-  traceId: string;
+  route: string;
+}): BrowserLogScope {
+  const traceContext = createBrowserTraceContext();
+
+  return {
+    headers: createBrowserTraceHeaders(traceContext),
+    logger: createBrowserTraceLogger({ route, traceContext }),
+    route,
+    traceContext,
+  };
+}
+
+export function createBrowserTraceLogger({
+  traceContext,
+  route,
+}: {
+  traceContext: BrowserTraceContext;
   route: string;
 }): BrowserTraceLogger {
   const emit = (
@@ -119,16 +210,28 @@ export function createBrowserTraceLogger({
     message: string,
     context?: Record<string, unknown>,
   ): void => {
-    console[level](
-      JSON.stringify({
-        level,
-        message,
-        event: eventName,
-        traceId,
-        route,
-        ...context,
-      }),
-    );
+    const write = (): void => {
+      console[level](
+        JSON.stringify({
+          level,
+          message,
+          correlationId: traceContext.correlationId,
+          event: eventName,
+          traceId: traceContext.traceId,
+          spanId: traceContext.spanId,
+          traceparent: traceContext.traceparent,
+          route,
+          ...context,
+        }),
+      );
+    };
+
+    if (typeof queueMicrotask === 'function') {
+      queueMicrotask(write);
+      return;
+    }
+
+    window.setTimeout(write, 0);
   };
 
   return {

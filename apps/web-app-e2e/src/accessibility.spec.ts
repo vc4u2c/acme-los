@@ -40,7 +40,7 @@ const auditedRoutes = [
     path: '/logging-demo',
     waitFor: {
       role: 'heading',
-      name: /Follow one trace from browser telemetry to container logs/i,
+      name: /Follow a traceparent from browser telemetry to container logs/i,
     },
   },
 ] as const;

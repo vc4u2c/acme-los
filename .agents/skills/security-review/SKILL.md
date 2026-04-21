@@ -327,7 +327,8 @@ Browser telemetry is user input. Keep it narrow, explicit, and non-sensitive.
 ```typescript
 // PASS: Allowlisted telemetry only
 const telemetrySchema = z.object({
-  traceId: z.string().uuid(),
+  traceparent: z.string().regex(/^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$/),
+  correlationId: z.string().uuid(),
   viewport: z.object({
     width: z.number().int().min(0).max(20000),
     height: z.number().int().min(0).max(20000),
@@ -339,7 +340,8 @@ const telemetrySchema = z.object({
 
 Do not accept or log arbitrary client blobs, cookies, bearer tokens, form values,
 customer identifiers, email addresses, phone numbers, addresses, full URLs with
-query strings, or local/session storage contents.
+query strings, local/session storage contents, or browser stack traces unless a
+specific sanitized diagnostic path has been reviewed.
 
 #### Error Messages
 
