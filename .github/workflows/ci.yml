@@ -61,6 +61,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs:
       - lint_test
+      - release_apps
     runs-on: ubuntu-latest
 
     steps:
@@ -68,6 +69,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          ref: ${{ needs.release_apps.outputs.release_sha }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -81,6 +83,7 @@ jobs:
       - name: Create deployable artifact bundle
         shell: bash
         run: |
+          deploy_commit_sha="$(git rev-parse HEAD)"
           bundle_name="acme-los-deployable-${GITHUB_SHA}"
           web_version="$(node -p "require('./apps/web-app/package.json').version")"
           mobile_version="$(node -p "require('./apps/mobile-app/package.json').version")"
@@ -89,7 +92,8 @@ jobs:
           cp apps/mobile-app/package.json dist/deployable/mobile-app.package.json
           cat <<EOF > dist/deployable/deploy-metadata.json
           {
-            "commitSha": "${GITHUB_SHA}",
+            "commitSha": "${deploy_commit_sha}",
+            "workflowHeadSha": "${GITHUB_SHA}",
             "workflowRunId": "${GITHUB_RUN_ID}",
             "workflow": "${GITHUB_WORKFLOW}",
             "webVersion": "${web_version}",
@@ -112,10 +116,11 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
     needs:
       - lint_test
-      - build_deployable_artifact
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      release_sha: ${{ steps.release_ref.outputs.sha }}
     env:
       # Use a dedicated release token when provided so protected-branch bypass
       # can be scoped to the automation path instead of general CI.
@@ -182,6 +187,11 @@ jobs:
           echo "web_asset_file=acme-los-web-app-${web_version}-release-bundle.tgz" >> "$GITHUB_OUTPUT"
           echo "mobile_asset_file=acme-los-mobile-app-${mobile_version}-release-bundle.tgz" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve release ref
+        id: release_ref
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
       - name: Create release asset bundle
         if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true'
         shell: bash
@@ -191,7 +201,8 @@ jobs:
           cp apps/mobile-app/package.json dist/release-assets/mobile-app.package.json
           cat <<EOF > dist/release-assets/release-metadata.json
           {
-            "commitSha": "${GITHUB_SHA}",
+            "commitSha": "${{ steps.release_ref.outputs.sha }}",
+            "workflowHeadSha": "${GITHUB_SHA}",
             "workflowRunId": "${GITHUB_RUN_ID}",
             "workflow": "${GITHUB_WORKFLOW}",
             "webVersion": "${{ steps.versions_after.outputs.web }}",
