@@ -227,9 +227,9 @@ Current infrastructure scope:
 
 Current runtime secret wiring:
 
-- the deploy template writes the final `rediss://` URL into the environment Key Vault
-- the container app reads that value through a Key Vault secret reference
-- the container app uses managed identity for both Key Vault access and ACR pulls
+- the container app reads the web session secret through a Key Vault secret reference
+- the container app uses managed identity for Key Vault access, ACR pulls, and Redis token acquisition
+- Azure Redis access-key authentication is disabled; no Azure Redis URL secret is created
 - the container app stays public for now so the workload can be validated before
   Front Door is introduced
 
@@ -238,6 +238,7 @@ Current proven state:
 - the `dev` environment is deployed in `sub-acme-nonprod-online`
 - the web workload is running in `Azure Container Apps`
 - `Key Vault` and `Azure Managed Redis` are private-only
+- Redis managed-identity auth is proven live in `dev` as of April 19, 2026
 - the ACA ingress is public for now
 - the public endpoint is discovered from the current ACA deployment output
 - use `/api/health` on that resolved base URL for smoke checks

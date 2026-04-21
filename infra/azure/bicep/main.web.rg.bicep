@@ -61,7 +61,6 @@ var resolvedManagedRedisAccessPolicyAssignmentName = take(
   'aparedis${uniqueString(resolvedRedisClusterName, resolvedUserAssignedIdentityName)}',
   60
 )
-var redisConnectionSecretName = 'sec-acme-los-redis-url'
 var resolvedRedisHostName = stateStoreMode == 'redis' ? redis!.outputs.hostName : ''
 var resolvedRedisPort = stateStoreMode == 'redis' ? redis!.outputs.port : 0
 var resolvedManagedRedisPrivateDnsZoneId = resourceId(
@@ -350,7 +349,6 @@ output redisDatabaseName string = stateStoreMode == 'redis' ? resolvedRedisDatab
 output redisDatabaseId string = stateStoreMode == 'redis' ? redis!.outputs.databaseId : ''
 output redisHostName string = stateStoreMode == 'redis' ? resolvedRedisHostName : ''
 output redisPort int = stateStoreMode == 'redis' ? resolvedRedisPort : 0
-output redisConnectionSecretName string = stateStoreMode == 'redis' ? redisConnectionSecretName : ''
 output redisAccessPolicyAssignmentName string = stateStoreMode == 'redis'
   ? resolvedManagedRedisAccessPolicyAssignmentName
   : ''

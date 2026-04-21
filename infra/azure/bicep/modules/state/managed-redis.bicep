@@ -31,7 +31,7 @@ resource defaultDatabase 'Microsoft.Cache/redisEnterprise/databases@2025-07-01' 
   parent: redisEnterprise
   name: databaseName
   properties: {
-    accessKeysAuthentication: 'Enabled'
+    accessKeysAuthentication: 'Disabled'
     clientProtocol: 'Encrypted'
     clusteringPolicy: clusteringPolicy
     evictionPolicy: evictionPolicy

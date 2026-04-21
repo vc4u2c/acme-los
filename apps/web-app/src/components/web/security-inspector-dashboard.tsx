@@ -294,13 +294,14 @@ export function SecurityInspectorDashboard(): React.ReactElement {
                     exchange, opaque auth session cookie, server-side auth
                     state, and tokens off the browser in the normal flow. In
                     Azure, the shared session and demo state now sit behind
-                    Redis with secrets coming from Key Vault.
+                    Redis using managed-identity auth, with the web session
+                    secret coming from Key Vault.
                   </p>
                   <p>
                     Still temporary: this inspector page itself, the bridge
                     customer and application demo data model, and the current
-                    Redis connection-string model before we move to direct
-                    managed-identity auth for Redis.
+                    Next facade state layer before customer and application
+                    persistence moves behind backend services.
                   </p>
                 </AlertDescription>
               </Alert>

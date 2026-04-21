@@ -772,7 +772,8 @@ Current implementation note:
 - each workload environment deploy creates its own spoke VNet, private endpoints, and platform DNS link stack
 - the current workload stack deploys one Azure Managed Redis instance per deployed environment
 - the current Azure runtime target uses Microsoft Entra auth to Redis from the ACA user-assigned managed identity
-- the Redis connection-string path is retained only for local Docker Redis and controlled rollback until the Entra path is proven in each environment
+- the `dev` Redis managed-identity path was live-verified on April 19, 2026
+- Azure Redis access-key authentication is disabled; connection-string auth is retained only for local Docker Redis
 - shared ACR is split by subscription role:
   - `nonprod` ACR for `dev`, `qa`, and `stg`
   - `prod` ACR for `prod`

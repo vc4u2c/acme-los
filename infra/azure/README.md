@@ -163,12 +163,6 @@ Optional deploy override:
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -StateStoreMode redis
 ```
 
-Redis auth rollback override:
-
-```powershell
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -StateStoreMode redis -RedisAuthMode connection-string
-```
-
 ## Cost-Conscious Default
 
 The first web workload scaffold currently deploys:
@@ -202,10 +196,10 @@ The first web workload scaffold currently deploys:
 
 Runtime secret handling:
 
-- Azure Redis access defaults to Microsoft Entra auth through the container app's user-assigned managed identity
+- Azure Redis access uses Microsoft Entra auth through the container app's user-assigned managed identity
 - the Redis access policy assignment is deployed with Bicep against the Redis database
-- the Redis connection URL path is retained for local Docker Redis and controlled rollback
-- when the connection-string path is selected, the Redis URL is stored in Key Vault and read through a Key Vault secret reference
+- Redis access-key authentication is disabled on the Azure Managed Redis database
+- the Redis connection URL path is retained only for local Docker Redis
 - the container app uses its user-assigned managed identity for Key Vault access and Redis token acquisition
 - the container app also uses managed identity for `AcrPull`
 
@@ -235,8 +229,9 @@ Operations dashboard details live in:
 Current implementation note:
 
 - Azure Managed Redis supports Microsoft Entra authentication and Microsoft recommends it
-- the current Azure target path uses Redis Entra auth from the ACA user-assigned managed identity
-- Redis access keys remain enabled for now so the Key Vault connection-string path is available as a rollback until the Entra path is proven per environment
+- the current Azure path uses Redis Entra auth from the ACA user-assigned managed identity
+- the `dev` Redis managed-identity path was live-verified on April 19, 2026
+- Redis access keys are disabled in source so Azure deployments do not depend on a Key Vault Redis URL secret
 - ACA stays publicly reachable for now
 - Key Vault and Azure Managed Redis are private-only
 - subnet-to-subnet policy is enforced with NSGs, but that does not replace later Front Door and WAF edge hardening

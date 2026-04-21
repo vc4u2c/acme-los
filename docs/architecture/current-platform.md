@@ -41,13 +41,14 @@ What is true operationally today:
 
 - `dev` is proven live in Azure on `Azure Container Apps`
 - `Key Vault` and `Azure Managed Redis` are private-only in the current Azure design
+- Redis managed-identity auth is proven live in `dev` as of April 19, 2026
 - the current working `dev` behavior still needs to stay aligned through the normal merge and CD path
 
 What is still bridge-state rather than final:
 
 - the security inspector is a demo and troubleshooting surface, not a permanent production feature
 - the web-server layer still owns temporary customer and application state instead of a long-term backend service
-- Redis Entra runtime auth is now the target Azure path, with the connection URL path retained for local Docker Redis and rollback
+- Redis Entra runtime auth is now the Azure path, with the connection URL path retained only for local Docker Redis
 - Front Door, WAF, and private ACA ingress are still later phases
 
 ## Current Auth Shape
@@ -85,7 +86,7 @@ What is still bridge-state rather than final:
 - `libs/api/web-server`
   - stores auth session data, customer profile data, and application flow state server-side
   - uses Redis when `ACME_WEB_STATE_STORE=redis`, `ACME_REDIS_URL`, or `ACME_REDIS_HOST` is configured
-  - supports connection-string auth for local Docker Redis and rollback
+  - supports connection-string auth for local Docker Redis
   - supports Entra auth for Azure runtime identity access
   - otherwise falls back to a file-backed local store under `.next/cache/acme-los-web-state`
 
@@ -121,6 +122,7 @@ What is already strong:
 - subnet-level NSGs now make the app-to-data path explicit instead of relying only on subnet separation
 - `Key Vault` and `Azure Managed Redis` are private-only through private endpoints and private DNS
 - secrets are delivered through Key Vault references and managed identity where the runtime supports it
+- Redis uses direct Entra-authenticated runtime access from the ACA user-assigned managed identity in Azure
 - auth and session state are server-side and Redis-backed in Azure instead of browser-backed or in-memory only
 - Application Insights, Log Analytics, alerts, and a workbook provide a real operations surface
 - deployment stacks, budgets, and pause or resume controls are in place for cost-aware lifecycle management
@@ -129,7 +131,6 @@ What is not fully hardened yet:
 
 - the app is still directly reachable on the ACA hostname
 - Front Door, WAF, stable custom domains, and private-only ACA ingress are still later phases
-- Redis now has a direct Entra-authenticated runtime path using the ACA user-assigned managed identity, but it still needs live `dev` proof before disabling access-key fallback
 - the environment model is proven in `dev`, but still needs the same repeatability proven in `qa`
 - regional failover and broader production resilience controls are not in place yet
 
@@ -149,8 +150,8 @@ Runtime identity:
 - keep using a user-assigned managed identity for the ACA runtime
 - keep GitHub or future Azure DevOps deployment identities separate from the app runtime identity
 - continue using managed identity for ACR pulls and Key Vault secret references
-- use direct Entra-authenticated Redis access in Azure deployments where possible
-- keep the Redis connection-string path available for local Docker Redis and controlled rollback until the Entra path is proven in each environment
+- use direct Entra-authenticated Redis access in Azure deployments
+- keep the Redis connection-string path only for local Docker Redis
 
 Persistence:
 
