@@ -73,6 +73,20 @@ Invoke-WebRequest -UseBasicParsing -Uri <dev-health-url> -TimeoutSec 120
 
 Confirm health `version`, `build`, image tag, environment, Redis auth mode, and any runtime settings touched by the change.
 
+## Future .NET Sweep
+
+Use when a .NET project is added under this repo or when an existing .NET service is changed:
+
+```powershell
+dotnet format --verify-no-changes
+dotnet test
+dotnet build --configuration Release
+```
+
+Run the matching web, mobile, Azure, or deployment checks as well when the .NET
+change affects shared contracts, auth/session behavior, telemetry, or ACA
+deployment.
+
 ## Major Change Sweep
 
 Use this when a change affects more than one subsystem, auth/session, deployment/release, data handling, or any user-visible production path:

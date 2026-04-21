@@ -146,4 +146,24 @@ test('shows the web home, rendering demos, and showcase route', async ({
     /Waiting for browser-only values/i,
     { timeout: 25000 },
   );
+
+  await navigate(page, '/logging-demo');
+  await expect(
+    page.getByRole('heading', {
+      name: /Follow one trace from browser telemetry to container logs/i,
+    }),
+  ).toBeVisible();
+  await expect(page.getByTestId('logging-demo-rendered-at')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /Emit server-only log/i }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: /Run traced flow/i }),
+  ).toBeVisible();
+  await expect(page.getByTestId('logging-demo-server-result')).toHaveText(
+    /No event emitted yet/i,
+  );
+  await expect(page.getByTestId('logging-demo-client-result')).toHaveText(
+    /No event emitted yet/i,
+  );
 });

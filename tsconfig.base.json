@@ -13,7 +13,6 @@
     "lib": ["es2020", "dom"],
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
-    "baseUrl": ".",
     "paths": {
       "@acme-los/core/types": ["./libs/core/types/src/index.ts"],
       "@acme-los/core/utils": ["./libs/core/utils/src/index.ts"],

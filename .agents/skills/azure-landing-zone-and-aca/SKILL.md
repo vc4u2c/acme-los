@@ -68,6 +68,9 @@ Use this skill for Azure work in `acme-los` where the repo and live platform sha
 
 - Prefer Azure Monitor, App Insights, Log Analytics, Workbooks, and alerts over ad hoc tooling.
 - Keep workbook/workspace/resource placement aligned with the platform model already chosen in this repo.
+- App runtime logs should remain structured JSON on stdout/stderr so Azure Container Apps console logs stay useful even when Application Insights sampling changes.
+- Keep browser-origin telemetry server-relayed and allowlisted; ACA only sees it after the app API validates and logs it.
+- Future .NET services should use the same Azure-native path: OpenTelemetry-compatible logs/traces, structured stdout for ACA logs, and the platform-owned Log Analytics/Application Insights resources.
 
 ## Verification
 

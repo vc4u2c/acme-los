@@ -1,6 +1,6 @@
 ---
 name: backend-patterns
-description: Backend architecture patterns, API design, database optimization, and server-side best practices for Node.js, Express, and Next.js API routes.
+description: Backend architecture patterns, API design, database optimization, logging, and server-side best practices for Node.js, Express, Next.js API routes, and future .NET services.
 origin: ECC
 ---
 
@@ -17,6 +17,24 @@ Backend architecture patterns and best practices for scalable server-side applic
 - Setting up background jobs or async processing
 - Structuring error handling and validation for APIs
 - Building middleware (auth, logging, rate limiting)
+- Adding app telemetry or operational demo endpoints
+- Designing future .NET service boundaries that must share ACME LOS API, auth, and observability conventions
+
+## ACME LOS Runtime Guidance
+
+### Structured Logging And Telemetry
+
+- Use the repo logger instead of raw `console` calls when server-side events need to land in Azure Container Apps logs and Application Insights.
+- Treat browser-origin telemetry as untrusted input: validate it with an allowlist schema, bound string lengths, rate-limit the endpoint, and avoid logging cookies, tokens, form values, emails, phone numbers, addresses, or free-form page content.
+- When client behavior must appear in container logs, relay a small client telemetry payload to a server endpoint and log it from the server with a stable event name and trace id.
+- Keep event names stable and queryable, such as `logging.demo.client`, `auth.session.touch`, or `application.submit.failure`.
+
+### Future .NET Services
+
+- Keep HTTP contracts, event names, and telemetry field names language-neutral so future ASP.NET services can join the same platform without reshaping dashboards.
+- Prefer OpenTelemetry-compatible logging and tracing in .NET services, with structured JSON written to stdout for ACA console logs and exported telemetry for Application Insights.
+- Preserve the existing auth posture when moving work into .NET: browser tokens stay out of client storage, server-side session or token exchange code owns sensitive credentials, and API boundaries validate authorization explicitly.
+- Add `dotnet format`, `dotnet test`, and build checks to the verification loop when a .NET project is introduced.
 
 ## API Design Patterns
 

@@ -1,13 +1,37 @@
 import { logs, SeverityNumber } from '@opentelemetry/api-logs';
 
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+export type LogContext = Record<string, unknown>;
+
 export interface Logger {
-  debug(message: string, context?: Record<string, unknown>): void;
-  info(message: string, context?: Record<string, unknown>): void;
-  warn(message: string, context?: Record<string, unknown>): void;
-  error(message: string, context?: Record<string, unknown>): void;
+  debug(message: string, context?: LogContext): void;
+  info(message: string, context?: LogContext): void;
+  warn(message: string, context?: LogContext): void;
+  error(message: string, context?: LogContext): void;
 }
 
-type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type TraceLogContext = LogContext & {
+  event?: string;
+  route?: string;
+  traceId?: string;
+  spanId?: string;
+  parentSpanId?: string;
+};
+
+export interface TraceLogger {
+  log(level: LogLevel, message: string, context?: LogContext): void;
+  debug(message: string, context?: LogContext): void;
+  info(message: string, context?: LogContext): void;
+  warn(message: string, context?: LogContext): void;
+  error(message: string, context?: LogContext): void;
+  event(
+    level: LogLevel,
+    eventName: string,
+    message: string,
+    context?: LogContext,
+  ): void;
+}
 
 function sanitizeAttributeValue(value: unknown): string | number | boolean {
   if (
@@ -45,7 +69,7 @@ function getSeverityNumber(level: LogLevel): SeverityNumber {
 function emitOpenTelemetryLog(
   level: LogLevel,
   message: string,
-  context?: Record<string, unknown>,
+  context?: LogContext,
 ): void {
   try {
     const logger = logs.getLogger('acme-los.app');
@@ -69,7 +93,7 @@ function emitOpenTelemetryLog(
 function writeLog(
   level: LogLevel,
   message: string,
-  context?: Record<string, unknown>,
+  context?: LogContext,
 ): void {
   const payload = {
     level,
@@ -87,5 +111,34 @@ export function createConsoleLogger(): Logger {
     info: (message, context) => writeLog('info', message, context),
     warn: (message, context) => writeLog('warn', message, context),
     error: (message, context) => writeLog('error', message, context),
+  };
+}
+
+export function createTraceLogger(
+  logger: Logger,
+  baseContext: TraceLogContext,
+): TraceLogger {
+  const emit = (
+    level: LogLevel,
+    message: string,
+    context?: LogContext,
+  ): void => {
+    logger[level](message, {
+      ...baseContext,
+      ...context,
+    });
+  };
+
+  return {
+    log: emit,
+    debug: (message, context) => emit('debug', message, context),
+    info: (message, context) => emit('info', message, context),
+    warn: (message, context) => emit('warn', message, context),
+    error: (message, context) => emit('error', message, context),
+    event: (level, eventName, message, context) =>
+      emit(level, message, {
+        ...context,
+        event: eventName,
+      }),
   };
 }

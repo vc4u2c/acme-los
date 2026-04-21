@@ -316,6 +316,29 @@ Explain this while signed in:
 That is the cleanest way to demonstrate Redis sessions without turning the demo
 into a low-level cache inspection exercise.
 
+### 7. Show Client And Server Logging
+
+Open:
+
+- `/logging-demo`
+
+Show:
+
+- the server-rendered trace id
+- `Run traced flow`
+- `Emit server-only log`
+
+Talking points:
+
+- server events are written by the Next.js runtime through the shared logger
+- the traced flow first writes `logging.demo.client.browser` in the browser,
+  then posts allowlisted telemetry to the server
+- the server writes `logging.demo.client.received` and
+  `logging.demo.server.processed` into the container log stream for that same
+  trace id
+- the trace id lets the audience follow the same demo event across App
+  Insights traces and raw Container Apps console logs
+
 ## Monitoring Demo
 
 ### Workbook
@@ -366,12 +389,22 @@ AppTraces
 | order by TimeGenerated desc
 ```
 
+```kusto
+AppTraces
+| where TimeGenerated > ago(30m)
+| where Message has "logging demo"
+   or tostring(Properties.event) startswith "logging.demo"
+| project TimeGenerated, SeverityLevel, Message, Properties
+| order by TimeGenerated desc
+```
+
 ### Log Analytics
 
 Best things to show:
 
 - ACA console warnings/errors
 - ACA platform/system events
+- logging demo traced browser-to-server and server-only events
 
 Example queries:
 
@@ -380,6 +413,15 @@ ContainerAppConsoleLogs
 | where TimeGenerated > ago(30m)
 | where ContainerAppName == "ca-acme-los-web-dev-cus-01"
 | where Log_s has_any ("error", "warn", "fail")
+| project TimeGenerated, RevisionName_s, Log_s
+| order by TimeGenerated desc
+```
+
+```kusto
+ContainerAppConsoleLogs
+| where TimeGenerated > ago(30m)
+| where ContainerAppName == "ca-acme-los-web-dev-cus-01"
+| where Log_s has "logging.demo"
 | project TimeGenerated, RevisionName_s, Log_s
 | order by TimeGenerated desc
 ```
@@ -434,3 +476,5 @@ What to show in the website:
   - `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io/api/health`
 - security demo:
   - `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io/security`
+- logging demo:
+  - `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io/logging-demo`
