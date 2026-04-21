@@ -26,12 +26,17 @@ import {
   getStoredWebAuthSessionCookieMaxAge,
   getStoredWebAuthSessionTiming,
   readStoredWebAuthSession,
+  readStoredWebAuthSessionForLogout,
   touchStoredWebAuthSession,
   type StoredWebAuthSession,
   type StoredWebAuthTokenSet,
+  writeStoredWebAuthSession,
 } from './session-store';
+import { refreshOktaTokenSet, type OktaTokenResponse } from './okta-auth-flow';
+import { resolveAbsoluteSessionExpiresAt } from './session-timeout';
 
 const LEGACY_AUTH_LOGOUT_HINT_COOKIE_NAME = 'acme-los.auth-logout';
+const TOKEN_REFRESH_WINDOW_SECONDS = 60;
 
 export type SessionCookiePayload = {
   sessionId: string;
@@ -59,6 +64,11 @@ type ResolvedStoredSession = {
   session: WebAuthSession;
   tokens: StoredWebAuthTokenSet;
   storedSession: StoredWebAuthSession;
+};
+
+type TokenRefreshDependencies = {
+  refreshOktaTokenSet: typeof refreshOktaTokenSet;
+  verifyOktaIdToken: typeof verifyOktaIdToken;
 };
 
 function buildUnauthenticatedSession(errorMessage?: string): WebAuthSession {
@@ -144,12 +154,88 @@ function buildAuthenticatedSession(
   };
 }
 
+function getCurrentEpochSeconds(): number {
+  return Math.floor(Date.now() / 1000);
+}
+
+function getCreatedAtEpochSeconds(createdAt: number): number {
+  return createdAt > 10_000_000_000
+    ? Math.floor(createdAt / 1000)
+    : Math.floor(createdAt);
+}
+
+function shouldRefreshStoredSessionTokens(
+  storedSession: StoredWebAuthSession,
+): boolean {
+  return (
+    Boolean(storedSession.tokens.refreshToken) &&
+    storedSession.expiresAt - getCurrentEpochSeconds() <=
+      TOKEN_REFRESH_WINDOW_SECONDS
+  );
+}
+
+function mergeRefreshedTokenSet(
+  storedSession: StoredWebAuthSession,
+  tokenResponse: OktaTokenResponse,
+): StoredWebAuthTokenSet {
+  return {
+    idToken: tokenResponse.id_token ?? storedSession.tokens.idToken,
+    accessToken: tokenResponse.access_token ?? storedSession.tokens.accessToken,
+    refreshToken:
+      tokenResponse.refresh_token ?? storedSession.tokens.refreshToken,
+    tokenType: tokenResponse.token_type ?? storedSession.tokens.tokenType,
+    scope: tokenResponse.scope ?? storedSession.tokens.scope,
+    expiresIn: tokenResponse.expires_in ?? storedSession.tokens.expiresIn,
+  };
+}
+
+async function refreshStoredSessionTokensIfNeeded(
+  storedSession: StoredWebAuthSession,
+  dependencies: TokenRefreshDependencies,
+): Promise<StoredWebAuthSession> {
+  const refreshToken = storedSession.tokens.refreshToken;
+
+  if (!refreshToken || !shouldRefreshStoredSessionTokens(storedSession)) {
+    return storedSession;
+  }
+
+  const tokenResponse = await dependencies.refreshOktaTokenSet({
+    refreshToken,
+  });
+  const idToken = tokenResponse.id_token;
+
+  if (!idToken) {
+    throw new Error('Okta did not return an id token for this refresh.');
+  }
+
+  const verifiedIdTokenClaims = await dependencies.verifyOktaIdToken(idToken);
+  const refreshedSession = buildAuthenticatedSession(
+    verifiedIdTokenClaims,
+    storedSession.session.user?.leadId,
+  );
+  const currentEpochSeconds = getCurrentEpochSeconds();
+  const tokenExpiresAt =
+    typeof verifiedIdTokenClaims.exp === 'number'
+      ? Math.trunc(verifiedIdTokenClaims.exp)
+      : currentEpochSeconds + (tokenResponse.expires_in ?? 60 * 60);
+  const expiresAt = resolveAbsoluteSessionExpiresAt(
+    tokenExpiresAt,
+    getCreatedAtEpochSeconds(storedSession.createdAt),
+  );
+
+  return {
+    ...storedSession,
+    session: refreshedSession,
+    tokens: mergeRefreshedTokenSet(storedSession, tokenResponse),
+    expiresAt,
+    idleExpiresAt: Math.min(expiresAt, storedSession.idleExpiresAt),
+  };
+}
+
 async function readStoredSessionFromRequest(
   request: NextRequest,
 ): Promise<ResolvedStoredSession | null> {
-  const sessionCookiePayload = readSessionCookiePayload(
-    request.cookies.get(AUTH_SESSION_COOKIE_NAME)?.value,
-  );
+  const sessionCookiePayload = readSessionCookiePayloadFromRequest(request);
 
   if (!sessionCookiePayload) {
     return null;
@@ -169,6 +255,14 @@ async function readStoredSessionFromRequest(
     tokens: storedSession.tokens,
     storedSession,
   };
+}
+
+function readSessionCookiePayloadFromRequest(
+  request: NextRequest,
+): SessionCookiePayload | null {
+  return readSessionCookiePayload(
+    request.cookies.get(AUTH_SESSION_COOKIE_NAME)?.value,
+  );
 }
 
 export async function readWebAuthSession(
@@ -205,6 +299,7 @@ export async function syncWebAuthSession(
   payload: SyncWebAuthSessionRequest,
   options: {
     expectedNonce?: string;
+    expectedUserId?: string;
     serverTokens?: Omit<StoredWebAuthTokenSet, 'idToken'>;
   } = {},
 ): Promise<SyncedWebAuthSession> {
@@ -215,6 +310,11 @@ export async function syncWebAuthSession(
     verifiedIdTokenClaims,
     payload.leadId,
   );
+
+  if (options.expectedUserId && session.user?.id !== options.expectedUserId) {
+    throw new Error('Step-up sign-in must complete with the same user.');
+  }
+
   const expiresAt =
     typeof verifiedIdTokenClaims.exp === 'number'
       ? Math.trunc(verifiedIdTokenClaims.exp)
@@ -240,16 +340,18 @@ export async function syncWebAuthSession(
 
 export async function touchWebAuthSession(
   request: NextRequest,
+  dependencies: TokenRefreshDependencies = {
+    refreshOktaTokenSet,
+    verifyOktaIdToken,
+  },
 ): Promise<TouchedWebAuthSession | null> {
-  const sessionCookiePayload = readSessionCookiePayload(
-    request.cookies.get(AUTH_SESSION_COOKIE_NAME)?.value,
-  );
+  const sessionCookiePayload = readSessionCookiePayloadFromRequest(request);
 
   if (!sessionCookiePayload) {
     return null;
   }
 
-  const storedSession = await touchStoredWebAuthSession(
+  const storedSession = await readStoredWebAuthSession(
     sessionCookiePayload.sessionId,
   );
 
@@ -257,12 +359,29 @@ export async function touchWebAuthSession(
     return null;
   }
 
+  const refreshedSession = await refreshStoredSessionTokensIfNeeded(
+    storedSession,
+    dependencies,
+  );
+
+  if (refreshedSession !== storedSession) {
+    await writeStoredWebAuthSession(refreshedSession);
+  }
+
+  const touchedSession = await touchStoredWebAuthSession(
+    sessionCookiePayload.sessionId,
+  );
+
+  if (!touchedSession) {
+    return null;
+  }
+
   return {
-    storedSessionId: storedSession.sessionId,
-    maxAge: getStoredWebAuthSessionCookieMaxAge(storedSession),
+    storedSessionId: touchedSession.sessionId,
+    maxAge: getStoredWebAuthSessionCookieMaxAge(touchedSession),
     response: {
-      session: storedSession.session,
-      sessionTiming: getStoredWebAuthSessionTiming(storedSession),
+      session: touchedSession.session,
+      sessionTiming: getStoredWebAuthSessionTiming(touchedSession),
       touched: true,
     },
   };
@@ -288,11 +407,20 @@ export async function clearWebAuthSession(
   request: NextRequest,
   response: NextResponse,
 ): Promise<void> {
+  const sessionCookiePayload = readSessionCookiePayloadFromRequest(request);
   const storedSession = await readStoredSessionFromRequest(request);
+  const logoutStoredSession =
+    storedSession === null && sessionCookiePayload
+      ? await readStoredWebAuthSessionForLogout(sessionCookiePayload.sessionId)
+      : null;
+  const cleanupSession = storedSession ?? logoutStoredSession;
 
-  if (storedSession) {
-    await clearStoredWebAuthSession(storedSession.sessionId);
-    await clearApplicationFlow(storedSession.session, request, response);
+  if (sessionCookiePayload) {
+    await clearStoredWebAuthSession(sessionCookiePayload.sessionId);
+  }
+
+  if (cleanupSession) {
+    await clearApplicationFlow(cleanupSession.session, request, response);
   } else {
     clearCookie(response, request, APPLICATION_FLOW_COOKIE_NAME);
   }
@@ -302,6 +430,22 @@ export async function clearWebAuthSession(
   clearCookie(response, request, AUTH_TRANSACTION_COOKIE_NAME);
   clearCookie(response, request, CUSTOMER_PROFILE_COOKIE_NAME);
   clearCookie(response, request, CSRF_COOKIE_NAME);
+}
+
+export async function clearReplacedWebAuthSession(
+  request: NextRequest,
+  nextStoredSessionId: string,
+): Promise<void> {
+  const sessionCookiePayload = readSessionCookiePayloadFromRequest(request);
+
+  if (
+    !sessionCookiePayload ||
+    sessionCookiePayload.sessionId === nextStoredSessionId
+  ) {
+    return;
+  }
+
+  await clearStoredWebAuthSession(sessionCookiePayload.sessionId);
 }
 
 export async function clearWebAuthLogoutArtifacts(
@@ -314,7 +458,16 @@ export async function clearWebAuthLogoutArtifacts(
 export async function readLogoutHintIdToken(
   request: NextRequest,
 ): Promise<string | null> {
-  return (await readStoredSessionFromRequest(request))?.tokens.idToken ?? null;
+  const sessionCookiePayload = readSessionCookiePayloadFromRequest(request);
+
+  if (!sessionCookiePayload) {
+    return null;
+  }
+
+  return (
+    (await readStoredWebAuthSessionForLogout(sessionCookiePayload.sessionId))
+      ?.tokens.idToken ?? null
+  );
 }
 
 export async function requireAuthenticatedWebSession(

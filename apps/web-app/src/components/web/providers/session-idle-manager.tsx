@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@acme-los/ui-web';
+import type { WebAuthSessionTiming } from '@acme-los/api/contracts';
 import { useAuthSession } from '@acme-los/auth/web';
 
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown'] as const;
@@ -20,6 +21,12 @@ function getCurrentEpochSeconds(): number {
 
 function getRemainingSeconds(idleExpiresAt: number): number {
   return Math.max(idleExpiresAt - getCurrentEpochSeconds(), 0);
+}
+
+function getEffectiveSessionExpiresAt(
+  sessionTiming: WebAuthSessionTiming,
+): number {
+  return Math.min(sessionTiming.idleExpiresAt, sessionTiming.absoluteExpiresAt);
 }
 
 function formatCountdown(totalSeconds: number): string {
@@ -72,7 +79,9 @@ export function SessionIdleManager(): React.ReactElement | null {
     lastTouchAtRef.current = Date.now();
 
     const updateCountdown = () => {
-      const remainingSeconds = getRemainingSeconds(sessionTiming.idleExpiresAt);
+      const remainingSeconds = getRemainingSeconds(
+        getEffectiveSessionExpiresAt(sessionTiming),
+      );
 
       setSecondsRemaining(remainingSeconds);
 
@@ -83,8 +92,8 @@ export function SessionIdleManager(): React.ReactElement | null {
     };
 
     const currentEpochSeconds = getCurrentEpochSeconds();
-    const warningStartsAt =
-      sessionTiming.idleExpiresAt - sessionTiming.warningSeconds;
+    const effectiveExpiresAt = getEffectiveSessionExpiresAt(sessionTiming);
+    const warningStartsAt = effectiveExpiresAt - sessionTiming.warningSeconds;
     const warningDelayMilliseconds = Math.max(
       (warningStartsAt - currentEpochSeconds) * 1000,
       0,
@@ -104,6 +113,7 @@ export function SessionIdleManager(): React.ReactElement | null {
   }, [
     isAuthenticated,
     sessionTiming?.idleExpiresAt,
+    sessionTiming?.absoluteExpiresAt,
     sessionTiming?.warningSeconds,
     signOut,
   ]);
@@ -165,11 +175,14 @@ export function SessionIdleManager(): React.ReactElement | null {
 
       if (touched) {
         setIsWarningOpen(false);
+        return;
       }
+
+      void signOut();
     } finally {
       setIsTouching(false);
     }
-  }, [touchSession]);
+  }, [signOut, touchSession]);
 
   if (!isAuthenticated) {
     return null;

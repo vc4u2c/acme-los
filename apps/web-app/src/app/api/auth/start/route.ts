@@ -7,6 +7,7 @@ import {
   clearWebAuthTransaction,
   checkRateLimit,
   logAuthAuditEvent,
+  readWebAuthSession,
   startOktaAuthTransaction,
   writeWebAuthTransaction,
 } from '@acme-los/api/web-server';
@@ -80,9 +81,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const payload = authStartQuerySchema.parse(
       Object.fromEntries(request.nextUrl.searchParams.entries()),
     );
+    const currentSession =
+      payload.aal === 'aal2' ? await readWebAuthSession(request) : null;
     const transaction = startOktaAuthTransaction({
       returnTo: payload.returnTo,
       minimumAssuranceLevel: payload.aal ?? 'aal1',
+      expectedUserId:
+        currentSession?.session.isAuthenticated &&
+        currentSession.session.user !== null
+          ? currentSession.session.user.id
+          : undefined,
       leadId: payload.leadId ?? payload.lead_id,
     });
     const response = NextResponse.redirect(transaction.authorizeUrl);

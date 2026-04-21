@@ -50,6 +50,25 @@ idle expiry.
 - browser background reads do not extend the session
 - the client shows a warning modal before idle expiry and signs out when the
   server idle window is exhausted
+- the effective active session expiry is the earlier of the idle expiry and the
+  absolute token-backed expiry
+- Redis/file session records and the opaque auth cookie are retained briefly
+  after that active expiry only so `/api/auth/logout` can still read the logout
+  ID-token hint and clear the Okta browser session; retained records do not
+  authenticate app requests or allow keep-alive touches
+- if Okta issues a refresh token, it stays server-side and is used only during
+  the CSRF-protected touch path when the token set is near expiry; the browser
+  never receives it
+- a successful server-side refresh verifies the new ID token, updates the
+  server token set, and extends the idle expiry without bypassing the active
+  session checks
+- a successful hosted sign-in callback, including route-level step-up, writes a
+  replacement server auth session and retires the prior server auth-session
+  record; application-flow state remains keyed by the customer identity rather
+  than by the old token set
+- route-level step-up captures the current user id in the auth transaction,
+  asks Okta for a fresh login/assurance check, and rejects callbacks that return
+  a token for a different subject
 
 Current defaults:
 

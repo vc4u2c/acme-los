@@ -13,9 +13,15 @@ const mockUseAuthSession = useAuthSession as jest.MockedFunction<
 
 function mockAuthenticatedSession(overrides: {
   idleExpiresAt: number;
+  absoluteExpiresAt?: number;
   warningSeconds: number;
+  signOut?: () => Promise<void>;
   touchSession?: () => Promise<boolean>;
 }) {
+  const signOut = overrides.signOut ?? jest.fn().mockResolvedValue(undefined);
+  const touchSession =
+    overrides.touchSession ?? jest.fn().mockResolvedValue(true);
+
   mockUseAuthSession.mockReturnValue({
     session: {
       provider: 'okta',
@@ -28,16 +34,19 @@ function mockAuthenticatedSession(overrides: {
       },
     },
     sessionTiming: {
-      absoluteExpiresAt: overrides.idleExpiresAt + 3600,
+      absoluteExpiresAt:
+        overrides.absoluteExpiresAt ?? overrides.idleExpiresAt + 3600,
       idleExpiresAt: overrides.idleExpiresAt,
       idleTimeoutSeconds: 120,
       warningSeconds: overrides.warningSeconds,
     },
     signIn: jest.fn(),
-    signOut: jest.fn(),
+    signOut,
     refreshSession: jest.fn(),
-    touchSession: overrides.touchSession ?? jest.fn().mockResolvedValue(true),
+    touchSession,
   });
+
+  return { signOut, touchSession };
 }
 
 describe('SessionIdleManager', () => {
@@ -93,5 +102,56 @@ describe('SessionIdleManager', () => {
     });
 
     expect(touchSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('signs out at the effective absolute expiry when it arrives before idle expiry', () => {
+    const currentEpochSeconds = Math.floor(Date.now() / 1000);
+    const signOut = jest.fn().mockResolvedValue(undefined);
+
+    mockAuthenticatedSession({
+      absoluteExpiresAt: currentEpochSeconds + 10,
+      idleExpiresAt: currentEpochSeconds + 120,
+      warningSeconds: 30,
+      signOut,
+    });
+
+    render(<SessionIdleManager />);
+
+    act(() => {
+      jest.advanceTimersByTime(0);
+    });
+
+    expect(screen.getByText('Still with us?')).toBeTruthy();
+
+    act(() => {
+      jest.advanceTimersByTime(10_000);
+    });
+
+    expect(signOut).toHaveBeenCalledTimes(1);
+  });
+
+  it('signs out when the warning modal cannot extend the server session', async () => {
+    const currentEpochSeconds = Math.floor(Date.now() / 1000);
+    const signOut = jest.fn().mockResolvedValue(undefined);
+
+    mockAuthenticatedSession({
+      idleExpiresAt: currentEpochSeconds + 30,
+      warningSeconds: 30,
+      signOut,
+      touchSession: jest.fn().mockResolvedValue(false),
+    });
+
+    render(<SessionIdleManager />);
+
+    act(() => {
+      jest.advanceTimersByTime(0);
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('Stay signed in'));
+      await Promise.resolve();
+    });
+
+    expect(signOut).toHaveBeenCalledTimes(1);
   });
 });

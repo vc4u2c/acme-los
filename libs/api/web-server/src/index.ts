@@ -8,6 +8,7 @@ export {
 export { buildSignInRedirectPath } from './lib/auth-routing';
 export { logAuthAuditEvent } from './lib/auth-audit';
 export {
+  clearReplacedWebAuthSession,
   clearWebAuthLogoutArtifacts,
   clearWebAuthSession,
   readLogoutHintIdToken,
@@ -44,7 +45,9 @@ export {
   getStoredWebAuthSessionCookieMaxAge,
   getStoredWebAuthSessionTiming,
   readStoredWebAuthSession,
+  readStoredWebAuthSessionForLogout,
   touchStoredWebAuthSession,
+  writeStoredWebAuthSession,
 } from './lib/session-store';
 export { getWebSessionTimeoutConfig } from './lib/session-timeout';
 export { getWebStateStoreMode } from './lib/state-store';
@@ -53,6 +56,7 @@ export {
   clearWebAuthTransaction,
   exchangeOktaAuthorizationCode,
   readWebAuthTransaction,
+  refreshOktaTokenSet,
   startOktaAuthTransaction,
   writeWebAuthTransaction,
 } from './lib/okta-auth-flow';

@@ -16,6 +16,7 @@ export type WebAuthTransactionCookiePayload = {
   codeVerifier: string;
   returnTo: string;
   minimumAssuranceLevel: 'aal1' | 'aal2';
+  expectedUserId?: string;
   leadId?: string;
   expiresAt: number;
 };
@@ -26,7 +27,7 @@ export type StartedWebAuthTransaction = {
   maxAge: number;
 };
 
-type OktaTokenResponse = {
+export type OktaTokenResponse = {
   access_token?: string;
   expires_in?: number;
   id_token?: string;
@@ -64,10 +65,12 @@ function buildCodeChallenge(codeVerifier: string): string {
 export function startOktaAuthTransaction({
   returnTo,
   minimumAssuranceLevel = 'aal1',
+  expectedUserId,
   leadId,
 }: {
   returnTo?: string;
   minimumAssuranceLevel?: 'aal1' | 'aal2';
+  expectedUserId?: string;
   leadId?: string;
 }): StartedWebAuthTransaction {
   const config = getServerWebAuthConfig();
@@ -99,6 +102,7 @@ export function startOktaAuthTransaction({
       'acr_values',
       config.okta.fundingStepUpAcrValues,
     );
+    authorizeUrl.searchParams.set('prompt', 'login');
   }
 
   return {
@@ -108,6 +112,10 @@ export function startOktaAuthTransaction({
       codeVerifier,
       returnTo: safeReturnTo,
       minimumAssuranceLevel,
+      expectedUserId:
+        minimumAssuranceLevel === 'aal2' && expectedUserId?.trim()
+          ? expectedUserId.trim()
+          : undefined,
       leadId: leadId?.trim() ? leadId.trim() : undefined,
       expiresAt,
     },
@@ -204,6 +212,53 @@ export async function exchangeOktaAuthorizationCode({
 
   if (typeof body.id_token !== 'string' || body.id_token.length === 0) {
     throw new Error('Okta did not return an id token for this callback.');
+  }
+
+  return body;
+}
+
+export async function refreshOktaTokenSet({
+  refreshToken,
+}: {
+  refreshToken: string;
+}): Promise<OktaTokenResponse> {
+  const config = getServerWebAuthConfig();
+  if (config.provider !== 'okta' || !config.okta) {
+    throw new Error('Okta auth config is not available for token refresh.');
+  }
+
+  const tokenUrl = buildIssuerEndpoint(config.okta.issuer, 'token');
+  const requestBody = new URLSearchParams({
+    grant_type: 'refresh_token',
+    client_id: config.okta.clientId,
+    refresh_token: refreshToken,
+    scope: config.okta.scopes.join(' '),
+  });
+
+  const response = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: requestBody,
+    cache: 'no-store',
+  });
+  const body = (await response.json()) as OktaTokenResponse;
+
+  if (!response.ok) {
+    const message =
+      typeof body.error_description === 'string'
+        ? body.error_description
+        : typeof body.error === 'string'
+          ? body.error
+          : `Okta token refresh failed (${response.status}).`;
+
+    throw new Error(message);
+  }
+
+  if (typeof body.id_token !== 'string' || body.id_token.length === 0) {
+    throw new Error('Okta did not return an id token for this refresh.');
   }
 
   return body;

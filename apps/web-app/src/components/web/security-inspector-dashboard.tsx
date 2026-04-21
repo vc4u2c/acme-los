@@ -27,6 +27,7 @@ type SecurityInspectorServerSnapshot = {
       codeVerifier: string;
       returnTo: string;
       minimumAssuranceLevel: 'aal1' | 'aal2';
+      expectedUserId?: string;
       leadId?: string;
       expiresAt: number;
     } | null;
