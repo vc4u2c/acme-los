@@ -181,13 +181,24 @@ business/demo story for one button click. Use the trace id when you want the
 distributed tracing story across the browser-origin event, server event, and
 future downstream services.
 
-Application Insights app traces by correlation id:
+Copy and run one Kusto block at a time. If the portal reports a token like
+`asclet`, the previous query's `asc` and the next query's `let` were pasted
+together without clearing the query window or preserving a separator.
+
+Application Insights app traces by correlation id.
+
+Run this from the `log-acme-los-dev-cus-01` Log Analytics workspace or the
+`appi-acme-los-dev-cus-01` Application Insights resource. If `AppTraces` does
+not resolve, the Logs blade is scoped to the wrong resource.
 
 ```kusto
-let targetCorrelationId = "paste-full-correlation-id-from-ui";
+let targetCorrelationId = 'paste-full-correlation-id-from-ui';
 AppTraces
 | where TimeGenerated > ago(2h)
 | extend props = todynamic(Properties)
+| extend
+    clientError = parse_json(tostring(props.clientError)),
+    clientTelemetry = parse_json(tostring(props.clientTelemetry))
 | extend
     event = tostring(props.event),
     correlationId = tostring(props.correlationId),
@@ -200,7 +211,21 @@ AppTraces
     environment = tostring(props.environment),
     service = tostring(props.service),
     version = tostring(props.version),
-    build = tostring(props.build)
+    build = tostring(props.build),
+    clientErrorName = tostring(clientError.name),
+    clientErrorMessage = tostring(clientError.message),
+    clientPageUrl = tostring(clientTelemetry.pageUrl),
+    clientReferrer = tostring(clientTelemetry.referrer),
+    clientUserAgent = tostring(clientTelemetry.userAgent),
+    clientLanguage = tostring(clientTelemetry.language),
+    clientTimeZone = tostring(clientTelemetry.timeZone),
+    clientVisibilityState = tostring(clientTelemetry.visibilityState),
+    clientViewportWidth = toint(clientTelemetry.viewport.width),
+    clientViewportHeight = toint(clientTelemetry.viewport.height),
+    clientScreenWidth = toint(clientTelemetry.screen.width),
+    clientScreenHeight = toint(clientTelemetry.screen.height),
+    clientPixelRatio = todouble(clientTelemetry.screen.pixelRatio),
+    clientConnectionType = tostring(clientTelemetry.connection.effectiveType)
 | where correlationId == targetCorrelationId
 | project
     TimeGenerated,
@@ -217,37 +242,44 @@ AppTraces
     environment,
     service,
     version,
-    build
-| order by TimeGenerated asc
+    build,
+    clientErrorName,
+    clientErrorMessage,
+    clientPageUrl,
+    clientReferrer,
+    clientUserAgent,
+    clientLanguage,
+    clientTimeZone,
+    clientVisibilityState,
+    clientViewportWidth,
+    clientViewportHeight,
+    clientScreenWidth,
+    clientScreenHeight,
+    clientPixelRatio,
+    clientConnectionType
+| order by TimeGenerated asc;
 ```
 
-ACA container logs by correlation id:
+ACA container logs by correlation id.
+
+Run this from the `log-acme-los-dev-cus-01` Log Analytics workspace. The current
+`dev` workspace exposes Container Apps console logs as
+`ContainerAppConsoleLogs_CL`.
 
 ```kusto
-let targetCorrelationId = "paste-full-correlation-id-from-ui";
-let containerAppName = "ca-acme-los-web-dev-cus-01";
-let ConsoleLogs =
-    union isfuzzy=true ContainerAppConsoleLogs, ContainerAppConsoleLogs_CL
-    | extend
-        ContainerApp = iff(
-            isnotempty(tostring(column_ifexists("ContainerAppName", ""))),
-            tostring(column_ifexists("ContainerAppName", "")),
-            tostring(column_ifexists("ContainerAppName_s", ""))
-        ),
-        RevisionName = iff(
-            isnotempty(tostring(column_ifexists("RevisionName", ""))),
-            tostring(column_ifexists("RevisionName", "")),
-            tostring(column_ifexists("RevisionName_s", ""))
-        ),
-        LogMessage = iff(
-            isnotempty(tostring(column_ifexists("Log", ""))),
-            tostring(column_ifexists("Log", "")),
-            tostring(column_ifexists("Log_s", ""))
-        );
-ConsoleLogs
+let targetCorrelationId = 'paste-full-correlation-id-from-ui';
+let containerAppName = 'ca-acme-los-web-dev-cus-01';
+ContainerAppConsoleLogs_CL
 | where TimeGenerated > ago(2h)
+| extend
+    ContainerApp = tostring(ContainerAppName_s),
+    RevisionName = tostring(RevisionName_s),
+    LogMessage = tostring(Log_s)
 | where ContainerApp =~ containerAppName
 | extend payload = parse_json(LogMessage)
+| extend
+    clientError = payload.clientError,
+    clientTelemetry = payload.clientTelemetry
 | extend
     event = tostring(payload.event),
     correlationId = tostring(payload.correlationId),
@@ -260,7 +292,21 @@ ConsoleLogs
     environment = tostring(payload.environment),
     service = tostring(payload.service),
     version = tostring(payload.version),
-    build = tostring(payload.build)
+    build = tostring(payload.build),
+    clientErrorName = tostring(clientError.name),
+    clientErrorMessage = tostring(clientError.message),
+    clientPageUrl = tostring(clientTelemetry.pageUrl),
+    clientReferrer = tostring(clientTelemetry.referrer),
+    clientUserAgent = tostring(clientTelemetry.userAgent),
+    clientLanguage = tostring(clientTelemetry.language),
+    clientTimeZone = tostring(clientTelemetry.timeZone),
+    clientVisibilityState = tostring(clientTelemetry.visibilityState),
+    clientViewportWidth = toint(clientTelemetry.viewport.width),
+    clientViewportHeight = toint(clientTelemetry.viewport.height),
+    clientScreenWidth = toint(clientTelemetry.screen.width),
+    clientScreenHeight = toint(clientTelemetry.screen.height),
+    clientPixelRatio = todouble(clientTelemetry.screen.pixelRatio),
+    clientConnectionType = tostring(clientTelemetry.connection.effectiveType)
 | where correlationId == targetCorrelationId
 | project
     TimeGenerated,
@@ -278,8 +324,22 @@ ConsoleLogs
     environment,
     service,
     version,
-    build
-| order by TimeGenerated asc
+    build,
+    clientErrorName,
+    clientErrorMessage,
+    clientPageUrl,
+    clientReferrer,
+    clientUserAgent,
+    clientLanguage,
+    clientTimeZone,
+    clientVisibilityState,
+    clientViewportWidth,
+    clientViewportHeight,
+    clientScreenWidth,
+    clientScreenHeight,
+    clientPixelRatio,
+    clientConnectionType
+| order by TimeGenerated asc;
 ```
 
 ### Future .NET Services
@@ -332,12 +392,13 @@ Current workbook query sources:
   - `AppExceptions`
   - `AppTraces`
 - ACA workspace tables:
-  - `ContainerAppConsoleLogs` / `ContainerAppConsoleLogs_CL`
-  - `ContainerAppSystemLogs` / `ContainerAppSystemLogs_CL`
+  - `ContainerAppConsoleLogs_CL`
+  - `ContainerAppSystemLogs_CL`
 
-Some workspaces expose the Container Apps tables with the `_CL` suffix and do
-not resolve the non-suffixed table name. Use `union isfuzzy=true` in ad hoc
-queries when a runbook query should work across both table shapes.
+The current `dev` workspace exposes Container Apps tables with the `_CL` suffix.
+If a future workspace exposes non-suffixed table names instead, translate the
+table and column names deliberately rather than running the query from the wrong
+Logs scope.
 
 The workbook is environment-scoped today. Later, when `qa`, `stg`, and `prod`
 are active, we can decide whether to keep per-environment workbooks only or add

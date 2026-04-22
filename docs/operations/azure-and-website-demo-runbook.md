@@ -394,17 +394,25 @@ Best things to show:
 
 Example Kusto queries:
 
+Copy and run one Kusto block at a time. If the portal reports a token like
+`asclet`, the previous query's `asc` and the next query's `let` were pasted
+together without clearing the query window or preserving a separator.
+
+Run the `AppTraces` queries from `log-acme-los-dev-cus-01` or
+`appi-acme-los-dev-cus-01`. If `AppTraces` does not resolve, the Logs blade is
+scoped to the wrong resource.
+
 ```kusto
 AppRequests
 | where TimeGenerated > ago(30m)
-| summarize Requests=count(), Failures=countif(Success == false), P95=percentile(DurationMs, 95)
+| summarize Requests=count(), Failures=countif(Success == false), P95=percentile(DurationMs, 95);
 ```
 
 ```kusto
 AppExceptions
 | where TimeGenerated > ago(30m)
 | project TimeGenerated, ProblemId, ExceptionType, Message
-| order by TimeGenerated desc
+| order by TimeGenerated desc;
 ```
 
 ```kusto
@@ -412,14 +420,17 @@ AppTraces
 | where TimeGenerated > ago(30m)
 | where SeverityLevel >= 2
 | project TimeGenerated, SeverityLevel, Message
-| order by TimeGenerated desc
+| order by TimeGenerated desc;
 ```
 
 ```kusto
-let targetCorrelationId = "paste-full-correlation-id-from-ui";
+let targetCorrelationId = 'paste-full-correlation-id-from-ui';
 AppTraces
 | where TimeGenerated > ago(30m)
 | extend props = todynamic(Properties)
+| extend
+    clientError = parse_json(tostring(props.clientError)),
+    clientTelemetry = parse_json(tostring(props.clientTelemetry))
 | extend
     event = tostring(props.event),
     correlationId = tostring(props.correlationId),
@@ -432,7 +443,21 @@ AppTraces
     environment = tostring(props.environment),
     service = tostring(props.service),
     version = tostring(props.version),
-    build = tostring(props.build)
+    build = tostring(props.build),
+    clientErrorName = tostring(clientError.name),
+    clientErrorMessage = tostring(clientError.message),
+    clientPageUrl = tostring(clientTelemetry.pageUrl),
+    clientReferrer = tostring(clientTelemetry.referrer),
+    clientUserAgent = tostring(clientTelemetry.userAgent),
+    clientLanguage = tostring(clientTelemetry.language),
+    clientTimeZone = tostring(clientTelemetry.timeZone),
+    clientVisibilityState = tostring(clientTelemetry.visibilityState),
+    clientViewportWidth = toint(clientTelemetry.viewport.width),
+    clientViewportHeight = toint(clientTelemetry.viewport.height),
+    clientScreenWidth = toint(clientTelemetry.screen.width),
+    clientScreenHeight = toint(clientTelemetry.screen.height),
+    clientPixelRatio = todouble(clientTelemetry.screen.pixelRatio),
+    clientConnectionType = tostring(clientTelemetry.connection.effectiveType)
 | where correlationId == targetCorrelationId
 | project
     TimeGenerated,
@@ -449,8 +474,22 @@ AppTraces
     environment,
     service,
     version,
-    build
-| order by TimeGenerated asc
+    build,
+    clientErrorName,
+    clientErrorMessage,
+    clientPageUrl,
+    clientReferrer,
+    clientUserAgent,
+    clientLanguage,
+    clientTimeZone,
+    clientVisibilityState,
+    clientViewportWidth,
+    clientViewportHeight,
+    clientScreenWidth,
+    clientScreenHeight,
+    clientPixelRatio,
+    clientConnectionType
+| order by TimeGenerated asc;
 ```
 
 ### Log Analytics
@@ -463,59 +502,39 @@ Best things to show:
 
 Example queries:
 
+Copy and run one Kusto block at a time.
+
+Run these Container Apps log queries from the `log-acme-los-dev-cus-01` Log
+Analytics workspace. Current `dev` raw ACA logs use the `_CL` table names.
+
 ```kusto
-let containerAppName = "ca-acme-los-web-dev-cus-01";
-let ConsoleLogs =
-    union isfuzzy=true ContainerAppConsoleLogs, ContainerAppConsoleLogs_CL
-    | extend
-        ContainerApp = iff(
-            isnotempty(tostring(column_ifexists("ContainerAppName", ""))),
-            tostring(column_ifexists("ContainerAppName", "")),
-            tostring(column_ifexists("ContainerAppName_s", ""))
-        ),
-        RevisionName = iff(
-            isnotempty(tostring(column_ifexists("RevisionName", ""))),
-            tostring(column_ifexists("RevisionName", "")),
-            tostring(column_ifexists("RevisionName_s", ""))
-        ),
-        LogMessage = iff(
-            isnotempty(tostring(column_ifexists("Log", ""))),
-            tostring(column_ifexists("Log", "")),
-            tostring(column_ifexists("Log_s", ""))
-        );
-ConsoleLogs
+let containerAppName = 'ca-acme-los-web-dev-cus-01';
+ContainerAppConsoleLogs_CL
 | where TimeGenerated > ago(30m)
+| extend
+    ContainerApp = tostring(ContainerAppName_s),
+    RevisionName = tostring(RevisionName_s),
+    LogMessage = tostring(Log_s)
 | where ContainerApp =~ containerAppName
 | where LogMessage has_any ("error", "warn", "fail")
 | project TimeGenerated, RevisionName, LogMessage
-| order by TimeGenerated desc
+| order by TimeGenerated desc;
 ```
 
 ```kusto
-let targetCorrelationId = "paste-full-correlation-id-from-ui";
-let containerAppName = "ca-acme-los-web-dev-cus-01";
-let ConsoleLogs =
-    union isfuzzy=true ContainerAppConsoleLogs, ContainerAppConsoleLogs_CL
-    | extend
-        ContainerApp = iff(
-            isnotempty(tostring(column_ifexists("ContainerAppName", ""))),
-            tostring(column_ifexists("ContainerAppName", "")),
-            tostring(column_ifexists("ContainerAppName_s", ""))
-        ),
-        RevisionName = iff(
-            isnotempty(tostring(column_ifexists("RevisionName", ""))),
-            tostring(column_ifexists("RevisionName", "")),
-            tostring(column_ifexists("RevisionName_s", ""))
-        ),
-        LogMessage = iff(
-            isnotempty(tostring(column_ifexists("Log", ""))),
-            tostring(column_ifexists("Log", "")),
-            tostring(column_ifexists("Log_s", ""))
-        );
-ConsoleLogs
+let targetCorrelationId = 'paste-full-correlation-id-from-ui';
+let containerAppName = 'ca-acme-los-web-dev-cus-01';
+ContainerAppConsoleLogs_CL
 | where TimeGenerated > ago(30m)
+| extend
+    ContainerApp = tostring(ContainerAppName_s),
+    RevisionName = tostring(RevisionName_s),
+    LogMessage = tostring(Log_s)
 | where ContainerApp =~ containerAppName
 | extend payload = parse_json(LogMessage)
+| extend
+    clientError = payload.clientError,
+    clientTelemetry = payload.clientTelemetry
 | extend
     level = tostring(payload.level),
     message = tostring(payload.message),
@@ -530,7 +549,21 @@ ConsoleLogs
     environment = tostring(payload.environment),
     service = tostring(payload.service),
     version = tostring(payload.version),
-    build = tostring(payload.build)
+    build = tostring(payload.build),
+    clientErrorName = tostring(clientError.name),
+    clientErrorMessage = tostring(clientError.message),
+    clientPageUrl = tostring(clientTelemetry.pageUrl),
+    clientReferrer = tostring(clientTelemetry.referrer),
+    clientUserAgent = tostring(clientTelemetry.userAgent),
+    clientLanguage = tostring(clientTelemetry.language),
+    clientTimeZone = tostring(clientTelemetry.timeZone),
+    clientVisibilityState = tostring(clientTelemetry.visibilityState),
+    clientViewportWidth = toint(clientTelemetry.viewport.width),
+    clientViewportHeight = toint(clientTelemetry.viewport.height),
+    clientScreenWidth = toint(clientTelemetry.screen.width),
+    clientScreenHeight = toint(clientTelemetry.screen.height),
+    clientPixelRatio = todouble(clientTelemetry.screen.pixelRatio),
+    clientConnectionType = tostring(clientTelemetry.connection.effectiveType)
 | where correlationId == targetCorrelationId
 | project
     TimeGenerated,
@@ -548,28 +581,32 @@ ConsoleLogs
     environment,
     service,
     version,
-    build
-| order by TimeGenerated asc
+    build,
+    clientErrorName,
+    clientErrorMessage,
+    clientPageUrl,
+    clientReferrer,
+    clientUserAgent,
+    clientLanguage,
+    clientTimeZone,
+    clientVisibilityState,
+    clientViewportWidth,
+    clientViewportHeight,
+    clientScreenWidth,
+    clientScreenHeight,
+    clientPixelRatio,
+    clientConnectionType
+| order by TimeGenerated asc;
 ```
 
 ```kusto
-let SystemLogs =
-    union isfuzzy=true ContainerAppSystemLogs, ContainerAppSystemLogs_CL
-    | extend
-        Reason = iff(
-            isnotempty(tostring(column_ifexists("Reason", ""))),
-            tostring(column_ifexists("Reason", "")),
-            tostring(column_ifexists("Reason_s", ""))
-        ),
-        LogMessage = iff(
-            isnotempty(tostring(column_ifexists("Log", ""))),
-            tostring(column_ifexists("Log", "")),
-            tostring(column_ifexists("Log_s", ""))
-        );
-SystemLogs
+ContainerAppSystemLogs_CL
 | where TimeGenerated > ago(30m)
+| extend
+    Reason = tostring(Reason_s),
+    LogMessage = tostring(Log_s)
 | project TimeGenerated, Reason, LogMessage
-| order by TimeGenerated desc
+| order by TimeGenerated desc;
 ```
 
 ## Redis Session Demo
@@ -595,6 +632,153 @@ What to show in the website:
 - hit `/api/health` several times
 - point out the changing `instanceId`
 - explain that the session survives across those replicas
+
+Command checks:
+
+Use these only when you want to prove the backing state path. The normal demo
+should still lead with the website and `/api/health` replica behavior.
+
+Local Redis is a Docker Compose container with normal `redis-cli` access:
+
+```powershell
+npm run redis:up
+npm run web:dev:redis
+```
+
+In another terminal:
+
+```powershell
+docker exec -it acme-los-redis redis-cli PING
+docker exec -it acme-los-redis redis-cli INFO keyspace
+docker exec -it acme-los-redis redis-cli --scan --pattern 'acme-los:web:*'
+docker exec -it acme-los-redis redis-cli TYPE '<redis-key-from-scan>'
+docker exec -it acme-los-redis redis-cli TTL '<redis-key-from-scan>'
+```
+
+Useful local key patterns:
+
+- `acme-los:web:auth-session:*`
+- `acme-los:web:application-flow:*`
+- `acme-los:web:customer-profile:*`
+- `acme-los:web:rate-limit:*`
+
+Do not print live `auth-session` or `customer-profile` values during a shared
+demo. Those records can include tokens or customer-entered details. `SCAN`,
+`TYPE`, and `TTL` are enough to prove the state exists and expires.
+
+Stop local Redis when done:
+
+```powershell
+npm run redis:down
+```
+
+`dev` Redis is different from local Redis:
+
+- `redis-acme-los-dev-cus-01` is private-only through the private endpoint
+  `pep-acme-los-redis-dev-cus-01`
+- Redis access-key authentication is disabled for Azure
+- the web app uses Microsoft Entra auth from the ACA user-assigned managed
+  identity
+- Redis data-plane checks must run from a private-network context, such as the
+  running ACA container or a purpose-built diagnostic container/job in the
+  workload VNet
+
+For the running `dev` app, exec into the ACA web container:
+
+```powershell
+az containerapp exec `
+  --subscription 7df9ce70-48a3-4495-9361-4ca7b2637748 `
+  --resource-group rg-acme-los-web-dev-cus-01 `
+  --name ca-acme-los-web-dev-cus-01 `
+  --container web `
+  --command "/bin/sh"
+```
+
+Inside the container, first confirm the Redis runtime settings:
+
+```sh
+node -e "for (const name of ['ACME_WEB_STATE_STORE','ACME_REDIS_AUTH_MODE','ACME_REDIS_HOST','ACME_REDIS_PORT','ACME_REDIS_KEY_PREFIX','ACME_REDIS_MANAGED_IDENTITY_CLIENT_ID','AZURE_CLIENT_ID']) console.log(name + '=' + (process.env[name] || ''))"
+```
+
+Then prove private DNS and private endpoint reachability:
+
+```sh
+node -e "const dns = require('node:dns'); dns.lookup(process.env.ACME_REDIS_HOST, (error, address) => { if (error) throw error; console.log(address); })"
+node -e "const net = require('node:net'); const socket = net.createConnection({ host: process.env.ACME_REDIS_HOST, port: Number(process.env.ACME_REDIS_PORT || 10000) }, () => { console.log('connected to Redis private endpoint'); socket.end(); }); socket.setTimeout(5000, () => { console.error('timeout'); socket.destroy(); process.exit(1); }); socket.on('error', (error) => { console.error(error.message); process.exit(1); });"
+```
+
+The production web image does not rely on `redis-cli`. Use the same Node Redis
+client and Entra auth path as the app for a safe `PING`, key scan, type, and TTL
+check:
+
+```sh
+node <<'NODE'
+const { DefaultAzureCredential } = require('@azure/identity');
+const { createClient } = require('@redis/client');
+const {
+  EntraIdCredentialsProviderFactory,
+  REDIS_SCOPE_DEFAULT,
+} = require('@redis/entraid');
+
+const managedIdentityClientId =
+  process.env.ACME_REDIS_MANAGED_IDENTITY_CLIENT_ID || process.env.AZURE_CLIENT_ID;
+const credential = new DefaultAzureCredential(
+  managedIdentityClientId
+    ? {
+        managedIdentityClientId,
+        workloadIdentityClientId: managedIdentityClientId,
+      }
+    : undefined,
+);
+const client = createClient({
+  url: `rediss://${process.env.ACME_REDIS_HOST}:${
+    process.env.ACME_REDIS_PORT || 10000
+  }`,
+  credentialsProvider:
+    EntraIdCredentialsProviderFactory.createForDefaultAzureCredential({
+      credential,
+      scopes: REDIS_SCOPE_DEFAULT,
+    }),
+});
+
+client.on('error', (error) => console.error(error));
+
+(async () => {
+  await client.connect();
+  console.log(await client.ping());
+
+  const prefix = process.env.ACME_REDIS_KEY_PREFIX || 'acme-los:web';
+  const keys = [];
+
+  for await (const key of client.scanIterator({
+    MATCH: `${prefix}:*`,
+    COUNT: 25,
+  })) {
+    keys.push(key);
+
+    if (keys.length >= 20) {
+      break;
+    }
+  }
+
+  console.log(keys.length ? keys.join('\n') : '(no keys)');
+
+  if (keys[0]) {
+    console.log(`${keys[0]} type=${await client.type(keys[0])} ttl=${await client.ttl(keys[0])}`);
+  }
+
+  await client.quit();
+})().catch(async (error) => {
+  console.error(error);
+
+  try {
+    await client.quit();
+  } finally {
+    process.exit(1);
+  }
+});
+NODE
+```
 
 ## Presenter Notes
 
