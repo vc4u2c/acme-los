@@ -23,6 +23,19 @@ export type StoredWebAuthTokenSet = {
   expiresIn?: number;
 };
 
+export type StoredWebAuthStepUpReason = 'funding';
+
+export type StoredWebAuthStepUpRequirement = {
+  reason: StoredWebAuthStepUpReason;
+  maxAgeSeconds: number;
+};
+
+export type StoredWebAuthStepUp = {
+  reason: StoredWebAuthStepUpReason;
+  completedAt: number;
+  expiresAt: number;
+};
+
 export type StoredWebAuthSession = {
   sessionId: string;
   session: WebAuthSession;
@@ -31,6 +44,7 @@ export type StoredWebAuthSession = {
   createdAt: number;
   lastActivityAt: number;
   idleExpiresAt: number;
+  stepUp?: StoredWebAuthStepUp;
 };
 
 type PersistedStoredWebAuthSession = Omit<
@@ -43,6 +57,7 @@ type CreateStoredWebAuthSessionInput = {
   session: WebAuthSession;
   tokens: StoredWebAuthTokenSet;
   expiresAt: number;
+  stepUp?: StoredWebAuthStepUpRequirement;
 };
 
 function getCurrentEpochSeconds(): number {
@@ -68,6 +83,17 @@ function getCreatedAtEpochSeconds(createdAt: number): number {
   return createdAt > 10_000_000_000
     ? Math.floor(createdAt / 1000)
     : Math.floor(createdAt);
+}
+
+function createStoredWebAuthStepUp(
+  requirement: StoredWebAuthStepUpRequirement,
+  currentEpochSeconds: number,
+): StoredWebAuthStepUp {
+  return {
+    reason: requirement.reason,
+    completedAt: currentEpochSeconds,
+    expiresAt: currentEpochSeconds + requirement.maxAgeSeconds,
+  };
 }
 
 function normalizeStoredSession(
@@ -123,6 +149,9 @@ export async function createStoredWebAuthSession(
       expiresAt,
       currentEpochSeconds + idleTimeoutSeconds,
     ),
+    stepUp: input.stepUp
+      ? createStoredWebAuthStepUp(input.stepUp, currentEpochSeconds)
+      : undefined,
   };
 
   await writeStoredWebAuthSession(storedSession);
@@ -186,6 +215,19 @@ export async function clearStoredWebAuthSession(
   sessionId: string,
 ): Promise<void> {
   await deleteStateValue(AUTH_SESSION_NAMESPACE, sessionId);
+}
+
+export function isStoredWebAuthStepUpFresh(
+  storedSession: StoredWebAuthSession,
+  requirement: StoredWebAuthStepUpRequirement,
+): boolean {
+  const stepUp = storedSession.stepUp;
+
+  if (!stepUp || stepUp.reason !== requirement.reason) {
+    return false;
+  }
+
+  return stepUp.expiresAt > getCurrentEpochSeconds();
 }
 
 export async function touchStoredWebAuthSession(

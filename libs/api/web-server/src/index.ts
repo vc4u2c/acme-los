@@ -26,6 +26,7 @@ export {
   writeCustomerProfile,
 } from './lib/customer-profile';
 export {
+  getServerWebAuthSessionRequirementStatus,
   getServerWebAuthSession,
   requireServerWebAuthSession,
 } from './lib/server-session';
@@ -44,6 +45,7 @@ export {
   createStoredWebAuthSession,
   getStoredWebAuthSessionCookieMaxAge,
   getStoredWebAuthSessionTiming,
+  isStoredWebAuthStepUpFresh,
   readStoredWebAuthSession,
   readStoredWebAuthSessionForLogout,
   touchStoredWebAuthSession,

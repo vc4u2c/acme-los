@@ -10,6 +10,7 @@ import {
   requireAuthenticatedWebSession,
   saveApplicationStep,
 } from '@acme-los/api/web-server';
+import { getApplicationAuthRequirement } from '../../../../../lib/application-auth';
 
 export const runtime = 'nodejs';
 
@@ -29,7 +30,10 @@ export async function GET(
   try {
     const { step } = await context.params;
     const parsedStep = applicationStepSchema.parse(step) as ApplicationStepKey;
-    const session = await requireAuthenticatedWebSession(request);
+    const session = await requireAuthenticatedWebSession(
+      request,
+      getApplicationAuthRequirement(parsedStep),
+    );
 
     return NextResponse.json({
       stepState: await readApplicationStepState(session, parsedStep),
@@ -56,7 +60,10 @@ export async function PUT(
     assertValidCsrf(request);
     const { step } = await context.params;
     const parsedStep = applicationStepSchema.parse(step) as ApplicationStepKey;
-    const session = await requireAuthenticatedWebSession(request);
+    const session = await requireAuthenticatedWebSession(
+      request,
+      getApplicationAuthRequirement(parsedStep),
+    );
     const payload = saveStepSchema.parse(await request.json());
     const saveResponse = await saveApplicationStep(
       session,

@@ -8,7 +8,11 @@ import type {
 } from '@acme-los/api/contracts';
 import type { NextRequest, NextResponse } from 'next/server';
 import { clearApplicationFlow } from './application-flow';
-import { getAssuranceLevelFromAuthenticationMethods } from './assurance';
+import {
+  getAssuranceLevelFromAuthenticationMethods,
+  isAssuranceSatisfied,
+  type WebAuthRequirement,
+} from './assurance';
 import {
   APPLICATION_FLOW_COOKIE_NAME,
   AUTH_SESSION_COOKIE_NAME,
@@ -27,8 +31,10 @@ import {
   getStoredWebAuthSessionTiming,
   readStoredWebAuthSession,
   readStoredWebAuthSessionForLogout,
+  isStoredWebAuthStepUpFresh,
   touchStoredWebAuthSession,
   type StoredWebAuthSession,
+  type StoredWebAuthStepUpRequirement,
   type StoredWebAuthTokenSet,
   writeStoredWebAuthSession,
 } from './session-store';
@@ -300,6 +306,8 @@ export async function syncWebAuthSession(
   options: {
     expectedNonce?: string;
     expectedUserId?: string;
+    minimumAssuranceLevel?: WebAuthRequirement['minimumAssuranceLevel'];
+    stepUp?: StoredWebAuthStepUpRequirement;
     serverTokens?: Omit<StoredWebAuthTokenSet, 'idToken'>;
   } = {},
 ): Promise<SyncedWebAuthSession> {
@@ -315,6 +323,15 @@ export async function syncWebAuthSession(
     throw new Error('Step-up sign-in must complete with the same user.');
   }
 
+  if (
+    options.minimumAssuranceLevel &&
+    !isAssuranceSatisfied(session.assuranceLevel, options.minimumAssuranceLevel)
+  ) {
+    throw new Error(
+      'The completed sign-in did not satisfy the required assurance level.',
+    );
+  }
+
   const expiresAt =
     typeof verifiedIdTokenClaims.exp === 'number'
       ? Math.trunc(verifiedIdTokenClaims.exp)
@@ -326,6 +343,7 @@ export async function syncWebAuthSession(
       ...options.serverTokens,
     },
     expiresAt,
+    stepUp: options.stepUp,
   });
 
   return {
@@ -472,11 +490,32 @@ export async function readLogoutHintIdToken(
 
 export async function requireAuthenticatedWebSession(
   request: NextRequest,
+  requirement: WebAuthRequirement = {
+    requiresAuthentication: true,
+    minimumAssuranceLevel: 'aal1',
+  },
 ): Promise<WebAuthSession> {
-  const { session } = await readWebAuthSession(request);
+  const storedSession = await readStoredSessionFromRequest(request);
+  const session = storedSession?.session ?? buildUnauthenticatedSession();
 
   if (!session.isAuthenticated || session.user === null) {
     throw new Error('Authentication is required for this request.');
+  }
+
+  const minimumAssuranceLevel = requirement.minimumAssuranceLevel ?? 'aal1';
+  if (!isAssuranceSatisfied(session.assuranceLevel, minimumAssuranceLevel)) {
+    throw new Error('Step-up MFA is required for this request.');
+  }
+
+  if (
+    requirement.requiredStepUp &&
+    (!storedSession ||
+      !isStoredWebAuthStepUpFresh(
+        storedSession.storedSession,
+        requirement.requiredStepUp,
+      ))
+  ) {
+    throw new Error('Fresh funding step-up MFA is required for this request.');
   }
 
   return session;
