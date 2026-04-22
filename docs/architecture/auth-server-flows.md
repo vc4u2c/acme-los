@@ -72,6 +72,10 @@ idle expiry.
 - route-level step-up captures the current user id in the auth transaction,
   asks Okta for a fresh login/assurance check, and rejects callbacks that return
   a token for a different subject
+- funding step-up is intentionally fresh: an existing `aal2` session is not
+  enough by itself, because the funding route and funding APIs require the
+  current server session to contain a 10-minute funding step-up marker written
+  by the latest Okta callback
 
 Current defaults:
 
@@ -138,6 +142,8 @@ sequenceDiagram
     W->>W: Check minimumAssuranceLevel
     alt assurance too low
       W->>U: Redirect to sign-in / step-up path
+    else route requires fresh step-up and marker missing/stale
+      W->>U: Redirect to fresh step-up path
     else allowed
       W->>U: Render server route shell
     end
@@ -157,7 +163,7 @@ Examples:
 - most `/apply/*`
   - authenticated session required
 - funding-sensitive routes
-  - stronger assurance required
+  - stronger assurance and fresh funding step-up required
 
 ### Route-Level Decision
 
@@ -169,7 +175,11 @@ flowchart TD
   D -- No --> E[Render route]
   D -- Yes --> F{Session meets required AAL?}
   F -- No --> G[Redirect to step-up sign-in]
-  F -- Yes --> E
+  F -- Yes --> H{Fresh route step-up required?}
+  H -- No --> E
+  H -- Yes --> I{Fresh funding marker present?}
+  I -- No --> G
+  I -- Yes --> E
 ```
 
 ## Shared Session Across Profile And Apply

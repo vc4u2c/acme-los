@@ -9,6 +9,7 @@ import {
 } from './cookies';
 import { getSafeServerAuthReturnTo } from './auth-routing';
 import { getServerWebAuthConfig } from './config';
+import type { StoredWebAuthStepUpRequirement } from './session-store';
 
 export type WebAuthTransactionCookiePayload = {
   state: string;
@@ -18,6 +19,7 @@ export type WebAuthTransactionCookiePayload = {
   minimumAssuranceLevel: 'aal1' | 'aal2';
   expectedUserId?: string;
   leadId?: string;
+  stepUp?: StoredWebAuthStepUpRequirement;
   expiresAt: number;
 };
 
@@ -67,11 +69,13 @@ export function startOktaAuthTransaction({
   minimumAssuranceLevel = 'aal1',
   expectedUserId,
   leadId,
+  stepUp,
 }: {
   returnTo?: string;
   minimumAssuranceLevel?: 'aal1' | 'aal2';
   expectedUserId?: string;
   leadId?: string;
+  stepUp?: StoredWebAuthStepUpRequirement;
 }): StartedWebAuthTransaction {
   const config = getServerWebAuthConfig();
   if (config.provider !== 'okta' || !config.okta) {
@@ -103,6 +107,7 @@ export function startOktaAuthTransaction({
       config.okta.fundingStepUpAcrValues,
     );
     authorizeUrl.searchParams.set('prompt', 'login');
+    authorizeUrl.searchParams.set('max_age', '0');
   }
 
   return {
@@ -117,6 +122,7 @@ export function startOktaAuthTransaction({
           ? expectedUserId.trim()
           : undefined,
       leadId: leadId?.trim() ? leadId.trim() : undefined,
+      stepUp: minimumAssuranceLevel === 'aal2' ? stepUp : undefined,
       expiresAt,
     },
     authorizeUrl: authorizeUrl.toString(),

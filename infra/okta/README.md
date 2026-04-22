@@ -185,7 +185,12 @@ Current auth shape in this repo:
 - registration always requires password plus email enrollment because the MFA enrollment policy requires both authenticators
 - standard sign-in is password-first
 - adaptive sign-in, when the high-risk rule is supported and triggered, steps up to 2FA with password required as the first factor
-- the funding step is still enforced in application runtime with `acr_values` and `prompt=login`, which is the correct place for route-level step-up
+- the funding step is still enforced in application runtime with `acr_values`,
+  `prompt=login`, and `max_age=0`, which is the correct place for route-level
+  step-up
+- an existing `aal2` web session does not by itself unlock funding; the current
+  server-side session also needs the 10-minute funding step-up marker written by
+  the latest Okta callback
 
 ## Current Admin Auth Path
 

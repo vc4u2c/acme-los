@@ -7,6 +7,7 @@ import {
   requireAuthenticatedWebSession,
   submitApplicationFlow,
 } from '@acme-los/api/web-server';
+import { getApplicationAuthRequirement } from '../../../../lib/application-auth';
 
 export const runtime = 'nodejs';
 
@@ -18,8 +19,11 @@ const submitApplicationSchema = z.object({
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     assertValidCsrf(request);
-    const session = await requireAuthenticatedWebSession(request);
     const payload = submitApplicationSchema.parse(await request.json());
+    const session = await requireAuthenticatedWebSession(
+      request,
+      getApplicationAuthRequirement(payload.step),
+    );
     const submitResponse = await submitApplicationFlow(session, payload);
     const response = NextResponse.json(submitResponse);
 

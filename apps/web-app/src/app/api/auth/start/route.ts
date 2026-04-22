@@ -11,6 +11,10 @@ import {
   startOktaAuthTransaction,
   writeWebAuthTransaction,
 } from '@acme-los/api/web-server';
+import {
+  getApplicationAuthRequirementForPath,
+  getMinimumAssuranceLevelForApplicationPath,
+} from '../../../../lib/application-auth';
 
 export const runtime = 'nodejs';
 
@@ -81,17 +85,30 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const payload = authStartQuerySchema.parse(
       Object.fromEntries(request.nextUrl.searchParams.entries()),
     );
+    const routeRequirement = getApplicationAuthRequirementForPath(
+      payload.returnTo,
+    );
+    const minimumAssuranceLevel = getMinimumAssuranceLevelForApplicationPath(
+      payload.returnTo,
+      payload.aal ?? 'aal1',
+    );
     const currentSession =
-      payload.aal === 'aal2' ? await readWebAuthSession(request) : null;
+      minimumAssuranceLevel === 'aal2'
+        ? await readWebAuthSession(request)
+        : null;
     const transaction = startOktaAuthTransaction({
       returnTo: payload.returnTo,
-      minimumAssuranceLevel: payload.aal ?? 'aal1',
+      minimumAssuranceLevel,
       expectedUserId:
         currentSession?.session.isAuthenticated &&
         currentSession.session.user !== null
           ? currentSession.session.user.id
           : undefined,
       leadId: payload.leadId ?? payload.lead_id,
+      stepUp:
+        minimumAssuranceLevel === 'aal2'
+          ? routeRequirement?.requiredStepUp
+          : undefined,
     });
     const response = NextResponse.redirect(transaction.authorizeUrl);
 

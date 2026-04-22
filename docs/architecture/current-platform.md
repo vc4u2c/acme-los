@@ -63,14 +63,18 @@ What is still bridge-state rather than final:
 - hosted Okta sign-in is also the registration path
 - there is no separate local create-account page anymore
 - signed-in profile entry goes to the customer dashboard
-- funding uses stronger route-level auth requirements than the rest of the application
+- funding uses fresh route-level MFA requirements in addition to the normal
+  application session
 
 ### MFA Model
 
 - registration requires password plus email enrollment
 - standard sign-in is password-first
 - adaptive sign-in can step up to 2FA on high-risk access
-- funding route access is step-up protected in application runtime with `acr_values`
+- funding route access always starts a fresh application-owned step-up check:
+  the Okta authorize request carries `acr_values`, `prompt=login`, and
+  `max_age=0`, and the server session must contain a 10-minute funding step-up
+  marker before funding data or final authorization routes are served
 
 ## Current API Boundary
 

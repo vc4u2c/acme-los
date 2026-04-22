@@ -3,6 +3,14 @@ import type { WebAuthSessionAssuranceLevel } from '@acme-los/api/contracts';
 export type WebAuthRequirement = {
   requiresAuthentication: boolean;
   minimumAssuranceLevel?: Exclude<WebAuthSessionAssuranceLevel, 'anonymous'>;
+  requiredStepUp?: WebAuthStepUpRequirement;
+};
+
+export type WebAuthStepUpReason = 'funding';
+
+export type WebAuthStepUpRequirement = {
+  reason: WebAuthStepUpReason;
+  maxAgeSeconds: number;
 };
 
 export const MOCK_AUTH_STORAGE_KEY = 'acme-los-auth-mock-session';

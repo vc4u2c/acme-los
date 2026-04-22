@@ -1,7 +1,11 @@
-import { getSafeAuthReturnTo, isAssuranceSatisfied } from '@acme-los/auth/core';
-import { getServerWebAuthSession } from '@acme-los/api/web-server';
+import { getSafeAuthReturnTo } from '@acme-los/auth/core';
+import { getServerWebAuthSessionRequirementStatus } from '@acme-los/api/web-server';
 import { redirect } from 'next/navigation';
 import { CustomerAuthLaunchPage } from '../../../components/web/customer-auth-launch-page';
+import {
+  getApplicationAuthRequirementForPath,
+  getMinimumAssuranceLevelForApplicationPath,
+} from '../../../lib/application-auth';
 
 export default async function SignInPage({
   searchParams,
@@ -17,16 +21,26 @@ export default async function SignInPage({
     resolvedSearchParams.returnTo,
     '/account/profile',
   );
-  const minimumAssuranceLevel =
-    resolvedSearchParams.aal === 'aal2' ? 'aal2' : 'aal1';
+  const routeRequirement = getApplicationAuthRequirementForPath(returnTo);
+  const minimumAssuranceLevel = getMinimumAssuranceLevelForApplicationPath(
+    returnTo,
+    resolvedSearchParams.aal === 'aal2' ? 'aal2' : 'aal1',
+  );
+  const signInRequirement = routeRequirement?.requiredStepUp
+    ? {
+        requiresAuthentication: true,
+        minimumAssuranceLevel,
+        requiredStepUp: routeRequirement.requiredStepUp,
+      }
+    : {
+        requiresAuthentication: true,
+        minimumAssuranceLevel,
+      };
   const authError = resolvedSearchParams.authError?.trim() || undefined;
-  const session = await getServerWebAuthSession();
+  const { session, isSatisfied } =
+    await getServerWebAuthSessionRequirementStatus(signInRequirement);
 
-  if (
-    session?.isAuthenticated &&
-    session.user !== null &&
-    isAssuranceSatisfied(session.assuranceLevel, minimumAssuranceLevel)
-  ) {
+  if (session?.isAuthenticated && session.user !== null && isSatisfied) {
     redirect(returnTo);
   }
 

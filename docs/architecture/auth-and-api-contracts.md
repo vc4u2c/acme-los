@@ -134,7 +134,7 @@ Examples:
 - most `/apply/*`
   - authenticated session required
 - funding-sensitive routes
-  - stronger assurance required
+  - stronger assurance and fresh funding step-up required
 
 That is different from a heavy role-based permission system. Deeper business
 permissions still belong in the backend/BFF layer as that grows.

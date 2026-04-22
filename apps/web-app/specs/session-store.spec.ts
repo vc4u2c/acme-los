@@ -2,6 +2,7 @@ import {
   clearReplacedWebAuthSession,
   createStoredWebAuthSession,
   getStoredWebAuthSessionCookieMaxAge,
+  isStoredWebAuthStepUpFresh,
   readLogoutHintIdToken,
   readStoredWebAuthSession,
   readStoredWebAuthSessionForLogout,
@@ -354,6 +355,10 @@ describe('web auth session store idle expiry', () => {
       returnTo: '/apply/funding',
       minimumAssuranceLevel: 'aal2',
       expectedUserId: 'customer-1',
+      stepUp: {
+        reason: 'funding',
+        maxAgeSeconds: 10 * 60,
+      },
     });
     const authorizeUrl = new URL(transaction.authorizeUrl);
 
@@ -362,6 +367,62 @@ describe('web auth session store idle expiry', () => {
       'urn:okta:loa:2fa:any',
     );
     expect(authorizeUrl.searchParams.get('prompt')).toBe('login');
+    expect(authorizeUrl.searchParams.get('max_age')).toBe('0');
+    expect(transaction.cookiePayload.stepUp).toEqual({
+      reason: 'funding',
+      maxAgeSeconds: 10 * 60,
+    });
+  });
+
+  it('stores and expires a fresh funding step-up marker separately from the session', async () => {
+    const currentEpochSeconds = Math.floor(Date.now() / 1000);
+
+    process.env.ACME_WEB_SESSION_IDLE_TIMEOUT_SECONDS = '120';
+    process.env.ACME_WEB_SESSION_WARNING_SECONDS = '30';
+
+    const storedSession = await createStoredWebAuthSession({
+      session: {
+        ...TEST_SESSION,
+        assuranceLevel: 'aal2',
+      },
+      tokens: {
+        idToken: 'fresh-funding-step-up-id-token',
+      },
+      expiresAt: currentEpochSeconds + 3600,
+      stepUp: {
+        reason: 'funding',
+        maxAgeSeconds: 60,
+      },
+    });
+
+    expect(storedSession.stepUp).toEqual({
+      reason: 'funding',
+      completedAt: currentEpochSeconds,
+      expiresAt: currentEpochSeconds + 60,
+    });
+    expect(
+      isStoredWebAuthStepUpFresh(storedSession, {
+        reason: 'funding',
+        maxAgeSeconds: 60,
+      }),
+    ).toBe(true);
+
+    jest.setSystemTime(new Date('2026-04-21T12:01:01.000Z'));
+
+    const activeStoredSession = await readStoredWebAuthSession(
+      storedSession.sessionId,
+    );
+    expect(activeStoredSession).toBeTruthy();
+    if (!activeStoredSession) {
+      throw new Error('Expected funding step-up session to remain active.');
+    }
+
+    expect(
+      isStoredWebAuthStepUpFresh(activeStoredSession, {
+        reason: 'funding',
+        maxAgeSeconds: 60,
+      }),
+    ).toBe(false);
   });
 
   it('extends idle expiry on an explicit touch without changing absolute expiry', async () => {

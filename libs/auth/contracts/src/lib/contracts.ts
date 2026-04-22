@@ -7,6 +7,12 @@ export type AuthStatus =
   | 'error';
 
 export type AuthAssuranceLevel = 'anonymous' | 'aal1' | 'aal2';
+export type AuthStepUpReason = 'funding';
+
+export interface AuthStepUpRequirement {
+  reason: AuthStepUpReason;
+  maxAgeSeconds: number;
+}
 
 export interface AuthUser {
   id: string;
@@ -31,6 +37,7 @@ export interface AuthSession {
 export interface AuthRequirement {
   requiresAuthentication: boolean;
   minimumAssuranceLevel?: Exclude<AuthAssuranceLevel, 'anonymous'>;
+  requiredStepUp?: AuthStepUpRequirement;
 }
 
 export interface SignInRequest {
