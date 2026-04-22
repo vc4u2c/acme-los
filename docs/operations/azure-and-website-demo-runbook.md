@@ -738,6 +738,9 @@ const client = createClient({
     EntraIdCredentialsProviderFactory.createForDefaultAzureCredential({
       credential,
       scopes: REDIS_SCOPE_DEFAULT,
+      tokenManagerConfig: {
+        expirationRefreshRatio: 0.8,
+      },
     }),
 });
 
@@ -750,11 +753,17 @@ client.on('error', (error) => console.error(error));
   const prefix = process.env.ACME_REDIS_KEY_PREFIX || 'acme-los:web';
   const keys = [];
 
-  for await (const key of client.scanIterator({
+  for await (const keyBatch of client.scanIterator({
     MATCH: `${prefix}:*`,
     COUNT: 25,
   })) {
-    keys.push(key);
+    for (const key of keyBatch) {
+      keys.push(key);
+
+      if (keys.length >= 20) {
+        break;
+      }
+    }
 
     if (keys.length >= 20) {
       break;
