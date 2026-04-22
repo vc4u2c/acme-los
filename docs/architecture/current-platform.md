@@ -5,6 +5,8 @@ This doc is the current-state snapshot for the repo. It complements:
 - [auth-server-flows.md](./auth-server-flows.md)
 - [auth-and-api-contracts.md](./auth-and-api-contracts.md)
 - [domain-boundaries.md](./domain-boundaries.md)
+- [release-and-delivery.md](../operations/release-and-delivery.md)
+- [azure-monitoring-and-workbooks.md](../operations/azure-monitoring-and-workbooks.md)
 - [infra/okta/README.md](../../infra/okta/README.md)
 
 ## Product Surface
@@ -43,7 +45,9 @@ What is true operationally today:
 - `dev` is proven live in Azure on `Azure Container Apps`
 - `Key Vault` and `Azure Managed Redis` are private-only in the current Azure design
 - Redis managed-identity auth is proven live in `dev` as of April 19, 2026
-- the current working `dev` behavior still needs to stay aligned through the normal merge and CD path
+- main CI currently triggers CD into `dev`
+- the reusable web deployment wrappers for `qa`, `stg`, and `prod` exist, but
+  chained promotion beyond `dev` is still a next step
 
 What is still bridge-state rather than final:
 
@@ -166,15 +170,19 @@ Persistence:
 
 ## Immediate Next Priorities
 
-The highest-value next steps are convergence and operational cleanup, not a structural rewrite.
+The highest-value next steps are repeatability and operational cleanup, not a
+structural rewrite.
 
-1. Merge proven environment and auth fixes quickly so CD becomes the source of truth again.
-2. Keep `qa` aligned to the same deployment model that now works in `dev`.
-3. Decide the identity boundary for `leadId` and `customerId`:
+1. Keep `main` and the live `dev` deployment aligned through the normal CI/CD path.
+2. Prove `qa` on the same ACA, Redis, Key Vault, monitoring, and Okta mapping
+   that now works in `dev`.
+3. Wire real receivers into the Azure Monitor action groups so alerts become a
+   notification path, not only visible Azure resources.
+4. Decide the identity boundary for `leadId` and `customerId`:
    - `customerId` should be a stable identity or backend-linked value
    - `leadId` should only stay in tokens if it is truly an identity attribute rather than journey context
-4. Keep the Next facade thin enough that customer and application persistence can move behind a .NET BFF later.
-5. Add the later edge and security layers in order:
+5. Keep the Next facade thin enough that customer and application persistence can move behind a .NET BFF later.
+6. Add the later edge and security layers in order:
    - Front Door
    - WAF
    - private ACA ingress

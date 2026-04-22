@@ -19,6 +19,18 @@ Related docs:
 - [GitHub and Azure environments](./github-azure-environments.md)
 - [Current platform architecture](../architecture/current-platform.md)
 
+## How To Read This Doc
+
+This page has two jobs:
+
+- record the current observed Azure state
+- preserve the target architecture and rollout strategy
+
+When you need exact commands, use
+[Azure bootstrap and teardown](./azure-bootstrap-and-teardown.md). When you
+need a live presenter path, use
+[Azure and website demo runbook](./azure-and-website-demo-runbook.md).
+
 ## Current Observed Platform State
 
 Current confirmed state from the local CLI setup:
@@ -35,7 +47,7 @@ Current confirmed state from the local CLI setup:
   - `ddf05cf2-068e-4463-9996-aa1c61b2439b`
     - `react-swa-b2c-demo`
     - legacy `AAD B2C` tenant candidate for retirement review
-- currently visible subscription:
+- currently visible subscriptions:
   - `sub-acme-platform`
     - subscription id `b582269b-60ff-4bb0-b30b-6fb2796edf11`
   - `sub-acme-nonprod-online`
@@ -76,10 +88,16 @@ Current confirmed state from the local CLI setup:
   - `Key Vault` and `Azure Managed Redis` are private-only
   - ACA ingress remains public for now
   - the first Azure Monitor operations pack is deployed in `dev`
+    - Log Analytics
+    - Application Insights
     - workbook
     - action group
     - log alerts
   - current public health endpoint responds successfully
+- current CD status:
+  - main CI completion deploys `dev`
+  - reusable wrappers exist for `qa`, `stg`, and `prod`
+  - chained promotion beyond `dev` is still pending
 - GitHub CLI is authenticated
 - GitHub deployment environments already exist:
   - `dev`
@@ -116,7 +134,7 @@ Recommended target:
 - deploy the `web app` and `mobile app` separately
 - use `Azure Front Door Premium + WAF` for public web entry
 - use `private endpoints` and `private DNS` for origin and state/data services
-- use `Azure Managed Redis` as the expected cloud state backend
+- use `Azure Managed Redis` as the current Azure state backend
 - use `Deployment Stacks` for managed teardown of non-production infrastructure
 
 Important platform choice:
@@ -639,79 +657,45 @@ Recommended flow:
 3. push to EAS / store pipeline
 4. promote separately from Azure web deployment
 
-That means the current shared `deployable` workflow should evolve into:
-
-- `deploy-web-*.yml`
-- `deploy-mobile-*.yml`
+The repo already has reusable web deployment wrappers and a separate manual
+mobile deployment workflow. The next delivery evolution is to decide how higher
+web environments are promoted after `dev`, then add environment-specific mobile
+promotion only when the mobile release path is ready.
 
 ## Cost-Conscious Rollout Plan
 
-### Phase 1
+### Completed Base Slice
 
-- create persistent management groups and subscriptions
-- create naming standard
-- create Azure/GitHub environment model
-- create Bicep structure
-- create hub + workload split in the module layout
+The base slice is now in place:
 
-### First Implementation Slice
+- persistent management groups and target subscriptions exist
+- naming and tagging standards exist in the repo
+- Azure/GitHub environment metadata is source controlled
+- Bicep modules and deployment scripts exist
+- the platform network foundation exists
+- the `dev` web workload is proven on ACA with Redis, Key Vault, private
+  endpoints, monitoring, and deployment stacks
 
-This is the exact order I recommend from here:
+### Next Rollout Slice
 
-1. refresh Azure CLI auth
-   - so management groups and tenant-wide setup commands work cleanly
-2. inspect or create the management group hierarchy
-   - `mg-acme`
-   - `mg-acme-platform`
-   - `mg-acme-landingzones`
-   - `mg-acme-online`
-   - `mg-acme-sandbox`
-3. decide whether to create the persistent subscriptions now
-   - `sub-acme-platform`
-   - `sub-acme-nonprod-online`
-   - `sub-acme-prod-online`
-4. scaffold `infra/azure`
-   - hub modules
-   - workload modules
-   - shared naming and tag modules
-5. add the GitHub/Azure bootstrap script
-   - environment identities
-   - repo variables
-   - environment variables
-6. deploy the persistent platform network foundation
-   - shared private DNS
-   - hub network resource group
-7. deploy `dev` first
-   - Azure Container Apps
-   - shared non-production ACR
-   - spoke VNet and subnets
-   - Key Vault private endpoint
-   - Redis private endpoint
-   - monitoring
-8. add teardown for non-production workload stacks only
+The next slice should prove repeatability before adding edge complexity:
 
-That gives us a real landing-zone-aligned implementation without waiting on Front Door.
+1. deploy `qa` through the same stack-backed script path
+2. verify Okta `qa` callback and logout URLs against the deployed `qa` ACA URL
+3. wire notification receivers into the non-production action group
+4. decide how to invoke promotion beyond `dev`
+5. deploy `stg` only after `qa` is boring and repeatable
 
-### Phase 2
+### Edge And Production Slice
 
-- deploy the shared hub edge and base monitoring
-- deploy `dev` first
-- validate OIDC, public ACA ingress, private endpoints, Redis, and Key Vault
+- add Front Door Premium and WAF after the public ACA path is stable in
+  non-production
+- move toward private-origin ACA ingress after Front Door is ready
+- deploy `prod` with tighter approvals, alert routing, and production-specific
+  operational checks
+- keep production teardown explicit and warning-gated
 
-### Phase 3
-
-- add `qa`
-- add `stg`
-- keep them on the non-production Front Door and non-production Redis
-
-### Phase 4
-
-- add `prod`
-- use separate Front Door profile
-- use separate Redis
-- tighten approvals and deployment protections
-
-### Phase 5
+### Sandbox Slice
 
 - add ADE for ephemeral preview/sandbox environments
 - add Sentinel only if the cost/benefit is justified
@@ -756,15 +740,17 @@ The repo now has the first implementation scaffold:
 
 Next implementation steps:
 
-1. run `npm run azure:budget`
-2. run `npm run azure:show-governance`
-3. run `npm run azure:deploy:platform-network`
-4. run `npm run azure:show-plan`
-5. run `npm run azure:bootstrap`
-6. use the current stack-backed deploy and teardown scripts for `dev`
-7. use the stack-backed workflow path for `qa` and `stg`
+1. keep budget, governance, platform-network, and GitHub/Azure environment
+   bootstrap commands rerunnable as the baseline
+2. deploy `qa` with the current stack-backed web deployment path
+3. verify `qa` health, Okta redirect/logout behavior, Redis session continuity,
+   and workbook/alert creation
+4. wire action-group receivers for non-production alerts
+5. decide the promotion trigger model beyond automatic `dev`
+6. deploy `stg` after `qa` is repeatable
+7. deploy `prod` only after alert routing, approvals, and smoke checks are
+   explicit
 8. keep the `prod` teardown path explicit and warning-gated
-9. add `qa`, `stg`, and then `prod`
 
 Current implementation note:
 

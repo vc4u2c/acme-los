@@ -19,21 +19,28 @@ import {
 type LoggingDemoResponse = {
   acceptedAt: string;
   correlationId: string;
-  event: string;
-  events: string[];
+  emittedEvents: string[];
+  eventName: string;
+  incomingTraceparent: string;
   parentSpanId: string;
+  route: string;
+  serverSpanId: string;
   serverTraceparent: string;
-  spanId: string;
   traceId: string;
-  traceparent: string;
+  traceFlags: string;
 };
 
-async function postLoggingDemoEvent(
-  payload: Record<string, unknown>,
+const loggingDemoRoute = '/logging-demo';
+
+async function postObservabilityEvent(
+  payload: {
+    eventName: string;
+    route: string;
+  } & Record<string, unknown>,
   traceHeaders: Record<string, string>,
 ): Promise<LoggingDemoResponse> {
   const csrfToken = await createWebApiClient().security.getCsrfToken();
-  const response = await fetch('/api/logging-demo', {
+  const response = await fetch('/api/observability/events', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -45,28 +52,79 @@ async function postLoggingDemoEvent(
 
   if (!response.ok) {
     throw new Error(
-      `Logging demo request failed with status ${response.status}`,
+      `Observability event request failed with status ${response.status}`,
     );
   }
 
   return (await response.json()) as LoggingDemoResponse;
 }
 
-function formatResult(result: LoggingDemoResponse | null): string {
+function IdentifierRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}): React.ReactElement {
+  return (
+    <div className="grid gap-1">
+      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+        {label}
+      </span>
+      <code className="break-all rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 font-mono text-xs leading-5 text-[var(--foreground)]">
+        {value}
+      </code>
+    </div>
+  );
+}
+
+function TraceResultPanel({
+  result,
+  emptyLabel = 'No event emitted yet',
+}: {
+  result: LoggingDemoResponse | null;
+  emptyLabel?: string;
+}): React.ReactElement {
   if (!result) {
-    return 'No event emitted yet';
+    return (
+      <p className="font-mono text-sm leading-7 text-[var(--foreground)]">
+        {emptyLabel}
+      </p>
+    );
   }
 
-  const eventSummary = result.events.length
-    ? result.events.join(' -> ')
-    : result.event;
-
-  return `${eventSummary} | ${result.traceId.slice(0, 8)}:${result.spanId.slice(
-    0,
-    8,
-  )} | ${result.correlationId.slice(0, 8)} | ${new Date(
-    result.acceptedAt,
-  ).toLocaleTimeString()}`;
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+          Emitted events
+        </p>
+        <p className="mt-1 break-words font-mono text-xs leading-5 text-[var(--foreground)]">
+          {result.emittedEvents.join(' -> ')}
+        </p>
+      </div>
+      <IdentifierRow label="Correlation ID" value={result.correlationId} />
+      <IdentifierRow label="Trace ID" value={result.traceId} />
+      <IdentifierRow label="Browser span ID" value={result.parentSpanId} />
+      <IdentifierRow label="Server span ID" value={result.serverSpanId} />
+      <IdentifierRow
+        label="Incoming traceparent"
+        value={result.incomingTraceparent}
+      />
+      <IdentifierRow
+        label="Server traceparent"
+        value={result.serverTraceparent}
+      />
+      <div className="grid gap-1">
+        <span className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+          Accepted at
+        </span>
+        <span className="font-mono text-xs text-[var(--foreground)]">
+          {result.acceptedAt}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 export function LoggingDemoClient(): React.ReactElement {
@@ -88,10 +146,11 @@ export function LoggingDemoClient(): React.ReactElement {
     setPendingAction('trace');
 
     try {
-      const logScope = createBrowserLogScope({ route: '/logging-demo' });
+      const logScope = createBrowserLogScope({ route: loggingDemoRoute });
       const clientTelemetry = collectBrowserTelemetry();
       const payload = {
-        action: 'traced-client-to-server',
+        eventName: 'logging.demo.client.received',
+        route: loggingDemoRoute,
         clientTelemetry,
       };
 
@@ -99,12 +158,14 @@ export function LoggingDemoClient(): React.ReactElement {
         'logging.demo.client.browser',
         'Collected logging demo browser telemetry before calling the server.',
         {
-          action: payload.action,
+          eventName: payload.eventName,
           clientTelemetry,
         },
       );
 
-      setLastTraceResult(await postLoggingDemoEvent(payload, logScope.headers));
+      setLastTraceResult(
+        await postObservabilityEvent(payload, logScope.headers),
+      );
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -121,11 +182,12 @@ export function LoggingDemoClient(): React.ReactElement {
     setPendingAction('server');
 
     try {
-      const logScope = createBrowserLogScope({ route: '/logging-demo' });
+      const logScope = createBrowserLogScope({ route: loggingDemoRoute });
       setLastServerResult(
-        await postLoggingDemoEvent(
+        await postObservabilityEvent(
           {
-            action: 'server-event',
+            eventName: 'logging.demo.server.manual',
+            route: loggingDemoRoute,
           },
           logScope.headers,
         ),
@@ -134,7 +196,7 @@ export function LoggingDemoClient(): React.ReactElement {
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : 'Unable to emit server log event.',
+          : 'Unable to emit API-handled event.',
       );
     } finally {
       setPendingAction(null);
@@ -146,7 +208,7 @@ export function LoggingDemoClient(): React.ReactElement {
     setPendingAction('client-error');
 
     try {
-      const logScope = createBrowserLogScope({ route: '/logging-demo' });
+      const logScope = createBrowserLogScope({ route: loggingDemoRoute });
       const clientTelemetry = collectBrowserTelemetry();
 
       try {
@@ -158,16 +220,17 @@ export function LoggingDemoClient(): React.ReactElement {
           'logging.demo.client.error.browser',
           'Captured controlled client-side logging demo error before relaying it.',
           {
-            action: 'client-error',
+            eventName: 'logging.demo.client.error.received',
             clientError,
             clientTelemetry,
           },
         );
 
         setLastClientErrorResult(
-          await postLoggingDemoEvent(
+          await postObservabilityEvent(
             {
-              action: 'client-error',
+              eventName: 'logging.demo.client.error.received',
+              route: loggingDemoRoute,
               clientError,
               clientTelemetry,
             },
@@ -191,12 +254,13 @@ export function LoggingDemoClient(): React.ReactElement {
     setPendingAction('server-error');
 
     try {
-      const logScope = createBrowserLogScope({ route: '/logging-demo' });
+      const logScope = createBrowserLogScope({ route: loggingDemoRoute });
 
       setLastServerErrorResult(
-        await postLoggingDemoEvent(
+        await postObservabilityEvent(
           {
-            action: 'server-error',
+            eventName: 'logging.demo.server.error',
+            route: loggingDemoRoute,
           },
           logScope.headers,
         ),
@@ -233,12 +297,9 @@ export function LoggingDemoClient(): React.ReactElement {
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand)]">
               Last traced flow
             </p>
-            <p
-              data-testid="logging-demo-client-result"
-              className="mt-3 break-words font-mono text-sm leading-7 text-[var(--foreground)]"
-            >
-              {formatResult(lastTraceResult)}
-            </p>
+            <div data-testid="logging-demo-client-result" className="mt-3">
+              <TraceResultPanel result={lastTraceResult} />
+            </div>
           </div>
           <Button
             type="button"
@@ -258,28 +319,25 @@ export function LoggingDemoClient(): React.ReactElement {
       <Card className="rounded-[1.9rem] border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground)] shadow-lg shadow-[color:var(--shadow-soft)]">
         <CardHeader>
           <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
-            Server log
+            API event
           </p>
           <CardTitle className="font-display text-3xl text-[var(--foreground)]">
-            Server-only event
+            API-handled event
           </CardTitle>
           <CardDescription className="text-base leading-7 text-[var(--muted-foreground)]">
-            This writes a standalone server-side event from the Next.js runtime
-            to stdout and the OpenTelemetry logs API with fresh trace and
-            correlation headers.
+            This asks the generic observability endpoint to validate a bounded
+            event and write it through the shared server logger with fresh trace
+            and correlation headers.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface)] p-5">
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand)]">
-              Last server event
+              Last API event
             </p>
-            <p
-              data-testid="logging-demo-server-result"
-              className="mt-3 break-words font-mono text-sm leading-7 text-[var(--foreground)]"
-            >
-              {formatResult(lastServerResult)}
-            </p>
+            <div data-testid="logging-demo-server-result" className="mt-3">
+              <TraceResultPanel result={lastServerResult} />
+            </div>
           </div>
           <Button
             type="button"
@@ -291,8 +349,8 @@ export function LoggingDemoClient(): React.ReactElement {
             className="rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-6 text-[var(--foreground)] hover:bg-[var(--surface-accent)]"
           >
             {pendingAction === 'server'
-              ? 'Writing server event'
-              : 'Emit server-only log'}
+              ? 'Writing API event'
+              : 'Emit API event'}
           </Button>
         </CardContent>
       </Card>
@@ -315,12 +373,12 @@ export function LoggingDemoClient(): React.ReactElement {
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand)]">
               Last client error
             </p>
-            <p
+            <div
               data-testid="logging-demo-client-error-result"
-              className="mt-3 break-words font-mono text-sm leading-7 text-[var(--foreground)]"
+              className="mt-3"
             >
-              {formatResult(lastClientErrorResult)}
-            </p>
+              <TraceResultPanel result={lastClientErrorResult} />
+            </div>
           </div>
           <Button
             type="button"
@@ -356,12 +414,12 @@ export function LoggingDemoClient(): React.ReactElement {
             <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand)]">
               Last server error
             </p>
-            <p
+            <div
               data-testid="logging-demo-server-error-result"
-              className="mt-3 break-words font-mono text-sm leading-7 text-[var(--foreground)]"
+              className="mt-3"
             >
-              {formatResult(lastServerErrorResult)}
-            </p>
+              <TraceResultPanel result={lastServerErrorResult} />
+            </div>
           </div>
           <Button
             type="button"

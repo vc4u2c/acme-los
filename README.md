@@ -62,6 +62,14 @@ If you need hosted sign-in, guarded `/apply/*` routes, or the customer dashboard
 
 ## Docs Map
 
+The docs are split by job:
+
+- use the getting-started docs to run the repo
+- use the architecture docs to understand the current implementation
+- use the operations docs to deploy, verify, pause, resume, or tear down Azure
+  environments
+- use the reference docs for stable standards and tooling details
+
 Start with the docs index:
 
 - [docs/README.md](./docs/README.md)
@@ -102,6 +110,12 @@ without getting buried in details too early:
 4. [Current platform architecture](./docs/architecture/current-platform.md)
 5. [Server-side auth flows](./docs/architecture/auth-server-flows.md)
 6. [Next web server/client boundaries](./docs/architecture/web-server-client-boundaries.md)
+
+If your goal is operations rather than development, jump next to:
+
+1. [Release and delivery](./docs/operations/release-and-delivery.md)
+2. [Azure bootstrap and teardown](./docs/operations/azure-bootstrap-and-teardown.md)
+3. [Azure and website demo runbook](./docs/operations/azure-and-website-demo-runbook.md)
 
 ## Auth Diagrams
 
@@ -153,6 +167,8 @@ Scanning the recent commit history, the repo has moved through these main phases
 - added server-enforced idle session expiry with a client warning modal
 - proved the `dev` web runtime on Azure Container Apps with Redis, Key Vault,
   private endpoints, and Azure-native monitoring
+- added trace-context logging demos that connect browser-origin events, server
+  logs, container output, and Application Insights queries
 - cleaned release/deploy behavior, Expo compatibility, and repo automation
 
 ## Workspace Layout
@@ -169,6 +185,7 @@ acme-los/
     getting-started/
     operations/
   infra/
+    azure/
     okta/
   libs/
     api/

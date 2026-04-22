@@ -98,6 +98,8 @@ Talking points:
 
 In `rg-acme-hub-monitor-cus-01`, show:
 
+- Log Analytics workspace `log-acme-los-dev-cus-01`
+- Application Insights resource `appi-acme-los-dev-cus-01`
 - workbook `wbk-acme-los-ops-dev-cus-01`
 - action group `ag-acme-los-ops-dev-cus-01`
 - alert rules:
@@ -124,8 +126,6 @@ Show the workload resources:
 - `vnet-acme-los-web-dev-cus-01`
 - `kvacmelosdevcus01v42c`
 - `redis-acme-los-dev-cus-01`
-- `log-acme-los-dev-cus-01`
-- `appi-acme-los-dev-cus-01`
 - `id-acme-los-web-dev-cus-01`
 - `pep-acme-los-kv-dev-cus-01`
 - `pep-acme-los-redis-dev-cus-01`
@@ -326,20 +326,28 @@ Show:
 
 - the per-action `traceparent` behavior
 - the per-action `X-Correlation-ID` response/request header
+- the full correlation id and trace id shown after each action
 - `Run traced flow`
-- `Emit server-only log`
+- `Emit API event`
 - `Log client error`
 - `Log server error`
 
 Talking points:
 
-- server events are written by the Next.js runtime through the shared logger
+- server-side code writes normal `info`, `warn`, and `error` events directly
+  through the shared logger
+- browser-origin operational events use `POST /api/observability/events` only
+  when they need to be visible in Azure; product flows should send those events
+  as best-effort background calls so user work does not wait on telemetry
 - the traced flow first writes `logging.demo.client.browser` in the browser,
-  then posts allowlisted telemetry to the server with the W3C `traceparent`
-  header
+  then posts an allowlisted event to `POST /api/observability/events` with the
+  W3C `traceparent` header
 - the server writes `logging.demo.client.received` and
   `logging.demo.server.processed` into the container log stream for that same
   trace id
+- the standalone `Emit API event` action proves the generic endpoint can
+  validate a bounded event and write through the shared logger; it is not how
+  ordinary server-side logs are emitted
 - server logs keep the browser span as `parentSpanId`/`incomingTraceparent` and
   write the server span as `spanId`/`traceparent`, which is the shape future
   downstream .NET calls should continue through OpenTelemetry propagation
@@ -354,8 +362,8 @@ Talking points:
   environments remain easy to separate
 - logging emission is non-blocking; the app does not wait on a logging transport
   to keep serving the request
-- the trace id lets the audience follow the same demo event across App
-  Insights traces and raw Container Apps console logs
+- the full correlation id from the UI is the easiest value to paste into both
+  App Insights and Container Apps log queries for one button click
 
 ## Monitoring Demo
 
@@ -408,12 +416,41 @@ AppTraces
 ```
 
 ```kusto
+let targetCorrelationId = "paste-full-correlation-id-from-ui";
 AppTraces
 | where TimeGenerated > ago(30m)
-| where Message has "logging demo"
-   or tostring(Properties.event) startswith "logging.demo"
-| project TimeGenerated, SeverityLevel, Message, Properties
-| order by TimeGenerated desc
+| extend props = todynamic(Properties)
+| extend
+    event = tostring(props.event),
+    correlationId = tostring(props.correlationId),
+    traceId = tostring(props.traceId),
+    spanId = tostring(props.spanId),
+    parentSpanId = tostring(props.parentSpanId),
+    incomingTraceparent = tostring(props.incomingTraceparent),
+    traceparent = tostring(props.traceparent),
+    route = tostring(props.route),
+    environment = tostring(props.environment),
+    service = tostring(props.service),
+    version = tostring(props.version),
+    build = tostring(props.build)
+| where correlationId == targetCorrelationId
+| project
+    TimeGenerated,
+    SeverityLevel,
+    Message,
+    event,
+    correlationId,
+    traceId,
+    spanId,
+    parentSpanId,
+    incomingTraceparent,
+    traceparent,
+    route,
+    environment,
+    service,
+    version,
+    build
+| order by TimeGenerated asc
 ```
 
 ### Log Analytics
@@ -422,32 +459,116 @@ Best things to show:
 
 - ACA console warnings/errors
 - ACA platform/system events
-- logging demo traced browser-to-server and server-only events
+- logging demo traced browser-to-server and API-handled events
 
 Example queries:
 
 ```kusto
-ContainerAppConsoleLogs
+let containerAppName = "ca-acme-los-web-dev-cus-01";
+let ConsoleLogs =
+    union isfuzzy=true ContainerAppConsoleLogs, ContainerAppConsoleLogs_CL
+    | extend
+        ContainerApp = iff(
+            isnotempty(tostring(column_ifexists("ContainerAppName", ""))),
+            tostring(column_ifexists("ContainerAppName", "")),
+            tostring(column_ifexists("ContainerAppName_s", ""))
+        ),
+        RevisionName = iff(
+            isnotempty(tostring(column_ifexists("RevisionName", ""))),
+            tostring(column_ifexists("RevisionName", "")),
+            tostring(column_ifexists("RevisionName_s", ""))
+        ),
+        LogMessage = iff(
+            isnotempty(tostring(column_ifexists("Log", ""))),
+            tostring(column_ifexists("Log", "")),
+            tostring(column_ifexists("Log_s", ""))
+        );
+ConsoleLogs
 | where TimeGenerated > ago(30m)
-| where ContainerAppName == "ca-acme-los-web-dev-cus-01"
-| where Log_s has_any ("error", "warn", "fail")
-| project TimeGenerated, RevisionName_s, Log_s
+| where ContainerApp =~ containerAppName
+| where LogMessage has_any ("error", "warn", "fail")
+| project TimeGenerated, RevisionName, LogMessage
 | order by TimeGenerated desc
 ```
 
 ```kusto
-ContainerAppConsoleLogs
+let targetCorrelationId = "paste-full-correlation-id-from-ui";
+let containerAppName = "ca-acme-los-web-dev-cus-01";
+let ConsoleLogs =
+    union isfuzzy=true ContainerAppConsoleLogs, ContainerAppConsoleLogs_CL
+    | extend
+        ContainerApp = iff(
+            isnotempty(tostring(column_ifexists("ContainerAppName", ""))),
+            tostring(column_ifexists("ContainerAppName", "")),
+            tostring(column_ifexists("ContainerAppName_s", ""))
+        ),
+        RevisionName = iff(
+            isnotempty(tostring(column_ifexists("RevisionName", ""))),
+            tostring(column_ifexists("RevisionName", "")),
+            tostring(column_ifexists("RevisionName_s", ""))
+        ),
+        LogMessage = iff(
+            isnotempty(tostring(column_ifexists("Log", ""))),
+            tostring(column_ifexists("Log", "")),
+            tostring(column_ifexists("Log_s", ""))
+        );
+ConsoleLogs
 | where TimeGenerated > ago(30m)
-| where ContainerAppName == "ca-acme-los-web-dev-cus-01"
-| where Log_s has "logging.demo"
-| project TimeGenerated, RevisionName_s, Log_s
-| order by TimeGenerated desc
+| where ContainerApp =~ containerAppName
+| extend payload = parse_json(LogMessage)
+| extend
+    level = tostring(payload.level),
+    message = tostring(payload.message),
+    event = tostring(payload.event),
+    correlationId = tostring(payload.correlationId),
+    traceId = tostring(payload.traceId),
+    spanId = tostring(payload.spanId),
+    parentSpanId = tostring(payload.parentSpanId),
+    incomingTraceparent = tostring(payload.incomingTraceparent),
+    traceparent = tostring(payload.traceparent),
+    route = tostring(payload.route),
+    environment = tostring(payload.environment),
+    service = tostring(payload.service),
+    version = tostring(payload.version),
+    build = tostring(payload.build)
+| where correlationId == targetCorrelationId
+| project
+    TimeGenerated,
+    RevisionName,
+    level,
+    message,
+    event,
+    correlationId,
+    traceId,
+    spanId,
+    parentSpanId,
+    incomingTraceparent,
+    traceparent,
+    route,
+    environment,
+    service,
+    version,
+    build
+| order by TimeGenerated asc
 ```
 
 ```kusto
-ContainerAppSystemLogs
+let SystemLogs =
+    union isfuzzy=true ContainerAppSystemLogs, ContainerAppSystemLogs_CL
+    | extend
+        Reason = iff(
+            isnotempty(tostring(column_ifexists("Reason", ""))),
+            tostring(column_ifexists("Reason", "")),
+            tostring(column_ifexists("Reason_s", ""))
+        ),
+        LogMessage = iff(
+            isnotempty(tostring(column_ifexists("Log", ""))),
+            tostring(column_ifexists("Log", "")),
+            tostring(column_ifexists("Log_s", ""))
+        );
+SystemLogs
 | where TimeGenerated > ago(30m)
-| project TimeGenerated, Reason_s, Log_s
+| project TimeGenerated, Reason, LogMessage
 | order by TimeGenerated desc
 ```
 
@@ -481,8 +602,8 @@ What to show in the website:
 - do not spend time on generated ACA infrastructure internals
 - keep the story on platform boundaries, runtime behavior, and operations
 - if asked about NSGs:
-  - not needed yet for this current public ACA `dev` path
-  - more important when we move to `Front Door` and a private ACA origin
+  - they are already used to make the app-subnet and data-subnet boundary explicit
+  - they do not replace the later Front Door, WAF, and private-origin hardening
 - if asked whether replicas are directly reachable:
   - no, traffic goes through ACA ingress/load balancing
 

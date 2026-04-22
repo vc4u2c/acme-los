@@ -17,10 +17,10 @@ import { z } from 'zod';
 export const runtime = 'nodejs';
 
 const logger = createConsoleLogger();
-const loggingDemoRoute = '/logging-demo';
+const observabilityEventsRoute = '/api/observability/events';
 
-const loggingDemoRateLimitPolicy = {
-  namespace: 'logging-demo',
+const observabilityEventsRateLimitPolicy = {
+  namespace: 'observability-events',
   limit: 20,
   windowSeconds: 60,
 } as const;
@@ -63,73 +63,75 @@ const clientErrorSchema = z.object({
   message: boundedText(512),
 });
 
-const tracedClientToServerRequestSchema = z.object({
-  action: z.literal('traced-client-to-server'),
+const browserTelemetryEventSchema = z.object({
+  eventName: z.literal('logging.demo.client.received'),
+  route: boundedText(256),
   clientTelemetry: clientTelemetrySchema,
 });
 
-const serverEventRequestSchema = z.object({
-  action: z.literal('server-event'),
+const serverManualEventSchema = z.object({
+  eventName: z.literal('logging.demo.server.manual'),
+  route: boundedText(256),
 });
 
-const clientErrorRequestSchema = z.object({
-  action: z.literal('client-error'),
+const clientErrorEventSchema = z.object({
+  eventName: z.literal('logging.demo.client.error.received'),
+  route: boundedText(256),
   clientTelemetry: clientTelemetrySchema,
   clientError: clientErrorSchema,
 });
 
-const serverErrorRequestSchema = z.object({
-  action: z.literal('server-error'),
+const serverErrorEventSchema = z.object({
+  eventName: z.literal('logging.demo.server.error'),
+  route: boundedText(256),
 });
 
-const loggingDemoRequestSchema = z.discriminatedUnion('action', [
-  tracedClientToServerRequestSchema,
-  serverEventRequestSchema,
-  clientErrorRequestSchema,
-  serverErrorRequestSchema,
+const observabilityEventRequestSchema = z.discriminatedUnion('eventName', [
+  browserTelemetryEventSchema,
+  serverManualEventSchema,
+  clientErrorEventSchema,
+  serverErrorEventSchema,
 ]);
 
-type LoggingDemoResponse = {
+type ObservabilityEventResponse = {
   acceptedAt: string;
   correlationId: string;
-  event: string;
-  events: string[];
+  emittedEvents: string[];
+  eventName: string;
+  incomingTraceparent: string;
   parentSpanId: string;
+  route: string;
+  serverSpanId: string;
   serverTraceparent: string;
-  spanId: string;
   traceId: string;
-  traceparent: string;
+  traceFlags: string;
 };
 
-function createLoggingDemoResponse({
+function createObservabilityEventResponse({
   acceptedAt,
   correlationId,
-  events,
+  emittedEvents,
+  eventName,
+  incomingTraceparent,
   parentSpanId,
+  route,
+  serverSpanId,
   serverTraceparent,
-  spanId,
+  traceFlags,
   traceId,
-  traceparent,
-}: {
-  acceptedAt: string;
-  correlationId: string;
-  events: string[];
-  parentSpanId: string;
-  serverTraceparent: string;
-  spanId: string;
-  traceId: string;
-  traceparent: string;
-}): LoggingDemoResponse {
+}: ObservabilityEventResponse): ObservabilityEventResponse {
   return {
     acceptedAt,
     correlationId,
-    event: events[events.length - 1] ?? 'logging.demo.unknown',
-    events,
+    emittedEvents,
+    eventName,
+    incomingTraceparent,
     parentSpanId,
+    route,
+    serverSpanId,
     serverTraceparent,
-    spanId,
+    traceFlags,
     traceId,
-    traceparent,
   };
 }
 
@@ -166,18 +168,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   let traceId: string | undefined;
 
   try {
-    const rateLimit = await checkRateLimit(request, loggingDemoRateLimitPolicy);
+    const rateLimit = await checkRateLimit(
+      request,
+      observabilityEventsRateLimitPolicy,
+    );
 
     if (!rateLimit.allowed) {
       const response = NextResponse.json(
-        { message: 'Too many logging demo events.' },
+        { message: 'Too many observability events.' },
         { status: 429 },
       );
 
       applyRateLimitHeaders(response, rateLimit);
-      logger.warn('Logging demo rate limit exceeded.', {
-        event: 'logging.demo.rate_limited',
-        route: loggingDemoRoute,
+      logger.warn('Observability events rate limit exceeded.', {
+        event: 'observability.events.rate_limited',
+        route: observabilityEventsRoute,
       });
 
       return response;
@@ -185,7 +190,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     assertValidCsrf(request);
 
-    const payload = loggingDemoRequestSchema.parse(await request.json());
+    const payload = observabilityEventRequestSchema.parse(await request.json());
     const traceContext = parseInboundTraceContext({
       correlationId: request.headers.get(correlationIdHeaderName),
       traceparent: request.headers.get(traceparentHeaderName),
@@ -202,10 +207,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     correlationId = traceContext.correlationId;
-    const spanId = createServerSpanId();
+    const serverSpanId = createServerSpanId();
     const serverTraceparent = createTraceparentHeader({
       traceId: traceContext.traceId,
-      spanId,
+      spanId: serverSpanId,
       traceFlags: traceContext.traceFlags,
     });
     traceId = traceContext.traceId;
@@ -217,22 +222,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       incomingTraceparent: traceContext.traceparent,
       traceparent: serverTraceparent,
       parentSpanId: traceContext.parentSpanId,
-      spanId,
-      route: loggingDemoRoute,
-      action: payload.action,
+      spanId: serverSpanId,
+      route: payload.route,
+      observabilityEndpoint: observabilityEventsRoute,
+      requestedEvent: payload.eventName,
     });
 
-    const events = {
-      'traced-client-to-server': [
+    let emittedEvents: string[];
+
+    if (payload.eventName === 'logging.demo.client.received') {
+      emittedEvents = [
         'logging.demo.client.received',
         'logging.demo.server.processed',
-      ],
-      'server-event': ['logging.demo.server.manual'],
-      'client-error': ['logging.demo.client.error.received'],
-      'server-error': ['logging.demo.server.error'],
-    }[payload.action];
+      ];
 
-    if (payload.action === 'traced-client-to-server') {
       traceLogger.event(
         'info',
         'logging.demo.client.received',
@@ -251,7 +254,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           acceptedAt,
         },
       );
-    } else if (payload.action === 'client-error') {
+    } else if (payload.eventName === 'logging.demo.client.error.received') {
+      emittedEvents = ['logging.demo.client.error.received'];
+
       traceLogger.event(
         'error',
         'logging.demo.client.error.received',
@@ -262,7 +267,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           clientTelemetry: payload.clientTelemetry,
         },
       );
-    } else if (payload.action === 'server-error') {
+    } else if (payload.eventName === 'logging.demo.server.error') {
+      emittedEvents = ['logging.demo.server.error'];
+
       try {
         throw new Error('Controlled logging demo server error.');
       } catch (error) {
@@ -277,10 +284,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         );
       }
     } else {
+      emittedEvents = ['logging.demo.server.manual'];
+
       traceLogger.event(
         'info',
         'logging.demo.server.manual',
-        'Emitted server-only logging demo event.',
+        'Emitted API-handled logging demo event.',
         {
           acceptedAt,
         },
@@ -288,17 +297,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const response = NextResponse.json(
-      createLoggingDemoResponse({
+      createObservabilityEventResponse({
         acceptedAt,
         correlationId,
-        events,
+        emittedEvents,
+        eventName: payload.eventName,
+        incomingTraceparent: traceContext.traceparent,
         parentSpanId: traceContext.parentSpanId,
+        route: payload.route,
+        serverSpanId,
         serverTraceparent,
-        spanId,
+        traceFlags: traceContext.traceFlags,
         traceId: traceContext.traceId,
-        traceparent: traceContext.traceparent,
       }),
       {
+        status: 202,
         headers: {
           'cache-control': 'no-store, max-age=0',
           [correlationIdHeaderName]: correlationId,
@@ -313,19 +326,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const message =
       error instanceof Error
         ? error.message
-        : 'Unable to write logging demo event.';
+        : 'Unable to write observability event.';
 
-    logger.error('Logging demo event failed.', {
-      event: 'logging.demo.failure',
+    logger.error('Observability event failed.', {
+      event: 'observability.events.failure',
       correlationId,
-      route: loggingDemoRoute,
+      route: observabilityEventsRoute,
       traceId,
       acceptedAt,
       error: message,
     });
 
     return NextResponse.json(
-      { message: 'Unable to write logging demo event.' },
+      { message: 'Unable to write observability event.' },
       { status: 400 },
     );
   }

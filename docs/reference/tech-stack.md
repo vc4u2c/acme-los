@@ -112,7 +112,10 @@ If you want the fastest path to running the repo, start at:
 ### Server State
 
 - `Redis`
-  - preferred durable path for local hardened flows and future deployment
+  - hardened local option
+  - default Azure deployment state path
+  - used for server-side auth, customer, and application-flow state in the
+    current web runtime
 - file-backed fallback
   - local convenience fallback under `.next/cache/acme-los-web-state`
 

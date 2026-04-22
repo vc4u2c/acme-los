@@ -60,6 +60,9 @@ Bad examples:
 Today:
 
 - GitHub Actions handles approvals, workflow triggers, and OIDC login
+- CD currently deploys `dev` automatically after successful main CI
+- higher-environment web wrappers exist, but promotion beyond `dev` still needs
+  an orchestrating workflow
 - `deploy-web-environment.ps1` builds the web image, pushes it to ACR, deploys
   the workload stacks, and updates the ACA revision
 - `teardown-web-environment.ps1` owns non-production teardown behavior

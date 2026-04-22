@@ -32,6 +32,14 @@ Current observed state:
 - `qa`, `stg`, and `prod` already have required reviewer protection
 - `dev` is open, which is appropriate for the first automation path
 
+Current deployment wiring:
+
+- main CI completion triggers CD into `dev`
+- `deploy-qa.yml`, `deploy-stg.yml`, and `deploy-prod.yml` exist as reusable
+  workflow wrappers
+- automatic or manually dispatched promotion beyond `dev` still needs an
+  orchestrating workflow before higher environments become a routine lane
+
 Recommended environment meaning:
 
 - `dev`
@@ -54,14 +62,15 @@ The current Azure-specific helper script is:
 
 - [tools/scripts/azure/setup-github-azure-environments.ps1](../../tools/scripts/azure/setup-github-azure-environments.ps1)
 
-The referenced `Nist.Nvd` repo provided useful inspiration for the overall pattern:
+Historical note:
 
-- `C:\Users\vc4u2\Documents\Source\Repos\Azure\Nist.Nvd\.scripts\setup.ps1`
-- `C:\Users\vc4u2\Documents\Source\Repos\Azure\Nist.Nvd\.github\workflows\iac.yml`
+- the earlier `Nist.Nvd` automation was used as pattern inspiration
+- ACME LOS now owns its own script and workflow contract in this repo
+- readers should not need that older local repo to operate ACME LOS
 
-## What We Learned From Nist.Nvd
+## Reusable Pattern From The Earlier Reference
 
-The `Nist.Nvd` setup script does a few useful things:
+The earlier setup pattern did a few useful things:
 
 - creates GitHub environments through the GitHub API
 - creates one workload identity per environment
@@ -276,7 +285,7 @@ And the script reads:
 
 - [infra/azure/config/platform.json](../../infra/azure/config/platform.json)
 
-The implementation is modeled on the `Nist.Nvd` script, but updated for this repo:
+The implementation keeps that pattern, but updates it for this repo:
 
 1. create or update GitHub environments:
    - `dev`
@@ -374,7 +383,7 @@ These should not share Azure deployment assumptions.
 
 ## Teardown Workflow Recommendation
 
-The repo should keep a manual teardown workflow for non-production only:
+The repo should keep a manual teardown workflow:
 
 - `teardown-web-environment.yml`
 
@@ -384,7 +393,7 @@ Recommended behavior:
 - environment confirmation input
 - use the repo teardown script now
 - keep `Deployment Stacks` as the current teardown authority for workload lifecycle
-- restrict to:
+- normal use should stay restricted to:
   - `dev`
   - `qa`
   - `stg`
@@ -399,8 +408,8 @@ Current implementation now includes:
 But `prod` teardown requires an explicit destructive confirmation input and
 should be treated as an emergency-only path.
 
-- target workload resource groups or workload stacks
-- do not delete subscriptions, management groups, or shared hub foundations
+Teardown should target workload resource groups or workload stacks. It should
+not delete subscriptions, management groups, or shared hub foundations.
 
 Do not automate production teardown.
 

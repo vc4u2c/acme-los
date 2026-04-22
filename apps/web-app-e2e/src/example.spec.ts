@@ -155,7 +155,7 @@ test('shows the web home, rendering demos, and showcase route', async ({
   ).toBeVisible();
   await expect(page.getByTestId('logging-demo-rendered-at')).toBeVisible();
   await expect(
-    page.getByRole('button', { name: /Emit server-only log/i }),
+    page.getByRole('button', { name: /Emit API event/i }),
   ).toBeVisible();
   await expect(
     page.getByRole('button', { name: /Run traced flow/i }),

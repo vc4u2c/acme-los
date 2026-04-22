@@ -118,7 +118,13 @@ log stream, the browser should send a small, allowlisted telemetry payload to a
 server endpoint. The server validates it and writes the final structured event
 through the shared logger.
 
-The `/logging-demo` route follows that pattern:
+Server-side `info`, `warn`, and `error` logs should not call this endpoint.
+Server code should use the shared logger directly. The HTTP endpoint exists for
+browser-origin events because the browser cannot write to ACA stdout or the
+server-side Application Insights exporter by itself.
+
+The `/logging-demo` route follows that pattern through the generic
+`POST /api/observability/events` endpoint:
 
 - server render emits `logging.demo.server.render`
 - traced flow emits a local browser console event as
@@ -126,10 +132,11 @@ The `/logging-demo` route follows that pattern:
 - every button action creates a fresh W3C `traceparent` header
 - every button action also sends a fresh `X-Correlation-ID` header for
   demo/business correlation; this is separate from distributed tracing
-- the browser posts allowlisted telemetry with that trace context to the server
+- the browser posts an allowlisted event name and bounded telemetry payload with
+  that trace context to the server
 - the server writes paired container log events:
   `logging.demo.client.received` and `logging.demo.server.processed`
-- standalone server action emits `logging.demo.server.manual`
+- standalone API-handled action emits `logging.demo.server.manual`
 - controlled error actions emit `logging.demo.client.error.received` and
   `logging.demo.server.error`
 - server logs include the extracted `traceId`, `parentSpanId`, `spanId`, and
@@ -139,6 +146,9 @@ The `/logging-demo` route follows that pattern:
   `environment`, `nodeEnv`, `version`, `build`, and `timestamp`
 - logger emission is fire-and-forget; request handling does not await a logging
   transport before continuing
+- the UI shows the full correlation id, trace id, incoming `traceparent`, server
+  `traceparent`, browser span id, and server span id so operators can paste the
+  exact values into Kusto
 
 Local browser logs and local Next.js server logs do not go to the deployed dev
 Application Insights resource unless a local process is deliberately configured
@@ -147,69 +157,128 @@ local so the `dev` signal stays clean.
 
 The implementation uses the shared `@acme-los/core/logger` trace logger on the
 server, the runtime-neutral `@acme-los/core/logger/trace-context` helpers for
-header names and W3C parsing, and a small browser trace logger helper under the
-web app. Keep future client-to-server telemetry flows on that shape: typed
-event name, W3C `traceparent`, optional `X-Correlation-ID` for business
-correlation, allowlisted payload, server validation, then structured server log
-emission. Do not invent a custom `X-TraceId` header unless a legacy integration
-specifically requires one.
+header names and W3C parsing, the generic `/api/observability/events` route,
+and a small browser trace logger helper under the web app. Keep future
+client-to-server telemetry flows on that shape: typed event name, W3C
+`traceparent`, optional `X-Correlation-ID` for business correlation,
+allowlisted payload, server validation, then structured server log emission. Do
+not invent a custom `X-TraceId` header unless a legacy integration specifically
+requires one.
+
+For product browser events, call the endpoint as a best-effort background
+operation so user workflows do not wait on telemetry delivery. Normal
+server-side `info`, `warn`, and `error` logs skip the endpoint and use the
+shared logger directly. The demo awaits the endpoint response only because it
+needs to display the full correlation and trace identifiers for the operator.
 
 Do not use this path for arbitrary client blobs, cookies, bearer tokens, form
 values, or customer PII.
 
 ### Trace And Correlation Queries
 
-Use the correlation id when you want the business/demo story for one button
-click. Use the trace id when you want the distributed tracing story across the
-browser-origin event, server event, and future downstream services.
+Use the full correlation id from the logging demo UI when you want the
+business/demo story for one button click. Use the trace id when you want the
+distributed tracing story across the browser-origin event, server event, and
+future downstream services.
 
 Application Insights app traces by correlation id:
 
 ```kusto
-let correlationId = "paste-x-correlation-id-here";
+let targetCorrelationId = "paste-full-correlation-id-from-ui";
 AppTraces
 | where TimeGenerated > ago(2h)
-| where tostring(Properties.correlationId) == correlationId
+| extend props = todynamic(Properties)
+| extend
+    event = tostring(props.event),
+    correlationId = tostring(props.correlationId),
+    traceId = tostring(props.traceId),
+    spanId = tostring(props.spanId),
+    parentSpanId = tostring(props.parentSpanId),
+    incomingTraceparent = tostring(props.incomingTraceparent),
+    traceparent = tostring(props.traceparent),
+    route = tostring(props.route),
+    environment = tostring(props.environment),
+    service = tostring(props.service),
+    version = tostring(props.version),
+    build = tostring(props.build)
+| where correlationId == targetCorrelationId
 | project
     TimeGenerated,
     SeverityLevel,
     Message,
-    event = tostring(Properties.event),
-    traceId = tostring(Properties.traceId),
-    spanId = tostring(Properties.spanId),
-    parentSpanId = tostring(Properties.parentSpanId),
-    environment = tostring(Properties.environment),
-    service = tostring(Properties.service),
-    version = tostring(Properties.version),
-    build = tostring(Properties.build)
+    event,
+    correlationId,
+    traceId,
+    spanId,
+    parentSpanId,
+    incomingTraceparent,
+    traceparent,
+    route,
+    environment,
+    service,
+    version,
+    build
 | order by TimeGenerated asc
 ```
 
-ACA container logs by trace id:
+ACA container logs by correlation id:
 
 ```kusto
-let traceId = "paste-trace-id-here";
-ContainerAppConsoleLogs
+let targetCorrelationId = "paste-full-correlation-id-from-ui";
+let containerAppName = "ca-acme-los-web-dev-cus-01";
+let ConsoleLogs =
+    union isfuzzy=true ContainerAppConsoleLogs, ContainerAppConsoleLogs_CL
+    | extend
+        ContainerApp = iff(
+            isnotempty(tostring(column_ifexists("ContainerAppName", ""))),
+            tostring(column_ifexists("ContainerAppName", "")),
+            tostring(column_ifexists("ContainerAppName_s", ""))
+        ),
+        RevisionName = iff(
+            isnotempty(tostring(column_ifexists("RevisionName", ""))),
+            tostring(column_ifexists("RevisionName", "")),
+            tostring(column_ifexists("RevisionName_s", ""))
+        ),
+        LogMessage = iff(
+            isnotempty(tostring(column_ifexists("Log", ""))),
+            tostring(column_ifexists("Log", "")),
+            tostring(column_ifexists("Log_s", ""))
+        );
+ConsoleLogs
 | where TimeGenerated > ago(2h)
-| where ContainerAppName == "ca-acme-los-web-dev-cus-01"
-| where Log_s has traceId
-| extend payload = parse_json(Log_s)
-| where tostring(payload.traceId) == traceId
-| project
-    TimeGenerated,
-    RevisionName_s,
-    level = tostring(payload.level),
-    message = tostring(payload.message),
+| where ContainerApp =~ containerAppName
+| extend payload = parse_json(LogMessage)
+| extend
     event = tostring(payload.event),
     correlationId = tostring(payload.correlationId),
+    traceId = tostring(payload.traceId),
     spanId = tostring(payload.spanId),
     parentSpanId = tostring(payload.parentSpanId),
     incomingTraceparent = tostring(payload.incomingTraceparent),
     traceparent = tostring(payload.traceparent),
+    route = tostring(payload.route),
     environment = tostring(payload.environment),
     service = tostring(payload.service),
     version = tostring(payload.version),
     build = tostring(payload.build)
+| where correlationId == targetCorrelationId
+| project
+    TimeGenerated,
+    RevisionName,
+    level = tostring(payload.level),
+    message = tostring(payload.message),
+    event,
+    correlationId,
+    traceId,
+    spanId,
+    parentSpanId,
+    incomingTraceparent,
+    traceparent,
+    route,
+    environment,
+    service,
+    version,
+    build
 | order by TimeGenerated asc
 ```
 
@@ -265,6 +334,10 @@ Current workbook query sources:
 - ACA workspace tables:
   - `ContainerAppConsoleLogs` / `ContainerAppConsoleLogs_CL`
   - `ContainerAppSystemLogs` / `ContainerAppSystemLogs_CL`
+
+Some workspaces expose the Container Apps tables with the `_CL` suffix and do
+not resolve the non-suffixed table name. Use `union isfuzzy=true` in ad hoc
+queries when a runbook query should work across both table shapes.
 
 The workbook is environment-scoped today. Later, when `qa`, `stg`, and `prod`
 are active, we can decide whether to keep per-environment workbooks only or add
