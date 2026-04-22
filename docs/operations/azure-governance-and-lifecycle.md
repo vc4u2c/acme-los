@@ -74,7 +74,7 @@ Current target state:
 
 ## Identity Model
 
-Use two identity families:
+Use three identity families:
 
 1. human access groups in Entra ID
 2. machine deployment identities for GitHub Actions
@@ -120,6 +120,7 @@ Runtime identity recommendation for the web workload:
 - use it for:
   - Key Vault secret references
   - `AcrPull`
+  - Redis Entra token acquisition
 - keep runtime managed identities separate from GitHub deployment identities
 
 ## RBAC Matrix

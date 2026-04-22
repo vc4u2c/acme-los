@@ -93,12 +93,10 @@ export default function LoggingDemoPage() {
               </div>
               <div className="rounded-[1.4rem] border border-[var(--border)] bg-[var(--surface)] p-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--brand)]">
-                  Server events
+                  API endpoint
                 </p>
                 <p className="mt-2 font-mono text-sm text-[var(--foreground)]">
-                  logging.demo.client.received
-                  <br />
-                  logging.demo.server.processed
+                  POST /api/observability/events
                 </p>
               </div>
             </CardContent>

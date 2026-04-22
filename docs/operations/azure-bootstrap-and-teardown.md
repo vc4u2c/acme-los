@@ -156,10 +156,12 @@ an explicit tag:
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -ImageTag aca-fix-20260407-telemetry
 ```
 
-Optional state-store override:
+Azure deploys use the Redis-backed state path by default. Use the file-backed
+override only for targeted debugging when you are not validating multi-replica
+session behavior:
 
 ```powershell
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -StateStoreMode redis
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -StateStoreMode file
 ```
 
 ## Pause And Resume A Non-Production Workload

@@ -10,7 +10,9 @@ It is intentionally split into two layers:
 - `bicep`
   - Azure infrastructure entrypoints and reusable modules
 
-This is the first scaffolding slice, not the finished platform.
+This is the live Azure implementation surface for the repo, not a portal-only
+notes file. The platform is still growing, but `dev` is a proven ACA workload
+path now.
 
 Current proven state:
 
@@ -38,6 +40,13 @@ What is here now:
   - subscription-scope workload resource-group scaffold
 - `bicep/main.web.rg.bicep`
   - first web workload resource-group entrypoint
+- `bicep/main.web.runtime.rg.bicep`
+  - container app runtime revision entrypoint
+- `bicep/main.web.monitoring.rg.bicep`
+  - platform-owned Log Analytics, Application Insights, workbook, action group,
+    and alert entrypoint
+- `bicep/main.images.sub.bicep` and `bicep/main.images.rg.bicep`
+  - shared ACR and image-resource-group entrypoints by subscription role
 - `bicep/*.bicepparam`
   - environment-specific parameter files for `dev`, `qa`, `stg`, and `prod`
 - `bicep/modules/*`
@@ -51,6 +60,13 @@ What is intentionally not here yet:
 - Sentinel
 
 Those come later, after the base workload path is proven.
+
+Current best next steps:
+
+1. keep `dev` aligned through main CI/CD
+2. prove `qa` with the same stack-backed deployment path
+3. wire notification receivers into the action groups
+4. add Front Door and WAF after non-production deployments are repeatable
 
 Generated Bicep build artifacts under `infra/azure/bicep/*.json` are local
 validation output and should not be committed.
@@ -157,10 +173,12 @@ reusing an existing tag, pass `-ImageTag` explicitly:
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -ImageTag aca-fix-20260407-telemetry
 ```
 
-Optional deploy override:
+Azure deploys use the Redis-backed state path by default. Use the file-backed
+override only for targeted debugging when you are not validating multi-replica
+session behavior:
 
 ```powershell
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -StateStoreMode redis
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -StateStoreMode file
 ```
 
 ## Cost-Conscious Default

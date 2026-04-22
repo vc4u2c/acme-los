@@ -6,10 +6,12 @@ This repo uses Nx Release plus GitHub Actions for CI/CD.
 
 - `.github/workflows/ci.yml`
   - runs on pull requests to `main` and pushes to `main`
-  - validates tags, lint, tests, build artifacts, and app releases
+  - validates project tags, lint, and tests
+  - on `main` pushes, also performs app release work and creates the deployable
+    artifact
 - `.github/workflows/cd.yml`
   - runs after successful CI on `main`
-  - promotes the built artifact through `dev`, `qa`, `stg`, and `prod`
+  - currently deploys `dev` automatically
 - `.github/workflows/deploy-web-environment.yml`
   - reusable web deployment workflow called by the environment wrappers
 - `.github/workflows/deploy-mobile.yml`
@@ -18,9 +20,10 @@ This repo uses Nx Release plus GitHub Actions for CI/CD.
 - `.github/workflows/deploy-qa.yml`
 - `.github/workflows/deploy-stg.yml`
 - `.github/workflows/deploy-prod.yml`
-  - environment-specific wrappers for the reusable web deployment workflow
+  - reusable environment wrappers for the higher-environment promotion path
 - `.github/workflows/teardown-web-environment.yml`
-  - manual non-production teardown workflow
+  - manual teardown workflow for non-production, with explicit destructive
+    confirmation required for `prod`
 
 Related docs:
 
@@ -82,8 +85,16 @@ Current reality is split by workload:
 - CI validates lint and tests
 - CI builds deployable artifacts and metadata
 - CI performs app releases on `main`
-- web deployment workflows authenticate to Azure and call the repo deploy script
+- CD deploys `dev` after successful main CI
+- web deployment wrappers authenticate to Azure and call the repo deploy script
 - mobile deployment stays separate from Azure web deployment
+
+Current promotion status:
+
+- `dev` is the automated post-main deployment
+- `qa`, `stg`, and `prod` wrappers exist as reusable workflows
+- chained or manually dispatched promotion beyond `dev` still needs to be wired
+  before those environments should be treated as a routine promotion lane
 
 Important nuance:
 
@@ -93,8 +104,8 @@ Important nuance:
   checked-out source ref through
   [deploy-web-environment.ps1](../../tools/scripts/azure/deploy-web-environment.ps1)
 
-So the current model is not yet “promote one prebuilt image unchanged through
-every environment.” It is:
+So the current model is not yet "promote one prebuilt image unchanged through
+every environment." It is:
 
 - validate once
 - deploy through the same repo-owned script path

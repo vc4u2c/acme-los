@@ -2,6 +2,19 @@
 
 This repo keeps the root [README.md](../README.md) short and uses smaller docs for deeper topics.
 
+## How To Use These Docs
+
+The docs are organized around reader intent:
+
+- start with `getting-started` when you need to run or verify the repo
+- use `architecture` for current implementation boundaries
+- use `operations` for Azure, release, promotion, and environment lifecycle
+- use `reference` for stable standards and toolchain details
+
+The architecture pages describe what exists today. The Azure platform plan is
+part current-state snapshot and part target-state strategy; it calls that out
+explicitly so readers do not mistake future phases for deployed behavior.
+
 ## Suggested Read Order
 
 If you are onboarding or coming back after a break, this is the shortest good
@@ -44,6 +57,9 @@ Current Azure cost-control flow for non-production workloads:
 - `npm run azure:show-state -- -EnvironmentName dev`
 - `npm run azure:pause:web -- -EnvironmentName dev`
 - `npm run azure:resume:web -- -EnvironmentName dev`
+
+Use [Azure bootstrap and teardown](./operations/azure-bootstrap-and-teardown.md)
+for the full deploy, smoke-check, pause, resume, and teardown command path.
 
 ## Reference
 
