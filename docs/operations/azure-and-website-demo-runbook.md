@@ -265,7 +265,70 @@ Talking points:
 - session is opaque and server-side
 - `dev` uses a short 120 second idle window so the inactivity warning modal can be tested quickly
 
-### 4. Show The Security Demo Page
+### 4. Validate Funding Step-Up MFA
+
+Open:
+
+- `/apply/funding`
+
+What to prove:
+
+- unauthenticated access redirects to
+  `/account/sign-in?returnTo=%2Fapply%2Ffunding&aal=aal2`
+- the funding sign-in start asks Okta for fresh MFA with `acr_values`,
+  `prompt=login`, and `max_age=0`
+- an existing `aal2` session is not enough by itself; the server session must
+  also have the 10-minute funding step-up marker written by the latest Okta
+  callback
+- after the Okta challenge completes, the funding page and funding step APIs are
+  allowed for that fresh funding window
+
+Quick unauthenticated checks:
+
+```powershell
+$baseUrl = "https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io"
+
+$fundingRoute = Invoke-WebRequest `
+  -UseBasicParsing `
+  -Uri "$baseUrl/apply/funding" `
+  -MaximumRedirection 0 `
+  -TimeoutSec 120
+
+$fundingRoute.StatusCode
+$fundingRoute.Headers.Location
+
+$authStart = Invoke-WebRequest `
+  -UseBasicParsing `
+  -Uri "$baseUrl/api/auth/start?returnTo=%2Fapply%2Ffunding" `
+  -MaximumRedirection 0 `
+  -TimeoutSec 120
+
+$authorizeUrl = [uri][string]$authStart.Headers.Location
+$decodedAuthorizeQuery = [System.Net.WebUtility]::UrlDecode($authorizeUrl.Query)
+
+$authorizeUrl.Host
+$decodedAuthorizeQuery -match "acr_values=urn:okta:loa:2fa:any"
+$decodedAuthorizeQuery -match "prompt=login"
+$decodedAuthorizeQuery -match "max_age=0"
+```
+
+Expected result:
+
+- route status is `307`
+- route location includes `returnTo=%2Fapply%2Ffunding` and `aal=aal2`
+- authorize host is `auth.avanai.net`
+- all three Okta query checks return `True`
+
+The final proof still needs an interactive browser session with a real dev Okta
+user:
+
+1. sign in normally
+2. open `/apply/funding`
+3. complete the fresh Okta prompt/MFA challenge
+4. confirm the funding page loads and funding save/submit calls no longer return
+   the step-up error during the 10-minute marker window
+
+### 5. Show The Security Demo Page
 
 Open:
 
@@ -285,7 +348,7 @@ Talking points:
 - some values can be session-backed even if they are not present in the raw JWT
 - this helps explain the `leadId` / `customerId` distinction when needed
 
-### 5. Show Health And Replica Distribution
+### 6. Show Health And Replica Distribution
 
 Open the health endpoint repeatedly:
 
@@ -305,7 +368,7 @@ Talking points:
 - the public app URL routes to different healthy replicas
 - the `instanceId` proves that multiple ACA instances are serving traffic
 
-### 6. Tie The Website Back To Redis
+### 7. Tie The Website Back To Redis
 
 Explain this while signed in:
 
@@ -316,7 +379,7 @@ Explain this while signed in:
 That is the cleanest way to demonstrate Redis sessions without turning the demo
 into a low-level cache inspection exercise.
 
-### 7. Show Client And Server Logging
+### 8. Show Client And Server Logging
 
 Open:
 
@@ -808,5 +871,7 @@ NODE
   - `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io/api/health`
 - security demo:
   - `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io/security`
+- funding MFA validation:
+  - `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io/apply/funding`
 - logging demo:
   - `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io/logging-demo`
