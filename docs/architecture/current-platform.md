@@ -73,8 +73,9 @@ What is still bridge-state rather than final:
 - adaptive sign-in can step up to 2FA on high-risk access
 - funding route access always starts a fresh application-owned step-up check:
   the Okta authorize request carries `acr_values`, `prompt=login`, and
-  `max_age=0`, and the server session must contain a 10-minute funding step-up
-  marker before funding data or final authorization routes are served
+  `max_age=0`; each funding page entry consumes the latest funding step-up
+  marker, while funding save/submit APIs can use that marker during the bounded
+  10-minute funding API window created by the latest Okta callback
 
 ## Current API Boundary
 

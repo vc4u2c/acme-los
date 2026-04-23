@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
+  showcaseGridProductOptions,
   queryShowcaseGridRows,
+  showcaseGridRegionOptions,
   showcaseGridSortableColumnIds,
   showcaseGridStatusOptions,
   type ShowcaseGridSorting,
@@ -10,10 +12,19 @@ import {
 export const runtime = 'nodejs';
 
 const gridQuerySchema = z.object({
+  borrower: z.string().trim().max(80).default(''),
   deletedIds: z.string().trim().max(768).default(''),
+  excludedIds: z.string().trim().max(768).default(''),
   filter: z.string().trim().max(80).default(''),
+  industry: z.string().trim().max(80).default(''),
   pageIndex: z.coerce.number().int().min(0).max(100).default(0),
   pageSize: z.coerce.number().int().min(5).max(25).default(8),
+  product: z
+    .union([z.literal(''), z.enum(showcaseGridProductOptions)])
+    .default(''),
+  region: z
+    .union([z.literal(''), z.enum(showcaseGridRegionOptions)])
+    .default(''),
   sortDesc: z.enum(['true', 'false']).default('false'),
   sortId: z.enum(showcaseGridSortableColumnIds).optional(),
   status: z
@@ -21,7 +32,7 @@ const gridQuerySchema = z.object({
     .default('all'),
 });
 
-function parseDeletedIds(value: string): string[] {
+function parseGridRowIds(value: string): string[] {
   return value
     .split(',')
     .map((item) => item.trim())
@@ -53,8 +64,15 @@ export function GET(request: NextRequest): NextResponse {
 
   return NextResponse.json(
     queryShowcaseGridRows({
-      deletedRowIds: parseDeletedIds(query.deletedIds),
+      deletedRowIds: parseGridRowIds(query.deletedIds),
+      excludedRowIds: parseGridRowIds(query.excludedIds),
       globalFilter: query.filter,
+      columnFilters: {
+        ...(query.borrower ? { borrower: query.borrower } : {}),
+        ...(query.industry ? { industry: query.industry } : {}),
+        ...(query.product ? { product: query.product } : {}),
+        ...(query.region ? { region: query.region } : {}),
+      },
       pageIndex: query.pageIndex,
       pageSize: query.pageSize,
       sorting,

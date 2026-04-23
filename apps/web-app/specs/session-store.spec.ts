@@ -1,5 +1,6 @@
 import {
   clearReplacedWebAuthSession,
+  consumeStoredWebAuthStepUp,
   createStoredWebAuthSession,
   getStoredWebAuthSessionCookieMaxAge,
   isStoredWebAuthStepUpFresh,
@@ -423,6 +424,53 @@ describe('web auth session store idle expiry', () => {
         maxAgeSeconds: 60,
       }),
     ).toBe(false);
+  });
+
+  it('consumes funding page step-up while preserving the API step-up window', async () => {
+    const currentEpochSeconds = Math.floor(Date.now() / 1000);
+    const routeRequirement = {
+      reason: 'funding' as const,
+      maxAgeSeconds: 60,
+      consumeOnSatisfied: true,
+    };
+    const apiRequirement = {
+      reason: 'funding' as const,
+      maxAgeSeconds: 60,
+    };
+
+    const storedSession = await createStoredWebAuthSession({
+      session: {
+        ...TEST_SESSION,
+        assuranceLevel: 'aal2',
+      },
+      tokens: {
+        idToken: 'fresh-funding-step-up-id-token',
+      },
+      expiresAt: currentEpochSeconds + 3600,
+      stepUp: routeRequirement,
+    });
+
+    expect(isStoredWebAuthStepUpFresh(storedSession, routeRequirement)).toBe(
+      true,
+    );
+
+    const consumedSession = await consumeStoredWebAuthStepUp(
+      storedSession,
+      routeRequirement,
+    );
+
+    expect(consumedSession.stepUp).toEqual({
+      reason: 'funding',
+      completedAt: currentEpochSeconds,
+      expiresAt: currentEpochSeconds + 60,
+      consumedAt: currentEpochSeconds,
+    });
+    expect(isStoredWebAuthStepUpFresh(consumedSession, routeRequirement)).toBe(
+      false,
+    );
+    expect(isStoredWebAuthStepUpFresh(consumedSession, apiRequirement)).toBe(
+      true,
+    );
   });
 
   it('extends idle expiry on an explicit touch without changing absolute expiry', async () => {

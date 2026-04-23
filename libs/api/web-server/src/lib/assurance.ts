@@ -11,6 +11,7 @@ export type WebAuthStepUpReason = 'funding';
 export type WebAuthStepUpRequirement = {
   reason: WebAuthStepUpReason;
   maxAgeSeconds: number;
+  consumeOnSatisfied?: boolean;
 };
 
 export const MOCK_AUTH_STORAGE_KEY = 'acme-los-auth-mock-session';

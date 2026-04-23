@@ -28,12 +28,14 @@ export type StoredWebAuthStepUpReason = 'funding';
 export type StoredWebAuthStepUpRequirement = {
   reason: StoredWebAuthStepUpReason;
   maxAgeSeconds: number;
+  consumeOnSatisfied?: boolean;
 };
 
 export type StoredWebAuthStepUp = {
   reason: StoredWebAuthStepUpReason;
   completedAt: number;
   expiresAt: number;
+  consumedAt?: number;
 };
 
 export type StoredWebAuthSession = {
@@ -227,7 +229,45 @@ export function isStoredWebAuthStepUpFresh(
     return false;
   }
 
-  return stepUp.expiresAt > getCurrentEpochSeconds();
+  if (stepUp.expiresAt <= getCurrentEpochSeconds()) {
+    return false;
+  }
+
+  if (
+    requirement.consumeOnSatisfied &&
+    typeof stepUp.consumedAt === 'number' &&
+    stepUp.consumedAt >= stepUp.completedAt
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+export async function consumeStoredWebAuthStepUp(
+  storedSession: StoredWebAuthSession,
+  requirement: StoredWebAuthStepUpRequirement,
+): Promise<StoredWebAuthSession> {
+  if (!requirement.consumeOnSatisfied) {
+    return storedSession;
+  }
+
+  const stepUp = storedSession.stepUp;
+  if (!stepUp || stepUp.reason !== requirement.reason) {
+    return storedSession;
+  }
+
+  const nextStoredSession: StoredWebAuthSession = {
+    ...storedSession,
+    stepUp: {
+      ...stepUp,
+      consumedAt: getCurrentEpochSeconds(),
+    },
+  };
+
+  await writeStoredWebAuthSession(nextStoredSession);
+
+  return nextStoredSession;
 }
 
 export async function touchStoredWebAuthSession(

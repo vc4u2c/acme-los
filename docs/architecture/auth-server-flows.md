@@ -73,9 +73,9 @@ idle expiry.
   asks Okta for a fresh login/assurance check, and rejects callbacks that return
   a token for a different subject
 - funding step-up is intentionally fresh: an existing `aal2` session is not
-  enough by itself, because the funding route and funding APIs require the
-  current server session to contain a 10-minute funding step-up marker written
-  by the latest Okta callback
+  enough by itself, because each funding page entry consumes the latest funding
+  step-up marker; funding save/submit APIs can still use that marker during the
+  bounded 10-minute funding API window written by the latest Okta callback
 
 Current defaults:
 
@@ -177,7 +177,7 @@ flowchart TD
   F -- No --> G[Redirect to step-up sign-in]
   F -- Yes --> H{Fresh route step-up required?}
   H -- No --> E
-  H -- Yes --> I{Fresh funding marker present?}
+  H -- Yes --> I{Fresh unconsumed funding marker present?}
   I -- No --> G
   I -- Yes --> E
 ```

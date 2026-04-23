@@ -32,12 +32,24 @@ export const showcaseGridRegionOptions = [
 
 export const showcaseGridRiskGradeOptions = ['A', 'B', 'C', 'D'] as const;
 
+export const showcaseGridColumnFilterIds = [
+  'borrower',
+  'industry',
+  'product',
+  'region',
+] as const;
+
 export type ShowcaseGridProduct = (typeof showcaseGridProductOptions)[number];
 export type ShowcaseGridStatus = (typeof showcaseGridStatusOptions)[number];
 export type ShowcaseGridOfficer = (typeof showcaseGridOfficerOptions)[number];
 export type ShowcaseGridRegion = (typeof showcaseGridRegionOptions)[number];
 export type ShowcaseGridRiskGrade =
   (typeof showcaseGridRiskGradeOptions)[number];
+export type ShowcaseGridColumnFilterId =
+  (typeof showcaseGridColumnFilterIds)[number];
+export type ShowcaseGridColumnFilters = Partial<
+  Record<ShowcaseGridColumnFilterId, string>
+>;
 
 export type ShowcaseGridRow = {
   id: string;
@@ -67,7 +79,9 @@ export type ShowcaseGridSorting = {
 };
 
 export type ShowcaseGridQuery = {
+  columnFilters?: ShowcaseGridColumnFilters;
   deletedRowIds?: string[];
+  excludedRowIds?: string[];
   globalFilter?: string;
   pageIndex: number;
   pageSize: number;
@@ -82,7 +96,9 @@ export type ShowcaseGridQueryResponse = {
   rowCount: number;
   rows: ShowcaseGridRow[];
   serverQuery: {
+    columnFilters: ShowcaseGridColumnFilters;
     deletedRowIds: string[];
+    excludedRowIds: string[];
     globalFilter: string;
     sorting: ShowcaseGridSorting[];
     statusFilter: ShowcaseGridStatus | 'all';
@@ -143,18 +159,26 @@ export const showcaseGridRows =
   showcaseLendingPipelineRows as ShowcaseGridRow[];
 
 export function queryShowcaseGridRows({
+  columnFilters = {},
   deletedRowIds = [],
+  excludedRowIds = [],
   globalFilter = '',
   pageIndex,
   pageSize,
   sorting = [],
   statusFilter = 'all',
 }: ShowcaseGridQuery): ShowcaseGridQueryResponse {
-  const deletedRowIdSet = new Set(deletedRowIds);
+  const excludedRowIdSet = new Set([...deletedRowIds, ...excludedRowIds]);
   const normalizedFilter = globalFilter.trim().toLowerCase();
+  const normalizedColumnFilters = {
+    borrower: columnFilters.borrower?.trim().toLowerCase() ?? '',
+    industry: columnFilters.industry?.trim().toLowerCase() ?? '',
+    product: columnFilters.product?.trim().toLowerCase() ?? '',
+    region: columnFilters.region?.trim().toLowerCase() ?? '',
+  };
   const [primarySort] = sorting;
 
-  let rows = showcaseGridRows.filter((row) => !deletedRowIdSet.has(row.id));
+  let rows = showcaseGridRows.filter((row) => !excludedRowIdSet.has(row.id));
 
   if (statusFilter !== 'all') {
     rows = rows.filter((row) => row.status === statusFilter);
@@ -178,6 +202,30 @@ export function queryShowcaseGridRows({
 
       return searchable.includes(normalizedFilter);
     });
+  }
+
+  if (normalizedColumnFilters.borrower) {
+    rows = rows.filter((row) =>
+      row.borrower.toLowerCase().includes(normalizedColumnFilters.borrower),
+    );
+  }
+
+  if (normalizedColumnFilters.industry) {
+    rows = rows.filter(
+      (row) => row.industry.toLowerCase() === normalizedColumnFilters.industry,
+    );
+  }
+
+  if (normalizedColumnFilters.product) {
+    rows = rows.filter(
+      (row) => row.product.toLowerCase() === normalizedColumnFilters.product,
+    );
+  }
+
+  if (normalizedColumnFilters.region) {
+    rows = rows.filter(
+      (row) => row.region.toLowerCase() === normalizedColumnFilters.region,
+    );
   }
 
   if (primarySort && isSortableColumnId(primarySort.id)) {
@@ -216,7 +264,9 @@ export function queryShowcaseGridRows({
     rowCount,
     rows: rows.slice(start, start + pageSize),
     serverQuery: {
+      columnFilters,
       deletedRowIds,
+      excludedRowIds,
       globalFilter,
       sorting,
       statusFilter,

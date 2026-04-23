@@ -9,11 +9,10 @@ import {
   flexRender,
   getCoreRowModel,
   getExpandedRowModel,
-  getFilteredRowModel,
   type PaginationState,
   type RowSelectionState,
   type SortingState,
-  getSortedRowModel,
+  type VisibilityState,
   type Table,
   useReactTable,
 } from '@tanstack/react-table';
@@ -24,9 +23,14 @@ import {
   ChevronsLeft,
   ChevronsRight,
   ChevronUp,
+  EyeOff,
+  Filter as FilterIcon,
+  Pencil,
   RotateCcw,
+  Save,
   Send,
   Trash2,
+  X,
 } from 'lucide-react';
 import {
   Button,
@@ -44,6 +48,7 @@ import {
   showcaseGridOfficerOptions,
   showcaseGridProductOptions,
   showcaseGridRegionOptions,
+  type ShowcaseGridColumnFilters,
   type ShowcaseGridQueryResponse,
   type ShowcaseGridRow,
   showcaseGridRiskGradeOptions,
@@ -90,6 +95,174 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
   maximumFractionDigits: 0,
   style: 'currency',
 });
+const emptyServerColumnFilters: ShowcaseGridColumnFilters = {};
+const emptyServerExcludedRowIds: string[] = [];
+
+type EditableGridState = {
+  deletedRowIds: string[];
+  draftRow: ShowcaseGridRow | null;
+  editedRowsById: Record<string, ShowcaseGridRow>;
+  editingRowId: string | null;
+  pendingSubmit: boolean;
+  submitError: string | null;
+  submitResult: ShowcaseGridSubmitResponse | null;
+};
+
+type EditableGridAction =
+  | { type: 'cancelEdit' }
+  | { type: 'deleteRows'; rowIds: string[] }
+  | { type: 'reset' }
+  | { type: 'saveDraft' }
+  | { type: 'startEdit'; row: ShowcaseGridRow }
+  | { type: 'submitError'; message: string }
+  | { type: 'submitStart' }
+  | { type: 'submitSuccess'; result: ShowcaseGridSubmitResponse }
+  | {
+      type: 'updateDraft';
+      changes: Partial<Pick<ShowcaseGridRow, EditableGridField>>;
+    };
+
+const initialEditableGridState: EditableGridState = {
+  deletedRowIds: [],
+  draftRow: null,
+  editedRowsById: {},
+  editingRowId: null,
+  pendingSubmit: false,
+  submitError: null,
+  submitResult: null,
+};
+
+function normalizeEditableGridRow(row: ShowcaseGridRow): ShowcaseGridRow {
+  return {
+    ...row,
+    amount: Math.round(clampNumber(row.amount, 25_000, 5_000_000)),
+    borrower: row.borrower.trim(),
+    ltv: Math.round(clampNumber(row.ltv, 0, 100)),
+    rate: Number(clampNumber(row.rate, 0, 30).toFixed(2)),
+  };
+}
+
+function isEditableGridDraftValid(
+  row: ShowcaseGridRow | null,
+): row is ShowcaseGridRow {
+  if (!row) {
+    return false;
+  }
+
+  return (
+    row.borrower.trim().length > 0 &&
+    Number.isFinite(row.amount) &&
+    row.amount >= 25_000 &&
+    row.amount <= 5_000_000 &&
+    Number.isFinite(row.ltv) &&
+    row.ltv >= 0 &&
+    row.ltv <= 100 &&
+    Number.isFinite(row.rate) &&
+    row.rate >= 0 &&
+    row.rate <= 30
+  );
+}
+
+function editableGridReducer(
+  state: EditableGridState,
+  action: EditableGridAction,
+): EditableGridState {
+  switch (action.type) {
+    case 'cancelEdit':
+      return {
+        ...state,
+        draftRow: null,
+        editingRowId: null,
+      };
+    case 'deleteRows': {
+      if (action.rowIds.length === 0) {
+        return state;
+      }
+
+      const rowIdSet = new Set(action.rowIds);
+      const editedRowsById = { ...state.editedRowsById };
+
+      for (const rowId of rowIdSet) {
+        delete editedRowsById[rowId];
+      }
+
+      return {
+        ...state,
+        deletedRowIds: Array.from(
+          new Set([...state.deletedRowIds, ...action.rowIds]),
+        ).slice(0, 50),
+        draftRow:
+          state.draftRow && rowIdSet.has(state.draftRow.id)
+            ? null
+            : state.draftRow,
+        editedRowsById,
+        editingRowId:
+          state.editingRowId && rowIdSet.has(state.editingRowId)
+            ? null
+            : state.editingRowId,
+      };
+    }
+    case 'reset':
+      return initialEditableGridState;
+    case 'saveDraft': {
+      if (!isEditableGridDraftValid(state.draftRow)) {
+        return state;
+      }
+
+      const draftRow = normalizeEditableGridRow(state.draftRow);
+
+      return {
+        ...state,
+        draftRow: null,
+        editedRowsById: {
+          ...state.editedRowsById,
+          [draftRow.id]: draftRow,
+        },
+        editingRowId: null,
+        submitError: null,
+        submitResult: null,
+      };
+    }
+    case 'startEdit':
+      return {
+        ...state,
+        draftRow: normalizeEditableGridRow(action.row),
+        editingRowId: action.row.id,
+        submitError: null,
+      };
+    case 'submitError':
+      return {
+        ...state,
+        pendingSubmit: false,
+        submitError: action.message,
+      };
+    case 'submitStart':
+      return {
+        ...state,
+        pendingSubmit: true,
+        submitError: null,
+      };
+    case 'submitSuccess':
+      return {
+        ...state,
+        pendingSubmit: false,
+        submitError: null,
+        submitResult: action.result,
+      };
+    case 'updateDraft':
+      return state.draftRow
+        ? {
+            ...state,
+            draftRow: {
+              ...state.draftRow,
+              ...action.changes,
+            },
+          }
+        : state;
+    default:
+      return state;
+  }
+}
 
 function useDebouncedValue<TValue>(value: TValue, delayMs: number): TValue {
   const [debouncedValue, setDebouncedValue] = React.useState(value);
@@ -125,136 +298,6 @@ function SortIndicator({
   return <span aria-hidden="true" className="h-3.5 w-3.5" />;
 }
 
-function TextEditCell({
-  ariaLabel,
-  onCommit,
-  value,
-}: {
-  ariaLabel: string;
-  onCommit: (value: string) => void;
-  value: string;
-}): React.ReactElement {
-  const [draftValue, setDraftValue] = React.useState(value);
-
-  React.useEffect(() => {
-    setDraftValue(value);
-  }, [value]);
-
-  function commitValue() {
-    const trimmedValue = draftValue.trim();
-
-    if (trimmedValue && trimmedValue !== value) {
-      onCommit(trimmedValue);
-    }
-  }
-
-  return (
-    <Input
-      aria-label={ariaLabel}
-      value={draftValue}
-      onBlur={commitValue}
-      onChange={(event) => setDraftValue(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') {
-          event.currentTarget.blur();
-        }
-      }}
-      className="h-9 min-w-[13rem] border-[var(--border)] bg-[var(--surface)]"
-    />
-  );
-}
-
-function NumberEditCell({
-  ariaLabel,
-  max,
-  min,
-  onCommit,
-  step,
-  value,
-}: {
-  ariaLabel: string;
-  max: number;
-  min: number;
-  onCommit: (value: number) => void;
-  step: number;
-  value: number;
-}): React.ReactElement {
-  const [draftValue, setDraftValue] = React.useState(String(value));
-
-  React.useEffect(() => {
-    setDraftValue(String(value));
-  }, [value]);
-
-  function commitValue() {
-    const parsedValue = Number(draftValue);
-
-    if (!Number.isFinite(parsedValue)) {
-      setDraftValue(String(value));
-      return;
-    }
-
-    const nextValue = clampNumber(parsedValue, min, max);
-    setDraftValue(String(nextValue));
-
-    if (nextValue !== value) {
-      onCommit(nextValue);
-    }
-  }
-
-  return (
-    <Input
-      aria-label={ariaLabel}
-      inputMode="decimal"
-      max={max}
-      min={min}
-      step={step}
-      type="number"
-      value={draftValue}
-      onBlur={commitValue}
-      onChange={(event) => setDraftValue(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') {
-          event.currentTarget.blur();
-        }
-      }}
-      className="h-9 min-w-[7.5rem] border-[var(--border)] bg-[var(--surface)]"
-    />
-  );
-}
-
-function GridSelectCell<TOption extends string>({
-  ariaLabel,
-  onValueChange,
-  options,
-  value,
-}: {
-  ariaLabel: string;
-  onValueChange: (value: TOption) => void;
-  options: readonly TOption[];
-  value: TOption;
-}): React.ReactElement {
-  return (
-    <Select
-      value={value}
-      onValueChange={(nextValue) => onValueChange(nextValue as TOption)}
-    >
-      <SelectTrigger
-        aria-label={ariaLabel}
-        className="h-9 min-w-[9.5rem] border-[var(--border)] bg-[var(--surface)]"
-      >
-        <SelectValue placeholder={value} />
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option} value={option}>
-            {option}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
-}
-
 function StatusPill({
   status,
 }: {
@@ -273,6 +316,39 @@ function StatusPill({
     >
       {status}
     </span>
+  );
+}
+
+function GridHeaderFilterButton({
+  active,
+  children,
+  isOpen,
+  label,
+  onClick,
+}: {
+  active?: boolean;
+  children: React.ReactNode;
+  isOpen: boolean;
+  label: string;
+  onClick: () => void;
+}): React.ReactElement {
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        aria-label={`Open ${label} filter`}
+        aria-expanded={isOpen}
+        onClick={onClick}
+        className={`inline-flex h-7 w-7 items-center justify-center rounded-md border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] ${
+          active || isOpen
+            ? 'border-[var(--brand)] bg-[var(--surface-spot)] text-[var(--brand)]'
+            : 'border-transparent text-[var(--muted-foreground)] hover:border-[var(--border)] hover:bg-[var(--surface)] hover:text-[var(--foreground)]'
+        }`}
+      >
+        <FilterIcon aria-hidden="true" className="h-3.5 w-3.5" />
+      </button>
+      {isOpen ? children : null}
+    </div>
   );
 }
 
@@ -311,37 +387,139 @@ function GridTableHeader<TData>({
     <thead>
       {table.getHeaderGroups().map((headerGroup) => (
         <tr key={headerGroup.id} className="border-b border-[var(--border)]">
-          {headerGroup.headers.map((header) => (
-            <th
-              key={header.id}
-              colSpan={header.colSpan}
-              className="bg-[var(--surface-strong)] px-3 py-3 align-bottom text-xs font-semibold uppercase text-[var(--muted-foreground)]"
-            >
-              {header.isPlaceholder ? null : header.column.getCanSort() ? (
-                <button
-                  type="button"
-                  onClick={header.column.getToggleSortingHandler()}
-                  className="flex w-full items-center gap-2 text-left"
-                >
-                  {flexRender(
-                    header.column.columnDef.header,
-                    header.getContext(),
-                  )}
-                  <SortIndicator direction={header.column.getIsSorted()} />
-                </button>
-              ) : (
-                <div className="flex w-full items-center gap-2 text-left">
-                  {flexRender(
-                    header.column.columnDef.header,
-                    header.getContext(),
-                  )}
-                </div>
-              )}
-            </th>
-          ))}
+          {headerGroup.headers.map((header, headerIndex) => {
+            const filterControl = (
+              header.column.columnDef.meta as
+                | { filterControl?: React.ReactNode }
+                | undefined
+            )?.filterControl;
+            const hasHeaderSeparator =
+              headerIndex < headerGroup.headers.length - 1;
+
+            return (
+              <th
+                key={header.id}
+                colSpan={header.colSpan}
+                className="relative bg-[var(--surface-strong)] px-3 py-3 align-bottom text-xs font-semibold uppercase text-[var(--muted-foreground)]"
+              >
+                {hasHeaderSeparator ? (
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute right-0 top-1/2 h-5 -translate-y-1/2 border-r-2 border-[var(--border-strong)] opacity-80"
+                  />
+                ) : null}
+                {header.isPlaceholder ? null : header.column.getCanSort() ? (
+                  <div className="flex w-full items-center justify-between gap-2 text-left">
+                    <button
+                      type="button"
+                      onClick={header.column.getToggleSortingHandler()}
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)]"
+                    >
+                      <span className="min-w-0 truncate">
+                        {flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
+                      </span>
+                      <SortIndicator direction={header.column.getIsSorted()} />
+                    </button>
+                    {filterControl}
+                  </div>
+                ) : (
+                  <div className="flex w-full items-center justify-between gap-2 text-left">
+                    <span className="min-w-0 truncate">
+                      {flexRender(
+                        header.column.columnDef.header,
+                        header.getContext(),
+                      )}
+                    </span>
+                    {filterControl}
+                  </div>
+                )}
+              </th>
+            );
+          })}
         </tr>
       ))}
     </thead>
+  );
+}
+
+function ServerPaginationControls({
+  isFetching,
+  pageCount,
+  pageIndex,
+  table,
+  visibleRowCount,
+}: {
+  isFetching: boolean;
+  pageCount: number;
+  pageIndex: number;
+  table: Table<ShowcaseGridRow>;
+  visibleRowCount: number;
+}): React.ReactElement {
+  return (
+    <div
+      data-testid="showcase-grid-pagination"
+      className="flex flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p className="text-sm text-[var(--muted-foreground)]">
+        Showing {visibleRowCount} visible rows from the server-side result set
+        {isFetching ? ' while the next page loads.' : '.'}
+      </p>
+      <div className="flex items-center gap-2">
+        <Button
+          aria-label="First page"
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!table.getCanPreviousPage()}
+          onClick={() => table.firstPage()}
+          className="h-9 w-9 rounded-md p-0"
+        >
+          <ChevronsLeft aria-hidden="true" className="h-4 w-4" />
+        </Button>
+        <Button
+          aria-label="Previous page"
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!table.getCanPreviousPage()}
+          onClick={() => table.previousPage()}
+          className="h-9 w-9 rounded-md p-0"
+        >
+          <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+        </Button>
+        <span
+          className="min-w-24 text-center font-mono text-sm text-[var(--foreground)]"
+          data-testid="showcase-grid-page-indicator"
+        >
+          {pageIndex + 1} / {Math.max(1, pageCount)}
+        </span>
+        <Button
+          aria-label="Next page"
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!table.getCanNextPage()}
+          onClick={() => table.nextPage()}
+          className="h-9 w-9 rounded-md p-0"
+        >
+          <ChevronRight aria-hidden="true" className="h-4 w-4" />
+        </Button>
+        <Button
+          aria-label="Last page"
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={!table.getCanNextPage()}
+          onClick={() => table.lastPage()}
+          className="h-9 w-9 rounded-md p-0"
+        >
+          <ChevronsRight aria-hidden="true" className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -364,15 +542,56 @@ function EmptyGridRow({
   );
 }
 
+function getServerColumnFilters(
+  columnFilters: ColumnFiltersState,
+): ShowcaseGridColumnFilters {
+  const serverFilters = columnFilters.reduce<ShowcaseGridColumnFilters>(
+    (serverFilters, filter) => {
+      if (typeof filter.value !== 'string') {
+        return serverFilters;
+      }
+
+      const value = filter.value.trim();
+
+      if (!value || value === 'all') {
+        return serverFilters;
+      }
+
+      if (
+        filter.id === 'borrower' ||
+        filter.id === 'industry' ||
+        filter.id === 'product' ||
+        filter.id === 'region'
+      ) {
+        return {
+          ...serverFilters,
+          [filter.id]: value,
+        };
+      }
+
+      return serverFilters;
+    },
+    {},
+  );
+
+  return Object.keys(serverFilters).length > 0
+    ? serverFilters
+    : emptyServerColumnFilters;
+}
+
 function buildGridUrl({
+  columnFilters,
   deletedRowIds,
+  excludedRowIds,
   filter,
   pageIndex,
   pageSize,
   sorting,
   status,
 }: {
+  columnFilters: ShowcaseGridColumnFilters;
   deletedRowIds: string[];
+  excludedRowIds: string[];
   filter: string;
   pageIndex: number;
   pageSize: number;
@@ -382,11 +601,18 @@ function buildGridUrl({
   const [primarySort] = sorting;
   const searchParams = new URLSearchParams({
     deletedIds: deletedRowIds.join(','),
+    excludedIds: excludedRowIds.join(','),
     filter,
     pageIndex: String(pageIndex),
     pageSize: String(pageSize),
     status,
   });
+
+  for (const [columnId, value] of Object.entries(columnFilters)) {
+    if (value) {
+      searchParams.set(columnId, value);
+    }
+  }
 
   if (primarySort) {
     searchParams.set('sortId', primarySort.id);
@@ -397,14 +623,18 @@ function buildGridUrl({
 }
 
 async function fetchGridRows({
+  columnFilters,
   deletedRowIds,
+  excludedRowIds,
   filter,
   pageIndex,
   pageSize,
   sorting,
   status,
 }: {
+  columnFilters: ShowcaseGridColumnFilters;
   deletedRowIds: string[];
+  excludedRowIds: string[];
   filter: string;
   pageIndex: number;
   pageSize: number;
@@ -413,7 +643,9 @@ async function fetchGridRows({
 }): Promise<ShowcaseGridQueryResponse> {
   const response = await fetch(
     buildGridUrl({
+      columnFilters,
       deletedRowIds,
+      excludedRowIds,
       filter,
       pageIndex,
       pageSize,
@@ -448,46 +680,46 @@ async function postShowcaseGridSubmission({
 }): Promise<ShowcaseGridSubmitResponse> {
   const logScope = createBrowserLogScope({ route: showcaseRoute });
   const csrfToken = await createWebApiClient().security.getCsrfToken();
+  const gridSubmission = {
+    deletedRowIds,
+    editedRows: editedRows.map((row) => ({
+      amount: row.amount,
+      borrower: row.borrower,
+      id: row.id,
+      ltv: row.ltv,
+      officer: row.officer,
+      product: row.product,
+      rate: row.rate,
+      region: row.region,
+      riskGrade: row.riskGrade,
+      status: row.status,
+    })),
+    submittedAt: new Date().toISOString(),
+    visibleQuery: {
+      filter,
+      pageIndex,
+      pageSize,
+      sorting: sorting.slice(0, 1).map((sort) => ({
+        desc: sort.desc,
+        id: sort.id,
+      })),
+      status,
+    },
+  };
 
   logScope.logger.info(
     'showcase.grid.submit.browser',
-    'Submitting bounded showcase grid edits.',
+    'Submitting bounded showcase grid edits from the browser.',
     {
-      deletedRowCount: deletedRowIds.length,
-      editedRowCount: editedRows.length,
       eventName: 'showcase.grid.submit',
+      gridSubmission,
     },
   );
 
   const response = await fetch('/api/observability/events', {
     body: JSON.stringify({
       eventName: 'showcase.grid.submit',
-      gridSubmission: {
-        deletedRowIds,
-        editedRows: editedRows.map((row) => ({
-          amount: row.amount,
-          borrower: row.borrower,
-          id: row.id,
-          ltv: row.ltv,
-          officer: row.officer,
-          product: row.product,
-          rate: row.rate,
-          region: row.region,
-          riskGrade: row.riskGrade,
-          status: row.status,
-        })),
-        submittedAt: new Date().toISOString(),
-        visibleQuery: {
-          filter,
-          pageIndex,
-          pageSize,
-          sorting: sorting.slice(0, 1).map((sort) => ({
-            desc: sort.desc,
-            id: sort.id,
-          })),
-          status,
-        },
-      },
+      gridSubmission,
       route: showcaseRoute,
     }),
     headers: {
@@ -506,14 +738,14 @@ async function postShowcaseGridSubmission({
 }
 
 function ReadOnlySortableGrid({
+  onSortingChange,
   rows,
+  sorting,
 }: {
+  onSortingChange: React.Dispatch<React.SetStateAction<SortingState>>;
   rows: ShowcaseGridRow[];
+  sorting: SortingState;
 }): React.ReactElement {
-  const [sorting, setSorting] = React.useState<SortingState>([
-    { desc: true, id: 'amount' },
-  ]);
-
   const columns = React.useMemo<ColumnDef<ShowcaseGridRow>[]>(
     () => [
       {
@@ -538,6 +770,7 @@ function ReadOnlySortableGrid({
           },
           {
             accessorKey: 'state',
+            enableSorting: false,
             header: 'State',
           },
         ],
@@ -551,6 +784,7 @@ function ReadOnlySortableGrid({
           },
           {
             accessorKey: 'status',
+            enableSorting: false,
             header: 'Status',
             cell: ({ row }) => <StatusPill status={row.original.status} />,
           },
@@ -593,6 +827,7 @@ function ReadOnlySortableGrid({
           },
           {
             accessorKey: 'riskGrade',
+            enableSorting: false,
             header: 'Risk',
           },
         ],
@@ -602,6 +837,7 @@ function ReadOnlySortableGrid({
         columns: [
           {
             accessorKey: 'officer',
+            enableSorting: false,
             header: 'Officer',
           },
           {
@@ -627,8 +863,8 @@ function ReadOnlySortableGrid({
     columns,
     data: rows,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onSortingChange: setSorting,
+    manualSorting: true,
+    onSortingChange,
     state: {
       sorting,
     },
@@ -638,7 +874,7 @@ function ReadOnlySortableGrid({
     <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[color:var(--surface)/0.92] shadow-xl shadow-[color:var(--shadow-soft)]">
       <div className="overflow-x-auto">
         <table
-          className="min-w-[112rem] border-collapse text-left"
+          className="w-full min-w-[94rem] border-collapse text-left"
           data-testid="showcase-grid-readonly-table"
         >
           <GridTableHeader table={table} />
@@ -675,9 +911,13 @@ function ReadOnlySortableGrid({
 }
 
 function CollapsibleGrid({
+  onSortingChange,
   rows,
+  sorting,
 }: {
+  onSortingChange: React.Dispatch<React.SetStateAction<SortingState>>;
   rows: ShowcaseGridRow[];
+  sorting: SortingState;
 }): React.ReactElement {
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
 
@@ -727,11 +967,13 @@ function CollapsibleGrid({
       },
       {
         accessorKey: 'status',
+        enableSorting: false,
         header: 'Status',
         cell: ({ row }) => <StatusPill status={row.original.status} />,
       },
       {
         accessorKey: 'collateral',
+        enableSorting: false,
         header: 'Collateral',
       },
       {
@@ -741,6 +983,7 @@ function CollapsibleGrid({
       },
       {
         accessorKey: 'nextMilestone',
+        enableSorting: false,
         header: 'Next milestone',
       },
     ],
@@ -753,9 +996,12 @@ function CollapsibleGrid({
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getRowCanExpand: () => true,
+    manualSorting: true,
     onExpandedChange: setExpanded,
+    onSortingChange,
     state: {
       expanded,
+      sorting,
     },
   });
 
@@ -763,7 +1009,7 @@ function CollapsibleGrid({
     <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[color:var(--surface)/0.92] shadow-xl shadow-[color:var(--shadow-soft)]">
       <div className="overflow-x-auto">
         <table
-          className="min-w-[84rem] border-collapse text-left"
+          className="w-full min-w-[72rem] border-collapse text-left"
           data-testid="showcase-grid-collapsible-table"
         >
           <GridTableHeader table={table} />
@@ -829,16 +1075,166 @@ function CollapsibleGrid({
 }
 
 function ColumnFilteringGrid({
+  columnFilters,
+  hiddenRows,
+  onColumnFiltersChange,
+  onHiddenRowsChange,
+  onSortingChange,
   rows,
+  sorting,
 }: {
+  columnFilters: ColumnFiltersState;
+  hiddenRows: ShowcaseGridRow[];
+  onColumnFiltersChange: React.Dispatch<
+    React.SetStateAction<ColumnFiltersState>
+  >;
+  onHiddenRowsChange: React.Dispatch<React.SetStateAction<ShowcaseGridRow[]>>;
+  onSortingChange: React.Dispatch<React.SetStateAction<SortingState>>;
   rows: ShowcaseGridRow[];
+  sorting: SortingState;
 }): React.ReactElement {
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    [],
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
+  const [openFilterColumn, setOpenFilterColumn] = React.useState<
+    'borrower' | 'industry' | 'product' | 'region' | null
+  >(null);
+  const hiddenRowIds = React.useMemo(
+    () => hiddenRows.map((row) => row.id),
+    [hiddenRows],
   );
-  const [sorting, setSorting] = React.useState<SortingState>([
-    { desc: false, id: 'borrower' },
-  ]);
+  const hasColumnFilter = React.useCallback(
+    (columnId: string) =>
+      columnFilters.some((filter) => filter.id === columnId),
+    [columnFilters],
+  );
+  const setColumnFilterValue = React.useCallback(
+    (columnId: string, value: unknown) => {
+      onColumnFiltersChange((current) => {
+        const nextFilters = current.filter((filter) => filter.id !== columnId);
+
+        if (
+          value === undefined ||
+          value === null ||
+          (typeof value === 'string' && value.trim().length === 0) ||
+          (Array.isArray(value) && value.length === 0)
+        ) {
+          return nextFilters;
+        }
+
+        return [...nextFilters, { id: columnId, value }];
+      });
+    },
+    [onColumnFiltersChange],
+  );
+  const hideRow = React.useCallback(
+    (row: ShowcaseGridRow) => {
+      onHiddenRowsChange((current) => [
+        row,
+        ...current.filter((hiddenRow) => hiddenRow.id !== row.id),
+      ]);
+    },
+    [onHiddenRowsChange],
+  );
+  const restoreHiddenRow = React.useCallback(
+    (rowId: string) => {
+      onHiddenRowsChange((current) =>
+        current.filter((row) => row.id !== rowId),
+      );
+    },
+    [onHiddenRowsChange],
+  );
+  const getColumnFilterValue = React.useCallback(
+    (columnId: string) =>
+      columnFilters.find((filter) => filter.id === columnId)?.value,
+    [columnFilters],
+  );
+  const borrowerFilter =
+    (getColumnFilterValue('borrower') as string | undefined) ?? '';
+  const productFilter =
+    (getColumnFilterValue('product') as string | undefined) ?? 'all';
+  const industryFilter =
+    (getColumnFilterValue('industry') as string | undefined) ?? 'all';
+  const regionFilter =
+    (getColumnFilterValue('region') as string | undefined) ?? 'all';
+  const industryOptions = React.useMemo(
+    () => Array.from(new Set(rows.map((row) => row.industry))).sort(),
+    [rows],
+  );
+  const visibleRows = React.useMemo(
+    () =>
+      hiddenRowIds.length > 0
+        ? rows.filter((row) => !hiddenRowIds.includes(row.id))
+        : rows,
+    [hiddenRowIds, rows],
+  );
+
+  const renderBorrowerFilterPopover = React.useCallback(
+    () => (
+      <div className="absolute left-0 top-full z-30 mt-2 w-72 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-3 shadow-xl shadow-[color:var(--shadow-soft)]">
+        <Input
+          autoFocus
+          value={borrowerFilter}
+          onChange={(event) =>
+            setColumnFilterValue('borrower', event.target.value)
+          }
+          placeholder="Filter borrowers"
+          className="border-[var(--border)] bg-[var(--surface)] normal-case"
+        />
+      </div>
+    ),
+    [borrowerFilter, setColumnFilterValue],
+  );
+
+  const renderOptionFilterPopover = React.useCallback(
+    ({
+      allLabel,
+      columnId,
+      currentValue,
+      options,
+    }: {
+      allLabel: string;
+      columnId: 'industry' | 'product' | 'region';
+      currentValue: string;
+      options: readonly string[];
+    }) => (
+      <div className="absolute left-0 top-full z-30 mt-2 w-60 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 shadow-xl shadow-[color:var(--shadow-soft)]">
+        <button
+          type="button"
+          aria-label={`Clear ${columnId} filter`}
+          onClick={() => {
+            setColumnFilterValue(columnId, undefined);
+            setOpenFilterColumn(null);
+          }}
+          className={`block w-full rounded-md px-3 py-2 text-left text-sm normal-case ${
+            currentValue === 'all'
+              ? 'bg-[var(--surface-accent)] font-semibold text-[var(--foreground)]'
+              : 'text-[var(--foreground)] hover:bg-[var(--surface-accent)]'
+          }`}
+        >
+          {allLabel}
+        </button>
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            aria-label={`Filter ${columnId} by ${option}`}
+            onClick={() => {
+              setColumnFilterValue(columnId, option);
+              setOpenFilterColumn(null);
+            }}
+            className={`mt-1 block w-full rounded-md px-3 py-2 text-left text-sm normal-case ${
+              currentValue === option
+                ? 'bg-[var(--surface-accent)] font-semibold text-[var(--foreground)]'
+                : 'text-[var(--foreground)] hover:bg-[var(--surface-accent)]'
+            }`}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    ),
+    [setColumnFilterValue],
+  );
 
   const columns = React.useMemo<ColumnDef<ShowcaseGridRow>[]>(
     () => [
@@ -854,17 +1250,76 @@ function ColumnFilteringGrid({
       {
         accessorKey: 'borrower',
         header: 'Borrower',
+        meta: {
+          filterControl: (
+            <GridHeaderFilterButton
+              active={hasColumnFilter('borrower')}
+              isOpen={openFilterColumn === 'borrower'}
+              label="Borrower"
+              onClick={() =>
+                setOpenFilterColumn((current) =>
+                  current === 'borrower' ? null : 'borrower',
+                )
+              }
+            >
+              {renderBorrowerFilterPopover()}
+            </GridHeaderFilterButton>
+          ),
+        },
       },
       {
         accessorKey: 'industry',
         header: 'Industry',
+        meta: {
+          filterControl: (
+            <GridHeaderFilterButton
+              active={hasColumnFilter('industry')}
+              isOpen={openFilterColumn === 'industry'}
+              label="Industry"
+              onClick={() =>
+                setOpenFilterColumn((current) =>
+                  current === 'industry' ? null : 'industry',
+                )
+              }
+            >
+              {renderOptionFilterPopover({
+                allLabel: 'All industries',
+                columnId: 'industry',
+                currentValue: industryFilter,
+                options: industryOptions,
+              })}
+            </GridHeaderFilterButton>
+          ),
+        },
       },
       {
         accessorKey: 'product',
         header: 'Product',
+        meta: {
+          filterControl: (
+            <GridHeaderFilterButton
+              active={hasColumnFilter('product')}
+              isOpen={openFilterColumn === 'product'}
+              label="Product"
+              onClick={() =>
+                setOpenFilterColumn((current) =>
+                  current === 'product' ? null : 'product',
+                )
+              }
+            >
+              {renderOptionFilterPopover({
+                allLabel: 'All products',
+                columnId: 'product',
+                currentValue: productFilter,
+                options: showcaseGridProductOptions,
+              })}
+            </GridHeaderFilterButton>
+          ),
+        },
       },
       {
         accessorKey: 'status',
+        enableSorting: false,
         header: 'Status',
         cell: ({ row }) => <StatusPill status={row.original.status} />,
       },
@@ -875,13 +1330,36 @@ function ColumnFilteringGrid({
       {
         accessorKey: 'region',
         header: 'Region',
+        meta: {
+          filterControl: (
+            <GridHeaderFilterButton
+              active={hasColumnFilter('region')}
+              isOpen={openFilterColumn === 'region'}
+              label="Region"
+              onClick={() =>
+                setOpenFilterColumn((current) =>
+                  current === 'region' ? null : 'region',
+                )
+              }
+            >
+              {renderOptionFilterPopover({
+                allLabel: 'All regions',
+                columnId: 'region',
+                currentValue: regionFilter,
+                options: showcaseGridRegionOptions,
+              })}
+            </GridHeaderFilterButton>
+          ),
+        },
       },
       {
         accessorKey: 'state',
+        enableSorting: false,
         header: 'State',
       },
       {
         accessorKey: 'riskGrade',
+        enableSorting: false,
         header: 'Risk',
       },
       {
@@ -894,166 +1372,201 @@ function ColumnFilteringGrid({
         header: 'DSCR',
         cell: ({ getValue }) => getValue<number>().toFixed(2),
       },
+      {
+        id: 'hide',
+        enableSorting: false,
+        header: 'Hide',
+        cell: ({ row }) => (
+          <Button
+            aria-label={`Hide ${row.original.id}`}
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => hideRow(row.original)}
+            className="h-8 w-8 rounded-md p-0"
+          >
+            <EyeOff aria-hidden="true" className="h-4 w-4" />
+          </Button>
+        ),
+      },
     ],
-    [],
-  );
-
-  const industryOptions = React.useMemo(
-    () => Array.from(new Set(rows.map((row) => row.industry))).sort(),
-    [rows],
+    [
+      borrowerFilter,
+      hasColumnFilter,
+      hideRow,
+      industryFilter,
+      industryOptions,
+      openFilterColumn,
+      productFilter,
+      regionFilter,
+      renderBorrowerFilterPopover,
+      renderOptionFilterPopover,
+    ],
   );
 
   const table = useReactTable({
     columns,
-    data: rows,
+    data: visibleRows,
     getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    onColumnFiltersChange: setColumnFilters,
-    onSortingChange: setSorting,
+    manualFiltering: true,
+    manualSorting: true,
+    onColumnFiltersChange,
+    onColumnVisibilityChange: setColumnVisibility,
+    onSortingChange,
     state: {
       columnFilters,
+      columnVisibility,
       sorting,
     },
   });
-
-  const borrowerFilter =
-    (table.getColumn('borrower')?.getFilterValue() as string | undefined) ?? '';
-  const productFilter =
-    (table.getColumn('product')?.getFilterValue() as string | undefined) ??
-    'all';
-  const industryFilter =
-    (table.getColumn('industry')?.getFilterValue() as string | undefined) ??
-    'all';
-  const regionFilter =
-    (table.getColumn('region')?.getFilterValue() as string | undefined) ??
-    'all';
+  const visibilityColumnIds = [
+    'borrower',
+    'industry',
+    'product',
+    'status',
+    'officer',
+    'region',
+    'state',
+    'riskGrade',
+    'amount',
+    'debtServiceCoverage',
+  ] as const;
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-3 md:grid-cols-[minmax(14rem,1fr)_13rem_13rem_13rem_auto]">
-        <label className="grid gap-1.5">
-          <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
-            Borrower column
-          </span>
-          <Input
-            value={borrowerFilter}
-            onChange={(event) =>
-              table.getColumn('borrower')?.setFilterValue(event.target.value)
-            }
-            placeholder="Filter borrowers"
-            className="border-[var(--border)] bg-[var(--surface)]"
-          />
-        </label>
-        <label className="grid gap-1.5">
-          <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
-            Industry column
-          </span>
-          <Select
-            value={industryFilter}
-            onValueChange={(nextIndustry) =>
-              table
-                .getColumn('industry')
-                ?.setFilterValue(
-                  nextIndustry === 'all' ? undefined : nextIndustry,
-                )
-            }
-          >
-            <SelectTrigger className="border-[var(--border)] bg-[var(--surface)]">
-              <SelectValue
-                placeholder={
-                  industryFilter === 'all' ? 'All industries' : industryFilter
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All industries</SelectItem>
-              {industryOptions.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
-        <label className="grid gap-1.5">
-          <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
-            Product column
-          </span>
-          <Select
-            value={productFilter}
-            onValueChange={(nextProduct) =>
-              table
-                .getColumn('product')
-                ?.setFilterValue(
-                  nextProduct === 'all' ? undefined : nextProduct,
-                )
-            }
-          >
-            <SelectTrigger className="border-[var(--border)] bg-[var(--surface)]">
-              <SelectValue
-                placeholder={
-                  productFilter === 'all' ? 'All products' : productFilter
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All products</SelectItem>
-              {showcaseGridProductOptions.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
-        <label className="grid gap-1.5">
-          <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
-            Region column
-          </span>
-          <Select
-            value={regionFilter}
-            onValueChange={(nextRegion) =>
-              table
-                .getColumn('region')
-                ?.setFilterValue(nextRegion === 'all' ? undefined : nextRegion)
-            }
-          >
-            <SelectTrigger className="border-[var(--border)] bg-[var(--surface)]">
-              <SelectValue
-                placeholder={
-                  regionFilter === 'all' ? 'All regions' : regionFilter
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All regions</SelectItem>
-              {showcaseGridRegionOptions.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </label>
-        <div className="flex items-end">
-          <Button
-            type="button"
-            variant="outline"
-            disabled={columnFilters.length === 0}
-            onClick={() => setColumnFilters([])}
-            className="w-full rounded-md"
-          >
-            <RotateCcw aria-hidden="true" className="h-4 w-4" />
-            Clear
-          </Button>
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div
+          data-testid="showcase-grid-filter-queue"
+          className="rounded-lg border border-[var(--border)] bg-[var(--surface-strong)] p-3"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+              Filter queue
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={columnFilters.length === 0 && hiddenRows.length === 0}
+              onClick={() => {
+                onColumnFiltersChange([]);
+                onHiddenRowsChange([]);
+                setOpenFilterColumn(null);
+              }}
+              className="h-8 rounded-md"
+            >
+              <RotateCcw aria-hidden="true" className="h-4 w-4" />
+              Clear
+            </Button>
+          </div>
+
+          <div className="mt-3 flex min-h-8 flex-wrap gap-2">
+            {columnFilters.map((filter) => (
+              <button
+                key={filter.id}
+                type="button"
+                onClick={() => setColumnFilterValue(filter.id, undefined)}
+                className="rounded-full border border-[var(--border)] bg-[var(--surface)] px-2.5 py-1 text-xs font-semibold text-[var(--foreground)] transition hover:border-[var(--brand)]"
+              >
+                {filter.id}: {String(filter.value)}
+              </button>
+            ))}
+            {columnFilters.length === 0 ? (
+              <span className="text-xs text-[var(--muted-foreground)]">
+                No column filters
+              </span>
+            ) : null}
+          </div>
+
+          <div className="mt-4 space-y-2">
+            <p className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+              Hidden rows
+            </p>
+            {hiddenRows.length > 0 ? (
+              hiddenRows.map((row) => (
+                <div
+                  key={row.id}
+                  className="flex items-center justify-between gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate font-mono text-xs font-semibold text-[var(--foreground)]">
+                      {row.id}
+                    </p>
+                    <p className="truncate text-xs text-[var(--muted-foreground)]">
+                      {row.borrower}
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Restore ${row.id}`}
+                    onClick={() => restoreHiddenRow(row.id)}
+                    className="h-8 w-8 shrink-0 rounded-md p-0"
+                  >
+                    <RotateCcw aria-hidden="true" className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <p className="text-xs text-[var(--muted-foreground)]">
+                No hidden rows
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div
+          data-testid="showcase-grid-column-visibility"
+          className="rounded-lg border border-[var(--border)] bg-[var(--surface-strong)] p-3"
+        >
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+              Columns
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setColumnVisibility({})}
+              className="h-8 rounded-md"
+            >
+              Reset
+            </Button>
+          </div>
+
+          <div className="mt-3 grid gap-2">
+            {visibilityColumnIds.map((columnId) => {
+              const column = table.getColumn(columnId);
+
+              if (!column) {
+                return null;
+              }
+
+              return (
+                <label
+                  key={columnId}
+                  className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] bg-[var(--surface)] px-2.5 py-2 text-xs font-semibold text-[var(--foreground)]"
+                >
+                  <span>{columnId}</span>
+                  <Checkbox
+                    aria-label={`Toggle ${columnId} column`}
+                    checked={column.getIsVisible()}
+                    onChange={(event) =>
+                      column.toggleVisibility(event.currentTarget.checked)
+                    }
+                  />
+                </label>
+              );
+            })}
+          </div>
         </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-[var(--border)] bg-[color:var(--surface)/0.92] shadow-xl shadow-[color:var(--shadow-soft)]">
         <div className="overflow-x-auto">
           <table
-            className="min-w-[92rem] border-collapse text-left"
+            className="w-full min-w-[82rem] border-collapse text-left"
             data-testid="showcase-grid-filter-table"
           >
             <GridTableHeader table={table} />
@@ -1093,42 +1606,329 @@ function ColumnFilteringGrid({
   );
 }
 
+function EditableGridRowPanel({
+  canSave,
+  colSpan,
+  draftRow,
+  onCancel,
+  onSave,
+  onUpdate,
+}: {
+  canSave: boolean;
+  colSpan: number;
+  draftRow: ShowcaseGridRow;
+  onCancel: () => void;
+  onSave: () => void;
+  onUpdate: (
+    changes: Partial<Pick<ShowcaseGridRow, EditableGridField>>,
+  ) => void;
+}): React.ReactElement {
+  return (
+    <tr className="border-b border-[var(--border)] bg-[var(--surface-strong)]">
+      <td colSpan={colSpan} className="px-4 py-4">
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
+          <div className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+            <label className="grid gap-1.5 xl:col-span-2">
+              <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+                Borrower
+              </span>
+              <Input
+                aria-label={`Borrower name for ${draftRow.id}`}
+                value={draftRow.borrower}
+                onChange={(event) => onUpdate({ borrower: event.target.value })}
+                className="border-[var(--border)] bg-[var(--surface)]"
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+                Product
+              </span>
+              <Select
+                value={draftRow.product}
+                onValueChange={(product) =>
+                  onUpdate({
+                    product:
+                      product as (typeof showcaseGridProductOptions)[number],
+                  })
+                }
+              >
+                <SelectTrigger className="border-[var(--border)] bg-[var(--surface)]">
+                  <SelectValue placeholder={draftRow.product} />
+                </SelectTrigger>
+                <SelectContent>
+                  {showcaseGridProductOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+                Status
+              </span>
+              <Select
+                value={draftRow.status}
+                onValueChange={(nextStatus) =>
+                  onUpdate({
+                    status:
+                      nextStatus as (typeof showcaseGridStatusOptions)[number],
+                  })
+                }
+              >
+                <SelectTrigger className="border-[var(--border)] bg-[var(--surface)]">
+                  <SelectValue placeholder={draftRow.status} />
+                </SelectTrigger>
+                <SelectContent>
+                  {showcaseGridStatusOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+                Amount
+              </span>
+              <Input
+                aria-label={`Loan amount for ${draftRow.id}`}
+                inputMode="numeric"
+                max={5_000_000}
+                min={25_000}
+                step={5_000}
+                type="number"
+                value={String(draftRow.amount)}
+                onChange={(event) =>
+                  onUpdate({ amount: Number(event.target.value) })
+                }
+                className="border-[var(--border)] bg-[var(--surface)]"
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+                Rate
+              </span>
+              <Input
+                aria-label={`Rate for ${draftRow.id}`}
+                inputMode="decimal"
+                max={30}
+                min={0}
+                step={0.05}
+                type="number"
+                value={String(draftRow.rate)}
+                onChange={(event) =>
+                  onUpdate({ rate: Number(event.target.value) })
+                }
+                className="border-[var(--border)] bg-[var(--surface)]"
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+                LTV
+              </span>
+              <Input
+                aria-label={`LTV for ${draftRow.id}`}
+                inputMode="numeric"
+                max={100}
+                min={0}
+                step={1}
+                type="number"
+                value={String(draftRow.ltv)}
+                onChange={(event) =>
+                  onUpdate({ ltv: Number(event.target.value) })
+                }
+                className="border-[var(--border)] bg-[var(--surface)]"
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+                Risk
+              </span>
+              <Select
+                value={draftRow.riskGrade}
+                onValueChange={(riskGrade) =>
+                  onUpdate({
+                    riskGrade:
+                      riskGrade as (typeof showcaseGridRiskGradeOptions)[number],
+                  })
+                }
+              >
+                <SelectTrigger className="border-[var(--border)] bg-[var(--surface)]">
+                  <SelectValue placeholder={draftRow.riskGrade} />
+                </SelectTrigger>
+                <SelectContent>
+                  {showcaseGridRiskGradeOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+                Officer
+              </span>
+              <Select
+                value={draftRow.officer}
+                onValueChange={(officer) =>
+                  onUpdate({
+                    officer:
+                      officer as (typeof showcaseGridOfficerOptions)[number],
+                  })
+                }
+              >
+                <SelectTrigger className="border-[var(--border)] bg-[var(--surface)]">
+                  <SelectValue placeholder={draftRow.officer} />
+                </SelectTrigger>
+                <SelectContent>
+                  {showcaseGridOfficerOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-xs font-semibold uppercase text-[var(--muted-foreground)]">
+                Region
+              </span>
+              <Select
+                value={draftRow.region}
+                onValueChange={(region) =>
+                  onUpdate({
+                    region:
+                      region as (typeof showcaseGridRegionOptions)[number],
+                  })
+                }
+              >
+                <SelectTrigger className="border-[var(--border)] bg-[var(--surface)]">
+                  <SelectValue placeholder={draftRow.region} />
+                </SelectTrigger>
+                <SelectContent>
+                  {showcaseGridRegionOptions.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+          </div>
+
+          <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <QueryMetric
+                label="Revenue"
+                value={currencyFormatter.format(draftRow.annualRevenue)}
+              />
+              <QueryMetric
+                label="Credit"
+                value={`DSCR ${draftRow.debtServiceCoverage.toFixed(2)}`}
+              />
+              <QueryMetric label="Next" value={draftRow.nextMilestone} />
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onCancel}
+                className="rounded-md"
+              >
+                <X aria-hidden="true" className="h-4 w-4" />
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                disabled={!canSave}
+                onClick={onSave}
+                className="rounded-md"
+              >
+                <Save aria-hidden="true" className="h-4 w-4" />
+                Save row
+              </Button>
+            </div>
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export function ShowcaseGridDemo(): React.ReactElement {
   const [activeGridTab, setActiveGridTab] =
     React.useState<GridDemoTab>('readonly');
-  const [deletedRowIds, setDeletedRowIds] = React.useState<string[]>([]);
-  const [editedRowsById, setEditedRowsById] = React.useState<
-    Record<string, ShowcaseGridRow>
-  >({});
-  const [expanded, setExpanded] = React.useState<ExpandedState>({});
+  const [editableGridState, dispatchEditableGrid] = React.useReducer(
+    editableGridReducer,
+    initialEditableGridState,
+  );
   const [filter, setFilter] = React.useState('');
   const [pagination, setPagination] = React.useState<PaginationState>({
     pageIndex: 0,
-    pageSize: 12,
+    pageSize: 8,
   });
-  const [pendingSubmit, setPendingSubmit] = React.useState(false);
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [sorting, setSorting] = React.useState<SortingState>([
     { desc: true, id: 'updatedAt' },
   ]);
   const [status, setStatus] = React.useState<ShowcaseGridStatus | 'all'>('all');
-  const [submitError, setSubmitError] = React.useState<string | null>(null);
-  const [submitResult, setSubmitResult] =
-    React.useState<ShowcaseGridSubmitResponse | null>(null);
-  const debouncedFilter = useDebouncedValue(filter, 250);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    [],
+  );
+  const [hiddenFilterRows, setHiddenFilterRows] = React.useState<
+    ShowcaseGridRow[]
+  >([]);
+  const {
+    deletedRowIds,
+    draftRow,
+    editedRowsById,
+    editingRowId,
+    pendingSubmit,
+    submitError,
+    submitResult,
+  } = editableGridState;
+  const debouncedFilter = useDebouncedValue(filter, 350);
+  const debouncedColumnFilters = useDebouncedValue(columnFilters, 350);
+  const serverColumnFilters = React.useMemo(
+    () =>
+      activeGridTab === 'filters'
+        ? getServerColumnFilters(debouncedColumnFilters)
+        : emptyServerColumnFilters,
+    [activeGridTab, debouncedColumnFilters],
+  );
+  const serverExcludedRowIds = React.useMemo(
+    () =>
+      activeGridTab === 'filters' && hiddenFilterRows.length > 0
+        ? hiddenFilterRows.map((row) => row.id)
+        : emptyServerExcludedRowIds,
+    [activeGridTab, hiddenFilterRows],
+  );
 
   React.useEffect(() => {
     setPagination((current) => ({
       ...current,
       pageIndex: 0,
     }));
-  }, [debouncedFilter, deletedRowIds, sorting, status]);
+  }, [
+    debouncedFilter,
+    deletedRowIds,
+    serverColumnFilters,
+    serverExcludedRowIds,
+    sorting,
+    status,
+  ]);
 
   const gridQuery = useQuery({
     placeholderData: keepPreviousData,
     queryFn: () =>
       fetchGridRows({
+        columnFilters: serverColumnFilters,
         deletedRowIds,
+        excludedRowIds: serverExcludedRowIds,
         filter: debouncedFilter,
         pageIndex: pagination.pageIndex,
         pageSize: pagination.pageSize,
@@ -1137,8 +1937,10 @@ export function ShowcaseGridDemo(): React.ReactElement {
       }),
     queryKey: [
       'showcase-grid',
+      serverColumnFilters,
       deletedRowIds,
       debouncedFilter,
+      serverExcludedRowIds,
       pagination,
       sorting,
       status,
@@ -1154,6 +1956,12 @@ export function ShowcaseGridDemo(): React.ReactElement {
     [editedRowsById, gridQuery.data?.rows],
   );
 
+  React.useEffect(() => {
+    if (editingRowId && rows.every((row) => row.id !== editingRowId)) {
+      dispatchEditableGrid({ type: 'cancelEdit' });
+    }
+  }, [editingRowId, rows]);
+
   const editedRows = React.useMemo(
     () => Object.values(editedRowsById),
     [editedRowsById],
@@ -1161,40 +1969,19 @@ export function ShowcaseGridDemo(): React.ReactElement {
 
   const hasPendingChanges = editedRows.length > 0 || deletedRowIds.length > 0;
 
-  const updateRow = React.useCallback(
-    (
-      row: ShowcaseGridRow,
-      changes: Partial<Pick<ShowcaseGridRow, EditableGridField>>,
-    ) => {
-      setEditedRowsById((current) => ({
-        ...current,
-        [row.id]: {
-          ...row,
-          ...(current[row.id] ?? {}),
-          ...changes,
-        },
-      }));
+  const startEditingRow = React.useCallback((row: ShowcaseGridRow) => {
+    dispatchEditableGrid({ type: 'startEdit', row });
+  }, []);
+
+  const updateDraftRow = React.useCallback(
+    (changes: Partial<Pick<ShowcaseGridRow, EditableGridField>>) => {
+      dispatchEditableGrid({ type: 'updateDraft', changes });
     },
     [],
   );
 
   const deleteRows = React.useCallback((rowIds: string[]) => {
-    if (rowIds.length === 0) {
-      return;
-    }
-
-    setDeletedRowIds((current) =>
-      Array.from(new Set([...current, ...rowIds])).slice(0, 50),
-    );
-    setEditedRowsById((current) => {
-      const nextRowsById = { ...current };
-
-      for (const rowId of rowIds) {
-        delete nextRowsById[rowId];
-      }
-
-      return nextRowsById;
-    });
+    dispatchEditableGrid({ type: 'deleteRows', rowIds });
     setRowSelection({});
   }, []);
 
@@ -1214,31 +2001,11 @@ export function ShowcaseGridDemo(): React.ReactElement {
               />
             ),
             cell: ({ row }) => (
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  aria-label={`Select ${row.original.id}`}
-                  checked={row.getIsSelected()}
-                  onChange={row.getToggleSelectedHandler()}
-                />
-                <Button
-                  aria-label={
-                    row.getIsExpanded()
-                      ? `Collapse ${row.original.id}`
-                      : `Expand ${row.original.id}`
-                  }
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={row.getToggleExpandedHandler()}
-                  className="h-8 w-8 rounded-md p-0"
-                >
-                  {row.getIsExpanded() ? (
-                    <ChevronDown aria-hidden="true" className="h-4 w-4" />
-                  ) : (
-                    <ChevronRight aria-hidden="true" className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
+              <Checkbox
+                aria-label={`Select ${row.original.id}`}
+                checked={row.getIsSelected()}
+                onChange={row.getToggleSelectedHandler()}
+              />
             ),
           },
         ],
@@ -1250,57 +2017,46 @@ export function ShowcaseGridDemo(): React.ReactElement {
             accessorKey: 'id',
             header: 'Deal',
             cell: ({ getValue }) => (
-              <span className="font-mono text-xs font-semibold text-[var(--foreground)]">
-                {getValue<string>()}
-              </span>
+              <div className="grid gap-1">
+                <span className="font-mono text-xs font-semibold text-[var(--foreground)]">
+                  {getValue<string>()}
+                </span>
+                {editedRowsById[getValue<string>()] ? (
+                  <span className="w-fit rounded-full border border-[var(--brand)] bg-[var(--surface-spot)] px-2 py-0.5 text-[10px] font-semibold uppercase text-[var(--brand)]">
+                    Edited
+                  </span>
+                ) : null}
+              </div>
             ),
           },
           {
             accessorKey: 'borrower',
             header: 'Borrower',
             cell: ({ row }) => (
-              <div className="grid min-w-[14rem] gap-1">
-                <TextEditCell
-                  ariaLabel={`Borrower name for ${row.original.id}`}
-                  value={row.original.borrower}
-                  onCommit={(borrower) => updateRow(row.original, { borrower })}
-                />
+              <div className="grid min-w-[12rem] gap-1">
+                <span className="font-medium text-[var(--foreground)]">
+                  {row.original.borrower}
+                </span>
                 <span className="text-xs text-[var(--muted-foreground)]">
                   {row.original.industry} / {row.original.state}
                 </span>
               </div>
             ),
           },
+        ],
+      },
+      {
+        header: 'Request',
+        columns: [
           {
             accessorKey: 'product',
             header: 'Product',
-            cell: ({ row }) => (
-              <GridSelectCell
-                ariaLabel={`Product for ${row.original.id}`}
-                options={showcaseGridProductOptions}
-                value={row.original.product}
-                onValueChange={(product) =>
-                  updateRow(row.original, { product })
-                }
-              />
-            ),
           },
           {
             accessorKey: 'status',
+            enableSorting: false,
             header: 'Status',
-            cell: ({ row }) => (
-              <div className="flex min-w-[11rem] items-center gap-2">
-                <StatusPill status={row.original.status} />
-                <GridSelectCell
-                  ariaLabel={`Status for ${row.original.id}`}
-                  options={showcaseGridStatusOptions}
-                  value={row.original.status}
-                  onValueChange={(nextStatus) =>
-                    updateRow(row.original, { status: nextStatus })
-                  }
-                />
-              </div>
-            ),
+            cell: ({ row }) => <StatusPill status={row.original.status} />,
           },
         ],
       },
@@ -1310,76 +2066,36 @@ export function ShowcaseGridDemo(): React.ReactElement {
           {
             accessorKey: 'amount',
             header: 'Amount',
-            cell: ({ row }) => (
-              <div className="grid gap-1">
-                <NumberEditCell
-                  ariaLabel={`Loan amount for ${row.original.id}`}
-                  max={5_000_000}
-                  min={25_000}
-                  step={5_000}
-                  value={row.original.amount}
-                  onCommit={(amount) => updateRow(row.original, { amount })}
-                />
-                <span className="text-xs text-[var(--muted-foreground)]">
-                  Revenue {currencyFormatter.format(row.original.annualRevenue)}
-                </span>
-              </div>
-            ),
-          },
-          {
-            accessorKey: 'requestedTermMonths',
-            header: 'Term',
-            cell: ({ row }) => (
-              <span className="whitespace-nowrap text-sm text-[var(--foreground)]">
-                {row.original.requestedTermMonths} mo
-              </span>
-            ),
+            cell: ({ getValue }) =>
+              currencyFormatter.format(getValue<number>()),
           },
           {
             accessorKey: 'rate',
             header: 'Rate',
             cell: ({ row }) => (
-              <NumberEditCell
-                ariaLabel={`Rate for ${row.original.id}`}
-                max={30}
-                min={0}
-                step={0.05}
-                value={row.original.rate}
-                onCommit={(rate) => updateRow(row.original, { rate })}
-              />
+              <span className="whitespace-nowrap text-sm text-[var(--foreground)]">
+                {row.original.rate.toFixed(2)}%
+              </span>
             ),
           },
           {
             accessorKey: 'ltv',
+            enableSorting: false,
             header: 'LTV',
             cell: ({ row }) => (
-              <NumberEditCell
-                ariaLabel={`LTV for ${row.original.id}`}
-                max={100}
-                min={0}
-                step={1}
-                value={row.original.ltv}
-                onCommit={(ltv) => updateRow(row.original, { ltv })}
-              />
+              <span className="whitespace-nowrap text-sm text-[var(--foreground)]">
+                {row.original.ltv}%
+              </span>
             ),
           },
           {
             accessorKey: 'riskGrade',
+            enableSorting: false,
             header: 'Risk',
             cell: ({ row }) => (
-              <div className="grid gap-1">
-                <GridSelectCell
-                  ariaLabel={`Risk grade for ${row.original.id}`}
-                  options={showcaseGridRiskGradeOptions}
-                  value={row.original.riskGrade}
-                  onValueChange={(riskGrade) =>
-                    updateRow(row.original, { riskGrade })
-                  }
-                />
-                <span className="text-xs text-[var(--muted-foreground)]">
-                  DSCR {row.original.debtServiceCoverage.toFixed(2)}
-                </span>
-              </div>
+              <span className="font-semibold text-[var(--foreground)]">
+                {row.original.riskGrade}
+              </span>
             ),
           },
         ],
@@ -1390,36 +2106,36 @@ export function ShowcaseGridDemo(): React.ReactElement {
           {
             accessorKey: 'officer',
             header: 'Officer',
-            cell: ({ row }) => (
-              <GridSelectCell
-                ariaLabel={`Officer for ${row.original.id}`}
-                options={showcaseGridOfficerOptions}
-                value={row.original.officer}
-                onValueChange={(officer) =>
-                  updateRow(row.original, { officer })
-                }
-              />
-            ),
           },
           {
             accessorKey: 'region',
             header: 'Region',
             cell: ({ row }) => (
-              <GridSelectCell
-                ariaLabel={`Region for ${row.original.id}`}
-                options={showcaseGridRegionOptions}
-                value={row.original.region}
-                onValueChange={(region) => updateRow(row.original, { region })}
-              />
+              <span className="whitespace-nowrap text-sm text-[var(--foreground)]">
+                {row.original.region}
+              </span>
             ),
           },
+        ],
+      },
+      {
+        header: 'Actions',
+        columns: [
           {
-            accessorKey: 'updatedAt',
-            header: 'Updated',
-            cell: ({ getValue }) => (
-              <span className="whitespace-nowrap font-mono text-xs text-[var(--muted-foreground)]">
-                {getValue<string>()}
-              </span>
+            id: 'edit',
+            enableSorting: false,
+            header: 'Edit',
+            cell: ({ row }) => (
+              <Button
+                aria-label={`Edit ${row.original.id}`}
+                type="button"
+                variant={editingRowId === row.original.id ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => startEditingRow(row.original)}
+                className="h-8 w-8 rounded-md p-0"
+              >
+                <Pencil aria-hidden="true" className="h-4 w-4" />
+              </Button>
             ),
           },
           {
@@ -1442,7 +2158,7 @@ export function ShowcaseGridDemo(): React.ReactElement {
         ],
       },
     ],
-    [deleteRows, updateRow],
+    [deleteRows, editedRowsById, editingRowId, startEditingRow],
   );
 
   const table = useReactTable({
@@ -1450,19 +2166,15 @@ export function ShowcaseGridDemo(): React.ReactElement {
     data: rows,
     enableRowSelection: true,
     getCoreRowModel: getCoreRowModel(),
-    getExpandedRowModel: getExpandedRowModel(),
-    getRowCanExpand: () => true,
     getRowId: (row) => row.id,
     manualFiltering: true,
     manualPagination: true,
     manualSorting: true,
-    onExpandedChange: setExpanded,
     onPaginationChange: setPagination,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     rowCount: gridQuery.data?.rowCount ?? 0,
     state: {
-      expanded,
       pagination,
       rowSelection,
       sorting,
@@ -1470,12 +2182,12 @@ export function ShowcaseGridDemo(): React.ReactElement {
   });
 
   async function submitChanges() {
-    setSubmitError(null);
-    setPendingSubmit(true);
+    dispatchEditableGrid({ type: 'submitStart' });
 
     try {
-      setSubmitResult(
-        await postShowcaseGridSubmission({
+      dispatchEditableGrid({
+        type: 'submitSuccess',
+        result: await postShowcaseGridSubmission({
           deletedRowIds,
           editedRows: editedRows.slice(0, 25),
           filter: debouncedFilter,
@@ -1484,13 +2196,15 @@ export function ShowcaseGridDemo(): React.ReactElement {
           sorting,
           status,
         }),
-      );
+      });
     } catch (error) {
-      setSubmitError(
-        error instanceof Error ? error.message : 'Unable to submit grid edits.',
-      );
-    } finally {
-      setPendingSubmit(false);
+      dispatchEditableGrid({
+        type: 'submitError',
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Unable to submit grid edits.',
+      });
     }
   }
 
@@ -1522,11 +2236,8 @@ export function ShowcaseGridDemo(): React.ReactElement {
               variant="outline"
               disabled={!hasPendingChanges || pendingSubmit}
               onClick={() => {
-                setDeletedRowIds([]);
-                setEditedRowsById({});
+                dispatchEditableGrid({ type: 'reset' });
                 setRowSelection({});
-                setSubmitError(null);
-                setSubmitResult(null);
               }}
               className="rounded-md"
             >
@@ -1698,52 +2409,20 @@ export function ShowcaseGridDemo(): React.ReactElement {
         >
           <div className="overflow-x-auto">
             <table
-              className="min-w-[112rem] border-collapse text-left"
+              className="w-full min-w-[68rem] border-collapse text-left"
               data-testid="showcase-grid-table"
             >
-              <thead>
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr
-                    key={headerGroup.id}
-                    className="border-b border-[var(--border)]"
-                  >
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        colSpan={header.colSpan}
-                        className="bg-[var(--surface-strong)] px-3 py-3 align-bottom text-xs font-semibold uppercase text-[var(--muted-foreground)]"
-                      >
-                        {header.isPlaceholder ? null : header.column.getCanSort() ? (
-                          <button
-                            type="button"
-                            onClick={header.column.getToggleSortingHandler()}
-                            className="flex w-full items-center gap-2 text-left"
-                          >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                            <SortIndicator
-                              direction={header.column.getIsSorted()}
-                            />
-                          </button>
-                        ) : (
-                          <div className="flex w-full items-center gap-2 text-left">
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                          </div>
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
+              <GridTableHeader table={table} />
               <tbody>
                 {table.getRowModel().rows.map((row) => (
                   <React.Fragment key={row.id}>
-                    <tr className="border-b border-[var(--border)] transition-colors hover:bg-[var(--surface-accent)]">
+                    <tr
+                      className={`border-b border-[var(--border)] transition-colors hover:bg-[var(--surface-accent)] ${
+                        editingRowId === row.original.id
+                          ? 'bg-[var(--surface-accent)]'
+                          : ''
+                      }`}
+                    >
                       {row.getVisibleCells().map((cell) => (
                         <td
                           key={cell.id}
@@ -1756,34 +2435,19 @@ export function ShowcaseGridDemo(): React.ReactElement {
                         </td>
                       ))}
                     </tr>
-                    {row.getIsExpanded() ? (
-                      <tr className="border-b border-[var(--border)] bg-[var(--surface-strong)]">
-                        <td
-                          colSpan={row.getVisibleCells().length}
-                          className="px-4 py-4"
-                        >
-                          <div className="grid gap-3 text-sm text-[var(--foreground)] md:grid-cols-4">
-                            <QueryMetric
-                              label="Collateral"
-                              value={row.original.collateral}
-                            />
-                            <QueryMetric
-                              label="Covenant"
-                              value={row.original.covenant}
-                            />
-                            <QueryMetric
-                              label="Next"
-                              value={row.original.nextMilestone}
-                            />
-                            <QueryMetric
-                              label="Exposure"
-                              value={`${currencyFormatter.format(
-                                row.original.amount,
-                              )} at ${row.original.rate}%`}
-                            />
-                          </div>
-                        </td>
-                      </tr>
+                    {editingRowId === row.original.id && draftRow ? (
+                      <EditableGridRowPanel
+                        canSave={isEditableGridDraftValid(draftRow)}
+                        colSpan={row.getVisibleCells().length}
+                        draftRow={draftRow}
+                        onCancel={() =>
+                          dispatchEditableGrid({ type: 'cancelEdit' })
+                        }
+                        onSave={() =>
+                          dispatchEditableGrid({ type: 'saveDraft' })
+                        }
+                        onUpdate={updateDraftRow}
+                      />
                     ) : null}
                   </React.Fragment>
                 ))}
@@ -1800,62 +2464,6 @@ export function ShowcaseGridDemo(): React.ReactElement {
               </tbody>
             </table>
           </div>
-
-          <div className="flex flex-col gap-3 border-t border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-[var(--muted-foreground)]">
-              Showing {table.getRowModel().rows.length} visible rows from a
-              server-side result set.
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                aria-label="First page"
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!table.getCanPreviousPage()}
-                onClick={() => table.firstPage()}
-                className="h-9 w-9 rounded-md p-0"
-              >
-                <ChevronsLeft aria-hidden="true" className="h-4 w-4" />
-              </Button>
-              <Button
-                aria-label="Previous page"
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!table.getCanPreviousPage()}
-                onClick={() => table.previousPage()}
-                className="h-9 w-9 rounded-md p-0"
-              >
-                <ChevronLeft aria-hidden="true" className="h-4 w-4" />
-              </Button>
-              <span className="min-w-24 text-center font-mono text-sm text-[var(--foreground)]">
-                {pagination.pageIndex + 1} / {Math.max(1, table.getPageCount())}
-              </span>
-              <Button
-                aria-label="Next page"
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!table.getCanNextPage()}
-                onClick={() => table.nextPage()}
-                className="h-9 w-9 rounded-md p-0"
-              >
-                <ChevronRight aria-hidden="true" className="h-4 w-4" />
-              </Button>
-              <Button
-                aria-label="Last page"
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!table.getCanNextPage()}
-                onClick={() => table.lastPage()}
-                className="h-9 w-9 rounded-md p-0"
-              >
-                <ChevronsRight aria-hidden="true" className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
         </div>
       ) : activeGridTab === 'readonly' ? (
         <div
@@ -1863,7 +2471,11 @@ export function ShowcaseGridDemo(): React.ReactElement {
           role="tabpanel"
           aria-labelledby="showcase-grid-tab-readonly"
         >
-          <ReadOnlySortableGrid rows={rows} />
+          <ReadOnlySortableGrid
+            onSortingChange={setSorting}
+            rows={rows}
+            sorting={sorting}
+          />
         </div>
       ) : activeGridTab === 'collapsible' ? (
         <div
@@ -1871,7 +2483,11 @@ export function ShowcaseGridDemo(): React.ReactElement {
           role="tabpanel"
           aria-labelledby="showcase-grid-tab-collapsible"
         >
-          <CollapsibleGrid rows={rows} />
+          <CollapsibleGrid
+            onSortingChange={setSorting}
+            rows={rows}
+            sorting={sorting}
+          />
         </div>
       ) : (
         <div
@@ -1879,9 +2495,25 @@ export function ShowcaseGridDemo(): React.ReactElement {
           role="tabpanel"
           aria-labelledby="showcase-grid-tab-filters"
         >
-          <ColumnFilteringGrid rows={rows} />
+          <ColumnFilteringGrid
+            columnFilters={columnFilters}
+            hiddenRows={hiddenFilterRows}
+            onColumnFiltersChange={setColumnFilters}
+            onHiddenRowsChange={setHiddenFilterRows}
+            onSortingChange={setSorting}
+            rows={rows}
+            sorting={sorting}
+          />
         </div>
       )}
+
+      <ServerPaginationControls
+        isFetching={gridQuery.isFetching}
+        pageCount={Math.max(1, table.getPageCount())}
+        pageIndex={pagination.pageIndex}
+        table={table}
+        visibleRowCount={table.getRowModel().rows.length}
+      />
 
       {activeGridTab === 'editable' ? (
         <div

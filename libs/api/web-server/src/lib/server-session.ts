@@ -11,6 +11,7 @@ import { getServerWebAuthConfig } from './config';
 import { AUTH_SESSION_COOKIE_NAME } from './cookies';
 import { readSessionCookiePayload } from './auth-session';
 import {
+  consumeStoredWebAuthStepUp,
   isStoredWebAuthStepUpFresh,
   readStoredWebAuthSession,
   type StoredWebAuthSession,
@@ -195,6 +196,16 @@ export async function requireServerWebAuthSession(options: {
         returnTo: options.returnTo,
         minimumAssuranceLevel: requirement.minimumAssuranceLevel ?? 'aal2',
       }),
+    );
+  }
+
+  if (
+    requirement.requiredStepUp?.consumeOnSatisfied &&
+    resolvedSession?.storedSession
+  ) {
+    await consumeStoredWebAuthStepUp(
+      resolvedSession.storedSession,
+      requirement.requiredStepUp,
     );
   }
 

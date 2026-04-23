@@ -277,11 +277,10 @@ What to prove:
   `/account/sign-in?returnTo=%2Fapply%2Ffunding&aal=aal2`
 - the funding sign-in start asks Okta for fresh MFA with `acr_values`,
   `prompt=login`, and `max_age=0`
-- an existing `aal2` session is not enough by itself; the server session must
-  also have the 10-minute funding step-up marker written by the latest Okta
-  callback
-- after the Okta challenge completes, the funding page and funding step APIs are
-  allowed for that fresh funding window
+- an existing `aal2` session is not enough by itself; each funding page entry
+  consumes the funding step-up marker written by the latest Okta callback
+- after the Okta challenge completes, funding save/submit APIs can use that
+  marker during the bounded 10-minute funding API window
 
 Quick unauthenticated checks:
 
@@ -326,7 +325,9 @@ user:
 2. open `/apply/funding`
 3. complete the fresh Okta prompt/MFA challenge
 4. confirm the funding page loads and funding save/submit calls no longer return
-   the step-up error during the 10-minute marker window
+   the step-up error during the 10-minute API window
+5. leave funding and open `/apply/funding` again; it should start a new Okta
+   prompt/MFA challenge instead of reusing the consumed route-entry marker
 
 ### 5. Show The Security Demo Page
 

@@ -42,6 +42,7 @@ export {
 } from './lib/rate-limit';
 export {
   clearStoredWebAuthSession,
+  consumeStoredWebAuthStepUp,
   createStoredWebAuthSession,
   getStoredWebAuthSessionCookieMaxAge,
   getStoredWebAuthSessionTiming,
