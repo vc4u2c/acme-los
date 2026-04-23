@@ -14,7 +14,7 @@ const auditedRoutes = [
     path: '/',
     waitFor: {
       role: 'heading',
-      name: /A steadier installment application from first answer to funding\./i,
+      name: /A steadier installment application that feels thoughtful before it feels transactional\./i,
     },
   },
   {

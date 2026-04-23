@@ -1,7 +1,7 @@
 interface:
   display_name: 'Frontend Design'
-  short_description: 'Distinctive ACME LOS interface design and UX polish'
+  short_description: 'Art direction, layout polish, and design-system-minded UI work'
   brand_color: '#EC4899'
-  default_prompt: 'Design a polished ACME LOS frontend experience that follows the repo visual direction.'
+  default_prompt: 'Design or refine a polished frontend experience that follows the repo visual direction, existing design system, and responsive quality bar.'
 policy:
   allow_implicit_invocation: true
