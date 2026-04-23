@@ -8,7 +8,17 @@ const standardApplicationRequirement: AuthRequirement = {
   minimumAssuranceLevel: 'aal1',
 };
 
-const fundingRequirement: AuthRequirement = {
+const fundingPageRequirement: AuthRequirement = {
+  requiresAuthentication: true,
+  minimumAssuranceLevel: 'aal2',
+  requiredStepUp: {
+    reason: 'funding',
+    maxAgeSeconds: FUNDING_STEP_UP_MAX_AGE_SECONDS,
+    consumeOnSatisfied: true,
+  },
+};
+
+const fundingApiRequirement: AuthRequirement = {
   requiresAuthentication: true,
   minimumAssuranceLevel: 'aal2',
   requiredStepUp: {
@@ -21,7 +31,17 @@ export function getApplicationAuthRequirement(
   step: ApplicationStepSlug,
 ): AuthRequirement {
   if (step === 'funding') {
-    return fundingRequirement;
+    return fundingApiRequirement;
+  }
+
+  return standardApplicationRequirement;
+}
+
+export function getApplicationPageAuthRequirement(
+  step: ApplicationStepSlug,
+): AuthRequirement {
+  if (step === 'funding') {
+    return fundingPageRequirement;
   }
 
   return standardApplicationRequirement;
@@ -37,7 +57,7 @@ export function getApplicationAuthRequirementForPath(
   const pathname = path.split('?')[0];
 
   if (pathname === '/apply/funding') {
-    return fundingRequirement;
+    return fundingPageRequirement;
   }
 
   return null;

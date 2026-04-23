@@ -9,7 +9,7 @@ import {
   applicationStepSlugs,
   type ApplicationStepSlug,
 } from '../../../components/web/apply/step-definitions';
-import { getApplicationAuthRequirement } from '../../../lib/application-auth';
+import { getApplicationPageAuthRequirement } from '../../../lib/application-auth';
 
 export function generateStaticParams() {
   return applicationStepSlugs.map((step) => ({ step }));
@@ -30,7 +30,7 @@ export default async function ApplicationStepRoute({
 
   const session = await requireServerWebAuthSession({
     returnTo: `/apply/${step}`,
-    requirement: getApplicationAuthRequirement(step as ApplicationStepSlug),
+    requirement: getApplicationPageAuthRequirement(step as ApplicationStepSlug),
   });
   const stepState = await readServerApplicationStepState(
     session,

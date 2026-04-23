@@ -1,12 +1,33 @@
 import {
   FUNDING_STEP_UP_MAX_AGE_SECONDS,
+  getApplicationAuthRequirement,
+  getApplicationPageAuthRequirement,
   getApplicationAuthRequirementForPath,
   getMinimumAssuranceLevelForApplicationPath,
 } from '../src/lib/application-auth';
 
 describe('application auth requirements', () => {
-  it('requires fresh funding step-up for the funding route', () => {
-    expect(getApplicationAuthRequirementForPath('/apply/funding')).toEqual({
+  it('requires a consumable fresh funding step-up for the funding route entry', () => {
+    const expectedRequirement = {
+      requiresAuthentication: true,
+      minimumAssuranceLevel: 'aal2',
+      requiredStepUp: {
+        reason: 'funding',
+        maxAgeSeconds: FUNDING_STEP_UP_MAX_AGE_SECONDS,
+        consumeOnSatisfied: true,
+      },
+    };
+
+    expect(getApplicationAuthRequirementForPath('/apply/funding')).toEqual(
+      expectedRequirement,
+    );
+    expect(getApplicationPageAuthRequirement('funding')).toEqual(
+      expectedRequirement,
+    );
+  });
+
+  it('keeps funding API calls inside the fresh funding step-up window', () => {
+    expect(getApplicationAuthRequirement('funding')).toEqual({
       requiresAuthentication: true,
       minimumAssuranceLevel: 'aal2',
       requiredStepUp: {

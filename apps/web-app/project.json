@@ -5,5 +5,25 @@
   "projectType": "application",
   "tags": ["type:app", "platform:web"],
   "// targets": "to see all targets run: nx show project web-app --web",
-  "targets": {}
+  "targets": {
+    "dev-redis": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "options": {
+        "command": "node tools/scripts/run-web-app-dev-with-redis.mjs"
+      }
+    },
+    "redis-up": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose -f tools/docker/dev-services.yml up -d redis"
+      }
+    },
+    "redis-down": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "docker compose -f tools/docker/dev-services.yml down"
+      }
+    }
+  }
 }

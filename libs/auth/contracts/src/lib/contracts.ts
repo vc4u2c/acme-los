@@ -12,6 +12,7 @@ export type AuthStepUpReason = 'funding';
 export interface AuthStepUpRequirement {
   reason: AuthStepUpReason;
   maxAgeSeconds: number;
+  consumeOnSatisfied?: boolean;
 }
 
 export interface AuthUser {

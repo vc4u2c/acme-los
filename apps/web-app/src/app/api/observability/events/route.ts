@@ -13,6 +13,13 @@ import {
   traceparentHeaderName,
 } from '@acme-los/core/logger/trace-context';
 import { z } from 'zod';
+import {
+  showcaseGridOfficerOptions,
+  showcaseGridProductOptions,
+  showcaseGridRegionOptions,
+  showcaseGridRiskGradeOptions,
+  showcaseGridStatusOptions,
+} from '../../../../lib/showcase-grid';
 
 export const runtime = 'nodejs';
 
@@ -86,11 +93,54 @@ const serverErrorEventSchema = z.object({
   route: boundedText(256),
 });
 
+const showcaseGridDemoTextSchema = (maxLength: number) =>
+  boundedText(maxLength).regex(/^[a-zA-Z0-9 .&'-]+$/);
+
+const showcaseGridSubmittedRowSchema = z.object({
+  amount: z.number().int().min(25_000).max(5_000_000),
+  borrower: showcaseGridDemoTextSchema(80),
+  id: boundedText(32).regex(/^GRID-\d{4}$/),
+  ltv: z.number().int().min(0).max(100),
+  officer: z.enum(showcaseGridOfficerOptions),
+  product: z.enum(showcaseGridProductOptions),
+  rate: z.number().min(0).max(30),
+  region: z.enum(showcaseGridRegionOptions),
+  riskGrade: z.enum(showcaseGridRiskGradeOptions),
+  status: z.enum(showcaseGridStatusOptions),
+});
+
+const showcaseGridSubmitEventSchema = z.object({
+  eventName: z.literal('showcase.grid.submit'),
+  route: boundedText(256),
+  gridSubmission: z.object({
+    deletedRowIds: z.array(boundedText(32).regex(/^GRID-\d{4}$/)).max(50),
+    editedRows: z.array(showcaseGridSubmittedRowSchema).max(25),
+    submittedAt: boundedText(64),
+    visibleQuery: z.object({
+      filter: boundedText(80),
+      pageIndex: z.number().int().min(0).max(100),
+      pageSize: z.number().int().min(5).max(25),
+      sorting: z
+        .array(
+          z.object({
+            desc: z.boolean(),
+            id: boundedText(64),
+          }),
+        )
+        .max(1),
+      status: z
+        .union([z.literal('all'), z.enum(showcaseGridStatusOptions)])
+        .default('all'),
+    }),
+  }),
+});
+
 const observabilityEventRequestSchema = z.discriminatedUnion('eventName', [
   browserTelemetryEventSchema,
   serverManualEventSchema,
   clientErrorEventSchema,
   serverErrorEventSchema,
+  showcaseGridSubmitEventSchema,
 ]);
 
 type ObservabilityEventResponse = {
@@ -283,6 +333,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           },
         );
       }
+    } else if (payload.eventName === 'showcase.grid.submit') {
+      emittedEvents = ['showcase.grid.submit'];
+
+      traceLogger.event(
+        'info',
+        'showcase.grid.submit',
+        'Received bounded showcase grid edit submission.',
+        {
+          acceptedAt,
+          gridSubmission: payload.gridSubmission,
+        },
+      );
     } else {
       emittedEvents = ['logging.demo.server.manual'];
 

@@ -189,8 +189,9 @@ Current auth shape in this repo:
   `prompt=login`, and `max_age=0`, which is the correct place for route-level
   step-up
 - an existing `aal2` web session does not by itself unlock funding; the current
-  server-side session also needs the 10-minute funding step-up marker written by
-  the latest Okta callback
+  server-side session needs the latest funding step-up marker, funding page
+  entry consumes that marker, and funding APIs can use it during the bounded
+  10-minute API window written by the latest Okta callback
 
 ## Current Admin Auth Path
 
