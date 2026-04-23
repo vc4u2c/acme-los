@@ -32,7 +32,7 @@ Open:
 ### Run The Redis-Backed Web Path
 
 ```powershell
-npm run web:dev:redis
+npx.cmd nx run web-app:dev-redis
 ```
 
 That command:
@@ -42,10 +42,16 @@ That command:
 - sets `ACME_REDIS_URL=redis://127.0.0.1:6379`
 - starts `web-app:dev`
 
+Pass normal dev-server options after `--`:
+
+```powershell
+npx.cmd nx run web-app:dev-redis -- --port=4200
+```
+
 Stop local Redis:
 
 ```powershell
-npm run redis:down
+npx.cmd nx run web-app:redis-down
 ```
 
 Manual fallback if Docker is unavailable:

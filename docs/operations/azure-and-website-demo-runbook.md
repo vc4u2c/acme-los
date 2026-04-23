@@ -704,8 +704,8 @@ should still lead with the website and `/api/health` replica behavior.
 Local Redis is a Docker Compose container with normal `redis-cli` access:
 
 ```powershell
-npm run redis:up
-npm run web:dev:redis
+npx.cmd nx run web-app:redis-up
+npx.cmd nx run web-app:dev-redis
 ```
 
 In another terminal:
@@ -732,7 +732,7 @@ demo. Those records can include tokens or customer-entered details. `SCAN`,
 Stop local Redis when done:
 
 ```powershell
-npm run redis:down
+npx.cmd nx run web-app:redis-down
 ```
 
 `dev` Redis is different from local Redis:

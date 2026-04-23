@@ -62,7 +62,8 @@ npx.cmd nx run web-app-e2e:e2e
 If you want the Redis-backed local web-state path:
 
 ```powershell
-npm run web:dev:redis
+npx.cmd nx run web-app:dev-redis
+npx.cmd nx run web-app:redis-down
 ```
 
 ## Common Mobile Commands

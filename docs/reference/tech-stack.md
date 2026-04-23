@@ -226,12 +226,15 @@ More detail:
 Useful repo-level scripts in [package.json](../../package.json):
 
 - `validate:tags`
-- `redis:up`
-- `redis:down`
-- `web:dev:redis`
 - `okta:render`
 - `okta:bootstrap`
 - `okta:cleanup`
+
+Useful Redis-backed local web targets:
+
+- `npx.cmd nx run web-app:dev-redis`
+- `npx.cmd nx run web-app:redis-up`
+- `npx.cmd nx run web-app:redis-down`
 
 ## Why This Doc Exists
 
