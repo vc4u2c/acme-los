@@ -10,12 +10,32 @@ ACME LOS is an Nx monorepo for a consumer lending experience with:
 
 The root README is intentionally short. Use it to get running, then follow the linked docs for deeper setup, architecture, and operations details.
 
+## Current Dev Cloud URLs
+
+- Hosted app: `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io`
+- Health check: `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io/api/health`
+
 ## Start Here
 
 Install dependencies:
 
 ```powershell
 npm install
+```
+
+If `registry.npmjs.org` is blocked by a network firewall, point `npm`
+at the Yarn registry mirror instead.
+
+Run it directly for the current install:
+
+```powershell
+npm install --registry "https://registry.yarnpkg.com/"
+```
+
+Set it permanently for your user profile:
+
+```powershell
+npm config set registry "https://registry.yarnpkg.com/"
 ```
 
 Run the web app:
@@ -58,7 +78,11 @@ npx.cmd nx run mobile-app-e2e:e2e --outputStyle=stream
 Remove-Item -Force apps/web-app/.next/dev/lock -ErrorAction SilentlyContinue; Remove-Item -Force apps/web-app/.next/lock -ErrorAction SilentlyContinue; npx.cmd nx run web-app-e2e:e2e --outputStyle=stream --skip-nx-cache
 ```
 
-If you need hosted sign-in, guarded `/apply/*` routes, or the customer dashboard, also complete the Okta setup in [infra/okta/README.md](./infra/okta/README.md).
+If you need hosted sign-in, guarded `/apply/*` routes, or the customer
+dashboard, also complete the Okta setup in
+[infra/okta/README.md](./infra/okta/README.md). If your firewall or VPN
+blocks the Okta sign-in domain (`auth.avanai.net`), complete the hosted
+sign-in flow outside the VPN.
 
 ## Docs Map
 

@@ -83,7 +83,7 @@ export function ApplicationStepFormCard({
   );
 
   return (
-    <form className="space-y-8" onSubmit={onSubmit}>
+    <form className="space-y-7" onSubmit={onSubmit}>
       {renderStepFields(step, form)}
 
       {statusMessage ? (
@@ -92,14 +92,14 @@ export function ApplicationStepFormCard({
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-6 sm:flex-row sm:items-center sm:justify-between">
-        <div className="sm:min-w-[220px]">
+      <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="sm:min-w-[196px]">
           {previousStep ? (
             <Button
               type="button"
-              size="lg"
+              size="default"
               variant="outline"
-              className="w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-accent)] sm:w-auto"
+              className="w-full rounded-[1rem] border-[var(--border-strong)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-accent)] sm:w-auto"
               onClick={() => router.push(`/apply/${previousStep}`)}
             >
               <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -110,9 +110,9 @@ export function ApplicationStepFormCard({
 
         <Button
           type="submit"
-          size="lg"
+          size="default"
           disabled={isSubmitting}
-          className="rounded-full bg-[var(--brand)] px-7 text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)] hover:bg-[var(--brand-strong)] sm:min-w-[220px]"
+          className="rounded-[1rem] bg-[var(--brand)] px-6 text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)] hover:bg-[var(--brand-strong)] sm:min-w-[208px]"
         >
           {nextStep ? (
             <>

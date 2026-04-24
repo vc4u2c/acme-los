@@ -76,5 +76,7 @@ infra/azure/bicep/modules/**/*.json
 *.tsbuildinfo
 
 .nx/polygraph
+.codex-web-*.log
+.codex-profile-menu*.png
 .claude/worktrees
 .claude/settings.local.json

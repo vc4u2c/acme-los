@@ -21,13 +21,13 @@ import { validateStepField } from './schemas';
 import type { ApplicationStepSlug } from './step-definitions';
 
 export const fieldClassName =
-  'h-11 rounded-[1.2rem] border-[var(--border)] bg-[var(--surface-strong)] px-3.5 text-[15px] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus-visible:ring-[var(--ring)]';
+  'h-10 rounded-[1rem] border-[var(--border)] bg-[color:var(--surface-strong)/0.92] px-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] shadow-sm focus-visible:ring-[var(--ring)]';
 
 export const selectClassName =
-  'flex h-11 w-full rounded-[1.2rem] border border-[var(--border)] bg-[var(--surface-strong)] px-3.5 text-[15px] text-[var(--foreground)] shadow-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--ring-soft)]';
+  'flex h-10 w-full rounded-[1rem] border border-[var(--border)] bg-[color:var(--surface-strong)/0.92] px-3 text-sm text-[var(--foreground)] shadow-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--ring-soft)]';
 
 export const textareaClassName =
-  'min-h-[148px] w-full rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-base leading-7 text-[var(--foreground)] shadow-sm outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--ring-soft)]';
+  'min-h-[128px] w-full rounded-[1.2rem] border border-[var(--border)] bg-[color:var(--surface-strong)/0.92] px-3.5 py-2.5 text-[15px] leading-6 text-[var(--foreground)] shadow-sm outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--ring-soft)]';
 
 type FieldProps = {
   id?: string;
@@ -339,7 +339,7 @@ export function ChoiceGroupField({
         const errorId = error ? `${fieldId}-error` : undefined;
 
         return (
-          <fieldset className="space-y-2.5">
+          <fieldset className="space-y-2">
             <div className="space-y-1">
               <legend
                 id={legendId}
@@ -375,7 +375,7 @@ export function ChoiceGroupField({
                   aria-invalid={error ? true : undefined}
                   description={option.description}
                   itemClassName={[
-                    'border-[var(--border)] bg-[var(--surface-strong)] text-[var(--foreground)] peer-checked:border-[var(--brand)] peer-checked:bg-[var(--surface-accent)] peer-focus-visible:ring-[var(--ring-soft)]',
+                    'border-[var(--border)] bg-[color:var(--surface-strong)/0.94] text-[var(--foreground)] peer-checked:border-[var(--brand)] peer-checked:bg-[var(--surface-accent)] peer-focus-visible:ring-[var(--ring-soft)]',
                     itemClassName,
                   ]
                     .filter(Boolean)
@@ -422,7 +422,7 @@ export function CheckboxField({
 
         return (
           <div className="space-y-2">
-            <label className="flex items-start gap-3 rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-strong)] p-4 shadow-sm">
+            <label className="flex items-start gap-3 rounded-[1.2rem] border border-[var(--border)] bg-[color:var(--surface-strong)/0.94] p-3.5 shadow-sm">
               <Checkbox
                 id={fieldId}
                 name={field.name}
