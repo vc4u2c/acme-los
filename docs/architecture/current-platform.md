@@ -193,7 +193,56 @@ structural rewrite.
    - private ACA ingress
    - stricter production observability and operational controls
 
+## Later Roadmap Candidate: Digital Analytics And Tag Management
+
+This is not implemented today. When it is added, treat it as a deliberate
+cross-cutting capability rather than page-by-page snippet work.
+
+Goals:
+
+- support environment-aware digital marketing and tag-manager configuration for
+  `local`, `dev`, `qa`, `stg`, and `prod`
+- capture page visits consistently across static, ISR, server-rendered, and
+  client-transitioned routes
+- capture hosted sign-in, callback completion, sign-out, MFA, funding step-up,
+  and other auth journey events without coupling UI code to vendor-specific
+  tags
+- support explicit business events such as application start, step completion,
+  preapproval outcomes, signing, and funding
+- keep customer PII, secrets, tokens, and full form payloads out of marketing
+  telemetry
+
+Recommended shape:
+
+- define one app-owned analytics event contract and one app-owned analytics
+  service instead of letting feature code call a tag manager directly
+- allow server-side event emission for SSR, route handlers, auth events, and
+  callback-driven outcomes that the browser alone cannot observe reliably
+- allow client-side event emission for page views, interaction events, and
+  browser-only context
+- keep the event taxonomy stable even if the downstream marketing/tag platform
+  changes later
+- make environment mapping, consent rules, and enabled destinations
+  configuration-driven
+- keep observability telemetry and marketing telemetry separate even when some
+  events share names or correlation identifiers
+
+Definition of done for a first pass:
+
+- page-view tracking works across all Next rendering strategies in the repo
+- auth events are visible for both normal sign-in and funding step-up flows
+- custom event tracking exists behind a typed helper instead of ad hoc calls
+- environment-specific destination wiring is documented and testable
+- operators and developers can tell which events are product telemetry versus
+  marketing telemetry
+
 ## BFF Direction
+
+Related docs:
+
+- [BFF rollout plan](./bff-rollout-plan.md)
+- [Future repo relayout plan](./future-repo-relayout-plan.md)
+- [ADR-001: keep the current layout first](./adr-001-current-layout-first.md)
 
 The web app is being shaped so the current server-side PKCE flow can later move behind a .NET BFF without rewriting the UI layer.
 
