@@ -23,3 +23,7 @@ config_file = "agents/reviewer.toml"
 [agents.docs_researcher]
 description = "Documentation researcher for framework, cloud, and API verification."
 config_file = "agents/docs-researcher.toml"
+
+[agents.frontend_designer]
+description = "Frontend design specialist for visual direction, responsive polish, and design-system-minded implementation."
+config_file = "agents/frontend-designer.toml"

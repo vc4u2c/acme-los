@@ -36,7 +36,7 @@ export function ApplicationStepPage({
     <main className="min-h-screen text-[var(--foreground)]">
       <SiteHeader items={applyNavigationItems} variant="application" />
 
-      <header className="border-b border-[var(--border)] bg-[color:var(--surface)/0.88] backdrop-blur-xl">
+      <header className="relative bg-[color:var(--surface)/0.88] backdrop-blur-xl before:pointer-events-none before:absolute before:bottom-0 before:left-4 before:right-4 before:h-3 before:content-[''] before:bg-[linear-gradient(180deg,var(--shadow-soft),transparent)] before:opacity-55 before:blur-md after:pointer-events-none after:absolute after:bottom-0 after:left-4 after:right-4 after:h-px after:content-[''] after:bg-[linear-gradient(90deg,transparent,var(--border),transparent)] after:opacity-85 sm:before:left-6 sm:before:right-6 sm:after:left-6 sm:after:right-6 lg:before:left-8 lg:before:right-8 lg:after:left-8 lg:after:right-8">
         <div className="site-shell py-4 lg:py-5">
           <div className="space-y-4">
             <div className="space-y-2.5">
@@ -62,7 +62,7 @@ export function ApplicationStepPage({
             indicatorClassName="bg-[var(--brand)]"
           />
 
-          <div className="-mx-1 mt-5 flex gap-3 overflow-x-auto px-1 pb-3 pr-2 sm:mx-0 sm:px-0 sm:pb-1 sm:pr-0">
+          <div className="-mx-1 mt-5 flex gap-2.5 overflow-x-auto px-1 pb-3 pr-2 sm:mx-0 sm:px-0 sm:pb-1 sm:pr-0">
             {applicationSteps.map((item, index) => {
               const isActive = item.slug === step;
               const isComplete = index < stepIndex;
@@ -72,7 +72,7 @@ export function ApplicationStepPage({
                   key={item.slug}
                   href={`/apply/${item.slug}`}
                   className={[
-                    'min-w-fit rounded-full border px-4 py-2 text-sm font-medium transition',
+                    'min-w-fit rounded-[1rem] border px-3.5 py-1.5 text-[13px] font-medium transition',
                     isActive
                       ? 'border-[var(--brand)] bg-[var(--brand)] text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)]'
                       : isComplete
@@ -91,8 +91,8 @@ export function ApplicationStepPage({
 
       <section className="site-shell py-7 lg:py-9">
         <div className="mx-auto max-w-5xl space-y-7">
-          <Card className="rounded-[1.9rem] border-[var(--border)] bg-[color:var(--surface)/0.96] text-[var(--foreground)] shadow-xl shadow-[color:var(--shadow-soft)]">
-            <CardHeader className="border-b border-[var(--border)] bg-[var(--surface-accent)]">
+          <Card className="overflow-hidden rounded-[1.9rem] border-[var(--border)] bg-[color:var(--surface)/0.96] text-[var(--foreground)] shadow-xl shadow-[color:var(--shadow-soft)]">
+            <CardHeader className="border-b border-[var(--border)] bg-[var(--surface-accent)] px-5 py-5 sm:px-6 sm:py-6">
               <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
                 {currentStep.supportTitle}
               </p>
@@ -103,7 +103,7 @@ export function ApplicationStepPage({
                 {currentStep.supportCopy}
               </CardDescription>
             </CardHeader>
-            <CardContent className="p-6 lg:p-8">
+            <CardContent className="p-5 sm:p-6 lg:p-7">
               <ApplicationStepFormCard
                 step={step}
                 previousStep={previousStep?.slug}

@@ -44,7 +44,7 @@ export function SiteAlertStrip(): React.ReactElement | null {
   }
 
   return (
-    <div className="border-b border-[var(--border)] bg-[var(--brand)] text-[var(--brand-contrast)]">
+    <div className="relative bg-[var(--brand)] text-[var(--brand-contrast)] before:pointer-events-none before:absolute before:bottom-0 before:left-4 before:right-4 before:h-3 before:content-[''] before:bg-[linear-gradient(180deg,rgba(248,255,249,0.16),transparent)] before:opacity-80 before:blur-md after:pointer-events-none after:absolute after:bottom-0 after:left-4 after:right-4 after:h-px after:content-[''] after:bg-[linear-gradient(90deg,transparent,rgba(248,255,249,0.34),transparent)] sm:before:left-6 sm:before:right-6 sm:after:left-6 sm:after:right-6 lg:before:left-8 lg:before:right-8 lg:after:left-8 lg:after:right-8">
       <div className="site-shell flex items-center justify-between gap-2 py-1 text-[10.5px] sm:py-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-2.5">
           <button

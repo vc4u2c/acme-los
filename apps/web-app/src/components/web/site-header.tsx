@@ -163,11 +163,11 @@ export function SiteHeader({
   return (
     <header
       ref={headerRef}
-      className="sticky top-0 z-40 border-b border-[var(--border)] bg-[color:var(--surface)/0.9] backdrop-blur-xl"
+      className="sticky top-0 z-40 bg-[color:var(--surface)/0.9] shadow-[0_18px_42px_-34px_var(--shadow-soft)] backdrop-blur-xl before:pointer-events-none before:absolute before:bottom-0 before:left-4 before:right-4 before:h-3 before:content-[''] before:bg-[linear-gradient(180deg,var(--shadow-soft),transparent)] before:opacity-65 before:blur-md after:pointer-events-none after:absolute after:bottom-0 after:left-4 after:right-4 after:h-px after:content-[''] after:bg-[linear-gradient(90deg,transparent,var(--border-strong),transparent)] after:opacity-80 sm:before:left-6 sm:before:right-6 sm:after:left-6 sm:after:right-6 lg:before:left-8 lg:before:right-8 lg:after:left-8 lg:after:right-8 supports-[backdrop-filter]:bg-[color:var(--surface)/0.82]"
     >
       <SiteAlertStrip />
       {showMarketingNav ? (
-        <div className="hidden border-b border-[var(--border)] bg-[color:var(--surface-strong)/0.88] lg:block">
+        <div className="relative hidden bg-[color:var(--surface-strong)/0.88] lg:block before:pointer-events-none before:absolute before:bottom-0 before:left-6 before:right-6 before:h-3 before:content-[''] before:bg-[linear-gradient(180deg,var(--shadow-soft),transparent)] before:opacity-50 before:blur-md after:pointer-events-none after:absolute after:bottom-0 after:left-6 after:right-6 after:h-px after:content-[''] after:bg-[linear-gradient(90deg,transparent,var(--border),transparent)] after:opacity-85 xl:before:left-8 xl:before:right-8 xl:after:left-8 xl:after:right-8">
           <div className="site-shell flex items-center justify-between gap-4 py-2.5 text-xs">
             <div className="flex items-center gap-4 text-[var(--foreground)]">
               <span className="font-semibold uppercase tracking-[0.22em] text-[var(--brand)]">

@@ -104,19 +104,20 @@ export default function Index() {
     <main className="min-h-screen text-[var(--foreground)]">
       <SiteHeader items={navigationItems} />
 
-      <section className="site-shell py-8 lg:py-12">
+      <section className="site-shell py-10 lg:py-14">
         <div className="mx-auto max-w-5xl space-y-8 text-center">
           <div className="space-y-5">
             <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
               Calm, clear, conversion-ready
             </p>
             <h1 className="mx-auto max-w-4xl font-display text-4xl leading-tight text-[var(--foreground)] sm:text-5xl lg:text-6xl">
-              A steadier installment application from first answer to funding.
+              A steadier installment application that feels thoughtful before it
+              feels transactional.
             </h1>
             <p className="mx-auto max-w-3xl text-lg leading-8 text-[var(--muted-foreground)]">
               Lead with identity and disclosures, keep support in view, and move
-              through income, banking, pre-approval, signing, and funding with
-              fewer surprises late in the journey.
+              through income, banking, pre-approval, signing, and funding with a
+              cleaner sense of pacing from the very first answer.
             </p>
           </div>
 
@@ -126,10 +127,51 @@ export default function Index() {
               asChild
               size="lg"
               variant="outline"
-              className="rounded-full border-[var(--border-strong)] bg-[var(--surface)] text-[var(--foreground)] hover:bg-[var(--surface-accent)]"
+              className="rounded-full border-[var(--border-strong)] bg-[color:var(--surface)/0.86] text-[var(--foreground)] hover:bg-[var(--surface-accent)]"
             >
               <Link href="/showcase">See the experience library</Link>
             </Button>
+          </div>
+
+          <div className="mx-auto max-w-3xl space-y-3 text-left">
+            {[
+              {
+                icon: Headphones,
+                title: 'Support stays present',
+                copy: 'Contact, timing, and rates stay inside the shell instead of disappearing into forms.',
+              },
+              {
+                icon: ShieldCheck,
+                title: 'Trust arrives in order',
+                copy: 'Disclosures and identity context land before the journey asks for more sensitive details.',
+              },
+              {
+                icon: Landmark,
+                title: 'Funding is not buried',
+                copy: 'The last-mile handoff is visible early, which makes completion feel more credible.',
+              },
+            ].map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <div
+                  key={item.title}
+                  className="flex items-start gap-3 border-l-2 border-[var(--border-strong)] pl-4"
+                >
+                  <div className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[color:var(--overlay-surface)/0.92] text-[var(--brand)] shadow-sm">
+                    <Icon className="h-4.5 w-4.5" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--foreground)]">
+                      {item.title}
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">
+                      {item.copy}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-2.5">
@@ -137,10 +179,11 @@ export default function Index() {
               'No hard pull before review',
               'Seven visible steps',
               'Support stays in the shell',
+              'Funding timing stays visible',
             ].map((item) => (
               <span
                 key={item}
-                className="rounded-full border border-[var(--border)] bg-[color:var(--surface)/0.88] px-3.5 py-2 text-sm font-medium text-[var(--foreground)] shadow-sm"
+                className="rounded-full border border-[var(--border)] bg-[color:var(--overlay-surface)/0.88] px-3.5 py-2 text-sm font-medium text-[var(--foreground)] shadow-sm"
               >
                 {item}
               </span>

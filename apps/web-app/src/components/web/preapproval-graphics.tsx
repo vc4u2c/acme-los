@@ -113,8 +113,11 @@ export function PreapprovalFeatureCard({
   return (
     <article className="space-y-4">
       {children}
-      <div className="space-y-2">
-        <h3 className="text-[1.65rem] font-semibold leading-tight text-[var(--foreground)]">
+      <div className="space-y-2.5">
+        <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[var(--brand)]">
+          Preapproval signal
+        </p>
+        <h3 className="font-display text-[1.8rem] leading-tight text-[var(--foreground)]">
           {title}
         </h3>
         <p className="text-base leading-7 text-[var(--muted-foreground)]">

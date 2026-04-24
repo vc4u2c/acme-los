@@ -117,6 +117,9 @@ function MenuCopy({
 export function ProfileMenu(): React.ReactElement {
   const pathname = usePathname();
   const { session, signIn, signOut } = useAuthSession();
+  const [headerOffset, setHeaderOffset] = React.useState(104);
+  const [menuSideOffset, setMenuSideOffset] = React.useState(12);
+  const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const isAuthenticated = session.status === 'authenticated';
   const accountLinks: MenuLink[] = isAuthenticated
     ? [
@@ -137,6 +140,54 @@ export function ProfileMenu(): React.ReactElement {
       ]
     : signedOutAccountLinks;
 
+  const syncMenuPosition = React.useCallback(() => {
+    const value = Number.parseFloat(
+      getComputedStyle(document.documentElement).getPropertyValue(
+        '--site-header-offset',
+      ),
+    );
+
+    if (Number.isFinite(value) && value > 0) {
+      setHeaderOffset(value);
+    }
+
+    const triggerBottom = triggerRef.current?.getBoundingClientRect().bottom;
+    if (typeof triggerBottom === 'number' && triggerBottom > 0) {
+      setMenuSideOffset(
+        Math.max(
+          12,
+          Math.ceil(
+            (Number.isFinite(value) ? value : 104) + 10 - triggerBottom,
+          ),
+        ),
+      );
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const syncHeaderOffset = () => {
+      const value = Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue(
+          '--site-header-offset',
+        ),
+      );
+
+      if (Number.isFinite(value) && value > 0) {
+        setHeaderOffset(value);
+      }
+    };
+
+    syncHeaderOffset();
+    syncMenuPosition();
+    window.addEventListener('resize', syncHeaderOffset);
+    window.addEventListener('resize', syncMenuPosition);
+
+    return () => {
+      window.removeEventListener('resize', syncHeaderOffset);
+      window.removeEventListener('resize', syncMenuPosition);
+    };
+  }, [syncMenuPosition]);
+
   const isItemActive = React.useCallback(
     (item: MenuLink) => {
       if (!item.href) {
@@ -149,9 +200,17 @@ export function ProfileMenu(): React.ReactElement {
   );
 
   return (
-    <DropdownMenu modal={false}>
+    <DropdownMenu
+      modal={false}
+      onOpenChange={(open) => {
+        if (open) {
+          requestAnimationFrame(syncMenuPosition);
+        }
+      }}
+    >
       <DropdownMenuTrigger asChild>
         <button
+          ref={triggerRef}
           type="button"
           aria-label="Open profile menu"
           className="group inline-flex h-9 cursor-pointer appearance-none items-center gap-1.5 rounded-full border border-[var(--border)] bg-[color:var(--surface)/0.92] px-2.5 shadow-[0_10px_22px_var(--shadow-soft)] outline-none transition duration-150 hover:border-[var(--brand)] hover:bg-[var(--surface-strong)] hover:shadow-[0_0_0_1px_var(--brand),0_10px_22px_var(--shadow-soft)] focus:outline-none focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--background)] sm:h-10 sm:px-3 lg:h-11 lg:gap-2 lg:px-3.5 [-webkit-tap-highlight-color:transparent]"
@@ -171,7 +230,20 @@ export function ProfileMenu(): React.ReactElement {
 
       <DropdownMenuContent
         align="end"
-        className="w-72 max-h-[min(40rem,calc(100dvh-1rem))] max-w-[calc(100vw-1rem)] sm:w-[18rem]"
+        side="bottom"
+        sideOffset={menuSideOffset}
+        collisionPadding={{
+          top: Math.ceil(headerOffset) + 12,
+          right: 12,
+          bottom: 12,
+          left: 12,
+        }}
+        style={{
+          maxHeight: `min(40rem, calc(100dvh - ${Math.ceil(
+            headerOffset + 20,
+          )}px))`,
+        }}
+        className="w-72 max-w-[calc(100vw-1rem)] sm:w-[18rem]"
       >
         <DropdownMenuLabel>
           {isAuthenticated && session.user ? (

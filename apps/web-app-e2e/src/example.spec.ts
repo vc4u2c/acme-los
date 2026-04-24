@@ -65,7 +65,7 @@ test('shows the web home, rendering demos, and showcase route', async ({
 
   await expect(
     page.getByRole('heading', {
-      name: /A steadier installment application from first answer to funding/i,
+      name: /A steadier installment application that feels thoughtful before it feels transactional/i,
     }),
   ).toBeVisible();
   await expect(page.getByText(/^Local$/)).toBeVisible();
@@ -84,7 +84,7 @@ test('shows the web home, rendering demos, and showcase route', async ({
   await navigate(page, '/');
   await expect(
     page.getByRole('heading', {
-      name: /A steadier installment application from first answer to funding/i,
+      name: /A steadier installment application that feels thoughtful before it feels transactional/i,
     }),
   ).toBeVisible();
   await navigate(page, '/showcase');
