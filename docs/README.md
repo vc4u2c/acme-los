@@ -36,6 +36,7 @@ path:
 
 - [Current platform architecture](./architecture/current-platform.md)
 - [BFF rollout plan](./architecture/bff-rollout-plan.md)
+- [BFF implementation checklist](./architecture/bff-implementation-checklist.md)
 - [Future repo relayout plan](./architecture/future-repo-relayout-plan.md)
 - [ADR-001: keep the current layout first](./architecture/adr-001-current-layout-first.md)
 - [Server-side auth flows](./architecture/auth-server-flows.md)

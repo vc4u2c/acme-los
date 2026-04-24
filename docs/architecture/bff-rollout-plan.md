@@ -7,6 +7,7 @@ Related docs:
 
 - [current-platform.md](./current-platform.md)
 - [auth-and-api-contracts.md](./auth-and-api-contracts.md)
+- [bff-implementation-checklist.md](./bff-implementation-checklist.md)
 - [future-repo-relayout-plan.md](./future-repo-relayout-plan.md)
 - [adr-001-current-layout-first.md](./adr-001-current-layout-first.md)
 
