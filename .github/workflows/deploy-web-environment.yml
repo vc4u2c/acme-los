@@ -72,6 +72,8 @@ jobs:
           mkdir -p dist/deployable/extracted
           tar -xzf dist/deployable/${{ inputs.artifact_name }}.tgz -C dist/deployable/extracted
           commit_sha="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').commitSha")"
+          project_name="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').projectName || 'web-app'")"
+          deployable_projects="$(node -p "(require('./dist/deployable/extracted/deploy-metadata.json').deployableProjects || [require('./dist/deployable/extracted/deploy-metadata.json').projectName || 'web-app']).join(',')")"
           web_version="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').webVersion")"
           mobile_version="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').mobileVersion")"
           if [[ ! "${commit_sha}" =~ ^[0-9a-f]{40}$ ]]; then
@@ -79,11 +81,15 @@ jobs:
             exit 1
           fi
           echo "Deploy artifact bundle: ${{ inputs.artifact_name }}.tgz"
+          echo "Deploy artifact project: ${project_name}"
+          echo "Deployable projects: ${deployable_projects}"
           echo "Artifact commit SHA: ${commit_sha}"
           echo "Deploy artifact web package version: ${web_version}"
           echo "Deploy artifact mobile package version: ${mobile_version}"
-          echo "Friendly deploy artifact label: acme-los-deployable-web-${web_version}-mobile-${mobile_version}-${commit_sha}.tgz"
+          echo "Friendly deploy artifact label: acme-los-web-app-deployable-${web_version}-${commit_sha}.tgz"
           echo "commit_sha=${commit_sha}" >> "$GITHUB_OUTPUT"
+          echo "project_name=${project_name}" >> "$GITHUB_OUTPUT"
+          echo "deployable_projects=${deployable_projects}" >> "$GITHUB_OUTPUT"
           echo "web_version=${web_version}" >> "$GITHUB_OUTPUT"
           echo "mobile_version=${mobile_version}" >> "$GITHUB_OUTPUT"
 
@@ -135,16 +141,65 @@ jobs:
       - name: Provision Azure web infrastructure and deploy container app
         shell: pwsh
         run: |
+          $webImageRepository = '${{ vars.AZURE_WEB_IMAGE_REPOSITORY }}'
+          if ([string]::IsNullOrWhiteSpace($webImageRepository)) {
+            $webImageRepository = 'acme-los-web'
+          }
+
+          $bffImageRepository = '${{ vars.AZURE_BFF_IMAGE_REPOSITORY }}'
+          if ([string]::IsNullOrWhiteSpace($bffImageRepository)) {
+            $bffImageRepository = 'acme-los-bff-api'
+          }
+
+          $bffDeploymentMode = '${{ vars.AZURE_BFF_DEPLOYMENT_MODE }}'
+          if ([string]::IsNullOrWhiteSpace($bffDeploymentMode)) {
+            $bffDeploymentMode = 'auto'
+          }
+
           $deploymentResult = ./tools/scripts/azure/deploy-web-environment.ps1 `
             -EnvironmentName '${{ inputs.environment_name }}' `
             -TenantId '${{ vars.AZURE_TENANT_ID }}' `
             -SubscriptionId '${{ vars.AZURE_SUBSCRIPTION_ID }}' `
             -Location '${{ vars.AZURE_LOCATION_PRIMARY }}' `
             -ImageTag '${{ steps.inspect_deploy_artifact.outputs.commit_sha }}' `
+            -WebImageRepository $webImageRepository `
+            -BffImageRepository $bffImageRepository `
+            -BffDeploymentMode $bffDeploymentMode `
             -ParameterFile '${{ inputs.bicep_parameter_file }}'
 
           $deploymentResult | Set-Content -Path deployment-result.json -Encoding utf8
           Get-Content deployment-result.json
+
+      - name: Verify public BFF proxy path
+        shell: bash
+        run: |
+          bff_enabled="$(node -p "String(require('./deployment-result.json').bffEnabled ?? false)")"
+          if [[ "${bff_enabled}" != "true" ]]; then
+            echo "BFF deployment is disabled for this environment; skipping proxy smoke check."
+            exit 0
+          fi
+
+          base_url="$(node -p "require('./deployment-result.json').containerAppBaseUrl")"
+          health_url="${base_url%/}/api/health"
+
+          for attempt in {1..12}; do
+            if curl -fsS --max-time 20 "${health_url}" -o health-response.json; then
+              service="$(node -p "require('./health-response.json').service || ''")"
+              status="$(node -p "require('./health-response.json').status || ''")"
+              if [[ "${service}" == "bff-api" && "${status}" == "ok" ]]; then
+                echo "BFF proxy health check passed through ${health_url}."
+                exit 0
+              fi
+              echo "Health endpoint responded with service='${service}' status='${status}' on attempt ${attempt}."
+            else
+              echo "Health endpoint was not ready on attempt ${attempt}."
+            fi
+
+            sleep 10
+          done
+
+          echo "Expected ${health_url} to proxy to BFF service 'bff-api'." >&2
+          exit 1
 
       - name: Summarize infrastructure deployment
         shell: bash
@@ -161,6 +216,10 @@ jobs:
           app_insights="$(node -p "require('./deployment-result.json').applicationInsightsName")"
           image_reference="$(node -p "require('./deployment-result.json').imageReference")"
           revision_fqdn="$(node -p "require('./deployment-result.json').containerAppLatestRevisionFqdn")"
+          bff_enabled="$(node -p "String(require('./deployment-result.json').bffEnabled ?? false)")"
+          bff_container_app="$(node -p "require('./deployment-result.json').bffContainerAppName || ''")"
+          bff_image_reference="$(node -p "require('./deployment-result.json').bffImageReference || ''")"
+          bff_revision_fqdn="$(node -p "require('./deployment-result.json').bffContainerAppLatestRevisionFqdn || ''")"
 
           {
             echo "## Web Infrastructure Deployment"
@@ -178,6 +237,12 @@ jobs:
             echo "- Application Insights: \`${app_insights}\`"
             echo "- Image: \`${image_reference}\`"
             echo "- Latest revision FQDN: \`${revision_fqdn}\`"
+            echo "- BFF enabled: \`${bff_enabled}\`"
+            if [[ "${bff_enabled}" == "true" ]]; then
+              echo "- BFF container app: \`${bff_container_app}\`"
+              echo "- BFF image: \`${bff_image_reference}\`"
+              echo "- BFF latest revision FQDN: \`${bff_revision_fqdn}\`"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Summarize target web deployment
@@ -189,6 +254,8 @@ jobs:
             echo "- Environment: \`${{ inputs.environment_name }}\`"
             echo "- Requested source ref: \`${{ inputs.source_ref }}\`"
             echo "- Deployed source ref: \`${{ steps.inspect_deploy_artifact.outputs.commit_sha }}\`"
+            echo "- Deploy artifact project: \`${{ steps.inspect_deploy_artifact.outputs.project_name }}\`"
+            echo "- Deployable projects: \`${{ steps.inspect_deploy_artifact.outputs.deployable_projects }}\`"
             echo "- Deploy artifact web version: \`${{ steps.inspect_deploy_artifact.outputs.web_version }}\`"
             echo "- Resource group: \`${{ vars.AZURE_RESOURCE_GROUP_NAME }}\`"
             echo "- Shared images resource group: \`${{ vars.AZURE_IMAGES_RESOURCE_GROUP_NAME }}\`"
@@ -197,5 +264,7 @@ jobs:
             echo "- Container app: \`${{ vars.AZURE_CONTAINER_APP_NAME }}\`"
             echo "- Key Vault: \`${{ vars.AZURE_KEY_VAULT_NAME }}\`"
             echo "- Bicep params: \`${{ inputs.bicep_parameter_file }}\`"
-            echo "- Image repository: \`${{ vars.AZURE_WEB_IMAGE_REPOSITORY }}\`"
+            echo "- Image repository: \`${{ vars.AZURE_WEB_IMAGE_REPOSITORY || 'acme-los-web' }}\`"
+            echo "- BFF deployment mode: \`${{ vars.AZURE_BFF_DEPLOYMENT_MODE || 'auto' }}\`"
+            echo "- BFF image repository: \`${{ vars.AZURE_BFF_IMAGE_REPOSITORY || 'acme-los-bff-api' }}\`"
           } >> "$GITHUB_STEP_SUMMARY"

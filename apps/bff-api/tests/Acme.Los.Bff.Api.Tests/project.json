@@ -1,0 +1,9 @@
+{
+  "name": "Acme.Los.Bff.Api.Tests",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/bff-api/tests/Acme.Los.Bff.Api.Tests",
+  "projectType": "application",
+  "tags": ["type:test", "platform:api", "scope:bff"],
+  "// targets": "to see all targets run: nx show project Acme.Los.Bff.Api.Tests --web",
+  "targets": {}
+}

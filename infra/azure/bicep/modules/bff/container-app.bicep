@@ -8,13 +8,7 @@ param containerRegistryServer string
 param containerImage string
 param appEnvironmentName string
 param appBuildId string
-param authProvider string = 'okta'
-param oktaEnvironmentName string = appEnvironmentName
-param oktaIssuer string
-param oktaClientId string
-param oktaRedirectUri string
-param oktaPostLogoutRedirectUri string
-param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
+param bffVersion string = '0.0.0'
 @allowed([
   'file'
   'redis'
@@ -25,25 +19,16 @@ param redisHostName string = ''
 param redisPort int = 10000
 param redisManagedIdentityClientId string = ''
 param applicationInsightsConnectionString string
-param keyVaultUri string
-param sessionSecretName string = 'web-session-secret'
+param trustedProxySecretName string
 @secure()
-param sessionSecretKeyVaultUrl string
-param bffBaseUrl string = ''
-param bffTrustedProxySecretName string = 'sec-acme-los-bff-trusted-proxy-secret'
-@secure()
-param bffTrustedProxySecretKeyVaultUrl string = ''
-param targetPort int = 3000
+param trustedProxySecretKeyVaultUrl string
+param targetPort int = 8080
 param containerCpu string = '0.5'
 param containerMemory string = '1Gi'
 param minReplicas int = 0
 param maxReplicas int = 1
-@minValue(1)
-param sessionIdleTimeoutSeconds int = appEnvironmentName == 'dev' ? 120 : 900
-@minValue(0)
-param sessionWarningSeconds int = appEnvironmentName == 'dev' ? 30 : 120
 
-var telemetryServiceName = 'acme-los-web'
+var telemetryServiceName = 'acme-los-bff'
 var telemetryTracesPerSecond = appEnvironmentName == 'prod' ? '5' : '2'
 var telemetryResourceAttributes = 'service.namespace=acme-los,deployment.environment.name=${appEnvironmentName}'
 var redisBaseEnvironmentVariables = stateStoreMode == 'redis'
@@ -78,22 +63,6 @@ var redisEntraEnvironmentVariables = stateStoreMode == 'redis'
       }
     ]
   : []
-var bffBaseEnvironmentVariables = !empty(bffBaseUrl)
-  ? [
-      {
-        name: 'ACME_BFF_BASE_URL'
-        value: bffBaseUrl
-      }
-    ]
-  : []
-var bffTrustedProxyEnvironmentVariables = !empty(bffTrustedProxySecretKeyVaultUrl)
-  ? [
-      {
-        name: 'ACME_BFF_TRUSTED_PROXY_SECRET'
-        secretRef: bffTrustedProxySecretName
-      }
-    ]
-  : []
 var environmentVariables = concat(
   [
     {
@@ -105,80 +74,28 @@ var environmentVariables = concat(
       value: appEnvironmentName
     }
     {
-      name: 'NEXT_PUBLIC_APP_ENVIRONMENT'
+      name: 'ASPNETCORE_ENVIRONMENT'
       value: appEnvironmentName
     }
     {
-      name: 'ACME_AUTH_PROVIDER'
-      value: authProvider
+      name: 'DOTNET_ENVIRONMENT'
+      value: appEnvironmentName
     }
     {
-      name: 'ACME_OKTA_ENVIRONMENT'
-      value: oktaEnvironmentName
+      name: 'ASPNETCORE_URLS'
+      value: 'http://+:${targetPort}'
     }
     {
-      name: 'ACME_OKTA_ISSUER'
-      value: oktaIssuer
-    }
-    {
-      name: 'ACME_OKTA_CLIENT_ID'
-      value: oktaClientId
-    }
-    {
-      name: 'ACME_OKTA_REDIRECT_URI'
-      value: oktaRedirectUri
-    }
-    {
-      name: 'ACME_OKTA_POST_LOGOUT_REDIRECT_URI'
-      value: oktaPostLogoutRedirectUri
-    }
-    {
-      name: 'ACME_OKTA_FUNDING_ACR_VALUES'
-      value: oktaFundingAcrValues
-    }
-    {
-      name: 'NEXT_PUBLIC_AUTH_PROVIDER'
-      value: authProvider
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_ENVIRONMENT'
-      value: oktaEnvironmentName
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_ISSUER'
-      value: oktaIssuer
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_CLIENT_ID'
-      value: oktaClientId
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_REDIRECT_URI'
-      value: oktaRedirectUri
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI'
-      value: oktaPostLogoutRedirectUri
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES'
-      value: oktaFundingAcrValues
+      name: 'ACME_BFF_VERSION'
+      value: bffVersion
     }
     {
       name: 'ACME_WEB_STATE_STORE'
       value: stateStoreMode
     }
     {
-      name: 'ACME_WEB_SESSION_IDLE_TIMEOUT_SECONDS'
-      value: string(sessionIdleTimeoutSeconds)
-    }
-    {
-      name: 'ACME_WEB_SESSION_WARNING_SECONDS'
-      value: string(sessionWarningSeconds)
-    }
-    {
-      name: 'NEXT_TELEMETRY_DISABLED'
-      value: '1'
+      name: 'ACME_BFF_TRUSTED_PROXY_SECRET'
+      secretRef: trustedProxySecretName
     }
     {
       name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
@@ -200,38 +117,10 @@ var environmentVariables = concat(
       name: 'OTEL_TRACES_SAMPLER_ARG'
       value: telemetryTracesPerSecond
     }
-    {
-      name: 'KEY_VAULT_URI'
-      value: keyVaultUri
-    }
-    {
-      name: 'ACME_WEB_SESSION_SECRET'
-      secretRef: sessionSecretName
-    }
   ],
   redisBaseEnvironmentVariables,
-  redisEntraEnvironmentVariables,
-  bffBaseEnvironmentVariables,
-  bffTrustedProxyEnvironmentVariables
+  redisEntraEnvironmentVariables
 )
-
-var sessionSecrets = [
-  {
-    name: sessionSecretName
-    keyVaultUrl: sessionSecretKeyVaultUrl
-    identity: userAssignedIdentityResourceId
-  }
-]
-var bffSecrets = !empty(bffTrustedProxySecretKeyVaultUrl)
-  ? [
-      {
-        name: bffTrustedProxySecretName
-        keyVaultUrl: bffTrustedProxySecretKeyVaultUrl
-        identity: userAssignedIdentityResourceId
-      }
-    ]
-  : []
-var secrets = concat(sessionSecrets, bffSecrets)
 
 resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: name
@@ -249,7 +138,7 @@ resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
     configuration: {
       activeRevisionsMode: 'Single'
       ingress: {
-        external: true
+        external: false
         allowInsecure: false
         targetPort: targetPort
         transport: 'auto'
@@ -260,12 +149,18 @@ resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
           identity: userAssignedIdentityResourceId
         }
       ]
-      secrets: secrets
+      secrets: [
+        {
+          name: trustedProxySecretName
+          keyVaultUrl: trustedProxySecretKeyVaultUrl
+          identity: userAssignedIdentityResourceId
+        }
+      ]
     }
     template: {
       containers: [
         {
-          name: 'web'
+          name: 'bff'
           image: containerImage
           env: environmentVariables
           resources: {
@@ -276,7 +171,7 @@ resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
             {
               type: 'Startup'
               httpGet: {
-                path: '/api/health'
+                path: '/health/ready'
                 port: targetPort
                 scheme: 'HTTP'
               }
@@ -288,7 +183,7 @@ resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
             {
               type: 'Readiness'
               httpGet: {
-                path: '/api/health'
+                path: '/health/ready'
                 port: targetPort
                 scheme: 'HTTP'
               }
@@ -300,7 +195,7 @@ resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
             {
               type: 'Liveness'
               httpGet: {
-                path: '/api/health'
+                path: '/health/live'
                 port: targetPort
                 scheme: 'HTTP'
               }

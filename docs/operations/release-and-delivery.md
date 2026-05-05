@@ -82,8 +82,8 @@ npm run release
 
 Current reality is split by workload:
 
-- CI validates lint and tests
-- CI builds deployable artifacts and metadata
+- CI validates affected projects with Nx
+- CI builds project-prefixed deployable artifacts and metadata
 - CI performs app releases on `main`
 - CD deploys `dev` after successful main CI
 - web deployment wrappers authenticate to Azure and call the repo deploy script
@@ -98,21 +98,55 @@ Current promotion status:
 
 Important nuance:
 
-- the reusable web deploy workflow currently downloads the deploy artifact for
-  traceability
-- the actual web deployment still builds and pushes the runtime image from the
-  checked-out source ref through
+- the reusable web deploy workflow downloads the project-prefixed deploy artifact
+  for traceability
+- the actual web deployment builds and pushes the runtime image from the
+  checked-out artifact source ref through
   [deploy-web-environment.ps1](../../tools/scripts/azure/deploy-web-environment.ps1)
+- the `web-app` deployable currently includes the runtime-coupled BFF container
+  because the browser-facing Next facade is still the public API boundary
 
-So the current model is not yet "promote one prebuilt image unchanged through
-every environment." It is:
+So the current model is:
 
 - validate once
+- create a project-prefixed deployable artifact
 - deploy through the same repo-owned script path
 - keep the orchestrator thin
 
 That is intentional because it keeps the deployment behavior owned by the repo
 instead of buried inside GitHub-specific workflow logic.
+
+## Nx-Based Promotion Strategy
+
+Use Nx for project selection and release ownership, then promote immutable
+project artifacts between environments.
+
+Recommended steady state:
+
+- `nx affected` decides which projects need validation for a PR or merge
+- Nx Release owns independent project versions and GitHub releases
+- deployable artifacts are prefixed by project name, for example
+  `acme-los-web-app-deployable-<sha>` and
+  `acme-los-web-app-<version>-release-bundle.tgz`
+- environment promotion passes the same artifact name, artifact run id, and
+  artifact commit SHA to `dev`, `qa`, `stg`, and `prod`
+- deployments never promote "whatever is on the branch"; they promote a
+  recorded project artifact and its source SHA
+
+Current project promotion units:
+
+- `web-app`: deploys the public Next app and the internal BFF ACA together
+  while the Next facade remains the browser-facing contract
+- `mobile-app`: releases separately through the mobile lane
+
+The BFF is deliberately not a standalone release group yet. Its runtime is
+coupled to the web facade during rollout, so `web-app` declares an implicit Nx
+dependency on `Acme.Los.Bff.Api`. That makes BFF changes affect the web deploy
+unit without pretending the BFF has a mature independent promotion lane.
+
+When the BFF owns auth/session or has independent consumers, split it into its
+own Nx Release group and promote `acme-los-bff-api-deployable-*` artifacts
+independently.
 
 ## Current Operating Reality
 

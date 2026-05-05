@@ -187,6 +187,7 @@ Goal:
 
 - create the .NET app, test project, health route, observability wiring, Redis
   wiring, and API docs surface
+- deploy the BFF as an internal Azure Container App behind the Next facade
 
 Definition of done:
 
@@ -196,6 +197,8 @@ Definition of done:
 - OpenTelemetry is wired
 - Redis integration boots cleanly
 - Scalar docs render
+- dev ACA deploys the BFF with internal ingress only
+- Next receives `ACME_BFF_BASE_URL` and the trusted proxy secret through IaC
 
 ### Phase 2: Move Customer And Application Behavior First
 
@@ -274,12 +277,23 @@ For the first pass:
 - treat the BFF as a deployable application, not as a NuGet package family
 - let Nx handle affected calculation, build, test, and publish targets
 - keep release automation conservative until the app deployment path is proven
+- keep the BFF in the `web-app` deploy unit while the Next facade owns the
+  browser-facing API route contract
 
 Recommended first release shape:
 
 - containerized application release
 - environment deployment through repo-owned scripts and workflows
 - no independent NuGet release process unless reusable libraries appear later
+
+Initial Azure shape:
+
+- BFF ingress is internal to the Container Apps environment (`external: false`)
+- Redis and Key Vault stay private endpoint backed platform dependencies
+- the BFF trusted identity headers require `ACME_BFF_TRUSTED_PROXY_SECRET`
+  outside local development
+- this is private ACA ingress, not a separate Azure Private Endpoint resource
+  for the BFF container app
 
 ## Non-Goals
 
