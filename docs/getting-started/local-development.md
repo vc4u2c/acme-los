@@ -87,7 +87,9 @@ The one-command local stack uses `http://localhost:5186` for Next-to-BFF
 server-side proxy traffic. That avoids local Node.js TLS trust issues with the
 ASP.NET Core self-signed HTTPS development certificate. Browser application code
 should still call the stable Next facade, for example `/api/health`, not the raw
-BFF URL. The raw BFF URL is for terminal checks or direct top-level navigation.
+BFF URL. When the BFF is configured, `/api/health` reports both the Next web
+layer and the BFF layer. The raw BFF URL is for terminal checks or direct
+top-level navigation.
 If you need to override the one-command BFF URL, set
 `ACME_DEV_STACK_BFF_BASE_URL`; the script passes that value to the web app as
 `ACME_BFF_BASE_URL`.

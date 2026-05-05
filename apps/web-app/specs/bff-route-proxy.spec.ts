@@ -6,6 +6,7 @@ import { maybeProxyToBff } from '../src/app/api/_lib/bff-route-proxy';
 
 describe('BFF route proxy', () => {
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
+  const originalUrl = process.env.ACME_BFF_URL;
   const originalTrustedProxySecret = process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
   const originalFetch = global.fetch;
 
@@ -14,6 +15,12 @@ describe('BFF route proxy', () => {
       delete process.env.ACME_BFF_BASE_URL;
     } else {
       process.env.ACME_BFF_BASE_URL = originalBaseUrl;
+    }
+
+    if (originalUrl === undefined) {
+      delete process.env.ACME_BFF_URL;
+    } else {
+      process.env.ACME_BFF_URL = originalUrl;
     }
 
     if (originalTrustedProxySecret === undefined) {
@@ -28,6 +35,7 @@ describe('BFF route proxy', () => {
 
   it('returns null when the BFF base URL is not configured', async () => {
     delete process.env.ACME_BFF_BASE_URL;
+    delete process.env.ACME_BFF_URL;
     const fetchSpy = jest.fn();
 
     global.fetch = fetchSpy as typeof fetch;

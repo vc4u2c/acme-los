@@ -168,7 +168,8 @@ $ingressFqdn = az containerapp show `
 
 ACA startup, readiness, and liveness probes use `/api/health/live`, which stays
 local to the Next web container. `/api/health` remains the public smoke path and
-proxies to the BFF when the BFF is enabled for the environment.
+reports both the Next web layer and the BFF layer when the BFF is enabled for
+the environment.
 
 If the runtime image changes and you want to force a new image build instead of
 reusing an existing tag, pass `-ImageTag` explicitly:

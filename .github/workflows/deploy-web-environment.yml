@@ -188,12 +188,12 @@ jobs:
           echo "Container app running status: ${running_status}"
           echo "running_status=${running_status}" >> "$GITHUB_OUTPUT"
 
-      - name: Verify public BFF proxy path
+      - name: Verify public web and BFF health path
         shell: bash
         run: |
           web_running_status="${{ steps.inspect_web_state.outputs.running_status }}"
           if [[ "${web_running_status}" == "Stopped" ]]; then
-            echo "Web container app is intentionally stopped; skipping live BFF proxy smoke check."
+            echo "Web container app is intentionally stopped; skipping live web and BFF health smoke check."
             {
               echo "## Live Smoke Check"
               echo ""
@@ -205,7 +205,7 @@ jobs:
 
           bff_enabled="$(node -p "String(require('./deployment-result.json').bffEnabled ?? false)")"
           if [[ "${bff_enabled}" != "true" ]]; then
-            echo "BFF deployment is disabled for this environment; skipping proxy smoke check."
+            echo "BFF deployment is disabled for this environment; skipping BFF layer smoke check."
             exit 0
           fi
 
@@ -214,13 +214,16 @@ jobs:
 
           for attempt in {1..12}; do
             if curl -fsS --max-time 20 "${health_url}" -o health-response.json; then
-              service="$(node -p "require('./health-response.json').service || ''")"
               status="$(node -p "require('./health-response.json').status || ''")"
-              if [[ "${service}" == "bff-api" && "${status}" == "ok" ]]; then
-                echo "BFF proxy health check passed through ${health_url}."
+              web_service="$(node -p "require('./health-response.json').layers?.web?.service || ''")"
+              web_status="$(node -p "require('./health-response.json').layers?.web?.status || ''")"
+              bff_service="$(node -p "require('./health-response.json').layers?.bff?.service || ''")"
+              bff_status="$(node -p "require('./health-response.json').layers?.bff?.status || ''")"
+              if [[ "${status}" == "ok" && "${web_service}" == "web-app" && "${web_status}" == "ok" && "${bff_service}" == "bff-api" && "${bff_status}" == "ok" ]]; then
+                echo "Composite web and BFF health check passed through ${health_url}."
                 exit 0
               fi
-              echo "Health endpoint responded with service='${service}' status='${status}' on attempt ${attempt}."
+              echo "Health endpoint responded with status='${status}' web='${web_service}:${web_status}' bff='${bff_service}:${bff_status}' on attempt ${attempt}."
             else
               echo "Health endpoint was not ready on attempt ${attempt}."
             fi
@@ -228,7 +231,7 @@ jobs:
             sleep 10
           done
 
-          echo "Expected ${health_url} to proxy to BFF service 'bff-api'." >&2
+          echo "Expected ${health_url} to report healthy web and BFF layers." >&2
           exit 1
 
       - name: Summarize infrastructure deployment
