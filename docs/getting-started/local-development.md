@@ -61,6 +61,78 @@ $env:ACME_WEB_STATE_STORE='file'
 npx.cmd nx run web-app:dev
 ```
 
+## Run The Web App And BFF Together
+
+The route switch is server-side. The browser keeps calling the stable Next.js
+`/api/*` routes, and those route handlers proxy selected requests to the BFF
+only when `ACME_BFF_BASE_URL` is configured.
+
+### Preferred One-Command Path
+
+Use this for the full local website path. It starts Redis, the `.NET` BFF, and
+the Next web app with the BFF switch enabled.
+
+```powershell
+npx.cmd nx run web-app:dev-stack
+```
+
+Open:
+
+- `http://localhost:3000`
+- `http://localhost:3000/api/health`
+- `http://localhost:5186/bff/health`
+
+The one-command local stack uses `http://localhost:5186` for Next-to-BFF
+server-side proxy traffic. That avoids local Node.js TLS trust issues with the
+ASP.NET Core self-signed HTTPS development certificate. Browser application code
+should still call the stable Next facade, for example `/api/health`, not the raw
+BFF URL. The raw BFF URL is for terminal checks or direct top-level navigation.
+If you need to override the one-command BFF URL, set
+`ACME_DEV_STACK_BFF_BASE_URL`; the script passes that value to the web app as
+`ACME_BFF_BASE_URL`.
+
+The npm alias is:
+
+```powershell
+npm run web:dev:stack
+```
+
+### Manual Split-Terminal Path
+
+Use this when you want separate terminals for debugging either process.
+
+Terminal 1:
+
+```powershell
+$env:ACME_BFF_BASE_URL='http://localhost:5186'
+npx.cmd nx run web-app:dev-redis
+```
+
+Terminal 2:
+
+```powershell
+$env:ACME_WEB_STATE_STORE='redis'
+$env:ACME_REDIS_URL='redis://127.0.0.1:6379'
+dotnet run --project apps/bff-api/src/Acme.Los.Bff.Api/Acme.Los.Bff.Api.csproj --launch-profile http
+```
+
+When you are done with the local Redis container:
+
+```powershell
+npx.cmd nx run web-app:redis-down
+```
+
+If you set `ACME_WEB_SESSION_SECRET`, set the same value in both terminals. In
+normal local development, both processes fall back to the same local
+non-production secret automatically.
+
+For the trusted Next-to-BFF identity handoff, set the same
+`ACME_BFF_TRUSTED_PROXY_SECRET` value in both terminals when you want local dev
+to match the production guard. The one-command stack sets a local default for
+both processes. Outside development, the BFF must require that shared secret or
+an equivalent private network boundary before it honors trusted identity
+headers.
+
 ## Run The Mobile App
 
 Start Expo:

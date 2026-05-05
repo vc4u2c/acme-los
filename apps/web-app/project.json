@@ -13,6 +13,13 @@
         "command": "node tools/scripts/run-web-app-dev-with-redis.mjs"
       }
     },
+    "dev-stack": {
+      "executor": "nx:run-commands",
+      "continuous": true,
+      "options": {
+        "command": "node tools/scripts/run-web-stack-dev.mjs"
+      }
+    },
     "redis-up": {
       "executor": "nx:run-commands",
       "options": {

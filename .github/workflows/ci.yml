@@ -36,8 +36,16 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Restore .NET dependencies
+        run: dotnet restore apps/bff-api/Acme.Los.Bff.sln
 
       - name: Set Nx SHAs
         uses: nrwl/nx-set-shas@v4
@@ -49,7 +57,7 @@ jobs:
         run: npx nx affected -t lint
 
       - name: Test affected projects
-        run: npx nx affected -t test --runInBand
+        run: npx nx affected -t test
 
       # Optional once the workspace is connected to Nx Cloud.
       # - name: Self-heal CI

@@ -1,7 +1,14 @@
+import { NextRequest, NextResponse } from 'next/server';
 import os from 'node:os';
-import { NextResponse } from 'next/server';
+import { maybeProxyToBff } from '../_lib/bff-route-proxy';
 
-export function GET() {
+export async function GET(request: NextRequest) {
+  const proxiedResponse = await maybeProxyToBff(request, '/bff/health');
+
+  if (proxiedResponse) {
+    return proxiedResponse;
+  }
+
   const instanceId = os.hostname();
   const processId = process.pid;
   const servedAt = new Date().toISOString();

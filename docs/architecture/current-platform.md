@@ -88,6 +88,25 @@ What is still bridge-state rather than final:
   - server-side wrappers for domain-facing `customer` and `application` endpoints
   - this is the layer the Next facade can later point at a .NET BFF or legacy services through
 
+Current BFF bridge:
+
+- browser and UI code still call the stable Next `/api/*` contract
+- `ACME_BFF_BASE_URL` is read only by Next route handlers, not by browser client
+  code
+- when the BFF base URL is configured, the Next route handler keeps auth,
+  assurance, and CSRF checks at the browser boundary, then proxies selected
+  routes to the BFF with trusted identity headers
+- outside local development, the BFF should only honor those trusted identity
+  headers when `ACME_BFF_TRUSTED_PROXY_SECRET` matches or an equivalent private
+  network boundary is in place
+- when the BFF base URL is not configured, those same Next routes continue to
+  serve the existing implementation
+- `GET|POST|DELETE /api/auth/session` and
+  `POST /api/auth/session/touch` stay local in Next while Next owns the
+  browser-facing auth session cookie and idle-session timing
+- `GET /api/security/csrf` stays local in Next until the BFF owns login,
+  callback, session-cookie issuance, and CSRF issuance together
+
 ## Current Server-State Model
 
 - one opaque auth session cookie identifies the web session
@@ -193,7 +212,56 @@ structural rewrite.
    - private ACA ingress
    - stricter production observability and operational controls
 
+## Later Roadmap Candidate: Digital Analytics And Tag Management
+
+This is not implemented today. When it is added, treat it as a deliberate
+cross-cutting capability rather than page-by-page snippet work.
+
+Goals:
+
+- support environment-aware digital marketing and tag-manager configuration for
+  `local`, `dev`, `qa`, `stg`, and `prod`
+- capture page visits consistently across static, ISR, server-rendered, and
+  client-transitioned routes
+- capture hosted sign-in, callback completion, sign-out, MFA, funding step-up,
+  and other auth journey events without coupling UI code to vendor-specific
+  tags
+- support explicit business events such as application start, step completion,
+  preapproval outcomes, signing, and funding
+- keep customer PII, secrets, tokens, and full form payloads out of marketing
+  telemetry
+
+Recommended shape:
+
+- define one app-owned analytics event contract and one app-owned analytics
+  service instead of letting feature code call a tag manager directly
+- allow server-side event emission for SSR, route handlers, auth events, and
+  callback-driven outcomes that the browser alone cannot observe reliably
+- allow client-side event emission for page views, interaction events, and
+  browser-only context
+- keep the event taxonomy stable even if the downstream marketing/tag platform
+  changes later
+- make environment mapping, consent rules, and enabled destinations
+  configuration-driven
+- keep observability telemetry and marketing telemetry separate even when some
+  events share names or correlation identifiers
+
+Definition of done for a first pass:
+
+- page-view tracking works across all Next rendering strategies in the repo
+- auth events are visible for both normal sign-in and funding step-up flows
+- custom event tracking exists behind a typed helper instead of ad hoc calls
+- environment-specific destination wiring is documented and testable
+- operators and developers can tell which events are product telemetry versus
+  marketing telemetry
+
 ## BFF Direction
+
+Related docs:
+
+- [BFF rollout plan](./bff-rollout-plan.md)
+- [Future repo relayout plan](./future-repo-relayout-plan.md)
+- [ADR-001: keep the current layout first](./adr-001-current-layout-first.md)
 
 The web app is being shaped so the current server-side PKCE flow can later move behind a .NET BFF without rewriting the UI layer.
 
