@@ -8,6 +8,8 @@ import {
   submitApplicationFlow,
 } from '@acme-los/api/web-server';
 import { getApplicationAuthRequirement } from '../../../../lib/application-auth';
+import { maybeProxyToBff } from '../../_lib/bff-route-proxy';
+import { buildBffTrustedIdentityHeaders } from '../../_lib/bff-trusted-session';
 
 export const runtime = 'nodejs';
 
@@ -19,11 +21,24 @@ const submitApplicationSchema = z.object({
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     assertValidCsrf(request);
-    const payload = submitApplicationSchema.parse(await request.json());
+    const payload = submitApplicationSchema.parse(await request.clone().json());
     const session = await requireAuthenticatedWebSession(
       request,
       getApplicationAuthRequirement(payload.step),
     );
+    const proxiedResponse = await maybeProxyToBff(
+      request,
+      '/bff/application/submit',
+      {
+        extraHeaders: buildBffTrustedIdentityHeaders(session),
+      },
+    );
+
+    if (proxiedResponse) {
+      await clearApplicationFlow(session, request, proxiedResponse);
+      return proxiedResponse;
+    }
+
     const submitResponse = await submitApplicationFlow(session, payload);
     const response = NextResponse.json(submitResponse);
 

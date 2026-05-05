@@ -227,6 +227,13 @@ application state for local scaffolding.
 That keeps browser contracts stable while letting the Next facade fall back to
 the existing implementation whenever the BFF base URL is not configured.
 
+For the trusted identity bridge, Next forwards authenticated customer context
+with `x-acme-authenticated-*` headers. In local development the BFF accepts
+those headers to keep the scaffold easy to run. Outside local development, set
+the same `ACME_BFF_TRUSTED_PROXY_SECRET` value in the Next facade and the BFF so
+the BFF can reject spoofed trusted identity headers unless they came through the
+server-side proxy path.
+
 ## First Verification Pass
 
 From the repo root:

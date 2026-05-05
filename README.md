@@ -62,6 +62,76 @@ npx.cmd nx run web-app:redis-down
 For the full local run/setup details, including the Redis path, see
 [Local development](./docs/getting-started/local-development.md).
 
+Run the full local web + BFF stack:
+
+The `/api/*` switch is server-side, not browser-side. The client keeps calling
+the same Next.js `/api/*` routes. Those Next route handlers then decide at
+request time whether to handle the route locally or proxy it to the `.NET` BFF.
+
+- if `ACME_BFF_BASE_URL` is unset, the switched routes stay in Next
+- if `ACME_BFF_BASE_URL` is set, Next validates auth and CSRF locally, forwards
+  trusted identity headers, and proxies the request to the BFF
+
+Preferred one-command path:
+
+```powershell
+npx.cmd nx run web-app:dev-stack
+```
+
+That starts local Redis, the `.NET` BFF, and the Next web app with
+`ACME_BFF_BASE_URL`, `ACME_WEB_STATE_STORE=redis`, and
+`ACME_REDIS_URL=redis://127.0.0.1:6379` wired for the local process tree.
+For local server-to-server proxying, the command uses the BFF HTTP loopback URL
+`http://localhost:5186` so Node does not need to trust the ASP.NET Core
+self-signed HTTPS development certificate.
+If you need to override that URL for the one-command stack, set
+`ACME_DEV_STACK_BFF_BASE_URL`; the script still passes it to the web app as
+`ACME_BFF_BASE_URL`.
+
+The npm alias is:
+
+```powershell
+npm run web:dev:stack
+```
+
+Manual split-terminal path for troubleshooting:
+
+Terminal 1:
+
+```powershell
+$env:ACME_BFF_BASE_URL='http://localhost:5186'
+npx.cmd nx run web-app:dev-redis
+```
+
+Terminal 2:
+
+```powershell
+$env:ACME_WEB_STATE_STORE='redis'
+$env:ACME_REDIS_URL='redis://127.0.0.1:6379'
+dotnet run --project apps/bff-api/src/Acme.Los.Bff.Api/Acme.Los.Bff.Api.csproj --launch-profile http
+```
+
+Useful local URLs for the full stack:
+
+- web app: `http://localhost:3000`
+- stable browser-facing health route: `http://localhost:3000/api/health`
+- BFF direct health route for terminal/direct checks: `http://localhost:5186/bff/health`
+- BFF OpenAPI in development: `http://localhost:5186/openapi/v1.json`
+
+Do not call the raw BFF URL from browser application code. The web app CSP is
+intentionally scoped to the Next origin plus Okta, so browser traffic should use
+the stable `/api/*` facade, for example `http://localhost:3000/api/health`.
+
+If you set `ACME_WEB_SESSION_SECRET`, use the same value in both terminals.
+For normal non-production local development, both the web app and the BFF fall
+back to the same local development secret automatically.
+
+For the trusted Next-to-BFF identity handoff, the one-command stack also shares
+`ACME_BFF_TRUSTED_PROXY_SECRET` between both processes. Local development can
+run without it, but any non-development BFF deployment that accepts trusted
+identity headers must require this secret or an equivalent private network
+boundary before those headers are honored.
+
 Run the mobile app:
 
 ```powershell

@@ -88,6 +88,25 @@ What is still bridge-state rather than final:
   - server-side wrappers for domain-facing `customer` and `application` endpoints
   - this is the layer the Next facade can later point at a .NET BFF or legacy services through
 
+Current BFF bridge:
+
+- browser and UI code still call the stable Next `/api/*` contract
+- `ACME_BFF_BASE_URL` is read only by Next route handlers, not by browser client
+  code
+- when the BFF base URL is configured, the Next route handler keeps auth,
+  assurance, and CSRF checks at the browser boundary, then proxies selected
+  routes to the BFF with trusted identity headers
+- outside local development, the BFF should only honor those trusted identity
+  headers when `ACME_BFF_TRUSTED_PROXY_SECRET` matches or an equivalent private
+  network boundary is in place
+- when the BFF base URL is not configured, those same Next routes continue to
+  serve the existing implementation
+- `GET|POST|DELETE /api/auth/session` and
+  `POST /api/auth/session/touch` stay local in Next while Next owns the
+  browser-facing auth session cookie and idle-session timing
+- `GET /api/security/csrf` stays local in Next until the BFF owns login,
+  callback, session-cookie issuance, and CSRF issuance together
+
 ## Current Server-State Model
 
 - one opaque auth session cookie identifies the web session

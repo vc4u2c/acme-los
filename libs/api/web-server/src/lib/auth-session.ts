@@ -11,8 +11,10 @@ import { clearApplicationFlow } from './application-flow';
 import {
   getAssuranceLevelFromAuthenticationMethods,
   isAssuranceSatisfied,
+  MOCK_AUTH_STORAGE_KEY,
   type WebAuthRequirement,
 } from './assurance';
+import { getServerWebAuthConfig } from './config';
 import {
   APPLICATION_FLOW_COOKIE_NAME,
   AUTH_SESSION_COOKIE_NAME,
@@ -80,6 +82,31 @@ type TokenRefreshDependencies = {
 function buildUnauthenticatedSession(errorMessage?: string): WebAuthSession {
   return {
     provider: 'okta',
+    status: errorMessage ? 'error' : 'unauthenticated',
+    isAuthenticated: false,
+    assuranceLevel: 'anonymous',
+    user: null,
+    errorMessage,
+  };
+}
+
+function buildMockSession(user: WebAuthSessionUser): WebAuthSession {
+  return {
+    provider: 'mock',
+    status: 'authenticated',
+    isAuthenticated: true,
+    assuranceLevel: getAssuranceLevelFromAuthenticationMethods(
+      user.authenticationMethods,
+    ),
+    user,
+  };
+}
+
+function buildMockUnauthenticatedSession(
+  errorMessage?: string,
+): WebAuthSession {
+  return {
+    provider: 'mock',
     status: errorMessage ? 'error' : 'unauthenticated',
     isAuthenticated: false,
     assuranceLevel: 'anonymous',
@@ -158,6 +185,28 @@ function buildAuthenticatedSession(
     ),
     user,
   };
+}
+
+function readMockRequestSession(request: NextRequest): WebAuthSession | null {
+  if (getServerWebAuthConfig().provider !== 'mock') {
+    return null;
+  }
+
+  const rawCookieValue = request.cookies.get(MOCK_AUTH_STORAGE_KEY)?.value;
+
+  if (!rawCookieValue) {
+    return null;
+  }
+
+  try {
+    const user = JSON.parse(
+      decodeURIComponent(rawCookieValue),
+    ) as WebAuthSessionUser | null;
+
+    return user ? buildMockSession(user) : null;
+  } catch {
+    return null;
+  }
 }
 
 function getCurrentEpochSeconds(): number {
@@ -275,6 +324,26 @@ export async function readWebAuthSession(
   request: NextRequest,
   options: { includeDebug?: boolean } = {},
 ): Promise<GetWebAuthSessionResponse> {
+  const mockSession = readMockRequestSession(request);
+
+  if (mockSession) {
+    return {
+      session: mockSession,
+      ...(options.includeDebug
+        ? { debug: { idTokenClaims: null, accessTokenClaims: null } }
+        : {}),
+    };
+  }
+
+  if (getServerWebAuthConfig().provider === 'mock') {
+    return {
+      session: buildMockUnauthenticatedSession(),
+      ...(options.includeDebug
+        ? { debug: { idTokenClaims: null, accessTokenClaims: null } }
+        : {}),
+    };
+  }
+
   const storedSession = await readStoredSessionFromRequest(request);
 
   if (storedSession === null) {
@@ -363,6 +432,19 @@ export async function touchWebAuthSession(
     verifyOktaIdToken,
   },
 ): Promise<TouchedWebAuthSession | null> {
+  const mockSession = readMockRequestSession(request);
+
+  if (mockSession) {
+    return {
+      storedSessionId: 'mock',
+      maxAge: 60 * 60,
+      response: {
+        session: mockSession,
+        touched: true,
+      },
+    };
+  }
+
   const sessionCookiePayload = readSessionCookiePayloadFromRequest(request);
 
   if (!sessionCookiePayload) {
@@ -425,6 +507,7 @@ export async function clearWebAuthSession(
   request: NextRequest,
   response: NextResponse,
 ): Promise<void> {
+  const mockSession = readMockRequestSession(request);
   const sessionCookiePayload = readSessionCookiePayloadFromRequest(request);
   const storedSession = await readStoredSessionFromRequest(request);
   const logoutStoredSession =
@@ -439,10 +522,13 @@ export async function clearWebAuthSession(
 
   if (cleanupSession) {
     await clearApplicationFlow(cleanupSession.session, request, response);
+  } else if (mockSession) {
+    await clearApplicationFlow(mockSession, request, response);
   } else {
     clearCookie(response, request, APPLICATION_FLOW_COOKIE_NAME);
   }
 
+  clearCookie(response, request, MOCK_AUTH_STORAGE_KEY);
   clearCookie(response, request, AUTH_SESSION_COOKIE_NAME);
   clearCookie(response, request, LEGACY_AUTH_LOGOUT_HINT_COOKIE_NAME);
   clearCookie(response, request, AUTH_TRANSACTION_COOKIE_NAME);
@@ -495,6 +581,24 @@ export async function requireAuthenticatedWebSession(
     minimumAssuranceLevel: 'aal1',
   },
 ): Promise<WebAuthSession> {
+  const mockSession = readMockRequestSession(request);
+
+  if (mockSession) {
+    if (!mockSession.isAuthenticated || mockSession.user === null) {
+      throw new Error('Authentication is required for this request.');
+    }
+
+    const minimumAssuranceLevel = requirement.minimumAssuranceLevel ?? 'aal1';
+
+    if (
+      !isAssuranceSatisfied(mockSession.assuranceLevel, minimumAssuranceLevel)
+    ) {
+      throw new Error('Step-up MFA is required for this request.');
+    }
+
+    return mockSession;
+  }
+
   const storedSession = await readStoredSessionFromRequest(request);
   const session = storedSession?.session ?? buildUnauthenticatedSession();
 

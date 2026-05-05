@@ -113,6 +113,71 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public async Task GetBffCustomerProfile_InProductionWithoutProxySecret_RejectsTrustedHeaders()
+  {
+    var originalProxySecret =
+      Environment.GetEnvironmentVariable("ACME_BFF_TRUSTED_PROXY_SECRET");
+
+    try
+    {
+      Environment.SetEnvironmentVariable("ACME_BFF_TRUSTED_PROXY_SECRET", null);
+      using var factory =
+        _factory.WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
+      using var client = factory.CreateClient();
+      using var request = new HttpRequestMessage(
+        HttpMethod.Get,
+        "/bff/customer/profile");
+
+      request.Headers.Add("x-acme-authenticated-user-id", "user-123");
+      request.Headers.Add("x-acme-authenticated-user-email", "user@example.com");
+
+      using var response = await client.SendAsync(request);
+
+      Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+    finally
+    {
+      Environment.SetEnvironmentVariable(
+        "ACME_BFF_TRUSTED_PROXY_SECRET",
+        originalProxySecret);
+    }
+  }
+
+  [Fact]
+  public async Task GetBffCustomerProfile_InProductionWithProxySecret_AcceptsTrustedHeaders()
+  {
+    var originalProxySecret =
+      Environment.GetEnvironmentVariable("ACME_BFF_TRUSTED_PROXY_SECRET");
+
+    try
+    {
+      Environment.SetEnvironmentVariable(
+        "ACME_BFF_TRUSTED_PROXY_SECRET",
+        "proxy-secret-123");
+      using var factory =
+        _factory.WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
+      using var client = factory.CreateClient();
+      using var request = new HttpRequestMessage(
+        HttpMethod.Get,
+        "/bff/customer/profile");
+
+      request.Headers.Add("x-acme-bff-proxy-secret", "proxy-secret-123");
+      request.Headers.Add("x-acme-authenticated-user-id", "user-123");
+      request.Headers.Add("x-acme-authenticated-user-email", "user@example.com");
+
+      using var response = await client.SendAsync(request);
+
+      Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+    finally
+    {
+      Environment.SetEnvironmentVariable(
+        "ACME_BFF_TRUSTED_PROXY_SECRET",
+        originalProxySecret);
+    }
+  }
+
+  [Fact]
   public async Task PutBffCustomerProfile_WithTrustedIdentityAndCsrf_PersistsProfile()
   {
     using var client = _factory.CreateClient();

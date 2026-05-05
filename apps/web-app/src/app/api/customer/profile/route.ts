@@ -6,6 +6,8 @@ import {
   readCustomerProfile,
   writeCustomerProfile,
 } from '@acme-los/api/web-server';
+import { maybeProxyToBff } from '../../_lib/bff-route-proxy';
+import { buildBffTrustedIdentityHeaders } from '../../_lib/bff-trusted-session';
 
 export const runtime = 'nodejs';
 
@@ -22,6 +24,17 @@ const customerProfileSchema = z.object({
 export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const session = await requireAuthenticatedWebSession(request);
+    const proxiedResponse = await maybeProxyToBff(
+      request,
+      '/bff/customer/profile',
+      {
+        extraHeaders: buildBffTrustedIdentityHeaders(session),
+      },
+    );
+
+    if (proxiedResponse) {
+      return proxiedResponse;
+    }
 
     return NextResponse.json({
       profile: await readCustomerProfile(session),
@@ -38,6 +51,18 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   try {
     assertValidCsrf(request);
     const session = await requireAuthenticatedWebSession(request);
+    const proxiedResponse = await maybeProxyToBff(
+      request,
+      '/bff/customer/profile',
+      {
+        extraHeaders: buildBffTrustedIdentityHeaders(session),
+      },
+    );
+
+    if (proxiedResponse) {
+      return proxiedResponse;
+    }
+
     const payload = z
       .object({
         profile: customerProfileSchema,

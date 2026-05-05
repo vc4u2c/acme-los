@@ -11,6 +11,8 @@ import {
   saveApplicationStep,
 } from '@acme-los/api/web-server';
 import { getApplicationAuthRequirement } from '../../../../../lib/application-auth';
+import { maybeProxyToBff } from '../../../_lib/bff-route-proxy';
+import { buildBffTrustedIdentityHeaders } from '../../../_lib/bff-trusted-session';
 
 export const runtime = 'nodejs';
 
@@ -34,6 +36,17 @@ export async function GET(
       request,
       getApplicationAuthRequirement(parsedStep),
     );
+    const proxiedResponse = await maybeProxyToBff(
+      request,
+      `/bff/application/steps/${parsedStep}`,
+      {
+        extraHeaders: buildBffTrustedIdentityHeaders(session),
+      },
+    );
+
+    if (proxiedResponse) {
+      return proxiedResponse;
+    }
 
     return NextResponse.json({
       stepState: await readApplicationStepState(session, parsedStep),
@@ -64,6 +77,18 @@ export async function PUT(
       request,
       getApplicationAuthRequirement(parsedStep),
     );
+    const proxiedResponse = await maybeProxyToBff(
+      request,
+      `/bff/application/steps/${parsedStep}`,
+      {
+        extraHeaders: buildBffTrustedIdentityHeaders(session),
+      },
+    );
+
+    if (proxiedResponse) {
+      return proxiedResponse;
+    }
+
     const payload = saveStepSchema.parse(await request.json());
     const saveResponse = await saveApplicationStep(
       session,

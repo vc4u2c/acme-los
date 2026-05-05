@@ -147,10 +147,15 @@ test('shows the web home, rendering demos, and showcase route', async ({
   await expect(page.getByTestId('showcase-grid-filter-queue')).toContainText(
     /GRID-\d{4}/,
   );
-  await page.getByLabel(/^Toggle officer column$/i).click();
+  const officerColumnToggle = page.getByLabel(/^Toggle officer column$/i);
+  const filterTable = page.getByTestId('showcase-grid-filter-table');
+
+  await expect(officerColumnToggle).toBeChecked();
+  await officerColumnToggle.uncheck();
+  await expect(officerColumnToggle).not.toBeChecked();
   await expect(
-    page.getByTestId('showcase-grid-filter-table'),
-  ).not.toContainText('Officer');
+    filterTable.getByRole('columnheader', { name: /^Officer$/i }),
+  ).toHaveCount(0);
   await page.getByRole('tab', { name: /^Editable$/i }).click();
   await expect(page.getByRole('tab', { name: /^Editable$/i })).toHaveAttribute(
     'aria-selected',
@@ -160,14 +165,22 @@ test('shows the web home, rendering demos, and showcase route', async ({
   await expect(page.getByTestId('showcase-grid-pagination')).toBeVisible();
   await expect(page.getByRole('button', { name: /^Submit$/i })).toBeDisabled();
   await expect(page.getByLabel(/Borrower name for GRID-\d{4}/)).toHaveCount(0);
-  await page
+  const editableTable = page.getByTestId('showcase-grid-table');
+  const firstEditButton = editableTable
     .getByRole('button', { name: /^Edit GRID-\d{4}$/i })
-    .first()
-    .click();
-  const borrowerNameInput = page.getByLabel(/Borrower name for GRID-\d{4}/);
+    .first();
+
+  await expect(firstEditButton).toBeVisible();
+  await firstEditButton.click();
+
+  const borrowerNameInput = editableTable.getByLabel(
+    /Borrower name for GRID-\d{4}/,
+  );
+
   await expect(borrowerNameInput).toBeVisible();
   await borrowerNameInput.fill('Acme Edited Borrower');
   await page.getByRole('button', { name: /^Save row$/i }).click();
+  await expect(page.getByTestId('showcase-grid-table')).toContainText('Edited');
   await expect(page.getByRole('button', { name: /^Submit$/i })).toBeEnabled();
   await page.getByRole('tab', { name: /Web primitives/i }).click();
   await expect(
