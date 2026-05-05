@@ -166,6 +166,10 @@ $ingressFqdn = az containerapp show `
 (Invoke-WebRequest -UseBasicParsing -Uri "https://$ingressFqdn/api/health" -TimeoutSec 120).Content
 ```
 
+ACA startup, readiness, and liveness probes use `/api/health/live`, which stays
+local to the Next web container. `/api/health` remains the public smoke path and
+proxies to the BFF when the BFF is enabled for the environment.
+
 If the runtime image changes and you want to force a new image build instead of
 reusing an existing tag, pass `-ImageTag` explicitly:
 
@@ -235,8 +239,8 @@ Runtime telemetry:
   the standalone Next server starts
 - `Application Insights` receives traces, exceptions, and metrics
 - `ACA` container stdout and stderr stay available through `Log Analytics`
-- `/api/health` requests are filtered out of App Insights to keep low-value probe
-  noise and ingestion cost down
+- `/api/health` and `/api/health/live` requests are filtered out of App
+  Insights to keep low-value health traffic and ingestion cost down
 - OpenTelemetry sampling is rate-limited by environment:
   - `dev`, `qa`, `stg`: `2` traces/second
   - `prod`: `5` traces/second

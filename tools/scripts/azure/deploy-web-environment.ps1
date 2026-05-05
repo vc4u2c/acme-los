@@ -965,7 +965,7 @@ $resolvedBffContainerAppName = if ($resolvedBffDeploymentEnabled) {
   ''
 }
 $resolvedBffContainerAppBaseUrl = if ($resolvedBffDeploymentEnabled) {
-  "https://$resolvedBffContainerAppName.$managedEnvironmentDefaultDomain"
+  "https://$resolvedBffContainerAppName.internal.$managedEnvironmentDefaultDomain"
 } else {
   ''
 }
