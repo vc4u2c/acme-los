@@ -80,3 +80,9 @@ infra/azure/bicep/modules/**/*.json
 .codex-profile-menu*.png
 .claude/worktrees
 .claude/settings.local.json
+
+# .NET
+**/bin/
+**/obj/
+/artifacts/
+.tmp-dotnet/

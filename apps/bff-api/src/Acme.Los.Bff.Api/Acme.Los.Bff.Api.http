@@ -1,0 +1,41 @@
+@Acme.Los.Bff.Api_HostAddress = http://localhost:5186
+
+GET {{Acme.Los.Bff.Api_HostAddress}}/health/live
+Accept: application/json
+
+###
+
+GET {{Acme.Los.Bff.Api_HostAddress}}/health/ready
+Accept: application/json
+
+###
+
+GET {{Acme.Los.Bff.Api_HostAddress}}/bff/health
+Accept: application/json
+
+###
+
+GET {{Acme.Los.Bff.Api_HostAddress}}/openapi/v1.json
+Accept: application/json
+
+###
+
+GET {{Acme.Los.Bff.Api_HostAddress}}/bff/auth/session
+Accept: application/json
+
+###
+
+GET {{Acme.Los.Bff.Api_HostAddress}}/bff/customer/profile
+Accept: application/json
+x-acme-authenticated-user-id: user-123
+x-acme-authenticated-user-email: user@example.com
+
+###
+
+GET {{Acme.Los.Bff.Api_HostAddress}}/bff/application/steps/personal-info
+Accept: application/json
+x-acme-authenticated-user-id: application-user-001
+x-acme-authenticated-customer-id: customer-001
+x-acme-authenticated-lead-id: lead-001
+
+###
