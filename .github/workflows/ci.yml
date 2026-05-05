@@ -57,7 +57,7 @@ jobs:
         run: npx nx affected -t lint
 
       - name: Test affected projects
-        run: npx nx affected -t test --runInBand
+        run: npx nx affected -t test
 
       # Optional once the workspace is connected to Nx Cloud.
       # - name: Self-heal CI
