@@ -86,7 +86,8 @@ Current app telemetry behavior:
 - `HTTP` requests and dependencies emit traces automatically
 - `AppRequests`, `AppDependencies`, and `AppExceptions` are available in the
   workspace-backed Application Insights tables
-- `/api/health` is filtered out of App Insights to avoid probe noise
+- `/api/health` and `/api/health/live` are filtered out of App Insights to avoid
+  health-check noise
 - sampling stays rate-limited:
   - `dev`, `qa`, `stg`: `2` traces per second
   - `prod`: `5` traces per second

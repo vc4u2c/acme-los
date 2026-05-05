@@ -243,7 +243,9 @@ Current proven state:
 - Redis managed-identity auth is proven live in `dev` as of April 19, 2026
 - the ACA ingress is public for now
 - the public endpoint is discovered from the current ACA deployment output
-- use `/api/health` on that resolved base URL for smoke checks
+- use `/api/health` on that resolved base URL for public smoke checks
+- ACA probes use `/api/health/live`, which stays local to the Next web
+  container
 
 Practical smoke-check path after a deploy:
 
@@ -274,8 +276,8 @@ Current observability wiring:
 - the shared server logger also emits application log records into
   `Application Insights`
 - `Log Analytics` receives container stdout/stderr and ACA platform logs
-- `/api/health` is filtered from App Insights so liveness/readiness probes do
-  not dominate telemetry volume
+- `/api/health` and `/api/health/live` are filtered from App Insights so health
+  traffic does not dominate telemetry volume
 - trace sampling is rate-limited by environment:
   - `dev`, `qa`, `stg`: `2` traces per second
   - `prod`: `5` traces per second

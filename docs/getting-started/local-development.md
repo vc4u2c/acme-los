@@ -80,6 +80,7 @@ Open:
 
 - `http://localhost:3000`
 - `http://localhost:3000/api/health`
+- `http://localhost:3000/api/health/live`
 - `http://localhost:5186/bff/health`
 
 The one-command local stack uses `http://localhost:5186` for Next-to-BFF

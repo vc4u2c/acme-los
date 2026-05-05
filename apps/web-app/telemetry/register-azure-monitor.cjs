@@ -17,7 +17,9 @@ function shouldIgnoreIncomingRequest(request) {
   return (
     method === 'OPTIONS' ||
     url === '/api/health' ||
-    url.startsWith('/api/health?')
+    url.startsWith('/api/health?') ||
+    url === '/api/health/live' ||
+    url.startsWith('/api/health/live?')
   );
 }
 
