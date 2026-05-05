@@ -1,0 +1,9 @@
+{
+  "name": "Acme.Los.Bff.Api",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/bff-api/src/Acme.Los.Bff.Api",
+  "projectType": "application",
+  "tags": ["type:app", "platform:api", "scope:bff"],
+  "// targets": "to see all targets run: nx show project Acme.Los.Bff.Api --web",
+  "targets": {}
+}

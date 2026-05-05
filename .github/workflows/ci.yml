@@ -92,7 +92,7 @@ jobs:
         shell: bash
         run: |
           deploy_commit_sha="$(git rev-parse HEAD)"
-          bundle_name="acme-los-deployable-${GITHUB_SHA}"
+          bundle_name="acme-los-web-app-deployable-${GITHUB_SHA}"
           web_version="$(node -p "require('./apps/web-app/package.json').version")"
           mobile_version="$(node -p "require('./apps/mobile-app/package.json').version")"
           mkdir -p dist/deployable
@@ -104,6 +104,10 @@ jobs:
             "workflowHeadSha": "${GITHUB_SHA}",
             "workflowRunId": "${GITHUB_RUN_ID}",
             "workflow": "${GITHUB_WORKFLOW}",
+            "projectName": "web-app",
+            "displayName": "ACME LOS Web App",
+            "artifactName": "${bundle_name}",
+            "deployableProjects": ["web-app", "Acme.Los.Bff.Api"],
             "webVersion": "${web_version}",
             "mobileVersion": "${mobile_version}"
           }
@@ -114,8 +118,8 @@ jobs:
       - name: Upload deployable artifact bundle
         uses: actions/upload-artifact@v6
         with:
-          name: acme-los-deployable-${{ github.sha }}
-          path: dist/artifacts/acme-los-deployable-${{ github.sha }}.tgz
+          name: acme-los-web-app-deployable-${{ github.sha }}
+          path: dist/artifacts/acme-los-web-app-deployable-${{ github.sha }}.tgz
           if-no-files-found: error
           retention-days: 30
 
@@ -204,30 +208,56 @@ jobs:
         if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true'
         shell: bash
         run: |
-          mkdir -p dist/release-assets
-          cp apps/web-app/package.json dist/release-assets/web-app.package.json
-          cp apps/mobile-app/package.json dist/release-assets/mobile-app.package.json
-          cat <<EOF > dist/release-assets/release-metadata.json
+          mkdir -p dist/release-assets/web-app dist/release-assets/mobile-app dist/artifacts
+
+          cp apps/web-app/package.json dist/release-assets/web-app/package.json
+          cat <<EOF > dist/release-assets/web-app/release-metadata.json
           {
+            "projectName": "web-app",
+            "displayName": "ACME LOS Web App",
+            "assetFileName": "${{ steps.versions_after.outputs.web_asset_file }}",
+            "actionsArtifactName": "acme-los-web-app-release-assets-${{ steps.versions_after.outputs.web }}-${GITHUB_SHA}",
             "commitSha": "${{ steps.release_ref.outputs.sha }}",
             "workflowHeadSha": "${GITHUB_SHA}",
             "workflowRunId": "${GITHUB_RUN_ID}",
             "workflow": "${GITHUB_WORKFLOW}",
-            "webVersion": "${{ steps.versions_after.outputs.web }}",
-            "mobileVersion": "${{ steps.versions_after.outputs.mobile }}"
+            "version": "${{ steps.versions_after.outputs.web }}"
           }
           EOF
-          mkdir -p dist/artifacts
-          tar -czf dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz -C dist/release-assets .
-          cp dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz dist/artifacts/${{ steps.versions_after.outputs.web_asset_file }}
-          cp dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz dist/artifacts/${{ steps.versions_after.outputs.mobile_asset_file }}
 
-      - name: Upload release asset bundle
-        if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true'
+          cp apps/mobile-app/package.json dist/release-assets/mobile-app/package.json
+          cat <<EOF > dist/release-assets/mobile-app/release-metadata.json
+          {
+            "projectName": "mobile-app",
+            "displayName": "ACME LOS Mobile App",
+            "assetFileName": "${{ steps.versions_after.outputs.mobile_asset_file }}",
+            "actionsArtifactName": "acme-los-mobile-app-release-assets-${{ steps.versions_after.outputs.mobile }}-${GITHUB_SHA}",
+            "commitSha": "${{ steps.release_ref.outputs.sha }}",
+            "workflowHeadSha": "${GITHUB_SHA}",
+            "workflowRunId": "${GITHUB_RUN_ID}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "version": "${{ steps.versions_after.outputs.mobile }}"
+          }
+          EOF
+
+          tar -czf dist/artifacts/${{ steps.versions_after.outputs.web_asset_file }} -C dist/release-assets/web-app .
+          tar -czf dist/artifacts/${{ steps.versions_after.outputs.mobile_asset_file }} -C dist/release-assets/mobile-app .
+
+      - name: Upload web release asset bundle
+        if: steps.versions_after.outputs.web_changed == 'true'
         uses: actions/upload-artifact@v6
         with:
-          name: acme-los-release-assets-${{ github.sha }}
-          path: dist/artifacts/acme-los-release-assets-${{ github.sha }}.tgz
+          name: acme-los-web-app-release-assets-${{ steps.versions_after.outputs.web }}-${{ github.sha }}
+          path: dist/artifacts/${{ steps.versions_after.outputs.web_asset_file }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload mobile release asset bundle
+        if: steps.versions_after.outputs.mobile_changed == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: acme-los-mobile-app-release-assets-${{ steps.versions_after.outputs.mobile }}-${{ github.sha }}
+          path: dist/artifacts/${{ steps.versions_after.outputs.mobile_asset_file }}
           if-no-files-found: error
           retention-days: 30
 
@@ -236,6 +266,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: web-app@${{ steps.versions_after.outputs.web }}
+          name: ACME LOS Web App ${{ steps.versions_after.outputs.web }}
           files: dist/artifacts/${{ steps.versions_after.outputs.web_asset_file }}
           append_body: true
           fail_on_unmatched_files: true
@@ -245,6 +276,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: mobile-app@${{ steps.versions_after.outputs.mobile }}
+          name: ACME LOS Mobile App ${{ steps.versions_after.outputs.mobile }}
           files: dist/artifacts/${{ steps.versions_after.outputs.mobile_asset_file }}
           append_body: true
           fail_on_unmatched_files: true
@@ -256,11 +288,12 @@ jobs:
           {
             echo "## Release Artifacts"
             echo ""
-            echo "- Actions artifact bundle: \`acme-los-release-assets-${GITHUB_SHA}.tgz\`"
             if [[ "${{ steps.versions_after.outputs.web_changed }}" == "true" ]]; then
+              echo "- Web Actions artifact: \`acme-los-web-app-release-assets-${{ steps.versions_after.outputs.web }}-${GITHUB_SHA}\`"
               echo "- Web release asset: \`${{ steps.versions_after.outputs.web_asset_file }}\`"
             fi
             if [[ "${{ steps.versions_after.outputs.mobile_changed }}" == "true" ]]; then
+              echo "- Mobile Actions artifact: \`acme-los-mobile-app-release-assets-${{ steps.versions_after.outputs.mobile }}-${GITHUB_SHA}\`"
               echo "- Mobile release asset: \`${{ steps.versions_after.outputs.mobile_asset_file }}\`"
             fi
           } >> "$GITHUB_STEP_SUMMARY"

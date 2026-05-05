@@ -12,6 +12,9 @@ param(
   [string]$StateStoreMode,
   [string]$ImageTag,
   [string]$WebImageRepository = 'acme-los-web',
+  [string]$BffImageRepository = 'acme-los-bff-api',
+  [ValidateSet('auto', 'enabled', 'disabled')]
+  [string]$BffDeploymentMode = 'auto',
   [string]$ConfigurationPath,
   [string]$ParameterFile,
   [string]$WorkloadTemplateFile,
@@ -291,6 +294,15 @@ function Get-ResourceGroupStackName {
   )
 
   return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-app-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
+function Get-BffContainerAppName {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-bff-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
 }
 
 function Get-ImagesSubscriptionRole {
@@ -718,6 +730,9 @@ $resolvedTenantId = if ($TenantId) { $TenantId } else { $account.tenantId }
 $resolvedImageTag = Get-ResolvedImageTag -ExplicitTag $ImageTag -EnvironmentName $EnvironmentName
 $resolvedBuildId = Get-ResolvedBuildId -ExplicitTag $ImageTag
 $resolvedStateStoreMode = if ($StateStoreMode) { $StateStoreMode } else { 'redis' }
+$resolvedBffDeploymentEnabled = $BffDeploymentMode -eq 'enabled' -or (
+  $BffDeploymentMode -eq 'auto' -and $EnvironmentName -eq 'dev'
+)
 $imagesSubscriptionRole = Get-ImagesSubscriptionRole -Configuration $configuration -EnvironmentName $EnvironmentName
 $networkConfiguration = Get-EnvironmentNetworkConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName
 $runtimeMinReplicas = if ($environmentConfiguration.runtime -and $null -ne $environmentConfiguration.runtime.minReplicas) {
@@ -851,6 +866,11 @@ if (-not $resolvedContainerRegistryLoginServer) {
 }
 
 $imageReference = "$resolvedContainerRegistryLoginServer/${WebImageRepository}:$resolvedImageTag"
+$bffImageReference = if ($resolvedBffDeploymentEnabled) {
+  "$resolvedContainerRegistryLoginServer/${BffImageRepository}:$resolvedImageTag"
+} else {
+  ''
+}
 
 $monitoringBootstrapArguments = @(
   'stack', 'group', 'create',
@@ -939,6 +959,21 @@ if (-not $managedEnvironmentDefaultDomain) {
 }
 
 $resolvedContainerAppBaseUrl = "https://$resolvedContainerAppName.$managedEnvironmentDefaultDomain"
+$resolvedBffContainerAppName = if ($resolvedBffDeploymentEnabled) {
+  Get-BffContainerAppName -Configuration $configuration -EnvironmentName $EnvironmentName
+} else {
+  ''
+}
+$resolvedBffContainerAppBaseUrl = if ($resolvedBffDeploymentEnabled) {
+  "https://$resolvedBffContainerAppName.$managedEnvironmentDefaultDomain"
+} else {
+  ''
+}
+$bffTrustedProxySecretValue = if ($resolvedBffDeploymentEnabled) {
+  New-SecureRandomBase64Url
+} else {
+  ''
+}
 $oktaEnvironmentName = if ($environmentConfiguration.oktaEnvironmentName) {
   [string]$environmentConfiguration.oktaEnvironmentName
 } else {
@@ -993,6 +1028,28 @@ if (-not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionI
 
     if ($LASTEXITCODE -ne 0) {
       throw "ACR build failed for image '${WebImageRepository}:$resolvedImageTag'."
+    }
+  } finally {
+    Remove-Item -LiteralPath $containerBuildContextPath -Recurse -Force -ErrorAction SilentlyContinue
+  }
+}
+
+if ($resolvedBffDeploymentEnabled -and -not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionId -RegistryName $resolvedContainerRegistryName -RepositoryName $BffImageRepository -Tag $resolvedImageTag)) {
+  $containerBuildContextPath = New-ContainerBuildContext -RepositoryRoot $repositoryRoot
+
+  try {
+    az acr build `
+      --subscription $resolvedSubscriptionId `
+      --registry $resolvedContainerRegistryName `
+      --image "${BffImageRepository}:$resolvedImageTag" `
+      --file apps/bff-api/Dockerfile `
+      --no-logs `
+      --only-show-errors `
+      $containerBuildContextPath `
+      --output none
+
+    if ($LASTEXITCODE -ne 0) {
+      throw "ACR build failed for image '${BffImageRepository}:$resolvedImageTag'."
     }
   } finally {
     Remove-Item -LiteralPath $containerBuildContextPath -Recurse -Force -ErrorAction SilentlyContinue
@@ -1058,6 +1115,15 @@ $runtimeDeploymentArguments = @(
 
 $runtimeDeploymentArguments += @('--parameters', "stateStoreMode=$resolvedStateStoreMode")
 
+if ($resolvedBffDeploymentEnabled) {
+  $runtimeDeploymentArguments += @(
+    '--parameters', "bffContainerImage=$bffImageReference",
+    '--parameters', "bffBaseUrl=$resolvedBffContainerAppBaseUrl",
+    '--parameters', "bffVersion=$resolvedBuildId",
+    '--parameters', "bffTrustedProxySecretValue=$bffTrustedProxySecretValue"
+  )
+}
+
 if ($resolvedStateStoreMode -eq 'redis') {
   if (-not $redisDatabaseId) {
     throw 'Redis database id was not returned from the workload deployment.'
@@ -1083,6 +1149,9 @@ if ($resolvedStateStoreMode -eq 'redis') {
 
 $runtimeDeployment = Invoke-AzJson -Arguments $runtimeDeploymentArguments
 $runtimeOutputs = Get-DeploymentOutputs -DeploymentResult $runtimeDeployment
+$deployedBffContainerAppName = Get-StringOutputValue -Outputs $runtimeOutputs -Name 'bffContainerAppName'
+$deployedBffContainerAppBaseUrl = Get-StringOutputValue -Outputs $runtimeOutputs -Name 'bffContainerAppBaseUrl'
+$deployedBffContainerAppLatestRevisionFqdn = Get-StringOutputValue -Outputs $runtimeOutputs -Name 'bffContainerAppLatestRevisionFqdn'
 
 $monitoringDeploymentArguments = @(
   'stack', 'group', 'create',
@@ -1159,13 +1228,20 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   containerRegistryName = $resolvedContainerRegistryName
   containerRegistryLoginServer = $resolvedContainerRegistryLoginServer
   webImageRepository = $WebImageRepository
+  bffDeploymentMode = $BffDeploymentMode
+  bffEnabled = $resolvedBffDeploymentEnabled
+  bffImageRepository = $BffImageRepository
   imageTag = $resolvedImageTag
   appBuildId = $resolvedBuildId
   imageReference = $imageReference
+  bffImageReference = $bffImageReference
   containerAppEnvironmentName = Get-StringOutputValue -Outputs $outputs -Name 'containerAppEnvironmentName'
   containerAppName = Get-StringOutputValue -Outputs $runtimeOutputs -Name 'containerAppName'
   containerAppBaseUrl = $resolvedContainerAppBaseUrl
   containerAppLatestRevisionFqdn = Get-StringOutputValue -Outputs $runtimeOutputs -Name 'containerAppLatestRevisionFqdn'
+  bffContainerAppName = $deployedBffContainerAppName
+  bffContainerAppBaseUrl = $deployedBffContainerAppBaseUrl
+  bffContainerAppLatestRevisionFqdn = $deployedBffContainerAppLatestRevisionFqdn
   userAssignedIdentityName = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityName'
   userAssignedIdentityClientId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityClientId'
   workloadVirtualNetworkName = Get-StringOutputValue -Outputs $outputs -Name 'workloadVirtualNetworkName'

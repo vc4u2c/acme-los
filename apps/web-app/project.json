@@ -4,6 +4,7 @@
   "sourceRoot": "apps/web-app",
   "projectType": "application",
   "tags": ["type:app", "platform:web"],
+  "implicitDependencies": ["Acme.Los.Bff.Api"],
   "// targets": "to see all targets run: nx show project web-app --web",
   "targets": {
     "dev-redis": {

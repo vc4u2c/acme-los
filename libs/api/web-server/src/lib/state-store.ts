@@ -9,10 +9,6 @@ import {
 import { join } from 'node:path';
 import { DefaultAzureCredential } from '@azure/identity';
 import { createClient, type RedisClientOptions } from '@redis/client';
-import {
-  EntraIdCredentialsProviderFactory,
-  REDIS_SCOPE_DEFAULT,
-} from '@redis/entraid';
 import { createConsoleLogger } from '@acme-los/core/logger';
 
 type WebStateStoreMode = 'file' | 'redis';
@@ -145,7 +141,7 @@ function createRedisKey(namespace: string, key: string): string {
   return `${getRedisKeyPrefix()}:${namespace}:${key}`;
 }
 
-function createRedisClientOptions(): RedisClientOptions {
+async function createRedisClientOptions(): Promise<RedisClientOptions> {
   const authMode = getRedisAuthMode();
   const options: RedisClientOptions = {
     url: authMode === 'entra' ? getRedisEndpointUrl() : getRedisUrl(),
@@ -155,6 +151,8 @@ function createRedisClientOptions(): RedisClientOptions {
   };
 
   if (authMode === 'entra') {
+    const { EntraIdCredentialsProviderFactory, REDIS_SCOPE_DEFAULT } =
+      await import('@redis/entraid');
     const managedIdentityClientId = getRedisManagedIdentityClientId();
     const credential = new DefaultAzureCredential(
       managedIdentityClientId
@@ -190,7 +188,7 @@ function createRedisClientOptions(): RedisClientOptions {
 
 async function getRedisClient(): Promise<RedisClient> {
   if (!redisClientPromise) {
-    const client = createClient(createRedisClientOptions());
+    const client = createClient(await createRedisClientOptions());
 
     redisClientPromise = client
       .connect()

@@ -19,7 +19,8 @@ public static class HealthEndpoints
     return new HealthSnapshot(
         "ok",
         "bff-api",
-        Environment.GetEnvironmentVariable("NEXT_PUBLIC_APP_VERSION")
+        Environment.GetEnvironmentVariable("ACME_BFF_VERSION")
+            ?? Environment.GetEnvironmentVariable("NEXT_PUBLIC_APP_VERSION")
             ?? "0.0.0",
         Environment.GetEnvironmentVariable("APP_BUILD_ID")
             ?? Environment.GetEnvironmentVariable("NEXT_PUBLIC_APP_BUILD"),
