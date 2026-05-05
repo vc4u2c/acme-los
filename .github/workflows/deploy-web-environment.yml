@@ -170,9 +170,39 @@ jobs:
           $deploymentResult | Set-Content -Path deployment-result.json -Encoding utf8
           Get-Content deployment-result.json
 
+      - name: Inspect web workload running state
+        id: inspect_web_state
+        shell: bash
+        run: |
+          subscription_id="$(node -p "require('./deployment-result.json').subscriptionId")"
+          resource_group="$(node -p "require('./deployment-result.json').resourceGroupName")"
+          container_app="$(node -p "require('./deployment-result.json').containerAppName")"
+          running_status="$(az containerapp show \
+            --subscription "${subscription_id}" \
+            --resource-group "${resource_group}" \
+            --name "${container_app}" \
+            --query "properties.runningStatus" \
+            --output tsv \
+            --only-show-errors)"
+
+          echo "Container app running status: ${running_status}"
+          echo "running_status=${running_status}" >> "$GITHUB_OUTPUT"
+
       - name: Verify public BFF proxy path
         shell: bash
         run: |
+          web_running_status="${{ steps.inspect_web_state.outputs.running_status }}"
+          if [[ "${web_running_status}" == "Stopped" ]]; then
+            echo "Web container app is intentionally stopped; skipping live BFF proxy smoke check."
+            {
+              echo "## Live Smoke Check"
+              echo ""
+              echo "- Result: skipped"
+              echo "- Reason: web container app running status is \`Stopped\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
           bff_enabled="$(node -p "String(require('./deployment-result.json').bffEnabled ?? false)")"
           if [[ "${bff_enabled}" != "true" ]]; then
             echo "BFF deployment is disabled for this environment; skipping proxy smoke check."
@@ -237,6 +267,7 @@ jobs:
             echo "- Application Insights: \`${app_insights}\`"
             echo "- Image: \`${image_reference}\`"
             echo "- Latest revision FQDN: \`${revision_fqdn}\`"
+            echo "- Container app running status: \`${{ steps.inspect_web_state.outputs.running_status }}\`"
             echo "- BFF enabled: \`${bff_enabled}\`"
             if [[ "${bff_enabled}" == "true" ]]; then
               echo "- BFF container app: \`${bff_container_app}\`"
@@ -262,6 +293,7 @@ jobs:
             echo "- Container registry: \`${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}\`"
             echo "- Container Apps environment: \`${{ vars.AZURE_CONTAINER_APPS_ENVIRONMENT_NAME }}\`"
             echo "- Container app: \`${{ vars.AZURE_CONTAINER_APP_NAME }}\`"
+            echo "- Container app running status: \`${{ steps.inspect_web_state.outputs.running_status }}\`"
             echo "- Key Vault: \`${{ vars.AZURE_KEY_VAULT_NAME }}\`"
             echo "- Bicep params: \`${{ inputs.bicep_parameter_file }}\`"
             echo "- Image repository: \`${{ vars.AZURE_WEB_IMAGE_REPOSITORY || 'acme-los-web' }}\`"
