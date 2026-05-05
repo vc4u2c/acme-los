@@ -243,7 +243,7 @@ Current proven state:
 - Redis managed-identity auth is proven live in `dev` as of April 19, 2026
 - the ACA ingress is public for now
 - the public endpoint is discovered from the current ACA deployment output
-- use `/api/health` on that resolved base URL for public smoke checks
+- use `/api/health` on that resolved base URL for public web + BFF smoke checks
 - ACA probes use `/api/health/live`, which stays local to the Next web
   container
 

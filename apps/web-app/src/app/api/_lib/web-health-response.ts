@@ -1,12 +1,23 @@
 import { NextResponse } from 'next/server';
 import os from 'node:os';
 
-export function createWebHealthResponse() {
+export interface WebHealthSnapshot {
+  status: 'ok';
+  service: 'web-app';
+  version: string;
+  build: string | null;
+  environment: string;
+  instanceId: string;
+  processId: number;
+  servedAt: string;
+}
+
+export function createWebHealthSnapshot(): WebHealthSnapshot {
   const instanceId = os.hostname();
   const processId = process.pid;
   const servedAt = new Date().toISOString();
 
-  return NextResponse.json({
+  return {
     status: 'ok',
     service: 'web-app',
     version: process.env.NEXT_PUBLIC_APP_VERSION ?? '0.0.0',
@@ -19,5 +30,9 @@ export function createWebHealthResponse() {
     instanceId,
     processId,
     servedAt,
-  });
+  };
+}
+
+export function createWebHealthResponse() {
+  return NextResponse.json(createWebHealthSnapshot());
 }

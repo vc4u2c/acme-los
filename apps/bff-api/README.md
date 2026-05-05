@@ -194,7 +194,8 @@ server-side BFF proxy hop.
 
 Current switched routes:
 
-- `GET /api/health` -> `GET /bff/health`
+- `GET /api/health` -> composite Next + BFF health; includes `GET /bff/health`
+  when the BFF base URL is configured
 - `GET|PUT /api/customer/profile` -> `/bff/customer/profile`
 - `GET|PUT /api/application/steps/[step]` -> `/bff/application/steps/{step}`
 - `POST /api/application/submit` -> `/bff/application/submit`

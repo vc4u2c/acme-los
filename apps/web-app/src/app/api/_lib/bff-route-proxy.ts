@@ -24,6 +24,7 @@ const RESPONSE_HEADERS_TO_SKIP = new Set([
 
 export interface BffProxyOptions {
   extraHeaders?: Record<string, string | null | undefined>;
+  timeoutMs?: number;
 }
 
 function trimValue(value?: string): string | null {
@@ -133,6 +134,9 @@ export async function maybeProxyToBff(
     request.method === 'GET' || request.method === 'HEAD'
       ? null
       : await request.text();
+  const timeoutSignal = options.timeoutMs
+    ? AbortSignal.timeout(options.timeoutMs)
+    : undefined;
 
   const upstreamResponse = await fetch(targetUrl, {
     method: request.method,
@@ -140,6 +144,7 @@ export async function maybeProxyToBff(
     body: rawBody && rawBody.length > 0 ? rawBody : undefined,
     cache: 'no-store',
     redirect: 'manual',
+    signal: timeoutSignal,
   });
 
   return toNextResponse(upstreamResponse);
