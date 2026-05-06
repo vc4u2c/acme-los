@@ -204,7 +204,8 @@ Definition of done:
 - Redis integration boots cleanly
 - Scalar docs render
 - dev ACA deploys the BFF with internal ingress only
-- Next receives `ACME_BFF_BASE_URL` and the trusted proxy secret through IaC
+- Next receives `ACME_BFF_BASE_URL`, `ACME_BFF_PROXY_MODE=bff`, and the trusted
+  proxy secret through IaC
 
 ### Phase 2: Move Customer And Application Behavior First
 
