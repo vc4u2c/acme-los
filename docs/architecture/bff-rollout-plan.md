@@ -152,14 +152,20 @@ This avoids coupling the BFF introduction to a breaking client rewrite.
 Current bridge decision:
 
 - the BFF switch belongs in the Next server route layer for this phase
-- browser code should not read `ACME_BFF_BASE_URL` or choose the BFF directly
+- browser code should not read `ACME_BFF_BASE_URL`, `ACME_BFF_URL`, or
+  `ACME_BFF_PROXY_MODE`, and should not choose the BFF directly
+- `ACME_BFF_PROXY_MODE=next|bff` is the server-side route switch; the BFF base
+  URL is endpoint configuration, not the rollout switch
 - Next route handlers continue to own the browser-facing session, assurance, and
   CSRF checks while the BFF owns selected customer and application behavior
 - trusted identity headers are accepted only inside a trusted proxy boundary;
   outside local development, use `ACME_BFF_TRUSTED_PROXY_SECRET` or an
   equivalent private network control before the BFF honors those headers
-- `GET /api/security/csrf` intentionally stays in Next until auth/session moves
-  to the BFF as a single boundary
+- auth session state can move behind the same `ACME_BFF_PROXY_MODE` switch while
+  Next remains the browser facade for login, callback, cookie issuance, CSRF
+  issuance, and mock-auth development fixtures
+- `GET /api/security/csrf` intentionally stays in Next until the BFF owns login,
+  callback, session-cookie issuance, and CSRF issuance together
 - once the BFF owns login, callback, session-cookie issuance, and CSRF issuance,
   the team can revisit whether `/api/*` remains a thin Next proxy or whether a
   more direct BFF-facing route shape is cleaner

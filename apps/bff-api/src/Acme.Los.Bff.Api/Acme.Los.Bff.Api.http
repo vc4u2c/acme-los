@@ -1,4 +1,5 @@
 @Acme.Los.Bff.Api_HostAddress = http://localhost:5186
+@Acme.Los.Bff.Api_TrustedProxySecret = acme-los-local-dev-bff-proxy-secret
 
 GET {{Acme.Los.Bff.Api_HostAddress}}/health/live
 Accept: application/json
@@ -22,20 +23,62 @@ Accept: application/json
 
 GET {{Acme.Los.Bff.Api_HostAddress}}/bff/auth/session
 Accept: application/json
+x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
+
+###
+
+POST {{Acme.Los.Bff.Api_HostAddress}}/bff/auth/session/requirement
+Accept: application/json
+Content-Type: application/json
+x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
+
+{
+  "requiresAuthentication": true,
+  "minimumAssuranceLevel": "aal1"
+}
+
+###
+
+GET {{Acme.Los.Bff.Api_HostAddress}}/bff/auth/logout-hint
+Accept: application/json
+x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
 
 ###
 
 GET {{Acme.Los.Bff.Api_HostAddress}}/bff/customer/profile
 Accept: application/json
+x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
 x-acme-authenticated-user-id: user-123
 x-acme-authenticated-user-email: user@example.com
 
 ###
 
+GET {{Acme.Los.Bff.Api_HostAddress}}/bff/security/csrf
+Accept: application/json
+
+###
+
 GET {{Acme.Los.Bff.Api_HostAddress}}/bff/application/steps/personal-info
 Accept: application/json
+x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
 x-acme-authenticated-user-id: application-user-001
 x-acme-authenticated-customer-id: customer-001
 x-acme-authenticated-lead-id: lead-001
 
 ###
+
+PUT {{Acme.Los.Bff.Api_HostAddress}}/bff/application/steps/personal-info
+Accept: application/json
+Content-Type: application/json
+x-csrf-token: paste-csrf-token-from-/bff/security/csrf
+x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
+x-acme-authenticated-user-id: application-user-001
+x-acme-authenticated-customer-id: customer-001
+x-acme-authenticated-lead-id: lead-001
+
+{
+  "payload": {
+    "firstName": "Taylor",
+    "annualIncome": 95000
+  }
+}

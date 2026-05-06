@@ -112,6 +112,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         expectedNonce: transaction.nonce,
         expectedUserId: transaction.expectedUserId,
         minimumAssuranceLevel: transaction.minimumAssuranceLevel,
+        request,
         stepUp: transaction.stepUp,
         serverTokens: {
           accessToken: tokenResponse.access_token,

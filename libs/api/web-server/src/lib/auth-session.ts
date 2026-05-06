@@ -1,5 +1,6 @@
 import type {
   GetWebAuthSessionResponse,
+  RequireWebAuthSessionRequest,
   SyncWebAuthSessionRequest,
   SyncWebAuthSessionResponse,
   TouchWebAuthSessionResponse,
@@ -14,6 +15,15 @@ import {
   MOCK_AUTH_STORAGE_KEY,
   type WebAuthRequirement,
 } from './assurance';
+import {
+  clearBffWebAuthSession,
+  readBffLogoutHintIdToken,
+  readBffWebAuthSession,
+  requireBffWebAuthSession,
+  syncBffWebAuthSession,
+  touchBffWebAuthSession,
+} from './bff-auth-session-client';
+import { isBffProxyEnabled } from './bff-config';
 import { getServerWebAuthConfig } from './config';
 import {
   APPLICATION_FLOW_COOKIE_NAME,
@@ -78,6 +88,20 @@ type TokenRefreshDependencies = {
   refreshOktaTokenSet: typeof refreshOktaTokenSet;
   verifyOktaIdToken: typeof verifyOktaIdToken;
 };
+
+function shouldUseBffAuthSessionAuthority(): boolean {
+  return isBffProxyEnabled() && getServerWebAuthConfig().provider !== 'mock';
+}
+
+function toBffRequirement(
+  requirement: WebAuthRequirement,
+): RequireWebAuthSessionRequest {
+  return {
+    requiresAuthentication: requirement.requiresAuthentication,
+    minimumAssuranceLevel: requirement.minimumAssuranceLevel,
+    requiredStepUp: requirement.requiredStepUp,
+  };
+}
 
 function buildUnauthenticatedSession(errorMessage?: string): WebAuthSession {
   return {
@@ -344,6 +368,10 @@ export async function readWebAuthSession(
     };
   }
 
+  if (shouldUseBffAuthSessionAuthority()) {
+    return readBffWebAuthSession({ request }, options);
+  }
+
   const storedSession = await readStoredSessionFromRequest(request);
 
   if (storedSession === null) {
@@ -376,6 +404,7 @@ export async function syncWebAuthSession(
     expectedNonce?: string;
     expectedUserId?: string;
     minimumAssuranceLevel?: WebAuthRequirement['minimumAssuranceLevel'];
+    request?: NextRequest;
     stepUp?: StoredWebAuthStepUpRequirement;
     serverTokens?: Omit<StoredWebAuthTokenSet, 'idToken'>;
   } = {},
@@ -405,6 +434,26 @@ export async function syncWebAuthSession(
     typeof verifiedIdTokenClaims.exp === 'number'
       ? Math.trunc(verifiedIdTokenClaims.exp)
       : Math.floor(Date.now() / 1000) + 60 * 60;
+
+  if (shouldUseBffAuthSessionAuthority()) {
+    if (!options.request) {
+      throw new Error(
+        'A Next request is required when the BFF owns auth session state.',
+      );
+    }
+
+    return syncBffWebAuthSession(options.request, {
+      ...payload,
+      session,
+      expiresAt,
+      serverTokens: {
+        idToken: payload.idToken,
+        ...options.serverTokens,
+      },
+      stepUp: options.stepUp,
+    });
+  }
+
   const storedSession = await createStoredWebAuthSession({
     session,
     tokens: {
@@ -443,6 +492,10 @@ export async function touchWebAuthSession(
         touched: true,
       },
     };
+  }
+
+  if (shouldUseBffAuthSessionAuthority()) {
+    return touchBffWebAuthSession(request);
   }
 
   const sessionCookiePayload = readSessionCookiePayloadFromRequest(request);
@@ -508,6 +561,29 @@ export async function clearWebAuthSession(
   response: NextResponse,
 ): Promise<void> {
   const mockSession = readMockRequestSession(request);
+
+  if (shouldUseBffAuthSessionAuthority() && !mockSession) {
+    const sessionResponse = await readBffWebAuthSession({ request }).catch(
+      () => null,
+    );
+
+    await clearBffWebAuthSession(request);
+
+    if (sessionResponse?.session.isAuthenticated) {
+      await clearApplicationFlow(sessionResponse.session, request, response);
+    } else {
+      clearCookie(response, request, APPLICATION_FLOW_COOKIE_NAME);
+    }
+
+    clearCookie(response, request, MOCK_AUTH_STORAGE_KEY);
+    clearCookie(response, request, AUTH_SESSION_COOKIE_NAME);
+    clearCookie(response, request, LEGACY_AUTH_LOGOUT_HINT_COOKIE_NAME);
+    clearCookie(response, request, AUTH_TRANSACTION_COOKIE_NAME);
+    clearCookie(response, request, CUSTOMER_PROFILE_COOKIE_NAME);
+    clearCookie(response, request, CSRF_COOKIE_NAME);
+    return;
+  }
+
   const sessionCookiePayload = readSessionCookiePayloadFromRequest(request);
   const storedSession = await readStoredSessionFromRequest(request);
   const logoutStoredSession =
@@ -540,6 +616,10 @@ export async function clearReplacedWebAuthSession(
   request: NextRequest,
   nextStoredSessionId: string,
 ): Promise<void> {
+  if (shouldUseBffAuthSessionAuthority()) {
+    return;
+  }
+
   const sessionCookiePayload = readSessionCookiePayloadFromRequest(request);
 
   if (
@@ -562,6 +642,10 @@ export async function clearWebAuthLogoutArtifacts(
 export async function readLogoutHintIdToken(
   request: NextRequest,
 ): Promise<string | null> {
+  if (shouldUseBffAuthSessionAuthority()) {
+    return readBffLogoutHintIdToken(request);
+  }
+
   const sessionCookiePayload = readSessionCookiePayloadFromRequest(request);
 
   if (!sessionCookiePayload) {
@@ -597,6 +681,22 @@ export async function requireAuthenticatedWebSession(
     }
 
     return mockSession;
+  }
+
+  if (shouldUseBffAuthSessionAuthority()) {
+    const requirementResponse = await requireBffWebAuthSession(
+      { request },
+      toBffRequirement(requirement),
+    );
+
+    if (!requirementResponse.satisfied) {
+      throw new Error(
+        requirementResponse.errorMessage ??
+          'Authentication is required for this request.',
+      );
+    }
+
+    return requirementResponse.session;
   }
 
   const storedSession = await readStoredSessionFromRequest(request);

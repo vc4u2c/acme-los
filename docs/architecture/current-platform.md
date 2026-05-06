@@ -93,17 +93,21 @@ Current BFF bridge:
 - browser and UI code still call the stable Next `/api/*` contract
 - `ACME_BFF_BASE_URL` is read only by Next route handlers, not by browser client
   code
-- when the BFF base URL is configured, the Next route handler keeps auth,
-  assurance, and CSRF checks at the browser boundary, then proxies selected
-  routes to the BFF with trusted identity headers
+- `ACME_BFF_PROXY_MODE=next|bff` controls the switched route behavior; the BFF
+  base URL is connection configuration only, not the rollout switch
+- when the BFF path is active, the Next route handler keeps auth, assurance,
+  and CSRF checks at the browser boundary, then proxies selected routes to the
+  BFF with trusted identity headers
 - outside local development, the BFF should only honor those trusted identity
   headers when `ACME_BFF_TRUSTED_PROXY_SECRET` matches or an equivalent private
   network boundary is in place
-- when the BFF base URL is not configured, those same Next routes continue to
-  serve the existing implementation
-- `GET|POST|DELETE /api/auth/session` and
-  `POST /api/auth/session/touch` stay local in Next while Next owns the
-  browser-facing auth session cookie and idle-session timing
+- when the proxy mode is `next`, those same Next routes continue to serve the
+  existing implementation
+- `GET|POST|DELETE /api/auth/session`, `POST /api/auth/session/touch`,
+  guarded API session checks, server-rendered session checks, and logout hints
+  follow the same `ACME_BFF_PROXY_MODE` switch; `next` keeps the session store
+  in Next, while `bff` makes the BFF the Okta-backed session authority behind
+  the stable Next facade
 - `GET /api/security/csrf` stays local in Next until the BFF owns login,
   callback, session-cookie issuance, and CSRF issuance together
 

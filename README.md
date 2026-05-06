@@ -68,9 +68,11 @@ The `/api/*` switch is server-side, not browser-side. The client keeps calling
 the same Next.js `/api/*` routes. Those Next route handlers then decide at
 request time whether to handle the route locally or proxy it to the `.NET` BFF.
 
-- if `ACME_BFF_BASE_URL` is unset, the switched routes stay in Next
-- if `ACME_BFF_BASE_URL` is set, Next validates auth and CSRF locally, forwards
-  trusted identity headers, and proxies the request to the BFF
+- `ACME_BFF_PROXY_MODE=next` forces the switched routes to stay in Next
+- `ACME_BFF_PROXY_MODE=bff` forces the BFF path and requires a BFF base URL
+
+When the BFF path is active, Next validates auth and CSRF locally, forwards
+trusted identity headers, and proxies the request to the BFF.
 
 Preferred one-command path:
 
@@ -79,14 +81,16 @@ npx.cmd nx run web-app:dev-stack
 ```
 
 That starts local Redis, the `.NET` BFF, and the Next web app with
-`ACME_BFF_BASE_URL`, `ACME_WEB_STATE_STORE=redis`, and
+`ACME_BFF_BASE_URL`, `ACME_BFF_PROXY_MODE=bff`,
+`ACME_WEB_STATE_STORE=redis`, and
 `ACME_REDIS_URL=redis://127.0.0.1:6379` wired for the local process tree.
 For local server-to-server proxying, the command uses the BFF HTTP loopback URL
 `http://localhost:5186` so Node does not need to trust the ASP.NET Core
 self-signed HTTPS development certificate.
 If you need to override that URL for the one-command stack, set
 `ACME_DEV_STACK_BFF_BASE_URL`; the script still passes it to the web app as
-`ACME_BFF_BASE_URL`.
+`ACME_BFF_BASE_URL`. `ACME_BFF_BASE_URL` configures the upstream endpoint; it
+does not enable the BFF path unless `ACME_BFF_PROXY_MODE=bff` is also set.
 
 The npm alias is:
 
@@ -100,6 +104,7 @@ Terminal 1:
 
 ```powershell
 $env:ACME_BFF_BASE_URL='http://localhost:5186'
+$env:ACME_BFF_PROXY_MODE='bff'
 npx.cmd nx run web-app:dev-redis
 ```
 

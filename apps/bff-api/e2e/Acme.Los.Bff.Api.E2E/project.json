@@ -1,0 +1,10 @@
+{
+  "name": "Acme.Los.Bff.Api.E2E",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/bff-api/e2e/Acme.Los.Bff.Api.E2E",
+  "projectType": "application",
+  "tags": ["type:e2e", "platform:api", "scope:bff"],
+  "implicitDependencies": ["Acme.Los.Bff.Api"],
+  "// targets": "to see all targets run: nx show project Acme.Los.Bff.Api.E2E --web",
+  "targets": {}
+}
