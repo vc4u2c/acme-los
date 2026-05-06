@@ -4,6 +4,7 @@ using Acme.Los.Bff.Api.Features.Customer;
 using Acme.Los.Bff.Api.Features.Observability;
 using Acme.Los.Bff.Api.Features.Platform;
 using Acme.Los.Bff.Api.Features.Security;
+using Acme.Los.Bff.Api.Common;
 using Acme.Los.Bff.Api.Infrastructure.Auth;
 using Acme.Los.Bff.Api.Infrastructure.Security;
 using Acme.Los.Bff.Api.Infrastructure.State;
@@ -39,7 +40,6 @@ builder.Services.AddProblemDetails(options =>
 });
 
 builder.Services.AddOpenApi();
-builder.Services.AddSingleton<IAuthSessionService, BootstrapAuthSessionService>();
 builder.Services.AddSingleton<ICsrfTokenService, CsrfTokenService>();
 builder.Services.AddSingleton(stateStoreOptions);
 
@@ -52,14 +52,18 @@ if (stateStoreOptions.UsesRedis)
   builder.Services.AddSingleton(connectionMultiplexer);
   builder.Services.AddSingleton<IConnectionMultiplexer>(connectionMultiplexer);
   builder.Services.AddSingleton<RedisStateStore>();
+  builder.Services.AddSingleton<IAuthSessionStore, RedisAuthSessionStore>();
   builder.Services.AddSingleton<ICustomerProfileStore, RedisCustomerProfileStore>();
   builder.Services.AddSingleton<IApplicationFlowStore, RedisApplicationFlowStore>();
 }
 else
 {
+  builder.Services.AddSingleton<IAuthSessionStore, InMemoryAuthSessionStore>();
   builder.Services.AddSingleton<ICustomerProfileStore, InMemoryCustomerProfileStore>();
   builder.Services.AddSingleton<IApplicationFlowStore, InMemoryApplicationFlowStore>();
 }
+
+builder.Services.AddSingleton<IAuthSessionService, BffAuthSessionService>();
 
 var healthChecks = builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["ready"]);
@@ -94,6 +98,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseStatusCodePages();
+app.UseMiddleware<BffRequestLoggingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

@@ -65,7 +65,10 @@ npx.cmd nx run web-app:dev
 
 The route switch is server-side. The browser keeps calling the stable Next.js
 `/api/*` routes, and those route handlers proxy selected requests to the BFF
-only when `ACME_BFF_BASE_URL` is configured.
+based on `ACME_BFF_PROXY_MODE`.
+
+- `next`: force the switched routes to stay in Next
+- `bff`: force the BFF path and require a BFF base URL
 
 ### Preferred One-Command Path
 
@@ -92,7 +95,7 @@ layer and the BFF layer. The raw BFF URL is for terminal checks or direct
 top-level navigation.
 If you need to override the one-command BFF URL, set
 `ACME_DEV_STACK_BFF_BASE_URL`; the script passes that value to the web app as
-`ACME_BFF_BASE_URL`.
+`ACME_BFF_BASE_URL` and forces `ACME_BFF_PROXY_MODE=bff`.
 
 The npm alias is:
 
@@ -108,6 +111,7 @@ Terminal 1:
 
 ```powershell
 $env:ACME_BFF_BASE_URL='http://localhost:5186'
+$env:ACME_BFF_PROXY_MODE='bff'
 npx.cmd nx run web-app:dev-redis
 ```
 

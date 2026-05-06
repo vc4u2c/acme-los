@@ -125,7 +125,7 @@ README. It gives the solution an obvious home for black-box tests that hit the
 running BFF over HTTP after we add a fuller local stack or CI environment.
 
 Keep one `.http` file in the API project. It is still one of the fastest ways
-to smoke-test health, OpenAPI, auth/session stubs, and early feature slices
+to smoke-test health, OpenAPI, auth/session behavior, and feature slices
 without booting the whole web experience.
 
 ## First-Pass Package Direction
@@ -175,11 +175,17 @@ names discovered by `nx show project`.
 ## Next Route Switch
 
 Keep the existing Next.js `/api/*` routes during the rollout and proxy selected
-routes into the BFF only when you opt in with a server-side base URL:
+routes into the BFF only when you opt in with server-side configuration:
 
 ```powershell
 $env:ACME_BFF_BASE_URL = 'http://localhost:5186'
+$env:ACME_BFF_PROXY_MODE = 'bff'
 ```
+
+`ACME_BFF_PROXY_MODE` accepts:
+
+- `next`: force the switched routes to stay on the Next implementation
+- `bff`: force the BFF implementation and fail if no BFF base URL is configured
 
 Use the BFF HTTP loopback URL for local Next-to-BFF proxy traffic. The BFF still
 can expose `https://localhost:7206` through the `https` launch profile when you
@@ -200,13 +206,24 @@ Current switched routes:
 - `GET|PUT /api/application/steps/[step]` -> `/bff/application/steps/{step}`
 - `POST /api/application/submit` -> `/bff/application/submit`
 
-`GET|POST|DELETE /api/auth/session` and
-`POST /api/auth/session/touch` intentionally stay local in Next for now because
-Next still owns the browser-facing auth session cookie and idle-session timing.
+`GET|POST|DELETE /api/auth/session`,
+`POST /api/auth/session/touch`, guarded API session checks, server-rendered
+session checks, and logout hints use the same `ACME_BFF_PROXY_MODE` switch. In
+`next` mode, Next owns the auth session store. In `bff` mode, Next remains the
+browser facade but delegates Okta-backed session read/sync/touch/clear,
+requirement checks, funding step-up freshness, and logout-hint reads to the
+BFF. Mock auth remains local for development and Playwright fixtures.
 
 `GET /api/security/csrf` intentionally stays local for now so the Next facade
 can keep issuing the signed CSRF cookie format it already uses while the BFF
-accepts that forwarded cookie on proxied mutations.
+accepts that forwarded cookie on proxied domain mutations.
+
+The BFF HTTP pipeline owns cross-cutting transport concerns before any Wolverine
+handler runs: request completion logging, correlation ID normalization,
+correlation response headers, log scopes, and OpenTelemetry tags. Keep auth,
+cookie, CSRF, trusted proxy, and route-level HTTP decisions in that HTTP
+pipeline. Use Wolverine behind that boundary for authenticated customer and
+application commands/queries.
 
 When the Next facade proxies mutating routes into the BFF, both processes
 should share the same `ACME_WEB_SESSION_SECRET` so signed CSRF cookies validate
@@ -226,7 +243,8 @@ If Redis is not configured, the BFF falls back to in-memory customer and
 application state for local scaffolding.
 
 That keeps browser contracts stable while letting the Next facade fall back to
-the existing implementation whenever the BFF base URL is not configured.
+the existing implementation whenever the proxy mode is `next`. The BFF base URL
+is connection configuration only; it does not act as the rollout switch.
 
 For the trusted identity bridge, Next forwards authenticated customer context
 with `x-acme-authenticated-*` headers. In local development the BFF accepts

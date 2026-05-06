@@ -41,7 +41,11 @@ public sealed record GetWebAuthSessionResponse(
 public sealed record SyncWebAuthSessionRequest(
     string IdToken,
     string? LeadId = null,
-    Dictionary<string, object?>? AccessTokenClaims = null);
+    Dictionary<string, object?>? AccessTokenClaims = null,
+    WebAuthSession? Session = null,
+    int? ExpiresAt = null,
+    WebAuthSessionTokenSet? ServerTokens = null,
+    WebAuthStepUpRequirement? StepUp = null);
 
 public sealed record SyncWebAuthSessionResponse(
     WebAuthSession Session,
@@ -57,5 +61,39 @@ public sealed record TouchWebAuthSessionResponse(
 public sealed record ClearWebAuthSessionResponse(
     WebAuthSession Session,
     bool Cleared);
+
+public sealed record WebAuthSessionTokenSet(
+    string IdToken,
+    string? AccessToken = null,
+    string? RefreshToken = null,
+    string? TokenType = null,
+    string? Scope = null,
+    int? ExpiresIn = null);
+
+public sealed record WebAuthStepUpRequirement(
+    string Reason,
+    int MaxAgeSeconds,
+    bool? ConsumeOnSatisfied = null);
+
+public sealed record StoredWebAuthStepUp(
+    string Reason,
+    int CompletedAt,
+    int ExpiresAt,
+    int? ConsumedAt = null);
+
+public sealed record RequireWebAuthSessionRequest(
+    bool? RequiresAuthentication = null,
+    string? MinimumAssuranceLevel = null,
+    WebAuthStepUpRequirement? RequiredStepUp = null);
+
+public sealed record RequireWebAuthSessionResponse(
+    WebAuthSession Session,
+    bool Satisfied,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    WebAuthSessionTiming? SessionTiming = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? ErrorMessage = null);
+
+public sealed record GetWebAuthLogoutHintResponse(string? IdToken);
 
 public sealed record IssueCsrfTokenResponse(string CsrfToken);

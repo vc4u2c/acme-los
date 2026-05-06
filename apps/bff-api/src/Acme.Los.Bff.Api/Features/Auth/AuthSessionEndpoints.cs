@@ -1,11 +1,14 @@
 using Acme.Los.Bff.Api.Contracts;
+using Acme.Los.Bff.Api.Common;
 using Acme.Los.Bff.Api.Infrastructure.Auth;
-using Acme.Los.Bff.Api.Infrastructure.Security;
 
 namespace Acme.Los.Bff.Api.Features.Auth;
 
 public static class AuthSessionEndpoints
 {
+  private const string AuthSessionIdHeaderName = "x-acme-auth-session-id";
+  private const string AuthSessionMaxAgeHeaderName = "x-acme-auth-session-max-age";
+
   public static IEndpointRouteBuilder MapBffAuthSessionEndpoints(
       this IEndpointRouteBuilder endpoints)
   {
@@ -13,29 +16,43 @@ public static class AuthSessionEndpoints
 
     authGroup.MapGet(
             "/session",
-            (HttpRequest request, IAuthSessionService authSessionService) =>
+            async (
+                HttpRequest request,
+                IAuthSessionService authSessionService,
+                CancellationToken cancellationToken) =>
             {
+              if (!BffTrustedProxyBoundary.HasTrustedProxyBoundary(request))
+              {
+                return BffTrustedProxyBoundary.BuildRejectedResult();
+              }
+
               var includeDebug = string.Equals(
                       request.Query["includeDebug"],
                       "1",
                       StringComparison.Ordinal);
 
               return Results.Json(
-                      authSessionService.ReadSession(includeDebug));
+                      await authSessionService.ReadSessionAsync(
+                        request,
+                        includeDebug,
+                        cancellationToken));
             })
         .WithName("GetBffAuthSession")
-        .Produces<GetWebAuthSessionResponse>(StatusCodes.Status200OK);
+        .Produces<GetWebAuthSessionResponse>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status403Forbidden);
 
     authGroup.MapPost(
             "/session",
             async (
                 HttpContext context,
-                IAuthSessionService authSessionService,
-                ICsrfTokenService csrfTokenService) =>
+                IAuthSessionService authSessionService) =>
             {
               try
               {
-                csrfTokenService.ValidateRequest(context.Request);
+                if (!BffTrustedProxyBoundary.HasTrustedProxyBoundary(context.Request))
+                {
+                  return BffTrustedProxyBoundary.BuildRejectedResult();
+                }
 
                 var payload =
                         await context.Request.ReadFromJsonAsync<SyncWebAuthSessionRequest>(
@@ -48,7 +65,14 @@ public static class AuthSessionEndpoints
                           statusCode: StatusCodes.Status400BadRequest);
                 }
 
-                return Results.Json(authSessionService.SyncSession(payload));
+                var syncedSession = await authSessionService.SyncSessionAsync(
+                  context,
+                  payload,
+                  context.RequestAborted);
+
+                WriteAuthSessionHeaders(context, syncedSession);
+
+                return Results.Json(syncedSession.Response);
               }
               catch (NotSupportedException error)
               {
@@ -67,26 +91,31 @@ public static class AuthSessionEndpoints
         .Produces<SyncWebAuthSessionResponse>(StatusCodes.Status200OK)
         .Produces<SyncWebAuthSessionResponse>(StatusCodes.Status400BadRequest)
         .Produces<SyncWebAuthSessionResponse>(
-            StatusCodes.Status501NotImplemented);
+            StatusCodes.Status501NotImplemented)
+        .Produces(StatusCodes.Status403Forbidden);
 
     authGroup.MapDelete(
             "/session",
-            (
+            async (
                 HttpContext context,
-                IAuthSessionService authSessionService,
-                ICsrfTokenService csrfTokenService) =>
+                IAuthSessionService authSessionService) =>
             {
               try
               {
-                csrfTokenService.ValidateRequest(context.Request);
+                if (!BffTrustedProxyBoundary.HasTrustedProxyBoundary(context.Request))
+                {
+                  return BffTrustedProxyBoundary.BuildRejectedResult();
+                }
 
-                return Results.Json(authSessionService.ClearSession(context));
+                return Results.Json(await authSessionService.ClearSessionAsync(
+                  context,
+                  context.RequestAborted));
               }
               catch (Exception error)
               {
                 return Results.Json(
                         new ClearWebAuthSessionResponse(
-                            BootstrapAuthSessionService.BuildUnauthenticatedSession(
+                            BffAuthSessionService.BuildUnauthenticatedSession(
                                 error.Message),
                             false),
                         statusCode: StatusCodes.Status400BadRequest);
@@ -94,28 +123,37 @@ public static class AuthSessionEndpoints
             })
         .WithName("ClearBffAuthSession")
         .Produces<ClearWebAuthSessionResponse>(StatusCodes.Status200OK)
-        .Produces<ClearWebAuthSessionResponse>(StatusCodes.Status400BadRequest);
+        .Produces<ClearWebAuthSessionResponse>(StatusCodes.Status400BadRequest)
+        .Produces(StatusCodes.Status403Forbidden);
 
     authGroup.MapPost(
             "/session/touch",
-            (
+            async (
                 HttpContext context,
-                IAuthSessionService authSessionService,
-                ICsrfTokenService csrfTokenService) =>
+                IAuthSessionService authSessionService) =>
             {
               try
               {
-                csrfTokenService.ValidateRequest(context.Request);
+                if (!BffTrustedProxyBoundary.HasTrustedProxyBoundary(context.Request))
+                {
+                  return BffTrustedProxyBoundary.BuildRejectedResult();
+                }
 
-                var touchedSession = authSessionService.TouchSession(
-                        context.Request);
+                var touchedSession = await authSessionService.TouchSessionAsync(
+                  context.Request,
+                  context.RequestAborted);
+
+                if (touchedSession is not null)
+                {
+                  WriteAuthSessionHeaders(context, touchedSession);
+                }
 
                 return touchedSession is null
                         ? Results.Json(
                             BuildTouchErrorResponse(
                                 "The auth session is no longer active."),
                             statusCode: StatusCodes.Status401Unauthorized)
-                        : Results.Json(touchedSession);
+                        : Results.Json(touchedSession.Response);
               }
               catch (Exception error)
               {
@@ -129,7 +167,48 @@ public static class AuthSessionEndpoints
         .Produces<TouchWebAuthSessionResponse>(
             StatusCodes.Status400BadRequest)
         .Produces<TouchWebAuthSessionResponse>(
-            StatusCodes.Status401Unauthorized);
+            StatusCodes.Status401Unauthorized)
+        .Produces(StatusCodes.Status403Forbidden);
+
+    authGroup.MapPost(
+            "/session/requirement",
+            async (
+                HttpContext context,
+                RequireWebAuthSessionRequest? payload,
+                IAuthSessionService authSessionService) =>
+            {
+              if (!BffTrustedProxyBoundary.HasTrustedProxyBoundary(context.Request))
+              {
+                return BffTrustedProxyBoundary.BuildRejectedResult();
+              }
+
+              return Results.Json(await authSessionService.RequireSessionAsync(
+                context.Request,
+                payload ?? new RequireWebAuthSessionRequest(),
+                context.RequestAborted));
+            })
+        .WithName("RequireBffAuthSession")
+        .Produces<RequireWebAuthSessionResponse>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status403Forbidden);
+
+    authGroup.MapGet(
+            "/logout-hint",
+            async (
+                HttpContext context,
+                IAuthSessionService authSessionService) =>
+            {
+              if (!BffTrustedProxyBoundary.HasTrustedProxyBoundary(context.Request))
+              {
+                return BffTrustedProxyBoundary.BuildRejectedResult();
+              }
+
+              return Results.Json(await authSessionService.ReadLogoutHintAsync(
+                context.Request,
+                context.RequestAborted));
+            })
+        .WithName("GetBffAuthLogoutHint")
+        .Produces<GetWebAuthLogoutHintResponse>(StatusCodes.Status200OK)
+        .Produces(StatusCodes.Status403Forbidden);
 
     return endpoints;
   }
@@ -138,14 +217,23 @@ public static class AuthSessionEndpoints
       string message)
   {
     return new SyncWebAuthSessionResponse(
-        BootstrapAuthSessionService.BuildUnauthenticatedSession(message));
+        BffAuthSessionService.BuildUnauthenticatedSession(message));
   }
 
   private static TouchWebAuthSessionResponse BuildTouchErrorResponse(
       string message)
   {
     return new TouchWebAuthSessionResponse(
-        BootstrapAuthSessionService.BuildUnauthenticatedSession(message),
+        BffAuthSessionService.BuildUnauthenticatedSession(message),
         false);
+  }
+
+  private static void WriteAuthSessionHeaders(
+    HttpContext context,
+    AuthSessionMutationResult result)
+  {
+    context.Response.Headers[AuthSessionIdHeaderName] = result.StoredSessionId;
+    context.Response.Headers[AuthSessionMaxAgeHeaderName] =
+      result.MaxAge.ToString(System.Globalization.CultureInfo.InvariantCulture);
   }
 }

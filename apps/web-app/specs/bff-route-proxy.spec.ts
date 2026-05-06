@@ -7,6 +7,7 @@ import { maybeProxyToBff } from '../src/app/api/_lib/bff-route-proxy';
 describe('BFF route proxy', () => {
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
   const originalUrl = process.env.ACME_BFF_URL;
+  const originalProxyMode = process.env.ACME_BFF_PROXY_MODE;
   const originalTrustedProxySecret = process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
   const originalFetch = global.fetch;
 
@@ -23,6 +24,12 @@ describe('BFF route proxy', () => {
       process.env.ACME_BFF_URL = originalUrl;
     }
 
+    if (originalProxyMode === undefined) {
+      delete process.env.ACME_BFF_PROXY_MODE;
+    } else {
+      process.env.ACME_BFF_PROXY_MODE = originalProxyMode;
+    }
+
     if (originalTrustedProxySecret === undefined) {
       delete process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
     } else {
@@ -33,8 +40,8 @@ describe('BFF route proxy', () => {
     jest.restoreAllMocks();
   });
 
-  it('returns null when the BFF base URL is not configured', async () => {
-    delete process.env.ACME_BFF_BASE_URL;
+  it('returns null when the BFF mode is not enabled', async () => {
+    process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
     delete process.env.ACME_BFF_URL;
     const fetchSpy = jest.fn();
 
@@ -47,8 +54,39 @@ describe('BFF route proxy', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('returns null when the proxy mode forces the Next facade', async () => {
+    process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
+    process.env.ACME_BFF_PROXY_MODE = 'next';
+    const fetchSpy = jest.fn();
+
+    global.fetch = fetchSpy as typeof fetch;
+
+    const request = new NextRequest('https://los.example.test/api/health');
+    const response = await maybeProxyToBff(request, '/bff/health');
+
+    expect(response).toBeNull();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('requires a BFF base URL when the proxy mode forces the BFF', async () => {
+    delete process.env.ACME_BFF_BASE_URL;
+    delete process.env.ACME_BFF_URL;
+    process.env.ACME_BFF_PROXY_MODE = 'bff';
+    const fetchSpy = jest.fn();
+
+    global.fetch = fetchSpy as typeof fetch;
+
+    const request = new NextRequest('https://los.example.test/api/health');
+
+    await expect(maybeProxyToBff(request, '/bff/health')).rejects.toThrow(
+      /ACME_BFF_BASE_URL/,
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
   it('forwards the request to the configured BFF and preserves response details', async () => {
     process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
+    process.env.ACME_BFF_PROXY_MODE = 'bff';
     const fetchSpy = jest.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), {
         status: 202,
@@ -101,6 +139,7 @@ describe('BFF route proxy', () => {
 
   it('appends trusted extra headers when the facade supplies them', async () => {
     process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
+    process.env.ACME_BFF_PROXY_MODE = 'bff';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     const fetchSpy = jest
       .fn<typeof fetch>()
@@ -142,6 +181,7 @@ describe('BFF route proxy', () => {
 
   it('keeps the browser web API client pointed at the Next facade', async () => {
     process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
+    process.env.ACME_BFF_PROXY_MODE = 'bff';
     const fetchSpy = jest.fn<typeof fetch>().mockImplementation((input) => {
       if (input === '/api/security/csrf') {
         return Promise.resolve(

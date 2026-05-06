@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Acme.Los.Bff.Api.Contracts;
 using Acme.Los.Bff.Api.Infrastructure.State;
@@ -28,6 +30,24 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
 
     var body = await response.Content.ReadAsStringAsync();
     Assert.Contains("Healthy", body);
+  }
+
+  [Fact]
+  public async Task GetBffHealth_EchoesCorrelationIdHeader()
+  {
+    const string correlationId = "931f0597-d984-42e3-a652-e64fe3b719ef";
+
+    using var client = _factory.CreateClient();
+    using var request = new HttpRequestMessage(HttpMethod.Get, "/bff/health");
+
+    request.Headers.Add("x-correlation-id", correlationId.ToUpperInvariant());
+
+    using var response = await client.SendAsync(request);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    Assert.True(
+      response.Headers.TryGetValues("x-correlation-id", out var values));
+    Assert.Contains(correlationId, values);
   }
 
   [Fact]
@@ -72,6 +92,93 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.False(sessionResponse!.Session.IsAuthenticated);
     Assert.Equal("unauthenticated", sessionResponse.Session.Status);
     Assert.Null(sessionResponse.SessionTiming);
+  }
+
+  [Fact]
+  public async Task BffAuthSession_CanSyncReadTouchAndReturnLogoutHint()
+  {
+    using var client = _factory.CreateClient();
+    var expiresAt = (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
+    using var syncResponse = await client.PostAsJsonAsync(
+      "/bff/auth/session",
+      new SyncWebAuthSessionRequest(
+        "id-token-123",
+        Session: new WebAuthSession(
+          "okta",
+          "authenticated",
+          true,
+          "aal1",
+          new WebAuthSessionUser(
+            "user-123",
+            "User Test",
+            "user@example.com")),
+        ExpiresAt: expiresAt,
+        ServerTokens: new WebAuthSessionTokenSet("id-token-123")));
+
+    Assert.Equal(HttpStatusCode.OK, syncResponse.StatusCode);
+    Assert.True(
+      syncResponse.Headers.TryGetValues(
+        "x-acme-auth-session-id",
+        out var sessionIdValues));
+    Assert.True(
+      syncResponse.Headers.TryGetValues(
+        "x-acme-auth-session-max-age",
+        out var maxAgeValues));
+
+    var sessionId = Assert.Single(sessionIdValues);
+    var maxAge = Assert.Single(maxAgeValues);
+
+    Assert.False(string.IsNullOrWhiteSpace(sessionId));
+    Assert.True(int.Parse(maxAge) > 0);
+
+    var sessionCookie = CreateSignedSessionCookie(sessionId);
+    using var readRequest = new HttpRequestMessage(
+      HttpMethod.Get,
+      "/bff/auth/session");
+
+    readRequest.Headers.Add(
+      "Cookie",
+      $"acme-los.auth-session={sessionCookie}");
+
+    using var readResponse = await client.SendAsync(readRequest);
+    var readPayload =
+      await readResponse.Content.ReadFromJsonAsync<GetWebAuthSessionResponse>();
+
+    Assert.Equal(HttpStatusCode.OK, readResponse.StatusCode);
+    Assert.NotNull(readPayload);
+    Assert.True(readPayload!.Session.IsAuthenticated);
+    Assert.Equal("user-123", readPayload.Session.User?.Id);
+
+    using var touchRequest = new HttpRequestMessage(
+      HttpMethod.Post,
+      "/bff/auth/session/touch");
+
+    touchRequest.Headers.Add(
+      "Cookie",
+      $"acme-los.auth-session={sessionCookie}");
+
+    using var touchResponse = await client.SendAsync(touchRequest);
+    var touchPayload =
+      await touchResponse.Content.ReadFromJsonAsync<TouchWebAuthSessionResponse>();
+
+    Assert.Equal(HttpStatusCode.OK, touchResponse.StatusCode);
+    Assert.NotNull(touchPayload);
+    Assert.True(touchPayload!.Touched);
+
+    using var logoutHintRequest = new HttpRequestMessage(
+      HttpMethod.Get,
+      "/bff/auth/logout-hint");
+
+    logoutHintRequest.Headers.Add(
+      "Cookie",
+      $"acme-los.auth-session={sessionCookie}");
+
+    using var logoutHintResponse = await client.SendAsync(logoutHintRequest);
+    var logoutHint =
+      await logoutHintResponse.Content.ReadFromJsonAsync<GetWebAuthLogoutHintResponse>();
+
+    Assert.Equal(HttpStatusCode.OK, logoutHintResponse.StatusCode);
+    Assert.Equal("id-token-123", logoutHint!.IdToken);
   }
 
   [Fact]
@@ -497,5 +604,25 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal(
       "00000000-0000-0000-0000-000000000001",
       options.ManagedIdentityClientId);
+  }
+
+  private static string CreateSignedSessionCookie(string sessionId)
+  {
+    var payloadPart = ToBase64Url(
+      Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { sessionId })));
+    using var hmac = new HMACSHA256(
+      Encoding.UTF8.GetBytes("acme-los-local-dev-session-secret"));
+    var signaturePart = ToBase64Url(
+      hmac.ComputeHash(Encoding.UTF8.GetBytes(payloadPart)));
+
+    return $"{payloadPart}.{signaturePart}";
+  }
+
+  private static string ToBase64Url(byte[] value)
+  {
+    return Convert.ToBase64String(value)
+      .Replace('+', '-')
+      .Replace('/', '_')
+      .TrimEnd('=');
   }
 }

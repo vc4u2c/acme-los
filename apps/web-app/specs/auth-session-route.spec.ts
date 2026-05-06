@@ -5,6 +5,8 @@ import { GET } from '../src/app/api/auth/session/route';
 
 describe('auth session route', () => {
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
+  const originalProxyMode = process.env.ACME_BFF_PROXY_MODE;
+  const originalTrustedProxySecret = process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
   const originalFetch = global.fetch;
 
   afterEach(() => {
@@ -14,12 +16,25 @@ describe('auth session route', () => {
       process.env.ACME_BFF_BASE_URL = originalBaseUrl;
     }
 
+    if (originalProxyMode === undefined) {
+      delete process.env.ACME_BFF_PROXY_MODE;
+    } else {
+      process.env.ACME_BFF_PROXY_MODE = originalProxyMode;
+    }
+
+    if (originalTrustedProxySecret === undefined) {
+      delete process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
+    } else {
+      process.env.ACME_BFF_TRUSTED_PROXY_SECRET = originalTrustedProxySecret;
+    }
+
     global.fetch = originalFetch;
     jest.restoreAllMocks();
   });
 
-  it('keeps session reads local while Next owns browser auth', async () => {
+  it('keeps session reads local while the BFF mode is disabled', async () => {
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
+    process.env.ACME_BFF_PROXY_MODE = 'next';
     const fetchSpy = jest.fn();
 
     global.fetch = fetchSpy as typeof fetch;
@@ -31,6 +46,50 @@ describe('auth session route', () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(payload.session.isAuthenticated).toBe(false);
+    expect(payload.session.status).toBe('unauthenticated');
+  });
+
+  it('delegates session reads to the BFF when BFF mode is enabled', async () => {
+    process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
+    process.env.ACME_BFF_PROXY_MODE = 'bff';
+    process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
+    const fetchSpy = jest.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          session: {
+            provider: 'okta',
+            status: 'unauthenticated',
+            isAuthenticated: false,
+            assuranceLevel: 'anonymous',
+            user: null,
+          },
+        }),
+        {
+          headers: {
+            'content-type': 'application/json',
+          },
+        },
+      ),
+    );
+
+    global.fetch = fetchSpy as typeof fetch;
+
+    const response = await GET(
+      new NextRequest('https://los.example.test/api/auth/session'),
+    );
+    const payload = await response.json();
+    const requestInit = fetchSpy.mock.calls[0]?.[1];
+    const headers = requestInit?.headers as Headers;
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      new URL('http://bff.example.test/bff/auth/session'),
+      expect.objectContaining({
+        method: 'GET',
+        cache: 'no-store',
+        redirect: 'manual',
+      }),
+    );
+    expect(headers.get('x-acme-bff-proxy-secret')).toBe('proxy-secret-123');
     expect(payload.session.status).toBe('unauthenticated');
   });
 });

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const BFF_BASE_URL_ENV_NAMES = ['ACME_BFF_BASE_URL', 'ACME_BFF_URL'] as const;
-const BFF_TRUSTED_PROXY_SECRET_HEADER = 'x-acme-bff-proxy-secret';
-const BFF_TRUSTED_PROXY_SECRET_ENV_NAME = 'ACME_BFF_TRUSTED_PROXY_SECRET';
+import {
+  BFF_TRUSTED_PROXY_SECRET_HEADER,
+  getBffBaseUrlOrThrow,
+  getBffTrustedProxySecret,
+  isBffProxyEnabled,
+} from '@acme-los/api/web-server';
 
 const REQUEST_HEADERS_TO_FORWARD = [
   'accept',
@@ -36,17 +38,6 @@ function trimValue(value?: string): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function getBffBaseUrl(): string | null {
-  for (const envName of BFF_BASE_URL_ENV_NAMES) {
-    const value = trimValue(process.env[envName]);
-    if (value) {
-      return value;
-    }
-  }
-
-  return null;
-}
-
 function buildProxyTargetUrl(
   request: NextRequest,
   upstreamPath: string,
@@ -77,9 +68,7 @@ function buildUpstreamHeaders(
   headers.set('x-forwarded-host', request.nextUrl.host);
   headers.set('x-forwarded-proto', request.nextUrl.protocol.replace(':', ''));
 
-  const trustedProxySecret = trimValue(
-    process.env[BFF_TRUSTED_PROXY_SECRET_ENV_NAME],
-  );
+  const trustedProxySecret = getBffTrustedProxySecret();
 
   if (trustedProxySecret) {
     headers.set(BFF_TRUSTED_PROXY_SECRET_HEADER, trustedProxySecret);
@@ -123,12 +112,11 @@ export async function maybeProxyToBff(
   upstreamPath: string,
   options: BffProxyOptions = {},
 ): Promise<NextResponse | null> {
-  const baseUrl = getBffBaseUrl();
-
-  if (!baseUrl) {
+  if (!isBffProxyEnabled()) {
     return null;
   }
 
+  const baseUrl = getBffBaseUrlOrThrow();
   const targetUrl = buildProxyTargetUrl(request, upstreamPath, baseUrl);
   const rawBody =
     request.method === 'GET' || request.method === 'HEAD'

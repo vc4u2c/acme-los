@@ -67,7 +67,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     assertValidCsrf(request);
 
     const payload = syncSessionSchema.parse(await request.json());
-    const syncedSession = await syncWebAuthSession(payload);
+    const syncedSession = await syncWebAuthSession(payload, { request });
     const response = NextResponse.json(syncedSession.response);
 
     writeWebAuthSession(request, response, syncedSession);
