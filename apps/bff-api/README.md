@@ -203,6 +203,8 @@ Current switched routes:
 - `GET /api/health` -> composite Next + BFF health; includes `GET /bff/health`
   when the BFF base URL is configured
 - `GET /api/security/csrf` -> `GET /bff/security/csrf`
+- `GET /api/security/inspector` -> `GET /bff/security/inspector` in BFF mode,
+  after the authenticated Next facade and rate-limit checks pass
 - `GET /api/auth/start` -> `GET /bff/auth/login`
 - `GET /api/auth/callback` -> `GET /bff/auth/callback`
 - `GET|PUT /api/customer/profile` -> `/bff/customer/profile`
@@ -225,6 +227,12 @@ origin but delegates token issuance to the BFF and relays the BFF `Set-Cookie`
 header back to the browser. The Next facade accepts both the earlier signed
 facade cookie format and BFF-issued raw CSRF tokens so existing local cookies
 can roll forward cleanly.
+
+The security inspector follows the same authority rule. In `next` mode it reads
+the Next-owned server store. In `bff` mode it reads the BFF-owned store through
+`/bff/security/inspector` over the trusted server-to-server boundary. The raw
+BFF inspector endpoint is local/dev diagnostics only; browser users should open
+`/security` on the Next origin.
 
 The BFF HTTP pipeline owns cross-cutting transport concerns before any Wolverine
 handler runs: request completion logging, correlation ID normalization,
@@ -253,12 +261,28 @@ That keeps browser contracts stable while letting the Next facade fall back to
 the existing implementation whenever the proxy mode is `next`. The BFF base URL
 is connection configuration only; it does not act as the rollout switch.
 
+Toggle behavior to preserve:
+
+| Surface              | `ACME_BFF_PROXY_MODE=next` | `ACME_BFF_PROXY_MODE=bff`      |
+| -------------------- | -------------------------- | ------------------------------ |
+| Browser URL          | Next `/api/*`              | Same Next `/api/*`             |
+| Session authority    | Next web-server store      | BFF auth session store         |
+| CSRF issuer          | Next facade                | BFF, relayed through Next      |
+| Security inspector   | Next-owned snapshot        | BFF-owned snapshot             |
+| Customer/application | Next implementation        | BFF implementation behind Next |
+
 For the trusted identity bridge, Next forwards authenticated customer context
 with `x-acme-authenticated-*` headers. In local development the BFF accepts
 those headers to keep the scaffold easy to run. Outside local development, set
 the same `ACME_BFF_TRUSTED_PROXY_SECRET` value in the Next facade and the BFF so
 the BFF can reject spoofed trusted identity headers unless they came through the
 server-side proxy path.
+
+In Azure, the BFF ACA app is internal to the Container Apps environment. The
+public smoke path is the Next facade, especially `/api/health`. A direct BFF
+FQDN from a workstation can time out because it is not a public browser/API
+endpoint. BFF replica counts follow the environment runtime scale settings by
+default unless the environment config adds a dedicated `bffRuntime` override.
 
 ## First Verification Pass
 

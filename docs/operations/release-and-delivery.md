@@ -149,10 +149,22 @@ BFF mode. The deployable artifact still records both `webVersion` and
 `bffVersion`; Azure receives the BFF semantic version through `ACME_BFF_VERSION`
 and the source/image build SHA through `APP_BUILD_ID`.
 
+The web deployable also carries the runtime-coupled BFF deployment. BFF ACA
+scale follows the target environment runtime scale settings by default, with an
+optional future `bffRuntime` override if the BFF needs a different min/max
+replica shape from the public web app.
+
 When the BFF has independent consumers, split runtime promotion into
 `acme-los-bff-api-deployable-*` artifacts. Until then, keep the web deployable
 as the public app deploy unit and treat the BFF release as the API version
 record carried inside that deploy unit.
+
+Promotion smoke checks should validate both sides of the BFF toggle:
+
+- with `ACME_BFF_PROXY_MODE=bff`, `/api/health` reports a healthy BFF layer and
+  `/security` reads the BFF-owned token/session snapshot in local/dev
+- with `ACME_BFF_PROXY_MODE=next`, the same browser-facing routes stay on the
+  Next implementation and the BFF is not required for those switched contracts
 
 ## Current Operating Reality
 

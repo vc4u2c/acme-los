@@ -771,6 +771,16 @@ $runtimeMaxReplicas = if ($environmentConfiguration.runtime -and $null -ne $envi
 } else {
   1
 }
+$bffRuntimeMinReplicas = if ($environmentConfiguration.bffRuntime -and $null -ne $environmentConfiguration.bffRuntime.minReplicas) {
+  [int]$environmentConfiguration.bffRuntime.minReplicas
+} else {
+  $runtimeMinReplicas
+}
+$bffRuntimeMaxReplicas = if ($environmentConfiguration.bffRuntime -and $null -ne $environmentConfiguration.bffRuntime.maxReplicas) {
+  [int]$environmentConfiguration.bffRuntime.maxReplicas
+} else {
+  $runtimeMaxReplicas
+}
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $resolvedBffVersion = Get-ResolvedBffVersion -ExplicitVersion $BffVersion -RepositoryRoot $repositoryRoot -FallbackVersion $resolvedBuildId
 $compiledParameterFile = New-CompiledParameterFile -SourceParameterFile $ParameterFile
@@ -1147,7 +1157,9 @@ if ($resolvedBffDeploymentEnabled) {
     '--parameters', "bffContainerImage=$bffImageReference",
     '--parameters', "bffBaseUrl=$resolvedBffContainerAppBaseUrl",
     '--parameters', "bffVersion=$resolvedBffVersion",
-    '--parameters', "bffTrustedProxySecretValue=$bffTrustedProxySecretValue"
+    '--parameters', "bffTrustedProxySecretValue=$bffTrustedProxySecretValue",
+    '--parameters', "bffMinReplicas=$bffRuntimeMinReplicas",
+    '--parameters', "bffMaxReplicas=$bffRuntimeMaxReplicas"
   )
 }
 

@@ -24,6 +24,12 @@ The current split is:
 That means the browser talks to app-owned endpoints, not directly to Okta or
 to backend-specific storage details.
 
+When `ACME_BFF_PROXY_MODE=bff`, the browser still talks to the same app-owned
+Next `/api/*` routes. The difference is server-side only: the Next facade
+delegates selected routes to the `.NET` BFF, and the BFF becomes the authority
+for auth transaction state, auth session state, CSRF issuance, customer profile
+state, and application-flow state.
+
 ## Web Auth Shape
 
 The web app currently uses:
@@ -111,11 +117,24 @@ Owns:
 - CSRF and cookie helpers
 - server-side state access for auth, customer, and application flow
 - session idle timeout config, server-side idle expiry, and touch handling
+- the server-side BFF switch that keeps the browser contract stable while
+  changing the implementation authority
 
 Must stay:
 
 - server-only
 - thin enough that a future .NET BFF can replace or subsume it cleanly
+
+### Toggle Contract
+
+| Contract                     | Toggle off: `next`                      | Toggle on: `bff`                                                   |
+| ---------------------------- | --------------------------------------- | ------------------------------------------------------------------ |
+| Browser API URLs             | Next `/api/*`                           | Same Next `/api/*`                                                 |
+| Browser cookie               | Same opaque auth session cookie         | Same opaque auth session cookie                                    |
+| CSRF route                   | Next issues signed facade token         | BFF issues token through Next facade                               |
+| Auth/session source of truth | Next server state store                 | BFF state store                                                    |
+| Security inspector           | Reads Next-owned token/session snapshot | Reads BFF-owned token/session snapshot through trusted diagnostics |
+| Raw tokens                   | Never in normal browser storage         | Never in normal browser storage                                    |
 
 ## Authorization Today
 
@@ -224,6 +243,11 @@ Prefer:
 - internal entity IDs
 - correlation IDs
 - status and workflow metadata
+
+The security inspector is the explicit exception for local/dev troubleshooting.
+It is authenticated, rate-limited by the Next facade, disabled outside local/dev
+unless explicitly enabled, and must read from whichever server-side authority is
+active. It should not become a production support surface.
 
 ## Evolution Guidance
 

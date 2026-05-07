@@ -96,6 +96,9 @@ top-level navigation.
 Use `/api/security/csrf` on the Next origin for browser-facing CSRF tokens; in
 BFF mode that route delegates issuance to `/bff/security/csrf` server-side and
 relays the cookie back through the Next response.
+Open `/security` on the Next origin for the security inspector. With the toggle
+off, it shows the Next-owned server state. With `ACME_BFF_PROXY_MODE=bff`, it
+shows the BFF-owned token/session state through the authenticated Next facade.
 If you need to override the one-command BFF URL, set
 `ACME_DEV_STACK_BFF_BASE_URL`; the script passes that value to the web app as
 `ACME_BFF_BASE_URL` and forces `ACME_BFF_PROXY_MODE=bff`.
@@ -215,6 +218,16 @@ To force it off even in `local` or `dev`, add this to `apps/web-app/.env.local`:
 ```text
 ACME_ENABLE_SECURITY_INSPECTOR=false
 ```
+
+Security inspector toggle expectations:
+
+| Setting                             | What `/security` shows                     |
+| ----------------------------------- | ------------------------------------------ |
+| `ACME_BFF_PROXY_MODE=next` or unset | Next-owned auth/session and token snapshot |
+| `ACME_BFF_PROXY_MODE=bff`           | BFF-owned auth/session and token snapshot  |
+
+The raw BFF inspector route is for server-to-server local/dev diagnostics. Do
+not use it from browser application code.
 
 ## Notes
 

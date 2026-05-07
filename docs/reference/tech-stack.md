@@ -10,6 +10,23 @@ If you want the fastest path to running the repo, start at:
 - [Workspace commands](../getting-started/workspace-commands.md)
 - [VS Code setup](./vscode-setup.md)
 
+## Capability Matrix
+
+| Area                  | Current stack and design facets                                                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workspace             | Nx 22, npm, TypeScript, `apps/*` and `libs/*`, project tags, affected graph, independent release groups                                      |
+| Web                   | Next.js 16 App Router, React 19, Tailwind CSS, shadcn-style `new-york`, Radix UI, Lucide icons                                               |
+| Web data/UI workflows | TanStack React Query, React Form, React Table, showcase grid/table system, shared web UI primitives                                          |
+| Mobile                | Expo 55, React Native 0.83, NativeWind, Gluestack, React Navigation, Expo Web e2e lane                                                       |
+| BFF                   | `.NET` 10 Minimal API, OpenAPI, Scalar UI, health/readiness, dev-only inspector, Wolverine-backed customer/application handlers              |
+| Auth                  | Okta hosted sign-in/registration, server-side PKCE, id-token validation, opaque sessions, funding step-up MFA                                |
+| Security              | HTTP-only cookies, CSRF double-submit protection, trusted Next-to-BFF proxy secret, CSP, rate limiting/audit logging                         |
+| State                 | Redis-backed server state in hardened local/Azure paths, local file fallback for Next, BFF in-memory fallback for scaffolding                |
+| Azure                 | ACA, Key Vault, Azure Managed Redis, private endpoints, private DNS, NSGs, managed identity, environment-driven scale, budgets, pause/resume |
+| Observability         | Application Insights, Log Analytics, workbook, alerts, structured JSON logs, `traceparent`, correlation IDs                                  |
+| CI/CD                 | GitHub Actions CI/CD, environment wrappers, teardown workflows, project-prefixed release/deploy artifacts                                    |
+| Quality gates         | Husky, lint-staged, commitlint, project-tag validation, ESLint, Prettier, Jest, Playwright, xUnit, Reqnroll, `dotnet format`                 |
+
 ## Workspace Foundation
 
 ### Monorepo

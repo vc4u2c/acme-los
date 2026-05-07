@@ -15,6 +15,21 @@ The architecture pages describe what exists today. The Azure platform plan is
 part current-state snapshot and part target-state strategy; it calls that out
 explicitly so readers do not mistake future phases for deployed behavior.
 
+## Fast Demo Inventory
+
+For a grouped feature/design inventory, start with:
+
+- [Root README demo feature inventory](../README.md#demo-feature-inventory)
+- [Azure and website demo runbook](./operations/azure-and-website-demo-runbook.md)
+- [Tech stack and tooling](./reference/tech-stack.md)
+
+The short version: ACME LOS demonstrates an Nx monorepo, Next.js web app, Expo
+mobile app, `.NET` BFF, Okta auth, server-side sessions, CSRF, Redis-backed
+state, Azure Container Apps, Key Vault/private endpoints, Application
+Insights/Log Analytics, GitHub Actions CI/CD, Nx Release versioning, Husky
+commit guardrails, shadcn/Radix/Tailwind UI primitives, and TanStack Query,
+Form, and Table workflows.
+
 ## Suggested Read Order
 
 If you are onboarding or coming back after a break, this is the shortest good

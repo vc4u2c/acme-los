@@ -177,6 +177,98 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public async Task GetBffSecurityInspector_WithTrustedSession_ReturnsStoredTokens()
+  {
+    using var client = _factory.CreateClient();
+    var idToken = CreateUnsignedJwt(new
+    {
+      sub = "user-123",
+      email = "user@example.com",
+    });
+    var accessToken = CreateUnsignedJwt(new
+    {
+      sub = "user-123",
+      scp = new[] { "openid", "profile" },
+    });
+    var expiresAt = (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
+    using var syncResponse = await client.PostAsJsonAsync(
+      "/bff/auth/session",
+      new SyncWebAuthSessionRequest(
+        idToken,
+        Session: new WebAuthSession(
+          "okta",
+          "authenticated",
+          true,
+          "aal1",
+          new WebAuthSessionUser(
+            "user-123",
+            "User Test",
+            "user@example.com")),
+        ExpiresAt: expiresAt,
+        ServerTokens: new WebAuthSessionTokenSet(
+          idToken,
+          accessToken,
+          "refresh-token-123",
+          "Bearer",
+          "openid profile",
+          3600)));
+
+    Assert.Equal(HttpStatusCode.OK, syncResponse.StatusCode);
+    Assert.True(
+      syncResponse.Headers.TryGetValues(
+        "x-acme-auth-session-id",
+        out var sessionIdValues));
+
+    var sessionId = Assert.Single(sessionIdValues);
+    using var inspectorRequest = new HttpRequestMessage(
+      HttpMethod.Get,
+      "/bff/security/inspector");
+
+    inspectorRequest.Headers.Add(
+      "Cookie",
+      $"acme-los.auth-session={CreateSignedSessionCookie(sessionId)}");
+
+    using var inspectorResponse = await client.SendAsync(inspectorRequest);
+
+    Assert.Equal(HttpStatusCode.OK, inspectorResponse.StatusCode);
+
+    var snapshot =
+      await inspectorResponse.Content.ReadFromJsonAsync<SecurityInspectorServerSnapshot>();
+
+    Assert.NotNull(snapshot);
+    Assert.Equal("okta", snapshot!.Provider);
+    Assert.Equal("in-memory", snapshot.StateStoreMode);
+    Assert.NotNull(snapshot.StoredSession);
+    Assert.Equal(
+      idToken,
+      snapshot.StoredSession!.Tokens.IdToken.Raw);
+    Assert.Equal(
+      accessToken,
+      snapshot.StoredSession.Tokens.AccessToken.Raw);
+    Assert.Equal(
+      "refresh-token-123",
+      snapshot.StoredSession.Tokens.RefreshToken);
+    Assert.Equal(
+      "user-123",
+      ((JsonElement)snapshot.StoredSession.Tokens.IdToken.Claims!["sub"]!)
+        .GetString());
+  }
+
+  [Fact]
+  public async Task GetBffSecurityInspector_WhenDisabled_ReturnsNotFound()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_ENABLE_SECURITY_INSPECTOR"] = "false",
+      });
+    using var client = _factory.CreateClient();
+    using var response = await client.GetAsync("/bff/security/inspector");
+
+    Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+  }
+
+  [Fact]
   public async Task GetBffAuthSession_ReturnsUnauthenticatedContract()
   {
     using var client = _factory.CreateClient();
@@ -789,6 +881,15 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       hmac.ComputeHash(Encoding.UTF8.GetBytes(payloadPart)));
 
     return $"{payloadPart}.{signaturePart}";
+  }
+
+  private static string CreateUnsignedJwt(object payload)
+  {
+    return string.Join(
+      '.',
+      ToBase64Url(Encoding.UTF8.GetBytes("""{"alg":"none"}""")),
+      ToBase64Url(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload))),
+      "signature");
   }
 
   private static string ToBase64Url(byte[] value)

@@ -758,6 +758,10 @@ Current implementation note:
 - each workload environment deploy creates its own spoke VNet, private endpoints, and platform DNS link stack
 - the current workload stack deploys one Azure Managed Redis instance per deployed environment
 - the current Azure runtime target uses Microsoft Entra auth to Redis from the ACA user-assigned managed identity
+- the current web deployable deploys both the public Next ACA app and the
+  internal BFF ACA app when BFF deployment is enabled
+- the internal BFF app follows the environment runtime replica settings by
+  default, unless an explicit `bffRuntime` override is added later
 - the `dev` Redis managed-identity path was live-verified on April 19, 2026
 - Azure Redis access-key authentication is disabled; connection-string auth is retained only for local Docker Redis
 - shared ACR is split by subscription role:

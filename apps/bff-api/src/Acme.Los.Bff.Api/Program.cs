@@ -42,6 +42,7 @@ builder.Services.AddProblemDetails(options =>
 builder.Services.AddOpenApi();
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<ICsrfTokenService, CsrfTokenService>();
+builder.Services.AddSingleton<ISecurityInspectorService, SecurityInspectorService>();
 builder.Services.AddSingleton(stateStoreOptions);
 
 if (stateStoreOptions.UsesRedis)

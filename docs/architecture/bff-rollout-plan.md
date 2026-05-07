@@ -170,6 +170,9 @@ Current bridge decision:
 - `GET /api/security/csrf` remains browser-facing on the stable Next facade; in
   BFF mode it delegates issuance to `/bff/security/csrf` and relays the BFF
   cookie back to the browser
+- `GET /api/security/inspector` remains browser-facing and authenticated on the
+  stable Next facade; in BFF mode it reads the BFF-owned token/session snapshot
+  from `/bff/security/inspector` through the trusted server-side proxy boundary
 - after the BFF-owned auth path is proven in `dev` and `qa`, the team can
   revisit whether `/api/*` remains a thin Next proxy or whether a more direct
   BFF-facing route shape is cleaner
@@ -251,6 +254,8 @@ Current BFF-mode endpoints:
 - `POST /bff/auth/session/touch`
 - `POST /bff/auth/session/requirement`
 - `GET /bff/auth/logout-hint`
+- `GET /bff/security/csrf`
+- `GET /bff/security/inspector`
 
 Definition of done:
 
@@ -258,6 +263,8 @@ Definition of done:
   id-token validation, and callback handling when `ACME_BFF_PROXY_MODE=bff`
 - session storage, lookup, touch, requirement checks, and logout hints are stable
 - funding step-up rules are preserved
+- the dev-only security inspector follows the active session authority in both
+  `next` and `bff` modes
 - the Next layer stays a route shell and UX boundary, not the long-term auth
   engine
 
@@ -312,6 +319,8 @@ Initial Azure shape:
 - Redis and Key Vault stay private endpoint backed platform dependencies
 - the BFF trusted identity headers require `ACME_BFF_TRUSTED_PROXY_SECRET`
   outside local development
+- the BFF runtime scale follows the environment runtime scale settings unless a
+  `bffRuntime` override is added to the environment config
 - this is private ACA ingress, not a separate Azure Private Endpoint resource
   for the BFF container app
 

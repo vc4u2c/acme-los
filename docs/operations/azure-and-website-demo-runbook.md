@@ -23,6 +23,136 @@ The clean story to tell is:
 6. the web app proves the platform behavior through live auth, session, and
    scale behavior
 
+## Capability Inventory
+
+Use this section when you need the fast, grouped feature/design story before
+opening the portal or clicking through the website.
+
+### Architecture Shape
+
+- Nx monorepo with web, mobile, BFF, shared contracts, shared auth, shared UI,
+  Azure IaC, Okta manifests, and repo-owned scripts
+- Next.js remains the public browser facade; browser code calls same-origin
+  `/api/*` routes
+- `ACME_BFF_PROXY_MODE=next|bff` is the clean server-side migration switch for
+  routes that can be served by either Next or the BFF
+- in `bff` mode, the BFF owns auth/session state, CSRF issuance, customer
+  profile state, and application-flow state behind the stable Next facade
+- the security inspector reads BFF-owned token/session state through a
+  dev-only, trusted server-to-server BFF diagnostic endpoint when BFF mode is
+  enabled
+- the raw BFF URL is for server-to-server and terminal checks; it is not a
+  browser application endpoint
+
+### Versioning And Release
+
+- Nx Release versions `web-app`, `mobile-app`, and `bff-api` independently
+- GitHub releases use project tags such as `web-app@<version>`,
+  `mobile-app@<version>`, and `bff-api@<version>`
+- release assets are project-prefixed, including web, mobile, and BFF API
+  bundles
+- deploy metadata records web version, BFF version, source SHA, image tag, and
+  build ID
+- `/api/health` exposes web and BFF layer versions/builds when the BFF path is
+  enabled
+
+### Engineering Guardrails
+
+- Husky blocks accidental direct local commits to `main`
+- `lint-staged` formats and lints staged files
+- `commitlint` enforces conventional commit shape
+- project-tag validation keeps Nx ownership boundaries explicit
+- Prettier, ESLint, Jest, Playwright, `.NET` xUnit, Reqnroll/Gherkin, and
+  `dotnet format` are part of the verification story
+
+### Web UI And Product Experience
+
+- Next.js 16 App Router with React 19 and focused server/client boundaries
+- Tailwind CSS with shadcn-style `new-york` composition
+- Radix UI primitives, `class-variance-authority`, `tailwind-merge`, shared
+  `cn()`, and Lucide icons
+- TanStack React Query, React Form, and React Table power richer app workflows,
+  including the showcase grid/table system
+- public landing/support routes, seven-step application flow, customer
+  dashboard, security inspector, logging demo, and runtime environment/version
+  badges
+
+### Mobile Experience
+
+- Expo 55 / React Native app shell
+- NativeWind and Gluestack UI foundation
+- shared app release/version visibility through Expo config
+- mobile e2e uses Playwright against Expo Web for the current automation lane
+
+### Auth And Session Security
+
+- Okta hosted sign-in and registration with environment-specific redirect
+  configuration
+- server-side PKCE, nonce/state validation, custom-domain Okta issuer policy,
+  and id-token validation
+- opaque HTTP-only session cookie; tokens stay out of normal browser storage
+- server-enforced idle expiry and absolute session expiry
+- CSRF protection on mutating browser/BFF paths
+- BFF-issued CSRF cookie in BFF mode, relayed through the stable
+  `/api/security/csrf` facade route
+- funding step-up MFA uses fresh Okta prompt semantics for stronger assurance
+- trusted Next-to-BFF identity headers require the shared proxy secret outside
+  local development
+
+### BFF And API Layer
+
+- `.NET` BFF with Minimal APIs, feature folders, OpenAPI JSON, Scalar UI,
+  health, readiness, and structured request logging
+- auth flow endpoints for login, callback, logout, session sync, session read,
+  touch, requirement checks, and logout hints
+- customer profile and application flow endpoints behind authenticated trusted
+  identity context
+- security inspector endpoint for local/dev diagnostics, reachable from the
+  browser only through the authenticated Next facade
+- Wolverine is used selectively behind the HTTP pipeline for
+  customer/application command and query handlers
+- the HTTP pipeline owns cookie, CSRF, trusted proxy, correlation, logging, and
+  OpenTelemetry concerns before handlers run
+
+### Azure Platform
+
+- landing-zone-shaped governance with management groups, subscriptions,
+  budgets, and workload/platform split
+- Azure Container Apps runs the public web app and internal BFF app in `dev`
+- Azure Managed Redis is the shared server-side state path
+- Key Vault holds runtime secrets
+- Redis and Key Vault use private endpoints and private DNS
+- managed identity is used for runtime access where supported
+- BFF replica settings follow the environment runtime scale configuration unless
+  explicitly overridden, so `dev` does not accidentally run the BFF at zero
+  replicas while the web app stays warm
+- pause/resume and teardown flows are repo-owned scripts, not manual-only portal
+  operations
+
+### Observability
+
+- Application Insights and Log Analytics collect app and platform telemetry
+- Azure workbook gives a presenter-friendly operational view
+- alerts exist for failures, exceptions, auth failures, and system errors
+- structured logs include environment, service, version, build, route, trace,
+  and correlation fields
+- logging demo shows W3C `traceparent`, app correlation IDs, client-origin event
+  ingestion, server-origin logs, and controlled error paths
+
+### Current Honest Assessment
+
+- `dev` is real and deploys from `main` through CI/CD
+- the BFF auth/session slice is now the intended end-state path when the BFF
+  toggle is enabled
+- if a direct BFF URL times out from your workstation, that is expected for the
+  internal ACA endpoint; use the public Next `/api/*` facade for browser and
+  manual web checks
+- customer and application persistence are still transitional server-side state,
+  not the final durable backend record
+- `qa` promotion proof, real alert receivers, durable persistence, Front Door,
+  WAF, custom domains, and private-origin production edge hardening remain next
+  phases
+
 ## Refresh Before The Demo
 
 The `dev` ACA public hostname can change when the environment is rebuilt.
