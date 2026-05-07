@@ -101,6 +101,50 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public async Task GetBffCsrf_UsesSecureCookieBehindForwardedHttps()
+  {
+    using var client = _factory.CreateClient();
+    using var request = new HttpRequestMessage(
+      HttpMethod.Get,
+      "/bff/security/csrf");
+
+    request.Headers.Add("x-forwarded-proto", "https");
+
+    using var response = await client.SendAsync(request);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    Assert.Contains(
+      response.Headers,
+      header =>
+        string.Equals(header.Key, "Set-Cookie", StringComparison.OrdinalIgnoreCase)
+        && header.Value.Any(value => value.Contains(
+          "secure",
+          StringComparison.OrdinalIgnoreCase)));
+  }
+
+  [Fact]
+  public async Task DeleteBffAuthSession_UsesSecureCookieBehindForwardedHttps()
+  {
+    using var client = _factory.CreateClient();
+    using var request = new HttpRequestMessage(
+      HttpMethod.Delete,
+      "/bff/auth/session");
+
+    request.Headers.Add("x-forwarded-proto", "https");
+
+    using var response = await client.SendAsync(request);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    Assert.Contains(
+      response.Headers,
+      header =>
+        string.Equals(header.Key, "Set-Cookie", StringComparison.OrdinalIgnoreCase)
+        && header.Value.Any(value => value.Contains(
+          "secure",
+          StringComparison.OrdinalIgnoreCase)));
+  }
+
+  [Fact]
   public async Task GetBffCsrf_ReissuesSignedFacadeCookieAsBffToken()
   {
     const string csrfToken = "csrf-token-123";

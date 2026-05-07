@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Acme.Los.Bff.Api.Common;
 using Acme.Los.Bff.Api.Contracts;
 
 namespace Acme.Los.Bff.Api.Infrastructure.Security;
@@ -81,7 +82,7 @@ public sealed class CsrfTokenService : ICsrfTokenService
       MaxAge = TimeSpan.FromHours(8),
       Path = "/",
       SameSite = SameSiteMode.Lax,
-      Secure = request.IsHttps,
+      Secure = BffRequestSecurity.IsSecureRequest(request),
     };
   }
 

@@ -371,7 +371,7 @@ public sealed class BffAuthSessionService : IAuthSessionService
       HttpOnly = true,
       Path = "/",
       SameSite = SameSiteMode.Lax,
-      Secure = request.IsHttps,
+      Secure = BffRequestSecurity.IsSecureRequest(request),
     };
   }
 
