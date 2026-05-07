@@ -202,6 +202,8 @@ Current switched routes:
 
 - `GET /api/health` -> composite Next + BFF health; includes `GET /bff/health`
   when the BFF base URL is configured
+- `GET /api/auth/start` -> `GET /bff/auth/login`
+- `GET /api/auth/callback` -> `GET /bff/auth/callback`
 - `GET|PUT /api/customer/profile` -> `/bff/customer/profile`
 - `GET|PUT /api/application/steps/[step]` -> `/bff/application/steps/{step}`
 - `POST /api/application/submit` -> `/bff/application/submit`
@@ -210,9 +212,12 @@ Current switched routes:
 `POST /api/auth/session/touch`, guarded API session checks, server-rendered
 session checks, and logout hints use the same `ACME_BFF_PROXY_MODE` switch. In
 `next` mode, Next owns the auth session store. In `bff` mode, Next remains the
-browser facade but delegates Okta-backed session read/sync/touch/clear,
-requirement checks, funding step-up freshness, and logout-hint reads to the
-BFF. Mock auth remains local for development and Playwright fixtures.
+browser facade but delegates PKCE transaction state, Okta token exchange,
+id-token validation, session read/sync/touch/clear, requirement checks, funding
+step-up freshness, and logout-hint reads to the BFF. Next still owns the public
+redirect routes and writes the browser-facing opaque session cookie from the BFF
+session headers. Mock auth remains local for development and Playwright
+fixtures.
 
 `GET /api/security/csrf` intentionally stays local for now so the Next facade
 can keep issuing the signed CSRF cookie format it already uses while the BFF

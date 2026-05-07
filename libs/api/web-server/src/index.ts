@@ -71,5 +71,11 @@ export {
   readWebAuthTransaction,
   refreshOktaTokenSet,
   startOktaAuthTransaction,
+  writeBffWebAuthTransaction,
   writeWebAuthTransaction,
 } from './lib/okta-auth-flow';
+export {
+  completeBffAuthCallback,
+  startBffAuthFlow,
+  startBffLogout,
+} from './lib/bff-auth-session-client';

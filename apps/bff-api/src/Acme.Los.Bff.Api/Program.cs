@@ -40,6 +40,7 @@ builder.Services.AddProblemDetails(options =>
 });
 
 builder.Services.AddOpenApi();
+builder.Services.AddHttpClient();
 builder.Services.AddSingleton<ICsrfTokenService, CsrfTokenService>();
 builder.Services.AddSingleton(stateStoreOptions);
 
@@ -52,6 +53,7 @@ if (stateStoreOptions.UsesRedis)
   builder.Services.AddSingleton(connectionMultiplexer);
   builder.Services.AddSingleton<IConnectionMultiplexer>(connectionMultiplexer);
   builder.Services.AddSingleton<RedisStateStore>();
+  builder.Services.AddSingleton<IAuthTransactionStore, RedisAuthTransactionStore>();
   builder.Services.AddSingleton<IAuthSessionStore, RedisAuthSessionStore>();
   builder.Services.AddSingleton<ICustomerProfileStore, RedisCustomerProfileStore>();
   builder.Services.AddSingleton<IApplicationFlowStore, RedisApplicationFlowStore>();
@@ -59,11 +61,13 @@ if (stateStoreOptions.UsesRedis)
 else
 {
   builder.Services.AddSingleton<IAuthSessionStore, InMemoryAuthSessionStore>();
+  builder.Services.AddSingleton<IAuthTransactionStore, InMemoryAuthTransactionStore>();
   builder.Services.AddSingleton<ICustomerProfileStore, InMemoryCustomerProfileStore>();
   builder.Services.AddSingleton<IApplicationFlowStore, InMemoryApplicationFlowStore>();
 }
 
 builder.Services.AddSingleton<IAuthSessionService, BffAuthSessionService>();
+builder.Services.AddSingleton<IAuthFlowService, BffAuthFlowService>();
 
 var healthChecks = builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["ready"]);

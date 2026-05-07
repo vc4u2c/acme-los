@@ -7,6 +7,7 @@ using Acme.Los.Bff.Api.Contracts;
 using Acme.Los.Bff.Api.Infrastructure.State;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Configuration;
 
 namespace Acme.Los.Bff.Api.Tests;
@@ -470,15 +471,63 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
-  public async Task GetReservedBffAuthLoginRoute_ReturnsProblemDetails()
+  public async Task GetBffAuthLogin_ReturnsAuthorizeUrl()
   {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
     using var client = _factory.CreateClient();
-    using var response = await client.GetAsync("/bff/auth/login");
+    using var response = await client.GetAsync(
+      "/bff/auth/login?returnTo=/apply&aal=aal2&leadId=lead-123");
 
-    Assert.Equal(HttpStatusCode.NotImplemented, response.StatusCode);
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var payload =
+      await response.Content.ReadFromJsonAsync<StartAuthFlowResponse>();
+
+    Assert.NotNull(payload);
+    Assert.Equal("/apply/personal-info", payload!.ReturnTo);
+    Assert.False(string.IsNullOrWhiteSpace(payload.TransactionId));
+    Assert.True(payload.MaxAge > 0);
+
+    var authorizeUrl = new Uri(payload.AuthorizeUrl);
+    var query = QueryHelpers.ParseQuery(authorizeUrl.Query);
+
+    Assert.Equal("dev-123456.okta.com", authorizeUrl.Host);
+    Assert.Equal("/oauth2/default/v1/authorize", authorizeUrl.AbsolutePath);
+    Assert.Equal("client-123", query["client_id"].ToString());
     Assert.Equal(
-      "application/problem+json",
-      response.Content.Headers.ContentType?.MediaType);
+      "https://los.example.test/auth/callback",
+      query["redirect_uri"].ToString());
+    Assert.Equal("code", query["response_type"].ToString());
+    Assert.Equal("S256", query["code_challenge_method"].ToString());
+    Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
+    Assert.Equal("login", query["prompt"].ToString());
+  }
+
+  [Fact]
+  public async Task GetBffAuthCallback_WithoutTransaction_ReturnsBadRequest()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var client = _factory.CreateClient();
+    using var response = await client.GetAsync(
+      "/bff/auth/callback?code=code-123&state=state-123");
+
+    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
   }
 
   [Fact]
@@ -624,5 +673,31 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       .Replace('+', '-')
       .Replace('/', '_')
       .TrimEnd('=');
+  }
+
+  private sealed class TemporaryEnvironmentVariables : IDisposable
+  {
+    private readonly Dictionary<string, string?> _originalValues;
+
+    internal TemporaryEnvironmentVariables(
+      IReadOnlyDictionary<string, string?> values)
+    {
+      _originalValues = values.Keys.ToDictionary(
+        name => name,
+        Environment.GetEnvironmentVariable);
+
+      foreach (var (name, value) in values)
+      {
+        Environment.SetEnvironmentVariable(name, value);
+      }
+    }
+
+    public void Dispose()
+    {
+      foreach (var (name, value) in _originalValues)
+      {
+        Environment.SetEnvironmentVariable(name, value);
+      }
+    }
   }
 }

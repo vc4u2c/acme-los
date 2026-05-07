@@ -1,12 +1,16 @@
 import type {
   ClearWebAuthSessionResponse,
+  CompleteAuthFlowResponse,
   GetWebAuthLogoutHintResponse,
   GetWebAuthSessionResponse,
   RequireWebAuthSessionRequest,
   RequireWebAuthSessionResponse,
+  StartAuthFlowResponse,
+  StartLogoutResponse,
   SyncWebAuthSessionRequest,
   SyncWebAuthSessionResponse,
   TouchWebAuthSessionResponse,
+  WebAuthStepUpRequirement,
 } from '@acme-los/api/contracts';
 import type { NextRequest } from 'next/server';
 import {
@@ -187,6 +191,88 @@ export async function syncBffWebAuthSession(
       body: payload,
     }),
   );
+}
+
+export async function startBffAuthFlow(
+  request: NextRequest,
+  options: {
+    returnTo?: string;
+    minimumAssuranceLevel?: 'aal1' | 'aal2';
+    expectedUserId?: string;
+    leadId?: string;
+    stepUp?: WebAuthStepUpRequirement;
+  },
+): Promise<StartAuthFlowResponse> {
+  const searchParams = new URLSearchParams();
+
+  if (options.returnTo) {
+    searchParams.set('returnTo', options.returnTo);
+  }
+
+  if (options.minimumAssuranceLevel) {
+    searchParams.set('aal', options.minimumAssuranceLevel);
+  }
+
+  if (options.expectedUserId) {
+    searchParams.set('expectedUserId', options.expectedUserId);
+  }
+
+  if (options.leadId) {
+    searchParams.set('leadId', options.leadId);
+  }
+
+  if (options.stepUp) {
+    searchParams.set('stepUpReason', options.stepUp.reason);
+    searchParams.set(
+      'stepUpMaxAgeSeconds',
+      String(options.stepUp.maxAgeSeconds),
+    );
+    searchParams.set(
+      'stepUpConsumeOnSatisfied',
+      options.stepUp.consumeOnSatisfied ? 'true' : 'false',
+    );
+  }
+
+  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : '';
+
+  return (
+    await fetchBffAuthJson<StartAuthFlowResponse>(`/bff/auth/login${query}`, {
+      request,
+    })
+  ).payload;
+}
+
+export async function completeBffAuthCallback(
+  request: NextRequest,
+  query: {
+    code: string;
+    state: string;
+  },
+): Promise<BffAuthMutation<CompleteAuthFlowResponse>> {
+  const searchParams = new URLSearchParams({
+    code: query.code,
+    state: query.state,
+  });
+
+  return readBffMutationHeaders(
+    await fetchBffAuthJson<CompleteAuthFlowResponse>(
+      `/bff/auth/callback?${searchParams.toString()}`,
+      {
+        request,
+      },
+    ),
+  );
+}
+
+export async function startBffLogout(
+  request: NextRequest,
+): Promise<StartLogoutResponse> {
+  return (
+    await fetchBffAuthJson<StartLogoutResponse>('/bff/auth/logout', {
+      request,
+      method: 'POST',
+    })
+  ).payload;
 }
 
 export async function clearBffWebAuthSession(

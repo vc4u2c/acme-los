@@ -87,6 +87,26 @@ export interface WebAuthStepUpRequirement {
   consumeOnSatisfied?: boolean;
 }
 
+export interface StartAuthFlowResponse {
+  authorizeUrl: string;
+  transactionId: string;
+  maxAge: number;
+  returnTo: string;
+}
+
+export interface CompleteAuthFlowResponse {
+  session: WebAuthSession;
+  returnTo: string;
+  sessionTiming?: WebAuthSessionTiming;
+}
+
+export interface StartLogoutResponse {
+  session: WebAuthSession;
+  cleared: boolean;
+  logoutUrl: string;
+  usedOktaLogout: boolean;
+}
+
 export interface RequireWebAuthSessionRequest {
   requiresAuthentication?: boolean;
   minimumAssuranceLevel?: WebAuthSessionAssuranceLevel;
