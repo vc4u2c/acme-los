@@ -22,6 +22,9 @@ param applicationInsightsConnectionString string
 param trustedProxySecretName string
 @secure()
 param trustedProxySecretKeyVaultUrl string
+param sessionSecretName string
+@secure()
+param sessionSecretKeyVaultUrl string
 param targetPort int = 8080
 param containerCpu string = '0.5'
 param containerMemory string = '1Gi'
@@ -94,6 +97,10 @@ var environmentVariables = concat(
       value: stateStoreMode
     }
     {
+      name: 'ACME_WEB_SESSION_SECRET'
+      secretRef: sessionSecretName
+    }
+    {
       name: 'ACME_BFF_TRUSTED_PROXY_SECRET'
       secretRef: trustedProxySecretName
     }
@@ -150,6 +157,11 @@ resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
         }
       ]
       secrets: [
+        {
+          name: sessionSecretName
+          keyVaultUrl: sessionSecretKeyVaultUrl
+          identity: userAssignedIdentityResourceId
+        }
         {
           name: trustedProxySecretName
           keyVaultUrl: trustedProxySecretKeyVaultUrl

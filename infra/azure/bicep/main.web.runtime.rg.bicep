@@ -170,6 +170,8 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     redisPort: redisPort
     redisManagedIdentityClientId: userAssignedIdentityClientId
     applicationInsightsConnectionString: applicationInsightsConnectionString
+    sessionSecretName: sessionSecretName
+    sessionSecretKeyVaultUrl: '${keyVaultUri}secrets/${sessionSecretName}'
     trustedProxySecretName: bffTrustedProxySecretName
     trustedProxySecretKeyVaultUrl: '${keyVaultUri}secrets/${bffTrustedProxySecretName}'
     targetPort: bffContainerTargetPort
@@ -179,6 +181,7 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     maxReplicas: bffMaxReplicas
   }
   dependsOn: [
+    sessionSecret
     bffTrustedProxySecret
   ]
 }

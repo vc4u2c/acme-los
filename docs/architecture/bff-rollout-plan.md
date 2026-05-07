@@ -205,7 +205,8 @@ Definition of done:
 - Scalar docs render
 - dev ACA deploys the BFF with internal ingress only
 - Next receives `ACME_BFF_BASE_URL`, `ACME_BFF_PROXY_MODE=bff`, and the trusted
-  proxy secret through IaC
+  proxy secret through IaC; the BFF receives the same web session secret so it
+  can validate the opaque session cookie behind the facade
 
 ### Phase 2: Move Customer And Application Behavior First
 
