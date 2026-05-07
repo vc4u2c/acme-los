@@ -166,6 +166,11 @@ Promotion smoke checks should validate both sides of the BFF toggle:
 - with `ACME_BFF_PROXY_MODE=next`, the same browser-facing routes stay on the
   Next implementation and the BFF is not required for those switched contracts
 
+The toggle-off path is tabled as a manual promotion check for now. Keep it in
+the smoke checklist when auth/session/security routes change, but do not make it
+a required CD gate until the BFF migration work needs routine dual-mode
+certification.
+
 ## Current Operating Reality
 
 The healthiest steady state is:
