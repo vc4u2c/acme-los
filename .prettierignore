@@ -1,6 +1,8 @@
 # Add files here to ignore them from prettier formatting
 /dist
+/tmp
 /coverage
 /.nx/cache
 /.nx/workspace-data
 **/next-env.d.ts
+*.http

@@ -1,36 +1,63 @@
-@Acme.Los.Bff.Api_HostAddress = http://localhost:5186
-@Acme.Los.Bff.Api_TrustedProxySecret = acme-los-local-dev-bff-proxy-secret
+@BffHost = http://localhost:5186
+@WebHost = http://localhost:3000
+@DevWebHost = https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io
+@TrustedProxySecret = acme-los-local-dev-bff-proxy-secret
+@UserId = user-123
+@UserEmail = user@example.com
+@CustomerId = customer-001
+@LeadId = lead-001
 
-GET {{Acme.Los.Bff.Api_HostAddress}}/health/live
+# Use this file with the VS Code REST Client extension.
+# Keep real Okta tokens, auth cookies, and production secrets out of .http files.
+# Browser-authenticated flows should be tested through the Next origin.
+
+###
+
+GET {{WebHost}}/api/health
 Accept: application/json
 
 ###
 
-GET {{Acme.Los.Bff.Api_HostAddress}}/health/ready
+GET {{WebHost}}/api/security/csrf
 Accept: application/json
 
 ###
 
-GET {{Acme.Los.Bff.Api_HostAddress}}/bff/health
+GET {{DevWebHost}}/api/health
 Accept: application/json
 
 ###
 
-GET {{Acme.Los.Bff.Api_HostAddress}}/openapi/v1.json
+GET {{BffHost}}/health/live
 Accept: application/json
 
 ###
 
-GET {{Acme.Los.Bff.Api_HostAddress}}/bff/auth/session
+GET {{BffHost}}/health/ready
 Accept: application/json
-x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
 
 ###
 
-POST {{Acme.Los.Bff.Api_HostAddress}}/bff/auth/session/requirement
+GET {{BffHost}}/bff/health
+Accept: application/json
+
+###
+
+GET {{BffHost}}/openapi/v1.json
+Accept: application/json
+
+###
+
+GET {{BffHost}}/bff/auth/session
+Accept: application/json
+x-acme-bff-proxy-secret: {{TrustedProxySecret}}
+
+###
+
+POST {{BffHost}}/bff/auth/session/requirement
 Accept: application/json
 Content-Type: application/json
-x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
+x-acme-bff-proxy-secret: {{TrustedProxySecret}}
 
 {
   "requiresAuthentication": true,
@@ -39,42 +66,77 @@ x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
 
 ###
 
-GET {{Acme.Los.Bff.Api_HostAddress}}/bff/auth/logout-hint
+GET {{BffHost}}/bff/auth/logout-hint
 Accept: application/json
-x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
+x-acme-bff-proxy-secret: {{TrustedProxySecret}}
 
 ###
 
-GET {{Acme.Los.Bff.Api_HostAddress}}/bff/customer/profile
+GET {{BffHost}}/bff/customer/profile
 Accept: application/json
-x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
-x-acme-authenticated-user-id: user-123
-x-acme-authenticated-user-email: user@example.com
+x-acme-bff-proxy-secret: {{TrustedProxySecret}}
+x-acme-authenticated-user-id: {{UserId}}
+x-acme-authenticated-user-email: {{UserEmail}}
+x-acme-authenticated-customer-id: {{CustomerId}}
+x-acme-authenticated-lead-id: {{LeadId}}
 
 ###
 
-GET {{Acme.Los.Bff.Api_HostAddress}}/bff/security/csrf
+# @name bffCsrf
+GET {{BffHost}}/bff/security/csrf
 Accept: application/json
 
 ###
 
-GET {{Acme.Los.Bff.Api_HostAddress}}/bff/application/steps/personal-info
+GET {{BffHost}}/bff/security/csrf
 Accept: application/json
-x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
-x-acme-authenticated-user-id: application-user-001
-x-acme-authenticated-customer-id: customer-001
-x-acme-authenticated-lead-id: lead-001
+x-forwarded-proto: https
 
 ###
 
-PUT {{Acme.Los.Bff.Api_HostAddress}}/bff/application/steps/personal-info
+PUT {{BffHost}}/bff/customer/profile
 Accept: application/json
 Content-Type: application/json
-x-csrf-token: paste-csrf-token-from-/bff/security/csrf
-x-acme-bff-proxy-secret: {{Acme.Los.Bff.Api_TrustedProxySecret}}
-x-acme-authenticated-user-id: application-user-001
-x-acme-authenticated-customer-id: customer-001
-x-acme-authenticated-lead-id: lead-001
+x-csrf-token: {{bffCsrf.response.body.$.csrfToken}}
+x-acme-bff-proxy-secret: {{TrustedProxySecret}}
+x-acme-authenticated-user-id: {{UserId}}
+x-acme-authenticated-user-email: {{UserEmail}}
+x-acme-authenticated-customer-id: {{CustomerId}}
+x-acme-authenticated-lead-id: {{LeadId}}
+
+{
+  "profile": {
+    "email": "updated@example.com",
+    "phone": "555-0100",
+    "streetAddress": "100 Main St",
+    "addressLine2": "",
+    "city": "Chicago",
+    "state": "IL",
+    "zipCode": "60601"
+  }
+}
+
+###
+
+GET {{BffHost}}/bff/application/steps/personal-info
+Accept: application/json
+x-acme-bff-proxy-secret: {{TrustedProxySecret}}
+x-acme-authenticated-user-id: {{UserId}}
+x-acme-authenticated-user-email: {{UserEmail}}
+x-acme-authenticated-customer-id: {{CustomerId}}
+x-acme-authenticated-lead-id: {{LeadId}}
+
+###
+
+PUT {{BffHost}}/bff/application/steps/personal-info
+Accept: application/json
+Content-Type: application/json
+x-csrf-token: {{bffCsrf.response.body.$.csrfToken}}
+x-acme-bff-proxy-secret: {{TrustedProxySecret}}
+x-acme-authenticated-user-id: {{UserId}}
+x-acme-authenticated-user-email: {{UserEmail}}
+x-acme-authenticated-customer-id: {{CustomerId}}
+x-acme-authenticated-lead-id: {{LeadId}}
 
 {
   "payload": {

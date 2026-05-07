@@ -178,6 +178,21 @@ Next facade for public/manual checks:
 - `/api/security/csrf` for browser-facing CSRF issuance
 - `/security` for local/dev authenticated security inspection
 
+Runtime identity and Next-to-BFF boundary:
+
+- the web app and the internal BFF app use the environment's shared
+  user-assigned managed identity for Azure resource access
+- that identity is assigned `AcrPull`, Key Vault secret access, and Redis Entra
+  access where those resources are deployed
+- the shared identity is not currently used as an app-level JWT assertion
+  between Next and the BFF
+- the application boundary today is the internal ACA BFF ingress plus
+  `ACME_BFF_TRUSTED_PROXY_SECRET`, which guards trusted identity headers before
+  the BFF honors them
+- a later hardening pass can add managed-identity token validation, mTLS, or
+  private-origin edge controls without changing the browser-facing `/api/*`
+  contract
+
 The BFF runtime scale follows the environment `runtime.minReplicas` and
 `runtime.maxReplicas` values by default. Add an environment-level `bffRuntime`
 override only when the internal BFF should scale differently from the public web
@@ -237,6 +252,9 @@ Runtime secret handling:
 - the Redis connection URL path is retained only for local Docker Redis
 - the container app uses its user-assigned managed identity for Key Vault access and Redis token acquisition
 - the container app also uses managed identity for `AcrPull`
+- the internal BFF container app receives the same runtime identity so it can
+  resolve the same Key Vault references, pull its image, and acquire Redis
+  tokens in Azure
 
 Runtime session behavior:
 

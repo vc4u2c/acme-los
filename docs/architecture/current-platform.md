@@ -8,6 +8,7 @@ This doc is the current-state snapshot for the repo. It complements:
 - [release-and-delivery.md](../operations/release-and-delivery.md)
 - [azure-monitoring-and-workbooks.md](../operations/azure-monitoring-and-workbooks.md)
 - [infra/okta/README.md](../../infra/okta/README.md)
+- [infra/analytics/README.md](../../infra/analytics/README.md)
 
 ## Product Surface
 
@@ -60,6 +61,30 @@ What is still bridge-state rather than final:
 - the web-server layer still owns temporary customer and application state instead of a long-term backend service
 - Redis Entra runtime auth is now the Azure path, with the connection URL path retained only for local Docker Redis
 - Front Door, WAF, and private ACA ingress are still later phases
+
+## Current Runtime Diagram
+
+```mermaid
+flowchart LR
+  browser[Browser] --> web[Next.js web ACA<br/>public ingress]
+  web --> facade[Same-origin /api/* facade]
+  facade --> bff[.NET BFF ACA<br/>internal ingress]
+  web --> okta[Okta hosted auth]
+  bff --> okta
+  web --> redis[(Azure Managed Redis<br/>private endpoint)]
+  bff --> redis
+  web --> kv[Key Vault<br/>private endpoint]
+  bff --> kv
+  web --> ai[Application Insights<br/>Log Analytics]
+  bff --> ai
+  id[Shared user-assigned<br/>managed identity] -. ACR pull, Key Vault, Redis Entra .-> web
+  id -. ACR pull, Key Vault, Redis Entra .-> bff
+```
+
+The shared managed identity is an Azure resource-access identity. It is not yet
+an app-level proof between Next and the BFF. The current service-to-service
+application boundary is the internal BFF ACA ingress plus
+`ACME_BFF_TRUSTED_PROXY_SECRET` before trusted identity headers are honored.
 
 ## Current Auth Shape
 
@@ -214,6 +239,9 @@ Current practical reading:
 - production edge hardening: not done yet
 - operational maturity: real, but still growing toward full production standards
 
+See [Enterprise readiness](./enterprise-readiness.md) for the grouped security,
+scalability, fault-tolerance, and enterprise-readiness assessment.
+
 ## Identity And Persistence Hardening Direction
 
 The next hardening pass should keep deployment identity, runtime identity, and application persistence separate.
@@ -253,10 +281,21 @@ structural rewrite.
    - private ACA ingress
    - stricter production observability and operational controls
 
-## Later Roadmap Candidate: Digital Analytics And Tag Management
+## Digital Analytics And Tag Management
 
-This is not implemented today. When it is added, treat it as a deliberate
+The admin-plane shape is now represented in source under
+[infra/analytics](../../infra/analytics). Runtime page/event emission is still a
+future app implementation step and should be treated as a deliberate
 cross-cutting capability rather than page-by-page snippet work.
+
+In place now:
+
+- environment manifests for `dev`, `qa`, `stg`, and `prod`
+- GA4/GTM account, property, web-stream, container, consent-default, and
+  Measurement Protocol secret-name fields
+- data layer event taxonomy and key-event candidates
+- `npm run analytics:render -- <env>` for generated local/runtime config
+- manual Google account/container setup checklist
 
 Goals:
 
@@ -289,6 +328,7 @@ Recommended shape:
 
 Definition of done for a first pass:
 
+- a runtime analytics module consumes the rendered environment variables
 - page-view tracking works across all Next rendering strategies in the repo
 - auth events are visible for both normal sign-in and funding step-up flows
 - custom event tracking exists behind a typed helper instead of ad hoc calls

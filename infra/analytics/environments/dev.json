@@ -1,0 +1,24 @@
+{
+  "environment": "dev",
+  "enabled": false,
+  "google": {
+    "accountName": "ACME",
+    "analyticsPropertyName": "ACME LOS Dev",
+    "tagManagerAccountName": "ACME",
+    "tagManagerContainerName": "ACME LOS Web Dev",
+    "ga4MeasurementId": "",
+    "gtmContainerId": "",
+    "gtmEnvironmentName": "dev",
+    "measurementProtocolSecretName": "sec-acme-los-ga4-measurement-secret"
+  },
+  "web": {
+    "baseUrl": "http://localhost:3000",
+    "deployedBaseUrl": "https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io"
+  },
+  "consent": {
+    "defaultAnalyticsStorage": "denied",
+    "defaultAdStorage": "denied",
+    "defaultAdUserData": "denied",
+    "defaultAdPersonalization": "denied"
+  }
+}

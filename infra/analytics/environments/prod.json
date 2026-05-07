@@ -1,0 +1,24 @@
+{
+  "environment": "prod",
+  "enabled": false,
+  "google": {
+    "accountName": "ACME",
+    "analyticsPropertyName": "ACME LOS Production",
+    "tagManagerAccountName": "ACME",
+    "tagManagerContainerName": "ACME LOS Web Production",
+    "ga4MeasurementId": "",
+    "gtmContainerId": "",
+    "gtmEnvironmentName": "live",
+    "measurementProtocolSecretName": "sec-acme-los-ga4-measurement-secret"
+  },
+  "web": {
+    "baseUrl": "https://www.example.invalid",
+    "deployedBaseUrl": "https://www.example.invalid"
+  },
+  "consent": {
+    "defaultAnalyticsStorage": "denied",
+    "defaultAdStorage": "denied",
+    "defaultAdUserData": "denied",
+    "defaultAdPersonalization": "denied"
+  }
+}
