@@ -101,6 +101,24 @@ function ConvertTo-ObjectArray {
   return [object[]]$items.ToArray()
 }
 
+function Get-OptionalPropertyValue {
+  param(
+    $InputObject,
+    [string]$Name
+  )
+
+  if ($null -eq $InputObject) {
+    return $null
+  }
+
+  $property = $InputObject.PSObject.Properties[$Name]
+  if ($null -eq $property) {
+    return $null
+  }
+
+  return $property.Value
+}
+
 function Get-EnvironmentConfiguration {
   param(
     $Configuration,
@@ -761,23 +779,29 @@ $resolvedBffDeploymentEnabled = $BffDeploymentMode -eq 'enabled' -or (
 )
 $imagesSubscriptionRole = Get-ImagesSubscriptionRole -Configuration $configuration -EnvironmentName $EnvironmentName
 $networkConfiguration = Get-EnvironmentNetworkConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName
-$runtimeMinReplicas = if ($environmentConfiguration.runtime -and $null -ne $environmentConfiguration.runtime.minReplicas) {
-  [int]$environmentConfiguration.runtime.minReplicas
+$runtimeConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'runtime'
+$runtimeMinReplicaConfiguration = Get-OptionalPropertyValue -InputObject $runtimeConfiguration -Name 'minReplicas'
+$runtimeMaxReplicaConfiguration = Get-OptionalPropertyValue -InputObject $runtimeConfiguration -Name 'maxReplicas'
+$runtimeMinReplicas = if ($null -ne $runtimeMinReplicaConfiguration) {
+  [int]$runtimeMinReplicaConfiguration
 } else {
   0
 }
-$runtimeMaxReplicas = if ($environmentConfiguration.runtime -and $null -ne $environmentConfiguration.runtime.maxReplicas) {
-  [int]$environmentConfiguration.runtime.maxReplicas
+$runtimeMaxReplicas = if ($null -ne $runtimeMaxReplicaConfiguration) {
+  [int]$runtimeMaxReplicaConfiguration
 } else {
   1
 }
-$bffRuntimeMinReplicas = if ($environmentConfiguration.bffRuntime -and $null -ne $environmentConfiguration.bffRuntime.minReplicas) {
-  [int]$environmentConfiguration.bffRuntime.minReplicas
+$bffRuntimeConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'bffRuntime'
+$bffRuntimeMinReplicaConfiguration = Get-OptionalPropertyValue -InputObject $bffRuntimeConfiguration -Name 'minReplicas'
+$bffRuntimeMaxReplicaConfiguration = Get-OptionalPropertyValue -InputObject $bffRuntimeConfiguration -Name 'maxReplicas'
+$bffRuntimeMinReplicas = if ($null -ne $bffRuntimeMinReplicaConfiguration) {
+  [int]$bffRuntimeMinReplicaConfiguration
 } else {
   $runtimeMinReplicas
 }
-$bffRuntimeMaxReplicas = if ($environmentConfiguration.bffRuntime -and $null -ne $environmentConfiguration.bffRuntime.maxReplicas) {
-  [int]$environmentConfiguration.bffRuntime.maxReplicas
+$bffRuntimeMaxReplicas = if ($null -ne $bffRuntimeMaxReplicaConfiguration) {
+  [int]$bffRuntimeMaxReplicaConfiguration
 } else {
   $runtimeMaxReplicas
 }
