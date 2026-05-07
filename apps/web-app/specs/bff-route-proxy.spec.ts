@@ -42,6 +42,7 @@ describe('BFF route proxy', () => {
 
   it('returns null when the BFF mode is not enabled', async () => {
     process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
+    delete process.env.ACME_BFF_PROXY_MODE;
     delete process.env.ACME_BFF_URL;
     const fetchSpy = jest.fn();
 

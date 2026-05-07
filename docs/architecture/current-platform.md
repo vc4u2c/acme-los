@@ -113,9 +113,9 @@ Current BFF bridge:
   follow the same `ACME_BFF_PROXY_MODE` switch; `next` keeps the session store
   in Next, while `bff` makes the BFF the Okta-backed session authority behind
   the stable Next facade
-- `GET /api/security/csrf` stays local in Next while the browser-facing `/api/*`
-  contract remains stable; the BFF validates the forwarded CSRF cookie on
-  proxied domain mutations
+- `GET /api/security/csrf` remains browser-facing on the stable Next facade; in
+  BFF mode it delegates issuance to `/bff/security/csrf` and relays the BFF
+  cookie back to the browser
 
 ## Current Server-State Model
 

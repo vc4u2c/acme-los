@@ -95,9 +95,11 @@ jobs:
           bundle_name="acme-los-web-app-deployable-${GITHUB_SHA}"
           web_version="$(node -p "require('./apps/web-app/package.json').version")"
           mobile_version="$(node -p "require('./apps/mobile-app/package.json').version")"
+          bff_version="$(node -p "require('./apps/bff-api/src/Acme.Los.Bff.Api/package.json').version")"
           mkdir -p dist/deployable
           cp apps/web-app/package.json dist/deployable/web-app.package.json
           cp apps/mobile-app/package.json dist/deployable/mobile-app.package.json
+          cp apps/bff-api/src/Acme.Los.Bff.Api/package.json dist/deployable/bff-api.package.json
           cat <<EOF > dist/deployable/deploy-metadata.json
           {
             "commitSha": "${deploy_commit_sha}",
@@ -105,11 +107,13 @@ jobs:
             "workflowRunId": "${GITHUB_RUN_ID}",
             "workflow": "${GITHUB_WORKFLOW}",
             "projectName": "web-app",
-            "displayName": "ACME LOS Web App",
+            "displayName": "ACME LOS Web App Deployable",
             "artifactName": "${bundle_name}",
-            "deployableProjects": ["web-app", "Acme.Los.Bff.Api"],
+            "deployableProjects": ["web-app", "bff-api"],
+            "sourceProjects": ["web-app", "Acme.Los.Bff.Api"],
             "webVersion": "${web_version}",
-            "mobileVersion": "${mobile_version}"
+            "mobileVersion": "${mobile_version}",
+            "bffVersion": "${bff_version}"
           }
           EOF
           mkdir -p dist/artifacts
@@ -168,6 +172,7 @@ jobs:
         run: |
           echo "web=$(node -p "require('./apps/web-app/package.json').version")" >> "$GITHUB_OUTPUT"
           echo "mobile=$(node -p "require('./apps/mobile-app/package.json').version")" >> "$GITHUB_OUTPUT"
+          echo "bff=$(node -p "require('./apps/bff-api/src/Acme.Los.Bff.Api/package.json').version")" >> "$GITHUB_OUTPUT"
 
       - name: Release versions, tags, and GitHub releases
         env:
@@ -181,8 +186,10 @@ jobs:
         run: |
           web_version="$(node -p "require('./apps/web-app/package.json').version")"
           mobile_version="$(node -p "require('./apps/mobile-app/package.json').version")"
+          bff_version="$(node -p "require('./apps/bff-api/src/Acme.Los.Bff.Api/package.json').version")"
           echo "web=$web_version" >> "$GITHUB_OUTPUT"
           echo "mobile=$mobile_version" >> "$GITHUB_OUTPUT"
+          echo "bff=$bff_version" >> "$GITHUB_OUTPUT"
 
           if [[ "$web_version" != "${{ steps.versions_before.outputs.web }}" ]]; then
             echo "web_changed=true" >> "$GITHUB_OUTPUT"
@@ -196,8 +203,15 @@ jobs:
             echo "mobile_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
+          if [[ "$bff_version" != "${{ steps.versions_before.outputs.bff }}" ]]; then
+            echo "bff_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "bff_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "web_asset_file=acme-los-web-app-${web_version}-release-bundle.tgz" >> "$GITHUB_OUTPUT"
           echo "mobile_asset_file=acme-los-mobile-app-${mobile_version}-release-bundle.tgz" >> "$GITHUB_OUTPUT"
+          echo "bff_asset_file=acme-los-bff-api-${bff_version}-release-bundle.tgz" >> "$GITHUB_OUTPUT"
 
       - name: Resolve release ref
         id: release_ref
@@ -205,10 +219,10 @@ jobs:
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Create release asset bundle
-        if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true'
+        if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true' || steps.versions_after.outputs.bff_changed == 'true'
         shell: bash
         run: |
-          mkdir -p dist/release-assets/web-app dist/release-assets/mobile-app dist/artifacts
+          mkdir -p dist/release-assets/web-app dist/release-assets/mobile-app dist/release-assets/bff-api dist/artifacts
 
           cp apps/web-app/package.json dist/release-assets/web-app/package.json
           cat <<EOF > dist/release-assets/web-app/release-metadata.json
@@ -240,8 +254,25 @@ jobs:
           }
           EOF
 
+          cp apps/bff-api/src/Acme.Los.Bff.Api/package.json dist/release-assets/bff-api/package.json
+          cat <<EOF > dist/release-assets/bff-api/release-metadata.json
+          {
+            "projectName": "bff-api",
+            "sourceProjectName": "Acme.Los.Bff.Api",
+            "displayName": "ACME LOS BFF API",
+            "assetFileName": "${{ steps.versions_after.outputs.bff_asset_file }}",
+            "actionsArtifactName": "acme-los-bff-api-release-assets-${{ steps.versions_after.outputs.bff }}-${GITHUB_SHA}",
+            "commitSha": "${{ steps.release_ref.outputs.sha }}",
+            "workflowHeadSha": "${GITHUB_SHA}",
+            "workflowRunId": "${GITHUB_RUN_ID}",
+            "workflow": "${GITHUB_WORKFLOW}",
+            "version": "${{ steps.versions_after.outputs.bff }}"
+          }
+          EOF
+
           tar -czf dist/artifacts/${{ steps.versions_after.outputs.web_asset_file }} -C dist/release-assets/web-app .
           tar -czf dist/artifacts/${{ steps.versions_after.outputs.mobile_asset_file }} -C dist/release-assets/mobile-app .
+          tar -czf dist/artifacts/${{ steps.versions_after.outputs.bff_asset_file }} -C dist/release-assets/bff-api .
 
       - name: Upload web release asset bundle
         if: steps.versions_after.outputs.web_changed == 'true'
@@ -258,6 +289,15 @@ jobs:
         with:
           name: acme-los-mobile-app-release-assets-${{ steps.versions_after.outputs.mobile }}-${{ github.sha }}
           path: dist/artifacts/${{ steps.versions_after.outputs.mobile_asset_file }}
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload BFF API release asset bundle
+        if: steps.versions_after.outputs.bff_changed == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: acme-los-bff-api-release-assets-${{ steps.versions_after.outputs.bff }}-${{ github.sha }}
+          path: dist/artifacts/${{ steps.versions_after.outputs.bff_asset_file }}
           if-no-files-found: error
           retention-days: 30
 
@@ -281,8 +321,18 @@ jobs:
           append_body: true
           fail_on_unmatched_files: true
 
+      - name: Attach asset to BFF API release
+        if: steps.versions_after.outputs.bff_changed == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: bff-api@${{ steps.versions_after.outputs.bff }}
+          name: ACME LOS BFF API ${{ steps.versions_after.outputs.bff }}
+          files: dist/artifacts/${{ steps.versions_after.outputs.bff_asset_file }}
+          append_body: true
+          fail_on_unmatched_files: true
+
       - name: Summarize release artifacts
-        if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true'
+        if: steps.versions_after.outputs.web_changed == 'true' || steps.versions_after.outputs.mobile_changed == 'true' || steps.versions_after.outputs.bff_changed == 'true'
         shell: bash
         run: |
           {
@@ -295,5 +345,9 @@ jobs:
             if [[ "${{ steps.versions_after.outputs.mobile_changed }}" == "true" ]]; then
               echo "- Mobile Actions artifact: \`acme-los-mobile-app-release-assets-${{ steps.versions_after.outputs.mobile }}-${GITHUB_SHA}\`"
               echo "- Mobile release asset: \`${{ steps.versions_after.outputs.mobile_asset_file }}\`"
+            fi
+            if [[ "${{ steps.versions_after.outputs.bff_changed }}" == "true" ]]; then
+              echo "- BFF API Actions artifact: \`acme-los-bff-api-release-assets-${{ steps.versions_after.outputs.bff }}-${GITHUB_SHA}\`"
+              echo "- BFF API release asset: \`${{ steps.versions_after.outputs.bff_asset_file }}\`"
             fi
           } >> "$GITHUB_STEP_SUMMARY"

@@ -47,16 +47,19 @@ export function writeCsrfToken(
 
 export function assertValidCsrf(request: NextRequest): void {
   const headerToken = request.headers.get('x-csrf-token')?.trim();
-  const cookiePayload = readSignedCookie<CsrfCookiePayload>(
+  const rawCookieToken = request.cookies.get(CSRF_COOKIE_NAME)?.value.trim();
+  const signedCookiePayload = readSignedCookie<CsrfCookiePayload>(
     request,
     CSRF_COOKIE_NAME,
   );
+  const signedCookieMatches =
+    Boolean(headerToken) && headerToken === signedCookiePayload?.token;
+  const rawCookieMatches =
+    Boolean(headerToken) &&
+    Boolean(rawCookieToken) &&
+    headerToken === rawCookieToken;
 
-  if (
-    !headerToken ||
-    !cookiePayload?.token ||
-    headerToken !== cookiePayload.token
-  ) {
+  if (!signedCookieMatches && !rawCookieMatches) {
     throw new Error('The request is missing a valid CSRF token.');
   }
 }

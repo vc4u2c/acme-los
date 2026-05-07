@@ -50,6 +50,7 @@ describe('health routes', () => {
   it('returns web-only public health when the BFF is not configured', async () => {
     delete process.env.ACME_BFF_BASE_URL;
     delete process.env.ACME_BFF_URL;
+    delete process.env.ACME_BFF_PROXY_MODE;
     const fetchSpy = jest.fn();
 
     global.fetch = fetchSpy as typeof fetch;

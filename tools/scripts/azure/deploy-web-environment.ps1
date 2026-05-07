@@ -13,6 +13,7 @@ param(
   [string]$ImageTag,
   [string]$WebImageRepository = 'acme-los-web',
   [string]$BffImageRepository = 'acme-los-bff-api',
+  [string]$BffVersion,
   [ValidateSet('auto', 'enabled', 'disabled')]
   [string]$BffDeploymentMode = 'auto',
   [string]$ConfigurationPath,
@@ -463,6 +464,31 @@ function Get-ResolvedBuildId {
   throw 'Unable to resolve an application build id. Pass -ImageTag explicitly or run inside a git checkout.'
 }
 
+function Get-ResolvedBffVersion {
+  param(
+    [string]$ExplicitVersion,
+    [string]$RepositoryRoot,
+    [string]$FallbackVersion
+  )
+
+  $trimmedVersion = Get-OptionalString $ExplicitVersion
+  if ($trimmedVersion) {
+    return $trimmedVersion
+  }
+
+  $manifestPath = Join-Path $RepositoryRoot 'apps\bff-api\src\Acme.Los.Bff.Api\package.json'
+  if (Test-Path -LiteralPath $manifestPath) {
+    $manifest = Get-JsonFile -Path $manifestPath
+    $manifestVersion = Get-OptionalString $manifest.version
+
+    if ($manifestVersion) {
+      return $manifestVersion
+    }
+  }
+
+  return $FallbackVersion
+}
+
 function Get-StringOutputValue {
   param(
     $Outputs,
@@ -746,6 +772,7 @@ $runtimeMaxReplicas = if ($environmentConfiguration.runtime -and $null -ne $envi
   1
 }
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
+$resolvedBffVersion = Get-ResolvedBffVersion -ExplicitVersion $BffVersion -RepositoryRoot $repositoryRoot -FallbackVersion $resolvedBuildId
 $compiledParameterFile = New-CompiledParameterFile -SourceParameterFile $ParameterFile
 
 Ensure-RegisteredResourceProviders -SubscriptionId $resolvedSubscriptionId -Namespaces @(
@@ -1119,7 +1146,7 @@ if ($resolvedBffDeploymentEnabled) {
   $runtimeDeploymentArguments += @(
     '--parameters', "bffContainerImage=$bffImageReference",
     '--parameters', "bffBaseUrl=$resolvedBffContainerAppBaseUrl",
-    '--parameters', "bffVersion=$resolvedBuildId",
+    '--parameters', "bffVersion=$resolvedBffVersion",
     '--parameters', "bffTrustedProxySecretValue=$bffTrustedProxySecretValue"
   )
 }
@@ -1231,6 +1258,7 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   bffDeploymentMode = $BffDeploymentMode
   bffEnabled = $resolvedBffDeploymentEnabled
   bffImageRepository = $BffImageRepository
+  bffVersion = $resolvedBffVersion
   imageTag = $resolvedImageTag
   appBuildId = $resolvedBuildId
   imageReference = $imageReference

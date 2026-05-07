@@ -120,6 +120,7 @@ Useful local URLs for the full stack:
 
 - web app: `http://localhost:3000`
 - stable browser-facing health route: `http://localhost:3000/api/health`
+- stable browser-facing CSRF route: `http://localhost:3000/api/security/csrf`
 - BFF direct health route for terminal/direct checks: `http://localhost:5186/bff/health`
 - BFF OpenAPI in development: `http://localhost:5186/openapi/v1.json`
 

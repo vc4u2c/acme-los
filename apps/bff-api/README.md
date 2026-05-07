@@ -202,6 +202,7 @@ Current switched routes:
 
 - `GET /api/health` -> composite Next + BFF health; includes `GET /bff/health`
   when the BFF base URL is configured
+- `GET /api/security/csrf` -> `GET /bff/security/csrf`
 - `GET /api/auth/start` -> `GET /bff/auth/login`
 - `GET /api/auth/callback` -> `GET /bff/auth/callback`
 - `GET|PUT /api/customer/profile` -> `/bff/customer/profile`
@@ -219,9 +220,11 @@ redirect routes and writes the browser-facing opaque session cookie from the BFF
 session headers. Mock auth remains local for development and Playwright
 fixtures.
 
-`GET /api/security/csrf` intentionally stays local for now so the Next facade
-can keep issuing the signed CSRF cookie format it already uses while the BFF
-accepts that forwarded cookie on proxied domain mutations.
+In `bff` mode, `GET /api/security/csrf` stays browser-facing on the Next
+origin but delegates token issuance to the BFF and relays the BFF `Set-Cookie`
+header back to the browser. The Next facade accepts both the earlier signed
+facade cookie format and BFF-issued raw CSRF tokens so existing local cookies
+can roll forward cleanly.
 
 The BFF HTTP pipeline owns cross-cutting transport concerns before any Wolverine
 handler runs: request completion logging, correlation ID normalization,
@@ -230,9 +233,8 @@ cookie, CSRF, trusted proxy, and route-level HTTP decisions in that HTTP
 pipeline. Use Wolverine behind that boundary for authenticated customer and
 application commands/queries.
 
-When the Next facade proxies mutating routes into the BFF, both processes
-should share the same `ACME_WEB_SESSION_SECRET` so signed CSRF cookies validate
-end to end.
+When the Next facade proxies mutating routes into the BFF, the BFF validates the
+forwarded CSRF header and cookie before mutating state.
 
 The customer-profile and application-flow BFF slices now also share the same
 state-store contract as the Next facade:

@@ -61,7 +61,7 @@ Current Okta mapping:
 
 ## Release Model
 
-- `web-app` and `mobile-app` version independently
+- `web-app`, `mobile-app`, and `bff-api` version independently
 - internal shared libraries are not independently released
 - app version sources of truth live in the app manifests
 
@@ -70,6 +70,7 @@ Current version sources:
 - `apps/web-app/package.json`
 - `apps/mobile-app/package.json`
 - `apps/mobile-app/app.config.js`
+- `apps/bff-api/src/Acme.Los.Bff.Api/package.json`
 
 Release commands:
 
@@ -128,6 +129,8 @@ Recommended steady state:
 - deployable artifacts are prefixed by project name, for example
   `acme-los-web-app-deployable-<sha>` and
   `acme-los-web-app-<version>-release-bundle.tgz`
+- BFF API release assets use `acme-los-bff-api-<version>-release-bundle.tgz`
+  and GitHub releases are tagged as `bff-api@<version>`
 - environment promotion passes the same artifact name, artifact run id, and
   artifact commit SHA to `dev`, `qa`, `stg`, and `prod`
 - deployments never promote "whatever is on the branch"; they promote a
@@ -136,17 +139,20 @@ Recommended steady state:
 Current project promotion units:
 
 - `web-app`: deploys the public Next app and the internal BFF ACA together
-  while the Next facade remains the browser-facing contract
+- `bff-api`: versions and publishes a release record independently, while the
+  runtime remains deployed with the web deployable until the BFF has a separate
+  promotion lane
 - `mobile-app`: releases separately through the mobile lane
 
-The BFF is deliberately not a standalone release group yet. Its runtime is
-coupled to the web facade during rollout, so `web-app` declares an implicit Nx
-dependency on `Acme.Los.Bff.Api`. That makes BFF changes affect the web deploy
-unit without pretending the BFF has a mature independent promotion lane.
+The BFF now has its own Nx Release group because it owns auth/session state in
+BFF mode. The deployable artifact still records both `webVersion` and
+`bffVersion`; Azure receives the BFF semantic version through `ACME_BFF_VERSION`
+and the source/image build SHA through `APP_BUILD_ID`.
 
-When the BFF owns auth/session or has independent consumers, split it into its
-own Nx Release group and promote `acme-los-bff-api-deployable-*` artifacts
-independently.
+When the BFF has independent consumers, split runtime promotion into
+`acme-los-bff-api-deployable-*` artifacts. Until then, keep the web deployable
+as the public app deploy unit and treat the BFF release as the API version
+record carried inside that deploy unit.
 
 ## Current Operating Reality
 

@@ -166,10 +166,10 @@ Current bridge decision:
 - auth start, callback, session read/sync/touch/clear, requirement checks, and
   logout hints move behind the same `ACME_BFF_PROXY_MODE` switch; Next remains
   the browser facade for the public redirect URLs, final `Set-Cookie` emission,
-  CSRF issuance, and mock-auth development fixtures
-- `GET /api/security/csrf` intentionally stays in Next while the browser-facing
-  `/api/*` contract remains stable and the BFF validates the forwarded CSRF
-  cookie on proxied mutations
+  and mock-auth development fixtures
+- `GET /api/security/csrf` remains browser-facing on the stable Next facade; in
+  BFF mode it delegates issuance to `/bff/security/csrf` and relays the BFF
+  cookie back to the browser
 - after the BFF-owned auth path is proven in `dev` and `qa`, the team can
   revisit whether `/api/*` remains a thin Next proxy or whether a more direct
   BFF-facing route shape is cleaner
@@ -182,7 +182,9 @@ Current bridge decision:
 - let Nx infer `restore`, `build`, `test`, and `publish` from the `.csproj`
   files
 - add the BFF app to CI lint, build, and test coverage where appropriate
-- do not force the BFF into Nx Release versioning on day one
+- version the BFF as `bff-api` once it owns auth/session state, while keeping
+  runtime promotion coupled to the web deployable until a separate BFF
+  promotion lane is needed
 
 Important note:
 
@@ -294,7 +296,7 @@ For the first pass:
 
 - treat the BFF as a deployable application, not as a NuGet package family
 - let Nx handle affected calculation, build, test, and publish targets
-- keep release automation conservative until the app deployment path is proven
+- keep release automation conservative and project-prefixed
 - keep the BFF in the `web-app` deploy unit while the Next facade owns the
   browser-facing API route contract
 

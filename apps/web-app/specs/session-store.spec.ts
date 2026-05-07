@@ -38,6 +38,9 @@ const ENVIRONMENT_KEYS = [
   'ACME_OKTA_REDIRECT_URI',
   'ACME_OKTA_POST_LOGOUT_REDIRECT_URI',
   'ACME_OKTA_FUNDING_ACR_VALUES',
+  'ACME_BFF_BASE_URL',
+  'ACME_BFF_URL',
+  'ACME_BFF_PROXY_MODE',
 ] as const;
 
 const originalEnvironment = new Map(
@@ -91,6 +94,9 @@ describe('web auth session store idle expiry', () => {
     jest.setSystemTime(new Date('2026-04-21T12:00:00.000Z'));
     process.env.ACME_WEB_STATE_STORE = 'file';
     process.env.APP_ENVIRONMENT_NAME = 'dev';
+    delete process.env.ACME_BFF_BASE_URL;
+    delete process.env.ACME_BFF_URL;
+    process.env.ACME_BFF_PROXY_MODE = 'next';
   });
 
   afterEach(() => {
