@@ -140,6 +140,13 @@
         "releaseTag": {
           "pattern": "mobile-app@{version}"
         }
+      },
+      "bff-api": {
+        "projects": ["Acme.Los.Bff.Api"],
+        "projectsRelationship": "fixed",
+        "releaseTag": {
+          "pattern": "bff-api@{version}"
+        }
       }
     },
     "changelog": {

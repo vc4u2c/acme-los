@@ -66,6 +66,24 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public async Task GetBffHealth_ReturnsConfiguredVersionAndBuild()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_BFF_VERSION"] = "1.2.3",
+        ["APP_BUILD_ID"] = "abc12345",
+      });
+    using var client = _factory.CreateClient();
+
+    var snapshot = await client.GetFromJsonAsync<HealthSnapshot>("/bff/health");
+
+    Assert.NotNull(snapshot);
+    Assert.Equal("1.2.3", snapshot!.Version);
+    Assert.Equal("abc12345", snapshot.Build);
+  }
+
+  [Fact]
   public async Task GetBffCsrf_IssuesTokenAndCookie()
   {
     using var client = _factory.CreateClient();
@@ -80,6 +98,38 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
 
     Assert.NotNull(issuedToken);
     Assert.False(string.IsNullOrWhiteSpace(issuedToken!.CsrfToken));
+  }
+
+  [Fact]
+  public async Task GetBffCsrf_ReissuesSignedFacadeCookieAsBffToken()
+  {
+    const string csrfToken = "csrf-token-123";
+
+    using var client = _factory.CreateClient();
+    using var request = new HttpRequestMessage(
+      HttpMethod.Get,
+      "/bff/security/csrf");
+
+    request.Headers.Add(
+      "Cookie",
+      $"acme-los.csrf-token={CreateSignedCookie(new { token = csrfToken })}");
+
+    using var response = await client.SendAsync(request);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var issuedToken =
+        await response.Content.ReadFromJsonAsync<IssueCsrfTokenResponse>();
+
+    Assert.NotNull(issuedToken);
+    Assert.Equal(csrfToken, issuedToken!.CsrfToken);
+    Assert.Contains(
+        response.Headers,
+        header =>
+            string.Equals(header.Key, "Set-Cookie", StringComparison.OrdinalIgnoreCase)
+            && header.Value.Any(value => value.Contains(
+                $"acme-los.csrf-token={csrfToken}",
+                StringComparison.Ordinal)));
   }
 
   [Fact]
@@ -682,8 +732,13 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
 
   private static string CreateSignedSessionCookie(string sessionId)
   {
+    return CreateSignedCookie(new { sessionId });
+  }
+
+  private static string CreateSignedCookie(object payload)
+  {
     var payloadPart = ToBase64Url(
-      Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { sessionId })));
+      Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload)));
     using var hmac = new HMACSHA256(
       Encoding.UTF8.GetBytes("acme-los-local-dev-session-secret"));
     var signaturePart = ToBase64Url(

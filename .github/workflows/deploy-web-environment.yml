@@ -76,6 +76,7 @@ jobs:
           deployable_projects="$(node -p "(require('./dist/deployable/extracted/deploy-metadata.json').deployableProjects || [require('./dist/deployable/extracted/deploy-metadata.json').projectName || 'web-app']).join(',')")"
           web_version="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').webVersion")"
           mobile_version="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').mobileVersion")"
+          bff_version="$(node -p "require('./dist/deployable/extracted/deploy-metadata.json').bffVersion || '0.0.0'")"
           if [[ ! "${commit_sha}" =~ ^[0-9a-f]{40}$ ]]; then
             echo "Deploy artifact commit SHA '${commit_sha}' is not a valid full Git SHA." >&2
             exit 1
@@ -86,12 +87,14 @@ jobs:
           echo "Artifact commit SHA: ${commit_sha}"
           echo "Deploy artifact web package version: ${web_version}"
           echo "Deploy artifact mobile package version: ${mobile_version}"
+          echo "Deploy artifact BFF API package version: ${bff_version}"
           echo "Friendly deploy artifact label: acme-los-web-app-deployable-${web_version}-${commit_sha}.tgz"
           echo "commit_sha=${commit_sha}" >> "$GITHUB_OUTPUT"
           echo "project_name=${project_name}" >> "$GITHUB_OUTPUT"
           echo "deployable_projects=${deployable_projects}" >> "$GITHUB_OUTPUT"
           echo "web_version=${web_version}" >> "$GITHUB_OUTPUT"
           echo "mobile_version=${mobile_version}" >> "$GITHUB_OUTPUT"
+          echo "bff_version=${bff_version}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout deploy artifact source
         uses: actions/checkout@v5
@@ -164,6 +167,7 @@ jobs:
             -ImageTag '${{ steps.inspect_deploy_artifact.outputs.commit_sha }}' `
             -WebImageRepository $webImageRepository `
             -BffImageRepository $bffImageRepository `
+            -BffVersion '${{ steps.inspect_deploy_artifact.outputs.bff_version }}' `
             -BffDeploymentMode $bffDeploymentMode `
             -ParameterFile '${{ inputs.bicep_parameter_file }}'
 
@@ -204,6 +208,7 @@ jobs:
           fi
 
           bff_enabled="$(node -p "String(require('./deployment-result.json').bffEnabled ?? false)")"
+          expected_bff_version="$(node -p "require('./deployment-result.json').bffVersion || ''")"
           if [[ "${bff_enabled}" != "true" ]]; then
             echo "BFF deployment is disabled for this environment; skipping BFF layer smoke check."
             exit 0
@@ -219,11 +224,12 @@ jobs:
               web_status="$(node -p "require('./health-response.json').layers?.web?.status || ''")"
               bff_service="$(node -p "require('./health-response.json').layers?.bff?.service || ''")"
               bff_status="$(node -p "require('./health-response.json').layers?.bff?.status || ''")"
-              if [[ "${status}" == "ok" && "${web_service}" == "web-app" && "${web_status}" == "ok" && "${bff_service}" == "bff-api" && "${bff_status}" == "ok" ]]; then
+              bff_version="$(node -p "require('./health-response.json').layers?.bff?.version || ''")"
+              if [[ "${status}" == "ok" && "${web_service}" == "web-app" && "${web_status}" == "ok" && "${bff_service}" == "bff-api" && "${bff_status}" == "ok" && "${bff_version}" == "${expected_bff_version}" ]]; then
                 echo "Composite web and BFF health check passed through ${health_url}."
                 exit 0
               fi
-              echo "Health endpoint responded with status='${status}' web='${web_service}:${web_status}' bff='${bff_service}:${bff_status}' on attempt ${attempt}."
+              echo "Health endpoint responded with status='${status}' web='${web_service}:${web_status}' bff='${bff_service}:${bff_status}' bffVersion='${bff_version}' expectedBffVersion='${expected_bff_version}' on attempt ${attempt}."
             else
               echo "Health endpoint was not ready on attempt ${attempt}."
             fi
@@ -250,6 +256,7 @@ jobs:
           image_reference="$(node -p "require('./deployment-result.json').imageReference")"
           revision_fqdn="$(node -p "require('./deployment-result.json').containerAppLatestRevisionFqdn")"
           bff_enabled="$(node -p "String(require('./deployment-result.json').bffEnabled ?? false)")"
+          bff_version="$(node -p "require('./deployment-result.json').bffVersion || ''")"
           bff_container_app="$(node -p "require('./deployment-result.json').bffContainerAppName || ''")"
           bff_image_reference="$(node -p "require('./deployment-result.json').bffImageReference || ''")"
           bff_revision_fqdn="$(node -p "require('./deployment-result.json').bffContainerAppLatestRevisionFqdn || ''")"
@@ -273,6 +280,7 @@ jobs:
             echo "- Container app running status: \`${{ steps.inspect_web_state.outputs.running_status }}\`"
             echo "- BFF enabled: \`${bff_enabled}\`"
             if [[ "${bff_enabled}" == "true" ]]; then
+              echo "- BFF version: \`${bff_version}\`"
               echo "- BFF container app: \`${bff_container_app}\`"
               echo "- BFF image: \`${bff_image_reference}\`"
               echo "- BFF latest revision FQDN: \`${bff_revision_fqdn}\`"
@@ -291,6 +299,7 @@ jobs:
             echo "- Deploy artifact project: \`${{ steps.inspect_deploy_artifact.outputs.project_name }}\`"
             echo "- Deployable projects: \`${{ steps.inspect_deploy_artifact.outputs.deployable_projects }}\`"
             echo "- Deploy artifact web version: \`${{ steps.inspect_deploy_artifact.outputs.web_version }}\`"
+            echo "- Deploy artifact BFF API version: \`${{ steps.inspect_deploy_artifact.outputs.bff_version }}\`"
             echo "- Resource group: \`${{ vars.AZURE_RESOURCE_GROUP_NAME }}\`"
             echo "- Shared images resource group: \`${{ vars.AZURE_IMAGES_RESOURCE_GROUP_NAME }}\`"
             echo "- Container registry: \`${{ vars.AZURE_CONTAINER_REGISTRY_NAME }}\`"

@@ -18,12 +18,7 @@ public sealed class CsrfTokenService : ICsrfTokenService
 
   public IssueCsrfTokenResponse IssueToken(HttpContext context)
   {
-    var token = context.Request.Cookies.TryGetValue(
-            CookieNames.CsrfToken,
-            out var existingToken)
-        && !string.IsNullOrWhiteSpace(existingToken)
-            ? existingToken
-            : GenerateToken();
+    var token = ResolveExistingToken(context.Request) ?? GenerateToken();
 
     context.Response.Cookies.Append(
         CookieNames.CsrfToken,
@@ -58,6 +53,23 @@ public sealed class CsrfTokenService : ICsrfTokenService
       throw new InvalidOperationException(
           "The request is missing a valid CSRF token.");
     }
+  }
+
+  private static string? ResolveExistingToken(HttpRequest request)
+  {
+    if (
+      !request.Cookies.TryGetValue(CookieNames.CsrfToken, out var existingToken)
+      || string.IsNullOrWhiteSpace(existingToken))
+    {
+      return null;
+    }
+
+    if (TryReadSignedCookieToken(existingToken, out var signedCookieToken))
+    {
+      return signedCookieToken;
+    }
+
+    return existingToken.Trim();
   }
 
   private static CookieOptions BuildCookieOptions(HttpRequest request)
