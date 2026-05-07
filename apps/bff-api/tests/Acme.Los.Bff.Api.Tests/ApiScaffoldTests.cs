@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Acme.Los.Bff.Api.Contracts;
+using Acme.Los.Bff.Api.Infrastructure.Auth;
 using Acme.Los.Bff.Api.Infrastructure.State;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -653,6 +654,30 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal(
       "00000000-0000-0000-0000-000000000001",
       options.ManagedIdentityClientId);
+  }
+
+  [Fact]
+  public void OktaIssuerPolicy_AcceptsKnownOktaIssuerBehindCustomDomain()
+  {
+    Assert.True(OktaIssuerPolicy.IsAllowedIssuer(
+      "https://auth.avanai.net/oauth2/default",
+      "https://dev-123456.okta.com/oauth2/default"));
+  }
+
+  [Fact]
+  public void OktaIssuerPolicy_RejectsDifferentIssuerPath()
+  {
+    Assert.False(OktaIssuerPolicy.IsAllowedIssuer(
+      "https://auth.avanai.net/oauth2/default",
+      "https://dev-123456.okta.com/oauth2/other"));
+  }
+
+  [Fact]
+  public void OktaIssuerPolicy_RejectsNonOktaHostMismatch()
+  {
+    Assert.False(OktaIssuerPolicy.IsAllowedIssuer(
+      "https://auth.avanai.net/oauth2/default",
+      "https://evil.example.test/oauth2/default"));
   }
 
   private static string CreateSignedSessionCookie(string sessionId)
