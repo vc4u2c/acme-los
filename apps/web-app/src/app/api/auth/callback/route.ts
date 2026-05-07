@@ -5,9 +5,11 @@ import {
   buildPublicRequestUrl,
   buildSignInRedirectPath,
   checkRateLimit,
+  completeBffAuthCallback,
   clearReplacedWebAuthSession,
   clearWebAuthTransaction,
   exchangeOktaAuthorizationCode,
+  isBffProxyEnabled,
   logAuthAuditEvent,
   readWebAuthTransaction,
   syncWebAuthSession,
@@ -91,6 +93,31 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       throw new Error(
         'The Okta callback did not include the expected code and state.',
       );
+    }
+
+    if (isBffProxyEnabled()) {
+      const syncedSession = await completeBffAuthCallback(request, {
+        code: query.code,
+        state: query.state,
+      });
+      const response = NextResponse.redirect(
+        buildPublicRequestUrl(request, syncedSession.response.returnTo),
+      );
+
+      writeWebAuthSession(request, response, syncedSession);
+      clearWebAuthTransaction(request, response);
+      applyRateLimitHeaders(response, rateLimit);
+      logAuthAuditEvent(request, {
+        event: 'auth.callback',
+        outcome: 'success',
+        message: 'Completed BFF-backed secure callback exchange.',
+        session: syncedSession.response.session,
+        metadata: {
+          returnTo: syncedSession.response.returnTo,
+        },
+      });
+
+      return response;
     }
 
     if (query.state !== transaction.state) {

@@ -6,9 +6,12 @@ import {
   buildSignInRedirectPath,
   clearWebAuthTransaction,
   checkRateLimit,
+  isBffProxyEnabled,
   logAuthAuditEvent,
   readWebAuthSession,
+  startBffAuthFlow,
   startOktaAuthTransaction,
+  writeBffWebAuthTransaction,
   writeWebAuthTransaction,
 } from '@acme-los/api/web-server';
 import {
@@ -96,19 +99,53 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       minimumAssuranceLevel === 'aal2'
         ? await readWebAuthSession(request)
         : null;
+    const expectedUserId =
+      currentSession?.session.isAuthenticated &&
+      currentSession.session.user !== null
+        ? currentSession.session.user.id
+        : undefined;
+    const leadId = payload.leadId ?? payload.lead_id;
+    const stepUp =
+      minimumAssuranceLevel === 'aal2'
+        ? routeRequirement?.requiredStepUp
+        : undefined;
+
+    if (isBffProxyEnabled()) {
+      const transaction = await startBffAuthFlow(request, {
+        returnTo: payload.returnTo,
+        minimumAssuranceLevel,
+        expectedUserId,
+        leadId,
+        stepUp,
+      });
+      const response = NextResponse.redirect(transaction.authorizeUrl);
+
+      writeBffWebAuthTransaction(request, response, {
+        transactionId: transaction.transactionId,
+        returnTo: transaction.returnTo,
+        minimumAssuranceLevel,
+        maxAge: transaction.maxAge,
+      });
+      applyRateLimitHeaders(response, rateLimit);
+      logAuthAuditEvent(request, {
+        event: 'auth.start',
+        outcome: 'success',
+        message: 'Started BFF-backed secure sign-in redirect.',
+        metadata: {
+          returnTo: transaction.returnTo,
+          minimumAssuranceLevel,
+        },
+      });
+
+      return response;
+    }
+
     const transaction = startOktaAuthTransaction({
       returnTo: payload.returnTo,
       minimumAssuranceLevel,
-      expectedUserId:
-        currentSession?.session.isAuthenticated &&
-        currentSession.session.user !== null
-          ? currentSession.session.user.id
-          : undefined,
-      leadId: payload.leadId ?? payload.lead_id,
-      stepUp:
-        minimumAssuranceLevel === 'aal2'
-          ? routeRequirement?.requiredStepUp
-          : undefined,
+      expectedUserId,
+      leadId,
+      stepUp,
     });
     const response = NextResponse.redirect(transaction.authorizeUrl);
 

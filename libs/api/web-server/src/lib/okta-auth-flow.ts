@@ -29,6 +29,13 @@ export type StartedWebAuthTransaction = {
   maxAge: number;
 };
 
+export type StartedBffWebAuthTransaction = {
+  transactionId: string;
+  returnTo: string;
+  minimumAssuranceLevel: 'aal1' | 'aal2';
+  maxAge: number;
+};
+
 export type OktaTokenResponse = {
   access_token?: string;
   expires_in?: number;
@@ -160,6 +167,27 @@ export function writeWebAuthTransaction(
     request,
     AUTH_TRANSACTION_COOKIE_NAME,
     transaction.cookiePayload,
+    {
+      maxAge: transaction.maxAge,
+    },
+  );
+}
+
+export function writeBffWebAuthTransaction(
+  request: NextRequest,
+  response: NextResponse,
+  transaction: StartedBffWebAuthTransaction,
+): void {
+  setSignedCookie(
+    response,
+    request,
+    AUTH_TRANSACTION_COOKIE_NAME,
+    {
+      transactionId: transaction.transactionId,
+      returnTo: getSafeServerAuthReturnTo(transaction.returnTo),
+      minimumAssuranceLevel: transaction.minimumAssuranceLevel,
+      expiresAt: Math.floor(Date.now() / 1000) + transaction.maxAge,
+    },
     {
       maxAge: transaction.maxAge,
     },

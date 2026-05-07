@@ -9,6 +9,13 @@ param containerImage string
 param appEnvironmentName string
 param appBuildId string
 param bffVersion string = '0.0.0'
+param authProvider string = 'okta'
+param oktaEnvironmentName string = appEnvironmentName
+param oktaIssuer string
+param oktaClientId string
+param oktaRedirectUri string
+param oktaPostLogoutRedirectUri string
+param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
 @allowed([
   'file'
   'redis'
@@ -91,6 +98,34 @@ var environmentVariables = concat(
     {
       name: 'ACME_BFF_VERSION'
       value: bffVersion
+    }
+    {
+      name: 'ACME_AUTH_PROVIDER'
+      value: authProvider
+    }
+    {
+      name: 'ACME_OKTA_ENVIRONMENT'
+      value: oktaEnvironmentName
+    }
+    {
+      name: 'ACME_OKTA_ISSUER'
+      value: oktaIssuer
+    }
+    {
+      name: 'ACME_OKTA_CLIENT_ID'
+      value: oktaClientId
+    }
+    {
+      name: 'ACME_OKTA_REDIRECT_URI'
+      value: oktaRedirectUri
+    }
+    {
+      name: 'ACME_OKTA_POST_LOGOUT_REDIRECT_URI'
+      value: oktaPostLogoutRedirectUri
+    }
+    {
+      name: 'ACME_OKTA_FUNDING_ACR_VALUES'
+      value: oktaFundingAcrValues
     }
     {
       name: 'ACME_WEB_STATE_STORE'

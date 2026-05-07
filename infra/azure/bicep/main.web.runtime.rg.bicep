@@ -164,6 +164,13 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     appEnvironmentName: environmentName
     appBuildId: appBuildId
     bffVersion: bffVersion
+    authProvider: authProvider
+    oktaEnvironmentName: oktaEnvironmentName
+    oktaIssuer: oktaIssuer
+    oktaClientId: oktaClientId
+    oktaRedirectUri: oktaRedirectUri
+    oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
+    oktaFundingAcrValues: oktaFundingAcrValues
     stateStoreMode: stateStoreMode
     redisKeyPrefix: bffRedisKeyPrefix
     redisHostName: redisHostName

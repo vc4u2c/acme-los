@@ -156,19 +156,23 @@ Current bridge decision:
   `ACME_BFF_PROXY_MODE`, and should not choose the BFF directly
 - `ACME_BFF_PROXY_MODE=next|bff` is the server-side route switch; the BFF base
   URL is endpoint configuration, not the rollout switch
-- Next route handlers continue to own the browser-facing session, assurance, and
-  CSRF checks while the BFF owns selected customer and application behavior
+- Next route handlers continue to own the same-origin browser route contract,
+  redirects, browser cookie handoff, and CSRF checks while the BFF owns selected
+  customer, application, auth transaction, Okta callback, and session-store
+  behavior when the switch is enabled
 - trusted identity headers are accepted only inside a trusted proxy boundary;
   outside local development, use `ACME_BFF_TRUSTED_PROXY_SECRET` or an
   equivalent private network control before the BFF honors those headers
-- auth session state can move behind the same `ACME_BFF_PROXY_MODE` switch while
-  Next remains the browser facade for login, callback, cookie issuance, CSRF
-  issuance, and mock-auth development fixtures
-- `GET /api/security/csrf` intentionally stays in Next until the BFF owns login,
-  callback, session-cookie issuance, and CSRF issuance together
-- once the BFF owns login, callback, session-cookie issuance, and CSRF issuance,
-  the team can revisit whether `/api/*` remains a thin Next proxy or whether a
-  more direct BFF-facing route shape is cleaner
+- auth start, callback, session read/sync/touch/clear, requirement checks, and
+  logout hints move behind the same `ACME_BFF_PROXY_MODE` switch; Next remains
+  the browser facade for the public redirect URLs, final `Set-Cookie` emission,
+  CSRF issuance, and mock-auth development fixtures
+- `GET /api/security/csrf` intentionally stays in Next while the browser-facing
+  `/api/*` contract remains stable and the BFF validates the forwarded CSRF
+  cookie on proxied mutations
+- after the BFF-owned auth path is proven in `dev` and `qa`, the team can
+  revisit whether `/api/*` remains a thin Next proxy or whether a more direct
+  BFF-facing route shape is cleaner
 
 ## Phased Rollout
 
@@ -234,17 +238,23 @@ Goal:
 - move the higher-value auth and session concerns only after the BFF path is
   operationally trusted
 
-Candidate endpoints:
+Current BFF-mode endpoints:
 
 - `GET /bff/auth/login`
 - `GET /bff/auth/callback`
 - `POST /bff/auth/logout`
 - `GET /bff/auth/session`
+- `POST /bff/auth/session`
+- `DELETE /bff/auth/session`
+- `POST /bff/auth/session/touch`
+- `POST /bff/auth/session/requirement`
+- `GET /bff/auth/logout-hint`
 
 Definition of done:
 
-- the BFF can own PKCE initiation and callback handling
-- session issuance and lookup are stable
+- the BFF owns PKCE initiation, auth transaction state, Okta token exchange,
+  id-token validation, and callback handling when `ACME_BFF_PROXY_MODE=bff`
+- session storage, lookup, touch, requirement checks, and logout hints are stable
 - funding step-up rules are preserved
 - the Next layer stays a route shell and UX boundary, not the long-term auth
   engine

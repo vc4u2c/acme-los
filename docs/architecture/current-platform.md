@@ -103,13 +103,19 @@ Current BFF bridge:
   network boundary is in place
 - when the proxy mode is `next`, those same Next routes continue to serve the
   existing implementation
+- `GET /api/auth/start` and `GET /api/auth/callback` also follow the same
+  switch; in `bff` mode the BFF owns PKCE transaction state, Okta token
+  exchange, id-token validation, session creation, and funding step-up
+  enforcement, while Next keeps the public redirect URLs and writes the
+  browser-facing opaque session cookie from BFF response headers
 - `GET|POST|DELETE /api/auth/session`, `POST /api/auth/session/touch`,
   guarded API session checks, server-rendered session checks, and logout hints
   follow the same `ACME_BFF_PROXY_MODE` switch; `next` keeps the session store
   in Next, while `bff` makes the BFF the Okta-backed session authority behind
   the stable Next facade
-- `GET /api/security/csrf` stays local in Next until the BFF owns login,
-  callback, session-cookie issuance, and CSRF issuance together
+- `GET /api/security/csrf` stays local in Next while the browser-facing `/api/*`
+  contract remains stable; the BFF validates the forwarded CSRF cookie on
+  proxied domain mutations
 
 ## Current Server-State Model
 
@@ -124,6 +130,10 @@ Current BFF bridge:
   - supports connection-string auth for local Docker Redis
   - supports Entra auth for Azure runtime identity access
   - otherwise falls back to a file-backed local store under `.next/cache/acme-los-web-state`
+- when `ACME_BFF_PROXY_MODE=bff`, the BFF owns auth transaction and auth session
+  state through the same Redis-or-local runtime state decision, and Next keeps
+  only the signed browser cookie envelope needed to route the request back to
+  the BFF authority
 
 ## Current Hardening Status
 
@@ -269,19 +279,25 @@ Related docs:
 
 The web app is being shaped so the current server-side PKCE flow can later move behind a .NET BFF without rewriting the UI layer.
 
-Planned BFF endpoints:
+Current BFF auth/session endpoints:
 
 - `GET /bff/auth/login`
 - `GET /bff/auth/callback`
 - `POST /bff/auth/logout`
 - `GET /bff/auth/session`
+- `POST /bff/auth/session`
+- `DELETE /bff/auth/session`
+- `POST /bff/auth/session/touch`
+- `POST /bff/auth/session/requirement`
+- `GET /bff/auth/logout-hint`
 
 Near-term guidance:
 
 - keep the current apply route shape
 - keep server-rendered route shells with small client form islands
 - keep UI code calling app-owned API contracts instead of auth or storage internals
-- keep the Next API layer thin and focused on cookie/session handling, validation, and transport
+- keep the Next API layer thin and focused on same-origin browser transport,
+  redirects, final cookie handoff, CSRF issuance, and request mapping
 
 ## Practical Transition Checklist
 

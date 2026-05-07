@@ -75,6 +75,24 @@ public sealed record WebAuthStepUpRequirement(
     int MaxAgeSeconds,
     bool? ConsumeOnSatisfied = null);
 
+public sealed record StartAuthFlowResponse(
+    string AuthorizeUrl,
+    string TransactionId,
+    int MaxAge,
+    string ReturnTo);
+
+public sealed record CompleteAuthFlowResponse(
+    WebAuthSession Session,
+    string ReturnTo,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    WebAuthSessionTiming? SessionTiming = null);
+
+public sealed record StartLogoutResponse(
+    WebAuthSession Session,
+    bool Cleared,
+    string LogoutUrl,
+    bool UsedOktaLogout);
+
 public sealed record StoredWebAuthStepUp(
     string Reason,
     int CompletedAt,

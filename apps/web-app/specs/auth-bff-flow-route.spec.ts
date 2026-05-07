@@ -1,0 +1,189 @@
+/** @jest-environment node */
+
+import { createHmac } from 'node:crypto';
+import { NextRequest } from 'next/server';
+import { GET as completeAuthCallback } from '../src/app/api/auth/callback/route';
+import { GET as startAuthFlow } from '../src/app/api/auth/start/route';
+
+const DEV_SESSION_SECRET = 'acme-los-local-dev-session-secret';
+
+function toBase64Url(value: Buffer | string): string {
+  const buffer = typeof value === 'string' ? Buffer.from(value, 'utf8') : value;
+
+  return buffer
+    .toString('base64')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/g, '');
+}
+
+function createSignedCookie(payload: Record<string, unknown>): string {
+  const payloadPart = toBase64Url(JSON.stringify(payload));
+  const signaturePart = toBase64Url(
+    createHmac('sha256', DEV_SESSION_SECRET).update(payloadPart).digest(),
+  );
+
+  return `${payloadPart}.${signaturePart}`;
+}
+
+describe('BFF-backed auth flow routes', () => {
+  const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
+  const originalProxyMode = process.env.ACME_BFF_PROXY_MODE;
+  const originalTrustedProxySecret = process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
+  const originalWebSessionSecret = process.env.ACME_WEB_SESSION_SECRET;
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    if (originalBaseUrl === undefined) {
+      delete process.env.ACME_BFF_BASE_URL;
+    } else {
+      process.env.ACME_BFF_BASE_URL = originalBaseUrl;
+    }
+
+    if (originalProxyMode === undefined) {
+      delete process.env.ACME_BFF_PROXY_MODE;
+    } else {
+      process.env.ACME_BFF_PROXY_MODE = originalProxyMode;
+    }
+
+    if (originalTrustedProxySecret === undefined) {
+      delete process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
+    } else {
+      process.env.ACME_BFF_TRUSTED_PROXY_SECRET = originalTrustedProxySecret;
+    }
+
+    if (originalWebSessionSecret === undefined) {
+      delete process.env.ACME_WEB_SESSION_SECRET;
+    } else {
+      process.env.ACME_WEB_SESSION_SECRET = originalWebSessionSecret;
+    }
+
+    global.fetch = originalFetch;
+    jest.restoreAllMocks();
+  });
+
+  it('delegates sign-in start to the BFF and stores the BFF transaction cookie', async () => {
+    process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
+    process.env.ACME_BFF_PROXY_MODE = 'bff';
+    process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
+    delete process.env.ACME_WEB_SESSION_SECRET;
+    const fetchSpy = jest.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          authorizeUrl:
+            'https://dev-123456.okta.com/oauth2/default/v1/authorize?state=okta-state-123',
+          transactionId: 'bff-transaction-123',
+          maxAge: 600,
+          returnTo: '/apply/personal-info',
+        }),
+        {
+          headers: {
+            'content-type': 'application/json',
+          },
+        },
+      ),
+    );
+
+    global.fetch = fetchSpy as typeof fetch;
+
+    const response = await startAuthFlow(
+      new NextRequest(
+        'https://los.example.test/api/auth/start?returnTo=/apply/personal-info&aal=aal1',
+        {
+          headers: {
+            cookie: 'acme-los.csrf-token=csrf-123',
+            traceparent:
+              '00-0123456789abcdef0123456789abcdef-0123456789abcdef-01',
+          },
+        },
+      ),
+    );
+    const targetUrl = fetchSpy.mock.calls[0]?.[0] as URL;
+    const requestInit = fetchSpy.mock.calls[0]?.[1];
+    const headers = requestInit?.headers as Headers;
+    const setCookie = response.headers.get('set-cookie');
+
+    expect(response.headers.get('location')).toBe(
+      'https://dev-123456.okta.com/oauth2/default/v1/authorize?state=okta-state-123',
+    );
+    expect(targetUrl.origin).toBe('http://bff.example.test');
+    expect(targetUrl.pathname).toBe('/bff/auth/login');
+    expect(targetUrl.searchParams.get('returnTo')).toBe('/apply/personal-info');
+    expect(targetUrl.searchParams.get('aal')).toBe('aal1');
+    expect(headers.get('cookie')).toBe('acme-los.csrf-token=csrf-123');
+    expect(headers.get('x-acme-bff-proxy-secret')).toBe('proxy-secret-123');
+    expect(setCookie).toContain('acme-los.auth-transaction=');
+  });
+
+  it('delegates callback exchange to the BFF before checking Next-owned state', async () => {
+    process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
+    process.env.ACME_BFF_PROXY_MODE = 'bff';
+    process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
+    delete process.env.ACME_WEB_SESSION_SECRET;
+    const authTransaction = createSignedCookie({
+      transactionId: 'bff-transaction-123',
+      returnTo: '/apply/personal-info',
+      minimumAssuranceLevel: 'aal1',
+      expiresAt: Math.floor(Date.now() / 1000) + 600,
+    });
+    const fetchSpy = jest.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          session: {
+            provider: 'okta',
+            status: 'authenticated',
+            isAuthenticated: true,
+            assuranceLevel: 'aal1',
+            user: {
+              id: 'user-123',
+              displayName: 'User Test',
+              email: 'user@example.com',
+            },
+          },
+          returnTo: '/apply/funding',
+          sessionTiming: {
+            absoluteExpiresAt: 4102444800,
+            idleExpiresAt: 4102441200,
+            idleTimeoutSeconds: 900,
+            warningSeconds: 120,
+          },
+        }),
+        {
+          headers: {
+            'content-type': 'application/json',
+            'x-acme-auth-session-id': 'stored-session-123',
+            'x-acme-auth-session-max-age': '900',
+          },
+        },
+      ),
+    );
+
+    global.fetch = fetchSpy as typeof fetch;
+
+    const response = await completeAuthCallback(
+      new NextRequest(
+        'https://los.example.test/api/auth/callback?code=code-123&state=okta-state-123',
+        {
+          headers: {
+            cookie: `acme-los.auth-transaction=${authTransaction}`,
+          },
+        },
+      ),
+    );
+    const targetUrl = fetchSpy.mock.calls[0]?.[0] as URL;
+    const requestInit = fetchSpy.mock.calls[0]?.[1];
+    const headers = requestInit?.headers as Headers;
+    const setCookie = response.headers.get('set-cookie');
+
+    expect(response.headers.get('location')).toBe(
+      'https://los.example.test/apply/funding',
+    );
+    expect(targetUrl.toString()).toBe(
+      'http://bff.example.test/bff/auth/callback?code=code-123&state=okta-state-123',
+    );
+    expect(headers.get('cookie')).toContain('acme-los.auth-transaction=');
+    expect(headers.get('x-acme-bff-proxy-secret')).toBe('proxy-secret-123');
+    expect(setCookie).toContain('acme-los.auth-session=');
+    expect(setCookie).toContain('acme-los.auth-transaction=;');
+  });
+});
