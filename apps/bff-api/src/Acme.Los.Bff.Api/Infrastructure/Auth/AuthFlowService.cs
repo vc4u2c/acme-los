@@ -279,8 +279,17 @@ public sealed class BffAuthFlowService : IAuthFlowService
     string expectedNonce,
     CancellationToken cancellationToken)
   {
+    var tokenIssuer = TryReadIssuerFromIdToken(idToken);
+
+    if (string.IsNullOrWhiteSpace(tokenIssuer)
+      || !OktaIssuerPolicy.IsAllowedIssuer(options.Issuer, tokenIssuer))
+    {
+      throw new InvalidOperationException(
+        "The Okta id token issuer does not match this app.");
+    }
+
     var keysJson = await _httpClientFactory.CreateClient().GetStringAsync(
-      BuildIssuerEndpoint(options.Issuer, "keys"),
+      BuildIssuerEndpoint(tokenIssuer, "keys"),
       cancellationToken);
     var keySet = new JsonWebKeySet(keysJson);
     var handler = new JsonWebTokenHandler();
@@ -296,7 +305,11 @@ public sealed class BffAuthFlowService : IAuthFlowService
         ValidateIssuerSigningKey = true,
         ValidateLifetime = true,
         ValidAudience = options.ClientId,
-        ValidIssuer = options.Issuer.TrimEnd('/'),
+        ValidIssuers =
+        [
+          OktaIssuerPolicy.NormalizeIssuer(options.Issuer),
+          OktaIssuerPolicy.NormalizeIssuer(tokenIssuer),
+        ],
         IssuerSigningKeys = keySet.GetSigningKeys(),
       });
 
@@ -425,6 +438,10 @@ public sealed class BffAuthFlowService : IAuthFlowService
       return new JsonWebTokenHandler().ReadJsonWebToken(idToken).Issuer;
     }
     catch (ArgumentException)
+    {
+      return null;
+    }
+    catch (SecurityTokenException)
     {
       return null;
     }
