@@ -15,7 +15,7 @@ import { SiteHeader } from './site-header';
 
 type SecurityInspectorServerSnapshot = {
   provider: 'mock' | 'okta';
-  stateStoreMode: 'file' | 'redis';
+  stateStoreMode: 'file' | 'redis' | 'in-memory';
   configurationError?: string;
   generatedAt: string;
   requestCookies: BrowserStorageEntry[];

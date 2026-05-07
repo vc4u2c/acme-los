@@ -164,6 +164,12 @@ session behavior:
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -StateStoreMode file
 ```
 
+When the BFF is deployed, the script passes BFF version, trusted proxy secret,
+and BFF replica settings into the runtime stack. By default the BFF min/max
+replica settings follow the environment runtime settings in
+`infra/azure/config/platform.json`; add an environment `bffRuntime` block only
+when the BFF needs a different scale profile from the public web app.
+
 ## Pause And Resume A Non-Production Workload
 
 Show the current workload state and the alert resources the script would manage:
@@ -246,6 +252,9 @@ Current proven state:
 - use `/api/health` on that resolved base URL for public web + BFF smoke checks
 - ACA probes use `/api/health/live`, which stays local to the Next web
   container
+- the internal BFF FQDN is not a workstation/browser endpoint; use the public
+  Next facade for manual checks unless you are inside the ACA environment or a
+  private-network diagnostic context
 
 Practical smoke-check path after a deploy:
 

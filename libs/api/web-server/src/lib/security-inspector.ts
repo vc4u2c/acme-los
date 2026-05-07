@@ -4,6 +4,12 @@ import type { WebAuthTransactionCookiePayload } from './okta-auth-flow';
 import type { StoredWebAuthSession } from './session-store';
 import { readSessionCookiePayload } from './auth-session';
 import {
+  BFF_TRUSTED_PROXY_SECRET_HEADER,
+  getBffBaseUrlOrThrow,
+  getBffTrustedProxySecret,
+  isBffProxyEnabled,
+} from './bff-config';
+import {
   AUTH_SESSION_COOKIE_NAME,
   AUTH_TRANSACTION_COOKIE_NAME,
 } from './cookies';
@@ -36,7 +42,7 @@ type SecurityInspectorStoredSessionSnapshot = {
 
 export type SecurityInspectorServerSnapshot = {
   provider: 'mock' | 'okta';
-  stateStoreMode: 'file' | 'redis';
+  stateStoreMode: 'file' | 'redis' | 'in-memory';
   configurationError?: string;
   generatedAt: string;
   requestCookies: Array<{ key: string; value: string }>;
@@ -46,6 +52,73 @@ export type SecurityInspectorServerSnapshot = {
   };
   storedSession: SecurityInspectorStoredSessionSnapshot | null;
 };
+
+function buildBffInspectorUrl(): URL {
+  const baseUrl = getBffBaseUrlOrThrow();
+
+  return new URL(
+    '/bff/security/inspector',
+    baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`,
+  );
+}
+
+function buildBffInspectorHeaders(request: NextRequest): Headers {
+  const headers = new Headers({
+    accept: 'application/json',
+  });
+
+  for (const headerName of [
+    'cookie',
+    'user-agent',
+    'x-correlation-id',
+    'traceparent',
+    'tracestate',
+  ] as const) {
+    const value = request.headers.get(headerName);
+
+    if (value) {
+      headers.set(headerName, value);
+    }
+  }
+
+  headers.set('x-forwarded-host', request.nextUrl.host);
+  headers.set('x-forwarded-proto', request.nextUrl.protocol.replace(':', ''));
+
+  const trustedProxySecret = getBffTrustedProxySecret();
+  if (trustedProxySecret) {
+    headers.set(BFF_TRUSTED_PROXY_SECRET_HEADER, trustedProxySecret);
+  }
+
+  return headers;
+}
+
+async function readBffSecurityInspectorServerSnapshot(
+  request: NextRequest,
+): Promise<SecurityInspectorServerSnapshot> {
+  const response = await fetch(buildBffInspectorUrl(), {
+    method: 'GET',
+    headers: buildBffInspectorHeaders(request),
+    cache: 'no-store',
+    redirect: 'manual',
+  });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as {
+      error?: unknown;
+      message?: unknown;
+    } | null;
+    const message =
+      typeof body?.error === 'string'
+        ? body.error
+        : typeof body?.message === 'string'
+          ? body.message
+          : `The BFF security inspector returned ${response.status}.`;
+
+    throw new Error(message);
+  }
+
+  return (await response.json()) as SecurityInspectorServerSnapshot;
+}
 
 function fromBase64Url(value: string): Buffer {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
@@ -111,6 +184,11 @@ export async function readSecurityInspectorServerSnapshot(
   request: NextRequest,
 ): Promise<SecurityInspectorServerSnapshot> {
   const authConfig = getServerWebAuthConfig();
+
+  if (authConfig.provider !== 'mock' && isBffProxyEnabled()) {
+    return readBffSecurityInspectorServerSnapshot(request);
+  }
+
   const authSessionCookie = request.cookies.get(
     AUTH_SESSION_COOKIE_NAME,
   )?.value;

@@ -171,6 +171,18 @@ local to the Next web container. `/api/health` remains the public smoke path and
 reports both the Next web layer and the BFF layer when the BFF is enabled for
 the environment.
 
+The BFF container app is internal to the Container Apps environment. Use the
+Next facade for public/manual checks:
+
+- `/api/health` for composite web + BFF health
+- `/api/security/csrf` for browser-facing CSRF issuance
+- `/security` for local/dev authenticated security inspection
+
+The BFF runtime scale follows the environment `runtime.minReplicas` and
+`runtime.maxReplicas` values by default. Add an environment-level `bffRuntime`
+override only when the internal BFF should scale differently from the public web
+app.
+
 If the runtime image changes and you want to force a new image build instead of
 reusing an existing tag, pass `-ImageTag` explicitly:
 

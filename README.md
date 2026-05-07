@@ -10,6 +10,118 @@ ACME LOS is an Nx monorepo for a consumer lending experience with:
 
 The root README is intentionally short. Use it to get running, then follow the linked docs for deeper setup, architecture, and operations details.
 
+## Where We Are Now
+
+The repo is now a production-shaped pre-prod platform rather than a prototype.
+The main architectural decision is stable: browsers call the same-origin
+Next.js `/api/*` facade, and the server-side switch
+`ACME_BFF_PROXY_MODE=next|bff` decides whether those routes stay in Next or
+delegate to the `.NET` BFF. In `bff` mode, the BFF is the auth/session, CSRF,
+customer-profile, and application-flow authority behind the public Next facade.
+
+Current strengths:
+
+- independent Nx Release versioning for `web-app`, `mobile-app`, and
+  `bff-api`
+- project-prefixed GitHub release artifacts for web, mobile, and BFF API
+- hosted Okta sign-in, registration, server-side PKCE, id-token validation,
+  opaque HTTP-only sessions, logout, and funding step-up MFA
+- BFF-owned CSRF issuance in BFF mode, with Next preserving the stable browser
+  `/api/security/csrf` contract
+- dev-only security inspector support for both Next-owned and BFF-owned
+  auth/session stores
+- composite health that reports both web and BFF layer status, versions, and
+  build identifiers
+- Azure Container Apps `dev` runtime with Redis, Key Vault, managed identity,
+  private endpoints for state/secrets, monitoring, pause/resume controls, and
+  normal CI/CD deployment from `main`
+
+Still intentionally not final:
+
+- `dev` is proven; `qa` promotion should be the next environment proof
+- customer/application data is still transitional server-side state, not the
+  long-term durable system of record
+- Front Door, WAF, custom domains, and private-origin production edge hardening
+  are later phases
+- the security inspector remains a local/dev demo and troubleshooting surface
+
+## Demo Feature Inventory
+
+Use this as the quick grouped list when explaining what the repo demonstrates.
+The presenter-focused version lives in
+[Azure and website demo runbook](./docs/operations/azure-and-website-demo-runbook.md).
+
+### Workspace And Engineering System
+
+- `Nx` monorepo with `apps/*`, `libs/*`, affected project graph, and
+  independent release groups
+- `npm`, `TypeScript`, shared path aliases, project tags, and repo-wide scripts
+- `Husky`, `lint-staged`, `commitlint`, project-tag validation, ESLint, and
+  Prettier
+- Jest, Playwright, `.NET` xUnit, Reqnroll/Gherkin BFF acceptance tests, and
+  `dotnet format`
+
+### Product Surfaces
+
+- Next.js 16 App Router web app with public pages, seven-step application flow,
+  customer dashboard, security demo, logging demo, and environment/version
+  visibility
+- Expo 55 / React Native mobile app with shared release visibility and UI
+  foundations
+- shared contracts, auth helpers, domain models, web/mobile UI libraries, and
+  server/client boundary libraries
+
+### Web UI System
+
+- Tailwind CSS, Radix primitives, shadcn-style `new-york` composition, `cn()`,
+  `class-variance-authority`, and `tailwind-merge`
+- Lucide icons and shared UI primitives under `libs/ui/web`
+- TanStack React Query, React Form, and React Table, including the showcase
+  grid/table system
+- React 19 composition with server-rendered route shells and focused client
+  islands
+
+### Backend And API Boundary
+
+- `.NET` BFF app under Nx with Minimal APIs, OpenAPI, Scalar UI, health/readiness
+  endpoints, and modular feature folders
+- stable Next `/api/*` facade so browser code does not call the raw BFF URL
+- feature toggle `ACME_BFF_PROXY_MODE=next|bff` for reversible route migration
+- BFF auth/session endpoints, customer profile endpoints, application flow
+  endpoints, CSRF endpoint, and health endpoint
+- BFF security inspector endpoint used only through the authenticated Next
+  facade and trusted server-to-server boundary in local/dev
+- Wolverine used selectively behind the HTTP/security boundary for BFF
+  customer/application commands and queries
+
+### Auth And Security
+
+- Okta hosted sign-in and registration with environment-specific callback URLs
+- server-side PKCE, nonce/state validation, custom-domain issuer policy, and
+  server-side id-token validation
+- opaque HTTP-only auth session cookie with server-enforced idle and absolute
+  expiry
+- CSRF double-submit protection for mutating facade/BFF routes
+- funding route step-up MFA with fresh Okta prompt semantics
+- trusted Next-to-BFF identity headers guarded by a shared proxy secret outside
+  local development
+- CSP keeps browser application traffic on the Next origin and Okta, not the raw
+  BFF origin
+
+### Azure And Operations
+
+- landing-zone-shaped Azure setup with management groups, workload/platform
+  split, budgets, and lifecycle scripts
+- Azure Container Apps for web and BFF, Redis for shared state, Key Vault for
+  runtime secrets, private DNS, private endpoints, NSGs, and managed identity
+- Application Insights, Log Analytics, alert rules, workbook, structured JSON
+  logs, W3C `traceparent`, and app-level correlation IDs
+- GitHub Actions CI/CD with release, deploy, teardown, and environment-wrapper
+  workflows
+- BFF replicas follow the environment runtime scale settings unless explicitly
+  overridden
+- pause/resume commands for non-production cost control
+
 ## Current Dev Cloud URLs
 
 - Hosted app: `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io`

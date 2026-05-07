@@ -36,6 +36,8 @@ What is solid now:
 - one opaque web session is shared across profile, apply, and sign-out
 - web sessions now have server-enforced idle expiry with a client warning modal
 - the browser is no longer the source of truth for authenticated state
+- the BFF can be the auth/session, CSRF, customer-profile, and application-flow
+  authority behind the stable Next `/api/*` facade
 - Azure landing-zone structure now exists with management groups, subscriptions, budgets, and an ACA-based web runtime path
 - local and Azure `dev` now align to the same Okta `dev` tenant with different allowed callback URLs
 - both apps expose the active environment in the UI
@@ -44,6 +46,9 @@ What is true operationally today:
 
 - `dev` is proven live in Azure on `Azure Container Apps`
 - `Key Vault` and `Azure Managed Redis` are private-only in the current Azure design
+- the public web app and internal BFF container app are deployed together from
+  the web deployable, with BFF scale following the environment runtime scale by
+  default
 - Redis managed-identity auth is proven live in `dev` as of April 19, 2026
 - main CI currently triggers CD into `dev`
 - the reusable web deployment wrappers for `qa`, `stg`, and `prod` exist, but
@@ -116,6 +121,21 @@ Current BFF bridge:
 - `GET /api/security/csrf` remains browser-facing on the stable Next facade; in
   BFF mode it delegates issuance to `/bff/security/csrf` and relays the BFF
   cookie back to the browser
+- `GET /api/security/inspector` remains browser-facing and authenticated on the
+  Next facade; in BFF mode it reads the BFF-owned token/session snapshot through
+  `/bff/security/inspector` over the trusted server-to-server boundary
+
+### BFF Toggle Behavior
+
+| Surface                     | `ACME_BFF_PROXY_MODE=next`                                            | `ACME_BFF_PROXY_MODE=bff`                                                                          |
+| --------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Browser contract            | Browser calls the same Next `/api/*` routes                           | Browser calls the same Next `/api/*` routes                                                        |
+| Auth start/callback         | Next owns PKCE transaction, Okta token exchange, and session creation | BFF owns PKCE transaction, Okta token exchange, id-token validation, step-up, and session creation |
+| Session read/touch/logout   | Next reads and mutates the Next-owned server state store              | Next calls BFF session endpoints and writes/clears the browser-facing opaque cookie                |
+| CSRF                        | Next issues and validates the signed facade CSRF cookie               | BFF issues the CSRF token; Next relays the cookie and accepts BFF raw tokens during validation     |
+| Customer/application routes | Next implementation serves the current contracts                      | Next enforces browser boundary rules, then proxies to BFF customer/application endpoints           |
+| Security inspector          | Reads the Next-owned server session/token snapshot                    | Reads the BFF-owned server session/token snapshot through trusted BFF diagnostics                  |
+| Raw BFF URL                 | Not used by the browser                                               | Still not used by the browser; only server-to-server or terminal checks                            |
 
 ## Current Server-State Model
 
@@ -134,6 +154,9 @@ Current BFF bridge:
   state through the same Redis-or-local runtime state decision, and Next keeps
   only the signed browser cookie envelope needed to route the request back to
   the BFF authority
+- in BFF mode, the security inspector intentionally reads the BFF state store so
+  demo token visibility follows the real session authority instead of showing an
+  empty Next-local store
 
 ## Current Hardening Status
 
@@ -149,6 +172,8 @@ In place now:
 - centralized server-side state for auth session, customer profile, and application flow
 - rate limiting and audit logging on auth-sensitive routes
 - security inspector enabled by default in `local` and `dev`, opt-in elsewhere
+- BFF diagnostic routes for the security inspector are local/dev only and are
+  reachable from the browser only through the authenticated Next facade
 
 Still temporary by design:
 
@@ -164,6 +189,8 @@ The web platform is now beyond prototype quality and into a credible pre-product
 What is already strong:
 
 - `dev` is live on Azure Container Apps with multiple replicas instead of a single-instance-only runtime
+- the internal BFF ACA app follows the configured environment replica settings
+  by default, so `dev` keeps the BFF warm when the web app is warm
 - the workload runs inside a spoke VNet with separate app and data subnets
 - subnet-level NSGs now make the app-to-data path explicit instead of relying only on subnet separation
 - `Key Vault` and `Azure Managed Redis` are private-only through private endpoints and private DNS
@@ -290,6 +317,9 @@ Current BFF auth/session endpoints:
 - `POST /bff/auth/session/touch`
 - `POST /bff/auth/session/requirement`
 - `GET /bff/auth/logout-hint`
+- `GET /bff/security/csrf`
+- `GET /bff/security/inspector` for local/dev diagnostics through the trusted
+  Next facade only
 
 Near-term guidance:
 

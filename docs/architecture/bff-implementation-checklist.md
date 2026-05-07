@@ -20,16 +20,8 @@ The repo direction is still:
 
 ## Practical SDK Note
 
-As of April 23, 2026, this local environment has `.NET SDK 9.0.101` installed.
-
-That means the first scaffold should:
-
-- be usable on `net9.0` immediately
-- keep the code shape compatible with a later move to `net10.0`
-- include an explicit follow-up task to retarget once the repo/tooling image has
-  `.NET 10` available
-
-Do not block the structural scaffold on the SDK upgrade.
+The BFF now targets `.NET 10`. Use the SDK version expected by the repo before
+running BFF build, test, format, or Reqnroll acceptance checks.
 
 ## First-Pass Scope
 
@@ -85,10 +77,11 @@ These are the initial routes the scaffold should expose or reserve.
 
 ### Operational
 
-- `GET /health`
-- `GET /ready`
+- `GET /health/live`
+- `GET /health/ready`
+- `GET /bff/health`
 - `GET /openapi/v1.json`
-- `GET /scalar`
+- Scalar UI in development
 
 ### Auth And Session
 
@@ -96,6 +89,16 @@ These are the initial routes the scaffold should expose or reserve.
 - `GET /bff/auth/callback`
 - `POST /bff/auth/logout`
 - `GET /bff/auth/session`
+- `POST /bff/auth/session`
+- `DELETE /bff/auth/session`
+- `POST /bff/auth/session/touch`
+- `POST /bff/auth/session/requirement`
+- `GET /bff/auth/logout-hint`
+
+### Security
+
+- `GET /bff/security/csrf`
+- `GET /bff/security/inspector`
 
 ### Customer
 
@@ -199,11 +202,12 @@ scaffold is present.
 
 ### Step 6: Record Follow-Ups
 
-- [ ] retarget from `net9.0` to `net10.0` once SDK 10 is available
 - [ ] decide whether to keep built-in logging only or add Serilog
-- [ ] decide whether Wolverine is justified before introducing it
-- [ ] decide when Redis-backed session integration should move from placeholder
-      to real wiring
+- [ ] keep Wolverine usage limited to slices that benefit from handlers
+- [ ] keep Redis-backed session and short-lived state integration verified for
+      both local Docker Redis and Azure Entra Redis
+- [ ] keep the security inspector local/dev only and aligned with the active
+      `ACME_BFF_PROXY_MODE`
 
 ## Suggested First Verification Loop
 
