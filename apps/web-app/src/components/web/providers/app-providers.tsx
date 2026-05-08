@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@acme-los/auth/web';
+import { AnalyticsRouteTracker } from '../analytics/analytics-route-tracker';
 import { LeadIdTracker } from './lead-id-tracker';
 import { SessionIdleManager } from './session-idle-manager';
 
@@ -28,6 +29,9 @@ export function AppProviders({
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <SessionIdleManager />
+        <React.Suspense fallback={null}>
+          <AnalyticsRouteTracker />
+        </React.Suspense>
         {children}
       </AuthProvider>
       <React.Suspense fallback={null}>

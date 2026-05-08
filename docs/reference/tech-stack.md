@@ -24,7 +24,7 @@ If you want the fastest path to running the repo, start at:
 | State                 | Redis-backed server state in hardened local/Azure paths, local file fallback for Next, BFF in-memory fallback for scaffolding                |
 | Azure                 | ACA, Key Vault, Azure Managed Redis, private endpoints, private DNS, NSGs, managed identity, environment-driven scale, budgets, pause/resume |
 | Observability         | Application Insights, Log Analytics, workbook, alerts, structured JSON logs, `traceparent`, correlation IDs                                  |
-| Analytics             | Repo-owned GA4/GTM manifests, environment rendering script, data layer taxonomy, consent-default design, Measurement Protocol guidance       |
+| Analytics             | Repo-owned GA4/GTM manifests, runtime tag loader, data layer page-view events, consent defaults, Measurement Protocol guidance               |
 | CI/CD                 | GitHub Actions CI/CD, environment wrappers, teardown workflows, project-prefixed release/deploy artifacts                                    |
 | Quality gates         | Husky, lint-staged, commitlint, project-tag validation, ESLint, Prettier, Jest, Playwright, xUnit, Reqnroll, `dotnet format`                 |
 
@@ -152,6 +152,8 @@ See:
   taxonomy and key-event candidates
 - `npm run analytics:render -- <env>` renders local env files under
   `tmp/analytics`
+- `AnalyticsScripts` and `AnalyticsRouteTracker` wire the Next runtime to GTM
+  or direct GA4 through environment variables
 
 The runtime analytics implementation is intentionally separate from Azure
 operational telemetry. Marketing/product events must stay allowlisted and free
@@ -263,6 +265,7 @@ Useful repo-level scripts in [package.json](../../package.json):
 - `okta:bootstrap`
 - `okta:cleanup`
 - `analytics:render`
+- `analytics:check-admin-token`
 - `dotnet:audit`
 
 Useful Redis-backed local web targets:

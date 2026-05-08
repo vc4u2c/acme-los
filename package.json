@@ -32,6 +32,7 @@
     "okta:bootstrap": "node tools/scripts/okta/bootstrap-okta.mjs",
     "okta:cleanup": "node tools/scripts/okta/cleanup-okta.mjs",
     "analytics:render": "node tools/scripts/analytics/render-analytics-config.mjs",
+    "analytics:check-admin-token": "node tools/scripts/analytics/check-google-admin-token.mjs",
     "dotnet:audit": "dotnet list apps/bff-api/Acme.Los.Bff.sln package --vulnerable --include-transitive",
     "release": "nx release --skip-publish",
     "release:dry-run": "nx release --dry-run --skip-publish"

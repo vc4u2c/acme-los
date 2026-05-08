@@ -284,9 +284,10 @@ structural rewrite.
 ## Digital Analytics And Tag Management
 
 The admin-plane shape is now represented in source under
-[infra/analytics](../../infra/analytics). Runtime page/event emission is still a
-future app implementation step and should be treated as a deliberate
-cross-cutting capability rather than page-by-page snippet work.
+[infra/analytics](../../infra/analytics), and the web runtime now has an
+env-driven GTM/GA loader plus app-owned page-view data layer emission. Treat
+future event expansion as a deliberate cross-cutting capability rather than
+page-by-page snippet work.
 
 In place now:
 
@@ -295,6 +296,8 @@ In place now:
   Measurement Protocol secret-name fields
 - data layer event taxonomy and key-event candidates
 - `npm run analytics:render -- <env>` for generated local/runtime config
+- `AnalyticsScripts` and `AnalyticsRouteTracker` for runtime tag loading,
+  consent defaults, and client page-view events
 - manual Google account/container setup checklist
 
 Goals:
@@ -316,7 +319,8 @@ Recommended shape:
 - define one app-owned analytics event contract and one app-owned analytics
   service instead of letting feature code call a tag manager directly
 - allow server-side event emission for SSR, route handlers, auth events, and
-  callback-driven outcomes that the browser alone cannot observe reliably
+  callback-driven outcomes that the browser alone cannot observe reliably; this
+  remains a later Measurement Protocol step
 - allow client-side event emission for page views, interaction events, and
   browser-only context
 - keep the event taxonomy stable even if the downstream marketing/tag platform
@@ -329,7 +333,8 @@ Recommended shape:
 Definition of done for a first pass:
 
 - a runtime analytics module consumes the rendered environment variables
-- page-view tracking works across all Next rendering strategies in the repo
+- page-view tracking works across static, ISR, server-rendered, and
+  client-transitioned routes
 - auth events are visible for both normal sign-in and funding step-up flows
 - custom event tracking exists behind a typed helper instead of ad hoc calls
 - environment-specific destination wiring is documented and testable

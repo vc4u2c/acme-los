@@ -1,4 +1,5 @@
 import './global.css';
+import { AnalyticsScripts } from '../components/web/analytics/analytics-scripts';
 import { AppProviders } from '../components/web/providers/app-providers';
 import { SiteFooter } from '../components/web/site-footer';
 import { ThemeScript } from '../components/web/theme-script';
@@ -44,6 +45,7 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
     >
       <body className="min-h-screen">
+        <AnalyticsScripts />
         <ThemeScript />
         <AppProviders>
           <a href="#main-content" className="skip-link">

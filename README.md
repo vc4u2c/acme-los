@@ -32,8 +32,9 @@ Current strengths:
   auth/session stores
 - composite health that reports both web and BFF layer status, versions, and
   build identifiers
-- repo-owned GA4/GTM analytics admin plane with environment manifests, data
-  layer taxonomy, consent defaults, and a render script for local/runtime config
+- repo-owned GA4/GTM analytics admin plane and web runtime with environment
+  manifests, data layer taxonomy, consent defaults, and a render script for
+  local/runtime config
 - Azure Container Apps `dev` runtime with Redis, Key Vault, managed identity,
   private endpoints for state/secrets, monitoring, pause/resume controls, and
   normal CI/CD deployment from `main`
@@ -120,8 +121,9 @@ The presenter-focused version lives in
   runtime secrets, private DNS, private endpoints, NSGs, and managed identity
 - Application Insights, Log Analytics, alert rules, workbook, structured JSON
   logs, W3C `traceparent`, and app-level correlation IDs
-- GA4/GTM admin-plane manifests, data layer event taxonomy, key-event
-  candidates, environment render script, and manual Google setup checklist
+- GA4/GTM admin-plane manifests, runtime tag loader, app-owned data layer page
+  events, key-event candidates, environment render script, and manual Google
+  setup checklist
 - GitHub Actions CI/CD with release, deploy, teardown, and environment-wrapper
   workflows
 - BFF replicas follow the environment runtime scale settings unless explicitly

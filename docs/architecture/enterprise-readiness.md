@@ -10,14 +10,14 @@ resilience, and durable system-of-record services still need to be proven.
 
 ## Executive Assessment
 
-| Area                 | Current posture                                          | Reading                                                           |
-| -------------------- | -------------------------------------------------------- | ----------------------------------------------------------------- |
-| Security             | Strong dev/pre-prod foundation                           | Server-side auth, BFF authority, CSRF, Key Vault, MI, Redis PE    |
-| Scalability          | Good app/runtime base                                    | Stateless web/BFF, Redis-backed state, ACA replicas, Nx release   |
-| Fault tolerance      | Solid single-region baseline                             | Health probes and multiple replicas; no multi-region failover yet |
-| Enterprise readiness | Strong foundation, production hardening still staged     | Good operating model, needs `qa` proof and edge/DR maturity       |
-| Analytics            | Admin-plane intent captured; runtime not implemented yet | GA4/GTM config is source-owned, but app emission is future work   |
-| API testability      | Improving                                                | `.http`, Reqnroll, Playwright, xUnit, and health checks exist     |
+| Area                 | Current posture                                                           | Reading                                                           |
+| -------------------- | ------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Security             | Strong dev/pre-prod foundation                                            | Server-side auth, BFF authority, CSRF, Key Vault, MI, Redis PE    |
+| Scalability          | Good app/runtime base                                                     | Stateless web/BFF, Redis-backed state, ACA replicas, Nx release   |
+| Fault tolerance      | Solid single-region baseline                                              | Health probes and multiple replicas; no multi-region failover yet |
+| Enterprise readiness | Strong foundation, production hardening still staged                      | Good operating model, needs `qa` proof and edge/DR maturity       |
+| Analytics            | Admin plane and web runtime are wired; IDs/container setup still external | GA4/GTM config is source-owned and page events are app-owned      |
+| API testability      | Improving                                                                 | `.http`, Reqnroll, Playwright, xUnit, and health checks exist     |
 
 ## Runtime Security Shape
 
@@ -61,8 +61,8 @@ Security gaps before production hardening:
 - production-grade secret rotation and break-glass runbooks need to be written
   and rehearsed
 - rate limits and abuse controls should be reviewed for every mutating API
-- marketing analytics runtime code must be added with strict PII/token
-  allowlists before GTM is enabled
+- real GA4/GTM IDs, GTM container triggers, and GA4 key events still need to be
+  created in the Google admin surfaces before production analytics is useful
 
 ## Scalability
 
@@ -135,8 +135,8 @@ Enterprise gaps to close next:
 - add load/performance checks and dependency-failure drills
 - decide whether Next-to-BFF hardening should use managed-identity token
   validation, mTLS, or both
-- implement analytics runtime collection only after consent and PII allowlists
-  are in place
+- add server-side Measurement Protocol emission for auth callbacks and other
+  events the browser cannot observe
 
 ## Practical Rating
 

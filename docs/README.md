@@ -30,7 +30,7 @@ state, Azure Container Apps, Key Vault/private endpoints, Application
 Insights/Log Analytics, GitHub Actions CI/CD, Nx Release versioning, Husky
 commit guardrails, shadcn/Radix/Tailwind UI primitives, and TanStack Query,
 Form, and Table workflows. It now also has a repo-owned GA4/GTM analytics admin
-plane and documented HTTP API testing path.
+plane, web runtime analytics wiring, and documented HTTP API testing path.
 
 ## Suggested Read Order
 

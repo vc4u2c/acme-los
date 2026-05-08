@@ -148,6 +148,8 @@ opening the portal or clicking through the website.
 
 - GA4/GTM environment intent is source-owned under `infra/analytics`
 - manifests cover `dev`, `qa`, `stg`, and `prod`
+- the Next runtime loads GTM or direct GA4 only when enabled and valid Google
+  IDs are configured
 - `events.json` defines the app-owned data layer taxonomy and first key-event
   candidates
 - `npm run analytics:render -- <env>` generates local/runtime config under

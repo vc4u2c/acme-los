@@ -12,6 +12,8 @@ Source of truth:
 - `infra/analytics/environments/stg.json`
 - `infra/analytics/environments/prod.json`
 - `infra/analytics/events.json`
+- `apps/web-app/src/lib/analytics/*`
+- `apps/web-app/src/components/web/analytics/*`
 
 Secrets do not live here.
 
@@ -21,6 +23,13 @@ Do not commit:
 - Google OAuth refresh tokens or service-account keys
 - generated `tmp/analytics/*` files
 - exported GTM container JSON that contains unreviewed vendor tags
+
+Safe to commit:
+
+- GA4 Measurement IDs such as `G-...`
+- GTM container IDs such as `GTM-...`
+- Google account, property, stream, container, and environment names
+- public web origins and consent-default intent
 
 ## What Is Manual
 
@@ -64,9 +73,42 @@ Manual steps:
 Current repo stance:
 
 - analytics is disabled in all manifests until real IDs exist
-- the app should load GTM only through environment variables rendered from these
-  manifests
+- the web app loads GTM or direct GA4 only when analytics is enabled and a valid
+  Google ID is configured
 - business telemetry and Azure operational telemetry remain separate systems
+
+## Runtime Integration
+
+The Next app now has a runtime analytics layer:
+
+- `AnalyticsScripts` initializes `window.dataLayer`, pushes Google consent
+  defaults, and loads GTM when `NEXT_PUBLIC_ACME_GTM_CONTAINER_ID` is present
+- if GTM is not configured but `NEXT_PUBLIC_ACME_GA4_MEASUREMENT_ID` is present,
+  it falls back to direct Google tag mode with automatic page views disabled
+- `AnalyticsRouteTracker` emits one app-owned `page_view` event after hydration
+  and on client route changes
+- page events intentionally use origin + pathname only; query strings, hashes,
+  tokens, cookies, and form payloads are not sent
+- CSP opens Google script/connect endpoints only when analytics is enabled and
+  configured
+
+Runtime environment variables:
+
+```text
+NEXT_PUBLIC_ACME_ANALYTICS_ENABLED=true
+NEXT_PUBLIC_ACME_ANALYTICS_ENVIRONMENT=dev
+NEXT_PUBLIC_ACME_GTM_CONTAINER_ID=GTM-...
+NEXT_PUBLIC_ACME_GA4_MEASUREMENT_ID=G-...
+NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_ANALYTICS_STORAGE=denied
+NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_STORAGE=denied
+NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_USER_DATA=denied
+NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_PERSONALIZATION=denied
+```
+
+Recommended runtime mode is GTM mode. Keep the GA4 Measurement ID in the
+manifest so GTM and future Measurement Protocol automation know the intended
+stream, but let GTM load the browser tag so feature code only pushes app-owned
+events.
 
 ## Repo-Owned Render Step
 
@@ -83,6 +125,38 @@ Outputs:
 
 The renderer does not call Google APIs. It gives the same kind of controlled
 local output that `okta:render` gives for auth config.
+
+After real Google IDs are in the environment manifest, append or copy the
+generated `tmp/analytics/<env>.web.env` values into local `.env.local` or the
+matching Azure runtime configuration.
+
+## Local Admin Token File
+
+Google admin automation should use a local token file or environment variable,
+not a committed secret.
+
+Supported local inputs:
+
+```powershell
+$env:GOOGLE_ANALYTICS_ADMIN_TOKEN='<short-lived access token>'
+```
+
+or:
+
+```powershell
+$env:ACME_GOOGLE_ADMIN_TOKEN_FILE='C:\Users\<you>\.acme-los\google-admin-token.txt'
+```
+
+Check that the repo can resolve the token without printing it:
+
+```powershell
+npm run analytics:check-admin-token
+```
+
+The current runtime does not need this admin token. It is reserved for future
+Google Admin API or Tag Manager API automation, the same way
+`OKTA_API_TOKEN` is reserved for Okta admin bootstrap and never used by the app
+runtime.
 
 ## Future Bootstrap Path
 
@@ -168,9 +242,41 @@ Server routes:
 
 - do not run GTM
 - send carefully allowlisted server events through Measurement Protocol only
-  when there is a business reason
+  when there is a business reason; this remains a future server-side analytics
+  step
 - include an event id so downstream analytics can deduplicate when a browser
   event and a server event describe the same journey milestone
+
+## GTM Container Setup
+
+Use the app-owned `dataLayer` event names rather than page-specific custom
+scripts.
+
+Recommended first container setup:
+
+1. Create one GA4 Google tag or GA4 configuration tag using the environment's
+   Measurement ID.
+2. Disable automatic page-view sending for that base tag if the UI exposes that
+   option.
+3. Create a Custom Event trigger for `page_view`.
+4. Create a GA4 Event tag for `page_view`.
+5. Map data layer variables for:
+   - `event_id`
+   - `environment`
+   - `page_location`
+   - `page_title`
+   - `page_path`
+   - `route_group`
+   - `rendering_mode`
+   - `auth_state`
+   - `assurance_level`
+   - `journey_name`
+   - `application_step`
+6. Create Custom Event triggers for the other names in `events.json`.
+7. Mark only the chosen business outcomes as GA4 key events.
+
+Do not add vendor tags that collect form fields, tokens, cookies, or full URLs
+with query strings.
 
 ## Event And Key Event Candidates
 
