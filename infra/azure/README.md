@@ -115,7 +115,8 @@ And they currently handle:
 - subscription-scope `Contributor` role assignment for each environment identity
 - subscription-scope `User Access Administrator` role assignment for each environment identity
 - platform-network `Contributor` role assignment for each environment identity on `rg-acme-hub-network-cus-01`
-- alert-aware pause and resume command paths for the ACA web workload
+- alert-aware pause and resume command paths for the ACA web workload and
+  internal BFF when deployed
 - local deploy and teardown command paths for non-production workloads
 
 Current lifecycle model:
@@ -301,11 +302,12 @@ Current implementation note:
 Pause and resume note:
 
 - `set-web-environment-state.ps1` uses the official ACA ARM `start` and `stop`
-  actions for the container app
+  actions for the public web container app and the internal BFF container app
+  when it exists
 - when alert suppression is enabled, it also disables or re-enables the
   environment's scheduled-query alerts in `rg-acme-hub-monitor-cus-01`
 - this helps avoid alert noise during intentional non-production downtime
-- pause and resume reduce web compute spend, but they do not deallocate:
+- pause and resume reduce web and BFF compute spend, but they do not deallocate:
   - Azure Managed Redis
   - Key Vault
   - ACR
