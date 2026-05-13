@@ -16,7 +16,7 @@
     "deployedBaseUrl": "https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io"
   },
   "consent": {
-    "defaultAnalyticsStorage": "denied",
+    "defaultAnalyticsStorage": "granted",
     "defaultAdStorage": "denied",
     "defaultAdUserData": "denied",
     "defaultAdPersonalization": "denied"

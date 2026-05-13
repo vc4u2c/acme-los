@@ -138,6 +138,9 @@ Repo changes for dev:
 - `infra/analytics/environments/dev.json` sets `enabled=true`
 - `infra/analytics/environments/dev.json` stores `G-WHC2KRFRTK` and
   `GTM-T5B2T2N4`
+- `infra/analytics/environments/dev.json` sets analytics storage consent to
+  `granted` so engineers can verify GA4 Realtime in the dev-only property;
+  advertising storage, ad user data, and ad personalization remain `denied`
 - `npm run analytics:render -- dev` renders ignored runtime files under
   `tmp/analytics`
 
@@ -172,7 +175,7 @@ NEXT_PUBLIC_ACME_ANALYTICS_ENABLED=true
 NEXT_PUBLIC_ACME_ANALYTICS_ENVIRONMENT=dev
 NEXT_PUBLIC_ACME_GTM_CONTAINER_ID=GTM-...
 NEXT_PUBLIC_ACME_GA4_MEASUREMENT_ID=G-...
-NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_ANALYTICS_STORAGE=denied
+NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_ANALYTICS_STORAGE=granted
 NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_STORAGE=denied
 NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_USER_DATA=denied
 NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_PERSONALIZATION=denied
