@@ -1077,13 +1077,15 @@ $bffTrustedProxySecretValue = if ($resolvedBffDeploymentEnabled) {
 } else {
   ''
 }
-$oktaEnvironmentName = if ($environmentConfiguration.oktaEnvironmentName) {
-  [string]$environmentConfiguration.oktaEnvironmentName
+$oktaEnvironmentNameConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'oktaEnvironmentName'
+$oktaEnvironmentName = if ($oktaEnvironmentNameConfiguration) {
+  [string]$oktaEnvironmentNameConfiguration
 } else {
   $EnvironmentName
 }
-$analyticsEnvironmentName = if ($environmentConfiguration.analyticsEnvironmentName) {
-  [string]$environmentConfiguration.analyticsEnvironmentName
+$analyticsEnvironmentNameConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'analyticsEnvironmentName'
+$analyticsEnvironmentName = if ($analyticsEnvironmentNameConfiguration) {
+  [string]$analyticsEnvironmentNameConfiguration
 } else {
   $EnvironmentName
 }
