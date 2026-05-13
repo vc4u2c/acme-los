@@ -153,11 +153,13 @@ Current caveat:
 The Next app now has a runtime analytics layer:
 
 - `AnalyticsScripts` initializes `window.dataLayer`, pushes Google consent
-  defaults, and loads GTM when `NEXT_PUBLIC_ACME_GTM_CONTAINER_ID` is present
+  defaults, configures GA4 with `send_page_view=false`, and loads GTM when
+  `NEXT_PUBLIC_ACME_GTM_CONTAINER_ID` is present
 - if GTM is not configured but `NEXT_PUBLIC_ACME_GA4_MEASUREMENT_ID` is present,
   it falls back to direct Google tag mode with automatic page views disabled
-- `AnalyticsRouteTracker` emits one app-owned `page_view` event after hydration
-  and on client route changes
+- `AnalyticsRouteTracker` receives the server-resolved analytics config and
+  emits one app-owned `page_view` event after hydration and on client route
+  changes
 - page events intentionally use origin + pathname only; query strings, hashes,
   tokens, cookies, and form payloads are not sent
 - CSP opens Google script/connect endpoints only when analytics is enabled and
@@ -178,8 +180,8 @@ NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_PERSONALIZATION=denied
 
 Recommended runtime mode is GTM mode. Keep the GA4 Measurement ID in the
 manifest so GTM and future Measurement Protocol automation know the intended
-stream, but let GTM load the browser tag so feature code only pushes app-owned
-events.
+stream. The app initializes GA4 without automatic page views, then GTM forwards
+app-owned events such as `page_view`.
 
 ## Repo-Owned Render Step
 

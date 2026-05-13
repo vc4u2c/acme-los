@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuthSession } from '@acme-los/auth/web';
-import { getAnalyticsRuntimeConfig } from '../../../lib/analytics/config';
+import type { AnalyticsRuntimeConfig } from '../../../lib/analytics/config';
 import {
   type AnalyticsAuthState,
   buildPageViewEvent,
@@ -25,11 +25,14 @@ function toAnalyticsAuthState(
   return isAuthenticated ? 'authenticated' : 'anonymous';
 }
 
-export function AnalyticsRouteTracker(): React.ReactElement | null {
+export function AnalyticsRouteTracker({
+  config,
+}: {
+  config: AnalyticsRuntimeConfig;
+}): React.ReactElement | null {
   const pathname = usePathname();
   const { session } = useAuthSession();
   const lastTrackedPathRef = React.useRef<string | null>(null);
-  const config = React.useMemo(() => getAnalyticsRuntimeConfig(), []);
 
   React.useEffect(() => {
     if (!config.enabled || !pathname || session.status === 'loading') {
