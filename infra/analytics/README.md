@@ -72,10 +72,81 @@ Manual steps:
 
 Current repo stance:
 
-- analytics is disabled in all manifests until real IDs exist
+- analytics is enabled only for environments with real Google IDs
 - the web app loads GTM or direct GA4 only when analytics is enabled and a valid
   Google ID is configured
 - business telemetry and Azure operational telemetry remain separate systems
+
+## Dev GA4 And GTM Setup Log
+
+Dev analytics was wired on 2026-05-13 with separate dev GA4 and GTM resources.
+The Google IDs below are public browser configuration values and are safe to
+commit. Do not commit Measurement Protocol API secrets.
+
+Google Analytics:
+
+- Account: `ACME`
+- Property: `ACME LOS Dev`
+- Web stream URL:
+  `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io`
+- Measurement ID: `G-WHC2KRFRTK`
+
+Google Tag Manager:
+
+- Account: `ACME`
+- Web container: `ACME LOS Web Dev`
+- Container ID: `GTM-T5B2T2N4`
+
+Expected dev GTM workspace setup:
+
+1. Base Google tag
+   - Name: `GA4 - Google tag - Dev`
+   - Tag type: `Google tag`
+   - Tag ID: `G-WHC2KRFRTK`
+   - Configuration setting: `send_page_view=false` when the UI exposes it
+   - Trigger: `Initialization - All Pages`
+2. App page-view event trigger
+   - Name: `Custom Event - page_view`
+   - Trigger type: `Custom Event`
+   - Event name: `page_view`
+   - Fires on: `All Custom Events`
+3. App page-view GA4 event tag
+   - Name: `GA4 Event - page_view - Dev`
+   - Tag type: `Google Analytics: GA4 Event`
+   - Configuration tag or Measurement ID: `GA4 - Google tag - Dev` or
+     `G-WHC2KRFRTK`
+   - Event name: `page_view`
+   - Trigger: `Custom Event - page_view`
+
+Recommended event parameters for the `page_view` event tag are data layer
+variables matching the app-owned event contract:
+
+- `event_id`
+- `environment`
+- `page_location`
+- `page_title`
+- `page_path`
+- `route_group`
+- `rendering_mode`
+- `auth_state`
+- `assurance_level`
+- `journey_name`
+- `application_step`
+
+Repo changes for dev:
+
+- `infra/analytics/environments/dev.json` sets `enabled=true`
+- `infra/analytics/environments/dev.json` stores `G-WHC2KRFRTK` and
+  `GTM-T5B2T2N4`
+- `npm run analytics:render -- dev` renders ignored runtime files under
+  `tmp/analytics`
+
+Current caveat:
+
+- GTM Preview was intentionally skipped during initial setup because dev Azure
+  was paused and runtime settings were not yet deployed. Verify with Tag
+  Assistant after dev is resumed/deployed, or with local env vars that load the
+  dev GTM container.
 
 ## Runtime Integration
 

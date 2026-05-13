@@ -53,6 +53,9 @@
     },
     "@opentelemetry/exporter-prometheus": "0.217.0",
     "@opentelemetry/sdk-node": "0.217.0",
+    "@opentelemetry/otlp-transformer": {
+      "protobufjs": "8.2.0"
+    },
     "@tootallnate/once": "^3.0.1",
     "axios": "^1.16.0",
     "flatted": "^3.4.2",

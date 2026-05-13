@@ -1,13 +1,13 @@
 {
   "environment": "dev",
-  "enabled": false,
+  "enabled": true,
   "google": {
     "accountName": "ACME",
     "analyticsPropertyName": "ACME LOS Dev",
     "tagManagerAccountName": "ACME",
     "tagManagerContainerName": "ACME LOS Web Dev",
-    "ga4MeasurementId": "",
-    "gtmContainerId": "",
+    "ga4MeasurementId": "G-WHC2KRFRTK",
+    "gtmContainerId": "GTM-T5B2T2N4",
     "gtmEnvironmentName": "dev",
     "measurementProtocolSecretName": "sec-acme-los-ga4-measurement-secret"
   },
