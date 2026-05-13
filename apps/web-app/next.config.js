@@ -25,6 +25,16 @@ function buildContentSecurityPolicy() {
   const oktaOrigin = oktaIssuer ? new URL(oktaIssuer).origin : null;
   const connectSrc = new Set(["'self'"]);
   const formAction = new Set(["'self'"]);
+  const scriptSrc = new Set(["'self'", "'unsafe-inline'"]);
+  const analyticsEnabled =
+    process.env.NEXT_PUBLIC_ACME_ANALYTICS_ENABLED?.trim().toLowerCase() ===
+    'true';
+  const hasGoogleAnalyticsId = /^G-[A-Z0-9]+$/i.test(
+    process.env.NEXT_PUBLIC_ACME_GA4_MEASUREMENT_ID?.trim() ?? '',
+  );
+  const hasGoogleTagManagerId = /^GTM-[A-Z0-9]+$/i.test(
+    process.env.NEXT_PUBLIC_ACME_GTM_CONTAINER_ID?.trim() ?? '',
+  );
 
   if (oktaOrigin) {
     connectSrc.add(oktaOrigin);
@@ -34,6 +44,15 @@ function buildContentSecurityPolicy() {
   if (isDevelopment) {
     connectSrc.add('ws:');
     connectSrc.add('wss:');
+    scriptSrc.add("'unsafe-eval'");
+  }
+
+  if (analyticsEnabled && (hasGoogleAnalyticsId || hasGoogleTagManagerId)) {
+    scriptSrc.add('https://www.googletagmanager.com');
+    connectSrc.add('https://www.googletagmanager.com');
+    connectSrc.add('https://www.google-analytics.com');
+    connectSrc.add('https://analytics.google.com');
+    connectSrc.add('https://region1.google-analytics.com');
   }
 
   const directives = [
@@ -47,7 +66,7 @@ function buildContentSecurityPolicy() {
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "style-src 'self' 'unsafe-inline'",
-    `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ''}`,
+    `script-src ${Array.from(scriptSrc).join(' ')}`,
   ];
 
   if (

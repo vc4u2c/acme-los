@@ -23,6 +23,8 @@ Current workspace recommendations in
   - Playwright test integration for the web E2E suite
 - `firsttris.vscode-jest-runner`
   - Jest test runner support
+- `humao.rest-client`
+  - `.http` file execution for local BFF, Next facade, CSRF, and trusted-header checks
 - `bierner.markdown-mermaid`
   - Mermaid rendering in Markdown preview
 
@@ -75,6 +77,10 @@ committed as workspace recommendations yet.
 
 - `github.vscode-github-actions`
   - Handy for GitHub Actions workflow inspection
+- `humao.rest-client`
+  - Recommended workspace extension for the committed `.http` checks
+  - Supports request variables and response-derived variables, which makes the
+    BFF CSRF flow easy to test without copying tokens into source files
 - `rangav.vscode-thunder-client`
   - Useful for manual API checks against local and dev endpoints
 
@@ -121,3 +127,4 @@ instead of the diagram.
 
 - [Tech stack and tooling](./tech-stack.md)
 - [Workspace commands](../getting-started/workspace-commands.md)
+- [HTTP API testing](./http-api-testing.md)

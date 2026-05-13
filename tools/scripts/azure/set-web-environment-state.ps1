@@ -125,6 +125,15 @@ function Get-ContainerAppName {
   return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
 }
 
+function Get-BffContainerAppName {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-bff-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+}
+
 function Get-PlatformMonitorResourceGroupName {
   param($Configuration)
 
@@ -321,7 +330,9 @@ $resolvedSubscriptionId = if ($SubscriptionId) { $SubscriptionId } else { Resolv
 $resolvedPlatformSubscriptionId = if ($PlatformSubscriptionId) { $PlatformSubscriptionId } else { Resolve-PlatformSubscriptionId -Configuration $configuration }
 $resourceGroupName = Get-WorkloadResourceGroupName -Configuration $configuration -EnvironmentName $EnvironmentName
 $containerAppName = Get-ContainerAppName -Configuration $configuration -EnvironmentName $EnvironmentName
+$bffContainerAppName = Get-BffContainerAppName -Configuration $configuration -EnvironmentName $EnvironmentName
 $containerAppResourceId = Get-ContainerAppResourceId -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -ContainerAppName $containerAppName
+$bffContainerAppResourceId = Get-ContainerAppResourceId -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -ContainerAppName $bffContainerAppName
 $platformMonitorResourceGroupName = Get-PlatformMonitorResourceGroupName -Configuration $configuration
 $alertRuleNames = Get-AlertRuleNames -Configuration $configuration -EnvironmentName $EnvironmentName
 $manageAlerts = -not $SkipAlertSuppression.IsPresent
@@ -331,6 +342,7 @@ if ($EnvironmentName -eq 'prod' -and $Action -eq 'pause' -and -not $AllowProduct
 }
 
 $containerAppState = Get-ContainerAppState -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -ContainerAppName $containerAppName
+$bffContainerAppState = Get-ContainerAppState -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -ContainerAppName $bffContainerAppName
 
 if (-not $containerAppState) {
   throw "Container app '$containerAppName' was not found in '$resourceGroupName'. Deploy the environment before using the workload state script."
@@ -355,6 +367,22 @@ $desiredRunningState = switch ($Action) {
 }
 
 $operations = New-Object System.Collections.Generic.List[string]
+$workloadContainerApps = @(
+  [pscustomobject]@{
+    role = 'web'
+    name = $containerAppName
+    resourceId = $containerAppResourceId
+    exists = $true
+    state = $containerAppState
+  }
+  [pscustomobject]@{
+    role = 'bff'
+    name = $bffContainerAppName
+    resourceId = $bffContainerAppResourceId
+    exists = ($null -ne $bffContainerAppState)
+    state = $bffContainerAppState
+  }
+)
 
 if ($Action -eq 'pause') {
   if ($manageAlerts) {
@@ -367,23 +395,35 @@ if ($Action -eq 'pause') {
     }
   }
 
-  if ($containerAppState.properties.runningStatus -ne 'Stopped') {
-    Invoke-ContainerAppLifecycleAction -ResourceId $containerAppResourceId -LifecycleAction 'stop'
-    [void]$operations.Add("stopped-container-app:$containerAppName")
+  foreach ($workloadContainerApp in $workloadContainerApps) {
+    if (-not $workloadContainerApp.exists) {
+      continue
+    }
 
-    if ($WaitForDesiredState) {
-      $containerAppState = Wait-ForContainerAppRunningState -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -ContainerAppName $containerAppName -DesiredState 'Stopped'
+    if ($workloadContainerApp.state.properties.runningStatus -ne 'Stopped') {
+      Invoke-ContainerAppLifecycleAction -ResourceId $workloadContainerApp.resourceId -LifecycleAction 'stop'
+      [void]$operations.Add("stopped-container-app:$($workloadContainerApp.role):$($workloadContainerApp.name)")
+
+      if ($WaitForDesiredState) {
+        $workloadContainerApp.state = Wait-ForContainerAppRunningState -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -ContainerAppName $workloadContainerApp.name -DesiredState 'Stopped'
+      }
     }
   }
 }
 
 if ($Action -eq 'resume') {
-  if ($containerAppState.properties.runningStatus -ne 'Running') {
-    Invoke-ContainerAppLifecycleAction -ResourceId $containerAppResourceId -LifecycleAction 'start'
-    [void]$operations.Add("started-container-app:$containerAppName")
+  foreach ($workloadContainerApp in $workloadContainerApps) {
+    if (-not $workloadContainerApp.exists) {
+      continue
+    }
 
-    if ($WaitForDesiredState) {
-      $containerAppState = Wait-ForContainerAppRunningState -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -ContainerAppName $containerAppName -DesiredState 'Running'
+    if ($workloadContainerApp.state.properties.runningStatus -ne 'Running') {
+      Invoke-ContainerAppLifecycleAction -ResourceId $workloadContainerApp.resourceId -LifecycleAction 'start'
+      [void]$operations.Add("started-container-app:$($workloadContainerApp.role):$($workloadContainerApp.name)")
+
+      if ($WaitForDesiredState) {
+        $workloadContainerApp.state = Wait-ForContainerAppRunningState -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -ContainerAppName $workloadContainerApp.name -DesiredState 'Running'
+      }
     }
   }
 
@@ -398,13 +438,32 @@ if ($Action -eq 'resume') {
   }
 }
 
-$latestState = if ($Action -eq 'show-plan') {
-  $containerAppState
-} elseif ($WaitForDesiredState) {
-  $containerAppState
-} else {
-  Get-ContainerAppState -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -ContainerAppName $containerAppName
+$latestContainerApps = foreach ($workloadContainerApp in $workloadContainerApps) {
+  $latestState = if (-not $workloadContainerApp.exists) {
+    $null
+  } elseif ($Action -eq 'show-plan') {
+    $workloadContainerApp.state
+  } elseif ($WaitForDesiredState) {
+    $workloadContainerApp.state
+  } else {
+    Get-ContainerAppState -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -ContainerAppName $workloadContainerApp.name
+  }
+
+  [pscustomobject]@{
+    role = $workloadContainerApp.role
+    name = $workloadContainerApp.name
+    resourceId = $workloadContainerApp.resourceId
+    exists = $workloadContainerApp.exists
+    currentRunningStatus = if ($latestState) { [string]$latestState.properties.runningStatus } else { '' }
+    desiredRunningStatus = if ($workloadContainerApp.exists) { $desiredRunningState } else { '' }
+    ingressFqdn = if ($latestState) { [string]$latestState.properties.configuration.ingress.fqdn } else { '' }
+    latestRevisionName = if ($latestState) { [string]$latestState.properties.latestRevisionName } else { '' }
+    latestReadyRevisionName = if ($latestState) { [string]$latestState.properties.latestReadyRevisionName } else { '' }
+  }
 }
+
+$latestWebContainerApp = @($latestContainerApps | Where-Object { $_.role -eq 'web' } | Select-Object -First 1)[0]
+$latestBffContainerApp = @($latestContainerApps | Where-Object { $_.role -eq 'bff' } | Select-Object -First 1)[0]
 
 [ordered]@{
   action = $Action
@@ -414,14 +473,19 @@ $latestState = if ($Action -eq 'show-plan') {
   resourceGroupName = $resourceGroupName
   containerAppName = $containerAppName
   containerAppResourceId = $containerAppResourceId
-  currentRunningStatus = [string]$latestState.properties.runningStatus
+  currentRunningStatus = [string]$latestWebContainerApp.currentRunningStatus
   desiredRunningStatus = $desiredRunningState
-  ingressFqdn = [string]$latestState.properties.configuration.ingress.fqdn
-  latestRevisionName = [string]$latestState.properties.latestRevisionName
-  latestReadyRevisionName = [string]$latestState.properties.latestReadyRevisionName
+  ingressFqdn = [string]$latestWebContainerApp.ingressFqdn
+  latestRevisionName = [string]$latestWebContainerApp.latestRevisionName
+  latestReadyRevisionName = [string]$latestWebContainerApp.latestReadyRevisionName
+  bffContainerAppName = $bffContainerAppName
+  bffContainerAppResourceId = $bffContainerAppResourceId
+  bffExists = [bool]$latestBffContainerApp.exists
+  bffCurrentRunningStatus = [string]$latestBffContainerApp.currentRunningStatus
   manageAlerts = $manageAlerts
   platformMonitorResourceGroupName = $platformMonitorResourceGroupName
+  containerApps = [object[]]$latestContainerApps
   alertRules = $alertRuleStates
   operations = [object[]]$operations.ToArray()
-  costNote = 'Pause and resume only affect the ACA web workload and its environment-specific alerts. Key Vault, Redis, ACR, the ACA environment, and monitoring resources remain allocated. Use teardown for the deepest non-production cost reduction.'
+  costNote = 'Pause and resume affect the public web ACA app, the internal BFF ACA app when present, and the environment-specific alerts. Key Vault, Redis, ACR, the ACA environment, and monitoring resources remain allocated. Use teardown for the deepest non-production cost reduction.'
 } | ConvertTo-Json -Depth 6

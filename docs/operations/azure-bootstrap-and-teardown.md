@@ -192,14 +192,16 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/az
 
 Pause and resume behavior:
 
-- uses the official ACA ARM `stop` and `start` actions for the container app
+- uses the official ACA ARM `stop` and `start` actions for the public web
+  container app and the internal BFF container app when it exists
 - optionally disables scheduled-query alerts before pause and re-enables them after resume
 - waits for `Stopped` or `Running` by default so the command behaves predictably in automation
 - blocks `prod` pause unless `-AllowProductionPause` is passed explicitly
 
 Important cost note:
 
-- pause and resume only affect the ACA web workload and its environment-specific alerts
+- pause and resume affect the ACA web app, the internal BFF app when present,
+  and the environment-specific alerts
 - they do not deallocate:
   - Azure Managed Redis
   - Key Vault

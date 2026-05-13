@@ -127,6 +127,10 @@ running BFF over HTTP after we add a fuller local stack or CI environment.
 Keep one `.http` file in the API project. It is still one of the fastest ways
 to smoke-test health, OpenAPI, auth/session behavior, and feature slices
 without booting the whole web experience.
+The committed file is
+[src/Acme.Los.Bff.Api/Acme.Los.Bff.Api.http](./src/Acme.Los.Bff.Api/Acme.Los.Bff.Api.http);
+the manual testing guidance lives in
+[HTTP API testing](../../docs/reference/http-api-testing.md).
 
 ## First-Pass Package Direction
 
@@ -292,6 +296,7 @@ From the repo root:
 dotnet restore apps/bff-api/Acme.Los.Bff.sln
 dotnet build apps/bff-api/Acme.Los.Bff.sln
 dotnet test apps/bff-api/Acme.Los.Bff.sln
+npm run dotnet:audit
 npx.cmd nx show projects
 ```
 

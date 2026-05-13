@@ -16,6 +16,14 @@ Keep browser journeys in Playwright. Use Reqnroll here for API/business
 acceptance scenarios where Gherkin helps describe the behavior:
 
 - route smoke tests for `/health/*`, `/bff/health`, and `/openapi/v1.json`
-- contract checks for `customer` and `application` slices
+- CSRF token and cookie contract checks, including forwarded HTTPS secure-cookie
+  behavior
+- auth-session sync, read, touch, logout-hint, and clear contracts
+- contract checks for `customer` and `application` slices, including CSRF-backed
+  writes
 - Redis-backed and auth-bridge coverage when the local stack includes the Next
   facade and shared session/CSRF configuration
+
+Browser-visible flows stay in `apps/web-app-e2e`; the `/security` page smoke
+test verifies that an authenticated mock user can load the inspector UI and see
+the browser/server state panels.

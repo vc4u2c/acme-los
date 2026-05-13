@@ -9,7 +9,10 @@ Related docs:
 - [Azure monitoring and workbooks](./azure-monitoring-and-workbooks.md)
 - [Azure bootstrap and teardown](./azure-bootstrap-and-teardown.md)
 - [Current platform architecture](../architecture/current-platform.md)
+- [Enterprise readiness](../architecture/enterprise-readiness.md)
 - [Auth and API contracts](../architecture/auth-and-api-contracts.md)
+- [HTTP API testing](../reference/http-api-testing.md)
+- [Analytics admin plane](../../infra/analytics/README.md)
 
 ## Demo Story
 
@@ -64,6 +67,8 @@ opening the portal or clicking through the website.
 - project-tag validation keeps Nx ownership boundaries explicit
 - Prettier, ESLint, Jest, Playwright, `.NET` xUnit, Reqnroll/Gherkin, and
   `dotnet format` are part of the verification story
+- committed `.http` checks plus the VS Code REST Client extension cover local
+  BFF, Next facade, CSRF, and trusted-header smoke checks
 
 ### Web UI And Product Experience
 
@@ -139,6 +144,19 @@ opening the portal or clicking through the website.
 - logging demo shows W3C `traceparent`, app correlation IDs, client-origin event
   ingestion, server-origin logs, and controlled error paths
 
+### Digital Analytics
+
+- GA4/GTM environment intent is source-owned under `infra/analytics`
+- manifests cover `dev`, `qa`, `stg`, and `prod`
+- the Next runtime loads GTM or direct GA4 only when enabled and valid Google
+  IDs are configured
+- `events.json` defines the app-owned data layer taxonomy and first key-event
+  candidates
+- `npm run analytics:render -- <env>` generates local/runtime config under
+  `tmp/analytics`
+- manual Google account, GA4 property, web stream, GTM container, consent, and
+  key-event setup is documented before runtime tags are enabled
+
 ### Current Honest Assessment
 
 - `dev` is real and deploys from `main` through CI/CD
@@ -152,6 +170,9 @@ opening the portal or clicking through the website.
 - `qa` promotion proof, real alert receivers, durable persistence, Front Door,
   WAF, custom domains, and private-origin production edge hardening remain next
   phases
+- the grouped security, scalability, fault-tolerance, and enterprise-readiness
+  assessment lives in
+  [Enterprise readiness](../architecture/enterprise-readiness.md)
 
 ## Refresh Before The Demo
 

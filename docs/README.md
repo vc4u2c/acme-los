@@ -22,13 +22,15 @@ For a grouped feature/design inventory, start with:
 - [Root README demo feature inventory](../README.md#demo-feature-inventory)
 - [Azure and website demo runbook](./operations/azure-and-website-demo-runbook.md)
 - [Tech stack and tooling](./reference/tech-stack.md)
+- [Enterprise readiness](./architecture/enterprise-readiness.md)
 
 The short version: ACME LOS demonstrates an Nx monorepo, Next.js web app, Expo
 mobile app, `.NET` BFF, Okta auth, server-side sessions, CSRF, Redis-backed
 state, Azure Container Apps, Key Vault/private endpoints, Application
 Insights/Log Analytics, GitHub Actions CI/CD, Nx Release versioning, Husky
 commit guardrails, shadcn/Radix/Tailwind UI primitives, and TanStack Query,
-Form, and Table workflows.
+Form, and Table workflows. It now also has a repo-owned GA4/GTM analytics admin
+plane, web runtime analytics wiring, and documented HTTP API testing path.
 
 ## Suggested Read Order
 
@@ -58,6 +60,7 @@ path:
 - [Next web server/client boundaries](./architecture/web-server-client-boundaries.md)
 - [Auth and API contracts](./architecture/auth-and-api-contracts.md)
 - [Domain boundaries](./architecture/domain-boundaries.md)
+- [Enterprise readiness](./architecture/enterprise-readiness.md)
 
 ## Operations
 
@@ -84,11 +87,13 @@ for the full deploy, smoke-check, pause, resume, and teardown command path.
 
 - [Tech stack and tooling](./reference/tech-stack.md)
 - [VS Code setup](./reference/vscode-setup.md)
+- [HTTP API testing](./reference/http-api-testing.md)
 - [Azure naming standard](./reference/azure-resource-naming-standard.md)
 
 ## Infra And Admin Plane
 
 - [Okta admin plane](../infra/okta/README.md)
+- [Analytics admin plane](../infra/analytics/README.md)
 
 ## Package-Level Readmes
 

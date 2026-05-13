@@ -1,0 +1,24 @@
+{
+  "environment": "stg",
+  "enabled": false,
+  "google": {
+    "accountName": "ACME",
+    "analyticsPropertyName": "ACME LOS Staging",
+    "tagManagerAccountName": "ACME",
+    "tagManagerContainerName": "ACME LOS Web Staging",
+    "ga4MeasurementId": "",
+    "gtmContainerId": "",
+    "gtmEnvironmentName": "stg",
+    "measurementProtocolSecretName": "sec-acme-los-ga4-measurement-secret"
+  },
+  "web": {
+    "baseUrl": "https://stg.example.invalid",
+    "deployedBaseUrl": "https://stg.example.invalid"
+  },
+  "consent": {
+    "defaultAnalyticsStorage": "denied",
+    "defaultAdStorage": "denied",
+    "defaultAdUserData": "denied",
+    "defaultAdPersonalization": "denied"
+  }
+}

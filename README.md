@@ -32,6 +32,9 @@ Current strengths:
   auth/session stores
 - composite health that reports both web and BFF layer status, versions, and
   build identifiers
+- repo-owned GA4/GTM analytics admin plane and web runtime with environment
+  manifests, data layer taxonomy, consent defaults, and a render script for
+  local/runtime config
 - Azure Container Apps `dev` runtime with Redis, Key Vault, managed identity,
   private endpoints for state/secrets, monitoring, pause/resume controls, and
   normal CI/CD deployment from `main`
@@ -60,6 +63,8 @@ The presenter-focused version lives in
   Prettier
 - Jest, Playwright, `.NET` xUnit, Reqnroll/Gherkin BFF acceptance tests, and
   `dotnet format`
+- VS Code REST Client `.http` checks for local BFF, Next facade, CSRF, and
+  trusted-header API testing
 
 ### Product Surfaces
 
@@ -116,6 +121,9 @@ The presenter-focused version lives in
   runtime secrets, private DNS, private endpoints, NSGs, and managed identity
 - Application Insights, Log Analytics, alert rules, workbook, structured JSON
   logs, W3C `traceparent`, and app-level correlation IDs
+- GA4/GTM admin-plane manifests, runtime tag loader, app-owned data layer page
+  events, key-event candidates, environment render script, and manual Google
+  setup checklist
 - GitHub Actions CI/CD with release, deploy, teardown, and environment-wrapper
   workflows
 - BFF replicas follow the environment runtime scale settings unless explicitly
@@ -291,6 +299,7 @@ Most useful follow-on docs:
 - [Local development](./docs/getting-started/local-development.md)
 - [Workspace commands](./docs/getting-started/workspace-commands.md)
 - [Tech stack and tooling](./docs/reference/tech-stack.md)
+- [HTTP API testing](./docs/reference/http-api-testing.md)
 - [Azure platform plan](./docs/operations/azure-platform-plan.md)
 - [Azure and website demo runbook](./docs/operations/azure-and-website-demo-runbook.md)
 - [Azure governance and lifecycle](./docs/operations/azure-governance-and-lifecycle.md)
@@ -302,12 +311,14 @@ Most useful follow-on docs:
 - [Azure naming standard](./docs/reference/azure-resource-naming-standard.md)
 - [VS Code setup](./docs/reference/vscode-setup.md)
 - [Current platform architecture](./docs/architecture/current-platform.md)
+- [Enterprise readiness](./docs/architecture/enterprise-readiness.md)
 - [Server-side auth flows](./docs/architecture/auth-server-flows.md)
 - [Next web server/client boundaries](./docs/architecture/web-server-client-boundaries.md)
 - [Auth and API contracts](./docs/architecture/auth-and-api-contracts.md)
 - [Domain boundaries](./docs/architecture/domain-boundaries.md)
 - [Release and delivery](./docs/operations/release-and-delivery.md)
 - [Okta admin plane](./infra/okta/README.md)
+- [Analytics admin plane](./infra/analytics/README.md)
 - [Web UI library](./libs/ui/web/README.md)
 - [Mobile UI library](./libs/ui/mobile/README.md)
 
@@ -397,6 +408,7 @@ acme-los/
     getting-started/
     operations/
   infra/
+    analytics/
     azure/
     okta/
   libs/
