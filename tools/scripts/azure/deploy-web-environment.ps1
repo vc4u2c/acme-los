@@ -683,6 +683,48 @@ function Get-OktaEnvironmentConfiguration {
   return Get-JsonFile -Path $environmentPath
 }
 
+function Get-AnalyticsEnvironmentConfiguration {
+  param(
+    [string]$RepositoryRoot,
+    [string]$AnalyticsEnvironmentName
+  )
+
+  $environmentPath = Join-Path $RepositoryRoot "infra\analytics\environments\$AnalyticsEnvironmentName.json"
+  if (-not (Test-Path -LiteralPath $environmentPath)) {
+    throw "Analytics environment file '$environmentPath' was not found."
+  }
+
+  return Get-JsonFile -Path $environmentPath
+}
+
+function Get-StringOrDefault {
+  param(
+    $Value,
+    [string]$DefaultValue = ''
+  )
+
+  $optional = Get-OptionalString $Value
+  if ($optional) {
+    return $optional
+  }
+
+  return $DefaultValue
+}
+
+function ConvertTo-Boolean {
+  param($Value)
+
+  if ($Value -is [bool]) {
+    return [bool]$Value
+  }
+
+  if ($Value -is [string]) {
+    return @('1', 'true', 'yes', 'on') -contains $Value.Trim().ToLowerInvariant()
+  }
+
+  return $false
+}
+
 function Resolve-DeployedWebBaseUrl {
   param($WebConfiguration)
 
@@ -1040,8 +1082,14 @@ $oktaEnvironmentName = if ($environmentConfiguration.oktaEnvironmentName) {
 } else {
   $EnvironmentName
 }
+$analyticsEnvironmentName = if ($environmentConfiguration.analyticsEnvironmentName) {
+  [string]$environmentConfiguration.analyticsEnvironmentName
+} else {
+  $EnvironmentName
+}
 $webSessionSecretValue = New-SecureRandomBase64Url
 $oktaEnvironment = Get-OktaEnvironmentConfiguration -RepositoryRoot $repositoryRoot -OktaEnvironmentName $oktaEnvironmentName
+$analyticsEnvironment = Get-AnalyticsEnvironmentConfiguration -RepositoryRoot $repositoryRoot -AnalyticsEnvironmentName $analyticsEnvironmentName
 $configuredDeployedWebBaseUrl = Resolve-DeployedWebBaseUrl -WebConfiguration $oktaEnvironment.web
 
 if (
@@ -1063,6 +1111,16 @@ if (-not $oktaIssuer -or -not $oktaClientId -or -not $oktaRedirectPath -or -not 
 
 $resolvedOktaRedirectUri = Join-AbsoluteUrl -BaseUrl $resolvedContainerAppBaseUrl -Path $oktaRedirectPath
 $resolvedOktaPostLogoutRedirectUri = Join-AbsoluteUrl -BaseUrl $resolvedContainerAppBaseUrl -Path $oktaPostLogoutRedirectPath
+$analyticsEnabled = ConvertTo-Boolean $analyticsEnvironment.enabled
+$analyticsEnabledEnvValue = if ($analyticsEnabled) { 'true' } else { 'false' }
+$analyticsRuntimeEnvironmentName = Get-StringOrDefault -Value $analyticsEnvironment.environment -DefaultValue $EnvironmentName
+$gtmContainerId = Get-StringOrDefault -Value $analyticsEnvironment.google.gtmContainerId
+$ga4MeasurementId = Get-StringOrDefault -Value $analyticsEnvironment.google.ga4MeasurementId
+$analyticsConsentDefaultAnalyticsStorage = Get-StringOrDefault -Value $analyticsEnvironment.consent.defaultAnalyticsStorage -DefaultValue 'denied'
+$analyticsConsentDefaultAdStorage = Get-StringOrDefault -Value $analyticsEnvironment.consent.defaultAdStorage -DefaultValue 'denied'
+$analyticsConsentDefaultAdUserData = Get-StringOrDefault -Value $analyticsEnvironment.consent.defaultAdUserData -DefaultValue 'denied'
+$analyticsConsentDefaultAdPersonalization = Get-StringOrDefault -Value $analyticsEnvironment.consent.defaultAdPersonalization -DefaultValue 'denied'
+$ga4MeasurementProtocolSecretName = Get-StringOrDefault -Value $analyticsEnvironment.google.measurementProtocolSecretName -DefaultValue 'sec-acme-los-ga4-measurement-secret'
 
 if (-not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionId -RegistryName $resolvedContainerRegistryName -RepositoryName $WebImageRepository -Tag $resolvedImageTag)) {
   $containerBuildContextPath = New-ContainerBuildContext -RepositoryRoot $repositoryRoot
@@ -1082,6 +1140,14 @@ if (-not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionI
       --build-arg "NEXT_PUBLIC_OKTA_REDIRECT_URI=$resolvedOktaRedirectUri" `
       --build-arg "NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI=$resolvedOktaPostLogoutRedirectUri" `
       --build-arg "NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES=$oktaFundingAcrValues" `
+      --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_ENABLED=$analyticsEnabledEnvValue" `
+      --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_ENVIRONMENT=$analyticsRuntimeEnvironmentName" `
+      --build-arg "NEXT_PUBLIC_ACME_GTM_CONTAINER_ID=$gtmContainerId" `
+      --build-arg "NEXT_PUBLIC_ACME_GA4_MEASUREMENT_ID=$ga4MeasurementId" `
+      --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_ANALYTICS_STORAGE=$analyticsConsentDefaultAnalyticsStorage" `
+      --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_STORAGE=$analyticsConsentDefaultAdStorage" `
+      --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_USER_DATA=$analyticsConsentDefaultAdUserData" `
+      --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_PERSONALIZATION=$analyticsConsentDefaultAdPersonalization" `
       --no-logs `
       --only-show-errors `
       $containerBuildContextPath `
@@ -1164,6 +1230,15 @@ $runtimeDeploymentArguments = @(
   '--parameters', "oktaRedirectUri=$resolvedOktaRedirectUri",
   '--parameters', "oktaPostLogoutRedirectUri=$resolvedOktaPostLogoutRedirectUri",
   '--parameters', "oktaFundingAcrValues=$oktaFundingAcrValues",
+  '--parameters', "analyticsEnabled=$analyticsEnabledEnvValue",
+  '--parameters', "analyticsEnvironmentName=$analyticsRuntimeEnvironmentName",
+  '--parameters', "gtmContainerId=$gtmContainerId",
+  '--parameters', "ga4MeasurementId=$ga4MeasurementId",
+  '--parameters', "analyticsConsentDefaultAnalyticsStorage=$analyticsConsentDefaultAnalyticsStorage",
+  '--parameters', "analyticsConsentDefaultAdStorage=$analyticsConsentDefaultAdStorage",
+  '--parameters', "analyticsConsentDefaultAdUserData=$analyticsConsentDefaultAdUserData",
+  '--parameters', "analyticsConsentDefaultAdPersonalization=$analyticsConsentDefaultAdPersonalization",
+  '--parameters', "ga4MeasurementProtocolSecretName=$ga4MeasurementProtocolSecretName",
   '--parameters', "sessionSecretValue=$webSessionSecretValue",
   '--parameters', "applicationInsightsConnectionString=$platformApplicationInsightsConnectionString",
   '--parameters', "logAnalyticsWorkspaceId=$platformLogAnalyticsWorkspaceId",
