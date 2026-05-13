@@ -32,6 +32,15 @@ param oktaClientId string
 param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
 param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
+param analyticsEnabled bool = false
+param analyticsEnvironmentName string = environmentName
+param gtmContainerId string = ''
+param ga4MeasurementId string = ''
+param analyticsConsentDefaultAnalyticsStorage string = 'denied'
+param analyticsConsentDefaultAdStorage string = 'denied'
+param analyticsConsentDefaultAdUserData string = 'denied'
+param analyticsConsentDefaultAdPersonalization string = 'denied'
+param ga4MeasurementProtocolSecretName string = 'sec-acme-los-ga4-measurement-secret'
 param containerRegistryLoginServer string
 param containerImage string
 param bffContainerImage string = ''
@@ -124,6 +133,15 @@ module containerApp './modules/web/container-app.bicep' = {
     oktaRedirectUri: oktaRedirectUri
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
     oktaFundingAcrValues: oktaFundingAcrValues
+    analyticsEnabled: analyticsEnabled
+    analyticsEnvironmentName: analyticsEnvironmentName
+    gtmContainerId: gtmContainerId
+    ga4MeasurementId: ga4MeasurementId
+    analyticsConsentDefaultAnalyticsStorage: analyticsConsentDefaultAnalyticsStorage
+    analyticsConsentDefaultAdStorage: analyticsConsentDefaultAdStorage
+    analyticsConsentDefaultAdUserData: analyticsConsentDefaultAdUserData
+    analyticsConsentDefaultAdPersonalization: analyticsConsentDefaultAdPersonalization
+    ga4MeasurementProtocolSecretName: ga4MeasurementProtocolSecretName
     stateStoreMode: stateStoreMode
     redisKeyPrefix: redisKeyPrefix
     redisHostName: redisHostName

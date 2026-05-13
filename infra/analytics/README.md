@@ -66,9 +66,9 @@ Manual steps:
 13. Optional: create a Measurement Protocol API secret for server-side auth,
     callback, and route-handler events. Store that secret in Key Vault or
     environment secrets, not in this folder.
-14. Run `npm run analytics:render -- <env>` and copy the generated web env
-    values into the matching local or Azure runtime configuration only after
-    the real `G-...` and `GTM-...` values are present.
+14. Run `npm run analytics:render -- <env>` for local inspection or `.env.local`
+    setup only after the real `G-...` and `GTM-...` values are present. Azure
+    deployment reads the environment manifests directly.
 
 Current repo stance:
 
@@ -198,8 +198,10 @@ The renderer does not call Google APIs. It gives the same kind of controlled
 local output that `okta:render` gives for auth config.
 
 After real Google IDs are in the environment manifest, append or copy the
-generated `tmp/analytics/<env>.web.env` values into local `.env.local` or the
-matching Azure runtime configuration.
+generated `tmp/analytics/<env>.web.env` values into local `.env.local` when
+testing locally. Azure deploys read `infra/analytics/environments/<env>.json`
+directly and pass analytics values into the web image build and Container App
+runtime environment.
 
 ## Local Admin Token File
 

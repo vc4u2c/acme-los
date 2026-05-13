@@ -15,6 +15,15 @@ param oktaClientId string
 param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
 param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
+param analyticsEnabled bool = false
+param analyticsEnvironmentName string = appEnvironmentName
+param gtmContainerId string = ''
+param ga4MeasurementId string = ''
+param analyticsConsentDefaultAnalyticsStorage string = 'denied'
+param analyticsConsentDefaultAdStorage string = 'denied'
+param analyticsConsentDefaultAdUserData string = 'denied'
+param analyticsConsentDefaultAdPersonalization string = 'denied'
+param ga4MeasurementProtocolSecretName string = 'sec-acme-los-ga4-measurement-secret'
 @allowed([
   'file'
   'redis'
@@ -167,6 +176,62 @@ var environmentVariables = concat(
     {
       name: 'NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES'
       value: oktaFundingAcrValues
+    }
+    {
+      name: 'NEXT_PUBLIC_ACME_ANALYTICS_ENABLED'
+      value: analyticsEnabled ? 'true' : 'false'
+    }
+    {
+      name: 'NEXT_PUBLIC_ACME_ANALYTICS_ENVIRONMENT'
+      value: analyticsEnvironmentName
+    }
+    {
+      name: 'NEXT_PUBLIC_ACME_GTM_CONTAINER_ID'
+      value: gtmContainerId
+    }
+    {
+      name: 'NEXT_PUBLIC_ACME_GA4_MEASUREMENT_ID'
+      value: ga4MeasurementId
+    }
+    {
+      name: 'NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_ANALYTICS_STORAGE'
+      value: analyticsConsentDefaultAnalyticsStorage
+    }
+    {
+      name: 'NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_STORAGE'
+      value: analyticsConsentDefaultAdStorage
+    }
+    {
+      name: 'NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_USER_DATA'
+      value: analyticsConsentDefaultAdUserData
+    }
+    {
+      name: 'NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_PERSONALIZATION'
+      value: analyticsConsentDefaultAdPersonalization
+    }
+    {
+      name: 'ACME_GA4_MEASUREMENT_ID'
+      value: ga4MeasurementId
+    }
+    {
+      name: 'ACME_GA4_MEASUREMENT_PROTOCOL_SECRET_NAME'
+      value: ga4MeasurementProtocolSecretName
+    }
+    {
+      name: 'ACME_ANALYTICS_CONSENT_DEFAULT_ANALYTICS_STORAGE'
+      value: analyticsConsentDefaultAnalyticsStorage
+    }
+    {
+      name: 'ACME_ANALYTICS_CONSENT_DEFAULT_AD_STORAGE'
+      value: analyticsConsentDefaultAdStorage
+    }
+    {
+      name: 'ACME_ANALYTICS_CONSENT_DEFAULT_AD_USER_DATA'
+      value: analyticsConsentDefaultAdUserData
+    }
+    {
+      name: 'ACME_ANALYTICS_CONSENT_DEFAULT_AD_PERSONALIZATION'
+      value: analyticsConsentDefaultAdPersonalization
     }
     {
       name: 'ACME_WEB_STATE_STORE'
