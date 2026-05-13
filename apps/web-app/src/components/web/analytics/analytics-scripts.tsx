@@ -1,10 +1,14 @@
 import * as React from 'react';
 import Script from 'next/script';
-import { getAnalyticsRuntimeConfig } from '../../../lib/analytics/config';
+import {
+  type AnalyticsRuntimeConfig,
+  getAnalyticsRuntimeConfig,
+} from '../../../lib/analytics/config';
 import { toGoogleConsentDefaults } from '../../../lib/analytics/data-layer';
 
-function buildBootstrapScript(): string {
-  const config = getAnalyticsRuntimeConfig();
+export function buildAnalyticsBootstrapScript(
+  config: AnalyticsRuntimeConfig,
+): string {
   const consentDefaults = toGoogleConsentDefaults(config.consent);
   const lines = [
     'window.dataLayer = window.dataLayer || [];',
@@ -17,7 +21,7 @@ function buildBootstrapScript(): string {
     })});`,
   ];
 
-  if (config.mode === 'gtag' && config.ga4MeasurementId) {
+  if (config.ga4MeasurementId) {
     lines.push("gtag('js', new Date());");
     lines.push(
       `gtag('config', ${JSON.stringify(config.ga4MeasurementId)}, ${JSON.stringify(
@@ -31,9 +35,11 @@ function buildBootstrapScript(): string {
   return lines.join('\n');
 }
 
-export function AnalyticsScripts(): React.ReactElement | null {
-  const config = getAnalyticsRuntimeConfig();
-
+export function AnalyticsScripts({
+  config = getAnalyticsRuntimeConfig(),
+}: {
+  config?: AnalyticsRuntimeConfig;
+}): React.ReactElement | null {
   if (!config.enabled) {
     return null;
   }
@@ -52,7 +58,9 @@ export function AnalyticsScripts(): React.ReactElement | null {
       <Script
         id="acme-analytics-bootstrap"
         strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{ __html: buildBootstrapScript() }}
+        dangerouslySetInnerHTML={{
+          __html: buildAnalyticsBootstrapScript(config),
+        }}
       />
       <Script
         id={

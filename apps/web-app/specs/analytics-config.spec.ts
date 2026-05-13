@@ -1,4 +1,5 @@
 import { getAnalyticsRuntimeConfig } from '../src/lib/analytics/config';
+import { buildAnalyticsBootstrapScript } from '../src/components/web/analytics/analytics-scripts';
 import {
   buildPageViewEvent,
   getAnalyticsRenderingMode,
@@ -52,6 +53,20 @@ describe('analytics runtime config', () => {
 
     expect(config.enabled).toBe(false);
     expect(config.disabledReason).toBe('missing-google-id');
+  });
+
+  it('configures GA4 without auto page views when GTM mode is active', () => {
+    const script = buildAnalyticsBootstrapScript(
+      getAnalyticsRuntimeConfig({
+        NEXT_PUBLIC_ACME_ANALYTICS_ENABLED: 'true',
+        NEXT_PUBLIC_ACME_GTM_CONTAINER_ID: 'GTM-TEST123',
+        NEXT_PUBLIC_ACME_GA4_MEASUREMENT_ID: 'G-ABC123',
+      }),
+    );
+
+    expect(script).toContain("gtag('js', new Date());");
+    expect(script).toContain('gtag(\'config\', "G-ABC123"');
+    expect(script).toContain('"send_page_view":false');
   });
 });
 

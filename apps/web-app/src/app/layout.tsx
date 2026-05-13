@@ -3,6 +3,7 @@ import { AnalyticsScripts } from '../components/web/analytics/analytics-scripts'
 import { AppProviders } from '../components/web/providers/app-providers';
 import { SiteFooter } from '../components/web/site-footer';
 import { ThemeScript } from '../components/web/theme-script';
+import { getAnalyticsRuntimeConfig } from '../lib/analytics/config';
 
 export const metadata = {
   title: 'ACME LOS Installment Flow',
@@ -37,6 +38,8 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const analyticsConfig = getAnalyticsRuntimeConfig();
+
   return (
     <html
       lang="en"
@@ -45,9 +48,9 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
     >
       <body className="min-h-screen">
-        <AnalyticsScripts />
+        <AnalyticsScripts config={analyticsConfig} />
         <ThemeScript />
-        <AppProviders>
+        <AppProviders analyticsConfig={analyticsConfig}>
           <a href="#main-content" className="skip-link">
             Skip to main content
           </a>
