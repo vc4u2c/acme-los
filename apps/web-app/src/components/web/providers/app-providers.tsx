@@ -4,6 +4,8 @@ import * as React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@acme-los/auth/web';
 import type { AnalyticsRuntimeConfig } from '../../../lib/analytics/config';
+import { AnalyticsProvider } from '../analytics/analytics-provider';
+import { AuthAnalyticsTracker } from '../analytics/auth-analytics-tracker';
 import { AnalyticsRouteTracker } from '../analytics/analytics-route-tracker';
 import { LeadIdTracker } from './lead-id-tracker';
 import { SessionIdleManager } from './session-idle-manager';
@@ -30,16 +32,19 @@ export function AppProviders({
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <SessionIdleManager />
+      <AnalyticsProvider config={analyticsConfig}>
+        <AuthProvider>
+          <SessionIdleManager />
+          <React.Suspense fallback={null}>
+            <AuthAnalyticsTracker />
+            <AnalyticsRouteTracker config={analyticsConfig} />
+          </React.Suspense>
+          {children}
+        </AuthProvider>
         <React.Suspense fallback={null}>
-          <AnalyticsRouteTracker config={analyticsConfig} />
+          <LeadIdTracker />
         </React.Suspense>
-        {children}
-      </AuthProvider>
-      <React.Suspense fallback={null}>
-        <LeadIdTracker />
-      </React.Suspense>
+      </AnalyticsProvider>
     </QueryClientProvider>
   );
 }

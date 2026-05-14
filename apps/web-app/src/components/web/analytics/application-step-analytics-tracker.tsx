@@ -3,35 +3,37 @@
 import * as React from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuthSession } from '@acme-los/auth/web';
-import type { AnalyticsRuntimeConfig } from '../../../lib/analytics/config';
+import type { ApplicationStepSlug } from '../apply/step-definitions';
 import {
-  buildPageViewEvent,
-  pushAnalyticsEvent,
+  buildApplicationStepEvent,
   toAnalyticsAuthState,
 } from '../../../lib/analytics/data-layer';
+import { useAnalytics } from './analytics-provider';
 
-export function AnalyticsRouteTracker({
-  config,
+export function ApplicationStepAnalyticsTracker({
+  step,
 }: {
-  config: AnalyticsRuntimeConfig;
+  step: ApplicationStepSlug;
 }): React.ReactElement | null {
   const pathname = usePathname();
   const { session } = useAuthSession();
-  const lastTrackedPathRef = React.useRef<string | null>(null);
+  const { config, trackEvent } = useAnalytics();
+  const lastTrackedStepRef = React.useRef<string | null>(null);
 
   React.useEffect(() => {
-    if (!config.enabled || !pathname || session.status === 'loading') {
+    if (
+      !config.enabled ||
+      !pathname ||
+      session.status === 'loading' ||
+      lastTrackedStepRef.current === `${pathname}:${step}`
+    ) {
       return;
     }
 
-    if (lastTrackedPathRef.current === pathname) {
-      return;
-    }
+    lastTrackedStepRef.current = `${pathname}:${step}`;
 
-    lastTrackedPathRef.current = pathname;
-
-    pushAnalyticsEvent(
-      buildPageViewEvent({
+    trackEvent(
+      buildApplicationStepEvent({
         config,
         pathname,
         pageTitle: document.title,
@@ -41,9 +43,11 @@ export function AnalyticsRouteTracker({
           session.isAuthenticated,
         ),
         assuranceLevel: session.assuranceLevel,
+        eventName: 'application_step_view',
+        step,
       }),
       {
-        mode: config.mode,
+        sendToGa4: true,
       },
     );
   }, [
@@ -52,6 +56,8 @@ export function AnalyticsRouteTracker({
     session.assuranceLevel,
     session.isAuthenticated,
     session.status,
+    step,
+    trackEvent,
   ]);
 
   return null;

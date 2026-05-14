@@ -152,15 +152,16 @@ Current BFF bridge:
 
 ### BFF Toggle Behavior
 
-| Surface                     | `ACME_BFF_PROXY_MODE=next`                                            | `ACME_BFF_PROXY_MODE=bff`                                                                          |
-| --------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Browser contract            | Browser calls the same Next `/api/*` routes                           | Browser calls the same Next `/api/*` routes                                                        |
-| Auth start/callback         | Next owns PKCE transaction, Okta token exchange, and session creation | BFF owns PKCE transaction, Okta token exchange, id-token validation, step-up, and session creation |
-| Session read/touch/logout   | Next reads and mutates the Next-owned server state store              | Next calls BFF session endpoints and writes/clears the browser-facing opaque cookie                |
-| CSRF                        | Next issues and validates the signed facade CSRF cookie               | BFF issues the CSRF token; Next relays the cookie and accepts BFF raw tokens during validation     |
-| Customer/application routes | Next implementation serves the current contracts                      | Next enforces browser boundary rules, then proxies to BFF customer/application endpoints           |
-| Security inspector          | Reads the Next-owned server session/token snapshot                    | Reads the BFF-owned server session/token snapshot through trusted BFF diagnostics                  |
-| Raw BFF URL                 | Not used by the browser                                               | Still not used by the browser; only server-to-server or terminal checks                            |
+| Surface                     | `ACME_BFF_PROXY_MODE=next`                                                  | `ACME_BFF_PROXY_MODE=bff`                                                                                  |
+| --------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Browser contract            | Browser calls the same Next `/api/*` routes                                 | Browser calls the same Next `/api/*` routes                                                                |
+| Auth start/callback         | Next owns PKCE transaction, Okta token exchange, and session creation       | BFF owns PKCE transaction, Okta token exchange, id-token validation, step-up, and session creation         |
+| Session read/touch/logout   | Next reads and mutates the Next-owned server state store                    | Next calls BFF session endpoints and writes/clears the browser-facing opaque cookie                        |
+| CSRF                        | Next issues and validates the signed facade CSRF cookie                     | BFF issues the CSRF token; Next relays the cookie and accepts BFF raw tokens during validation             |
+| Customer/application routes | Next implementation serves the current contracts                            | Next enforces browser boundary rules, then proxies to BFF customer/application endpoints                   |
+| Security inspector          | Reads the Next-owned server session/token snapshot                          | Reads the BFF-owned server session/token snapshot through trusted BFF diagnostics                          |
+| Observability events        | Next implementation validates and logs browser-origin operational telemetry | BFF implementation is used only when `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`; otherwise Next fallback |
+| Raw BFF URL                 | Not used by the browser                                                     | Still not used by the browser; only server-to-server or terminal checks                                    |
 
 ## Current Server-State Model
 
@@ -199,6 +200,9 @@ In place now:
 - security inspector enabled by default in `local` and `dev`, opt-in elsewhere
 - BFF diagnostic routes for the security inspector are local/dev only and are
   reachable from the browser only through the authenticated Next facade
+- browser-origin operational telemetry can move to the BFF through
+  `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true` without changing the public
+  `/api/observability/events` browser contract
 
 Still temporary by design:
 

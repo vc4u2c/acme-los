@@ -9,6 +9,8 @@ const bffBaseUrl =
 const trustedProxySecret =
   process.env.ACME_BFF_TRUSTED_PROXY_SECRET ||
   'acme-los-local-dev-bff-proxy-secret';
+const bffObservabilityEventsEnabled =
+  process.env.ACME_BFF_OBSERVABILITY_EVENTS_ENABLED || 'true';
 const children = new Set();
 let shuttingDown = false;
 
@@ -80,6 +82,7 @@ redis.once('exit', (code) => {
         ACME_WEB_STATE_STORE: process.env.ACME_WEB_STATE_STORE || 'redis',
         ACME_REDIS_URL: redisUrl,
         ACME_BFF_TRUSTED_PROXY_SECRET: trustedProxySecret,
+        ACME_BFF_OBSERVABILITY_EVENTS_ENABLED: bffObservabilityEventsEnabled,
       },
     },
   );
@@ -92,6 +95,7 @@ redis.once('exit', (code) => {
         ACME_BFF_BASE_URL: bffBaseUrl,
         ACME_BFF_PROXY_MODE: 'bff',
         ACME_BFF_TRUSTED_PROXY_SECRET: trustedProxySecret,
+        ACME_BFF_OBSERVABILITY_EVENTS_ENABLED: bffObservabilityEventsEnabled,
         ACME_WEB_STATE_STORE: process.env.ACME_WEB_STATE_STORE || 'redis',
         ACME_REDIS_URL: redisUrl,
       },

@@ -1,4 +1,6 @@
 export const BFF_PROXY_MODE_ENV_NAME = 'ACME_BFF_PROXY_MODE';
+export const BFF_OBSERVABILITY_EVENTS_ENABLED_ENV_NAME =
+  'ACME_BFF_OBSERVABILITY_EVENTS_ENABLED';
 export const BFF_TRUSTED_PROXY_SECRET_HEADER = 'x-acme-bff-proxy-secret';
 
 const BFF_BASE_URL_ENV_NAMES = ['ACME_BFF_BASE_URL', 'ACME_BFF_URL'] as const;
@@ -35,6 +37,16 @@ export function getBffProxyMode(): BffProxyMode {
 
 export function isBffProxyEnabled(): boolean {
   return getBffProxyMode() === 'bff';
+}
+
+export function isBffObservabilityEventsEnabled(): boolean {
+  const configuredValue = trimValue(
+    process.env[BFF_OBSERVABILITY_EVENTS_ENABLED_ENV_NAME],
+  );
+
+  return ['1', 'true', 'yes', 'on'].includes(
+    configuredValue?.toLowerCase() ?? '',
+  );
 }
 
 export function getBffBaseUrl(): string | null {

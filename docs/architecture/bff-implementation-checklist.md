@@ -115,6 +115,13 @@ These are the initial routes the scaffold should expose or reserve.
 
 - `POST /bff/observability/events`
 
+The BFF observability event ingestion route is implemented behind
+`ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`. When the toggle is off, the BFF
+route returns `404` and the browser-facing Next facade keeps using its existing
+`/api/observability/events` implementation. When the toggle is on with
+`ACME_BFF_PROXY_MODE=bff`, Next still owns the browser boundary and proxies the
+validated request to `/bff/observability/events`.
+
 The first scaffold does not need all of these fully implemented. It should at
 least reserve the endpoint shape and make the operational routes real.
 

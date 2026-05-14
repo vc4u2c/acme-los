@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@acme-los/ui-web';
+import { useTrackSignInStarted } from './analytics/auth-analytics-tracker';
 import { CustomerAuthFooter } from './customer-auth-footer';
 import { CustomerAuthHeader } from './customer-auth-header';
 
@@ -40,14 +41,16 @@ export function CustomerAuthLaunchPage({
   errorMessage,
 }: CustomerAuthLaunchPageProps): React.ReactElement {
   const { signIn } = useAuthSession();
+  const trackSignInStarted = useTrackSignInStarted();
   const [isLaunching, setIsLaunching] = React.useState(false);
   const hasAutoLaunchedRef = React.useRef(false);
   const allowAutoLaunch = shouldAutoLaunch && !errorMessage;
 
   const launch = React.useCallback(() => {
     setIsLaunching(true);
+    trackSignInStarted({ returnTo, minimumAssuranceLevel });
     void signIn({ returnTo, minimumAssuranceLevel });
-  }, [minimumAssuranceLevel, returnTo, signIn]);
+  }, [minimumAssuranceLevel, returnTo, signIn, trackSignInStarted]);
 
   React.useEffect(() => {
     if (!allowAutoLaunch || hasAutoLaunchedRef.current) {

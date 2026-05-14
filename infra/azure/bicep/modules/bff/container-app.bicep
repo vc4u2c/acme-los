@@ -9,6 +9,7 @@ param containerImage string
 param appEnvironmentName string
 param appBuildId string
 param bffVersion string = '0.0.0'
+param observabilityEventsEnabled bool = false
 param authProvider string = 'okta'
 param oktaEnvironmentName string = appEnvironmentName
 param oktaIssuer string
@@ -98,6 +99,10 @@ var environmentVariables = concat(
     {
       name: 'ACME_BFF_VERSION'
       value: bffVersion
+    }
+    {
+      name: 'ACME_BFF_OBSERVABILITY_EVENTS_ENABLED'
+      value: observabilityEventsEnabled ? 'true' : 'false'
     }
     {
       name: 'ACME_AUTH_PROVIDER'

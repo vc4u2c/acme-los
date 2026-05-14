@@ -3,8 +3,20 @@
 import * as React from 'react';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { createWebApiClient } from '@acme-los/api/web-client';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { Button } from '@acme-los/ui-web';
+import { useAuthSession } from '@acme-los/auth/web';
+import type { AnalyticsRuntimeConfig } from '../../../lib/analytics/config';
+import {
+  type AcmeAnalyticsEvent,
+  type AnalyticsAuthState,
+  bucketAnalyticsFailureReason,
+  buildApplicationStepEvent,
+  buildApplicationSubmitEvent,
+  buildFundingStepUpEvent,
+  toAnalyticsAuthState,
+} from '../../../lib/analytics/data-layer';
+import { useAnalytics } from '../analytics/analytics-provider';
 import { useApplicationForm } from './application-form';
 import {
   defaultApplicationFormState,
@@ -24,6 +36,15 @@ type ApplicationStepFormCardProps = {
   initialValues?: Partial<ApplicationFormState> | null;
 };
 
+type AnalyticsEventCommon = {
+  config: AnalyticsRuntimeConfig;
+  pathname: string;
+  pageTitle: string;
+  origin: string;
+  authState: AnalyticsAuthState;
+  assuranceLevel: string;
+};
+
 export function ApplicationStepFormCard({
   step,
   previousStep,
@@ -31,8 +52,36 @@ export function ApplicationStepFormCard({
   initialValues,
 }: ApplicationStepFormCardProps): React.ReactElement {
   const router = useRouter();
+  const pathname = usePathname();
+  const { session } = useAuthSession();
+  const { config, trackEvent } = useAnalytics();
   const webApiClient = React.useMemo(() => createWebApiClient(), []);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
+  const trackJourneyEvent = React.useCallback(
+    (build: (common: AnalyticsEventCommon) => AcmeAnalyticsEvent) => {
+      if (!config.enabled) {
+        return;
+      }
+
+      trackEvent(
+        build({
+          config,
+          pathname: pathname ?? `/apply/${step}`,
+          pageTitle: document.title,
+          origin: window.location.origin,
+          authState: toAnalyticsAuthState(
+            session.status,
+            session.isAuthenticated,
+          ),
+          assuranceLevel: session.assuranceLevel,
+        }),
+        {
+          sendToGa4: true,
+        },
+      );
+    },
+    [config, pathname, session, step, trackEvent],
+  );
   const { form, isSubmitting } = useApplicationForm({
     step,
     initialValues: initialValues ?? undefined,
@@ -44,16 +93,76 @@ export function ApplicationStepFormCard({
           await webApiClient.application.saveStep(step, {
             payload: buildStepPayload(step, value),
           });
+          trackJourneyEvent((common) =>
+            buildApplicationStepEvent({
+              ...common,
+              eventName: 'application_step_complete',
+              step,
+              stepDestination: nextStep,
+              result: 'success',
+            }),
+          );
+
+          if (nextStep === 'funding') {
+            trackJourneyEvent((common) =>
+              buildFundingStepUpEvent({
+                ...common,
+                eventName: 'funding_step_up_started',
+                result: 'started',
+              }),
+            );
+          }
+
           router.push(`/apply/${nextStep}`);
           return;
         }
 
+        trackJourneyEvent((common) =>
+          buildApplicationSubmitEvent({
+            ...common,
+            eventName: 'application_submit_clicked',
+            step,
+          }),
+        );
         await webApiClient.application.submit({
           step,
           payload: buildStepPayload(step, value),
         });
+        trackJourneyEvent((common) =>
+          buildApplicationStepEvent({
+            ...common,
+            eventName: 'application_step_complete',
+            step,
+            result: 'success',
+          }),
+        );
+        trackJourneyEvent((common) =>
+          buildApplicationSubmitEvent({
+            ...common,
+            eventName: 'application_submit_succeeded',
+            step,
+          }),
+        );
+        trackJourneyEvent((common) =>
+          buildApplicationSubmitEvent({
+            ...common,
+            eventName: 'generate_lead',
+            step,
+          }),
+        );
         router.push('/');
       } catch (error) {
+        if (!nextStep) {
+          trackJourneyEvent((common) =>
+            buildApplicationSubmitEvent({
+              ...common,
+              eventName: 'application_submit_failed',
+              step,
+              failureReasonBucket: bucketAnalyticsFailureReason(error),
+            }),
+          );
+        }
+
         setStatusMessage(
           error instanceof Error
             ? error.message

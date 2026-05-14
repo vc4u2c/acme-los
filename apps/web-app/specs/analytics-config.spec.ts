@@ -1,9 +1,16 @@
 import { getAnalyticsRuntimeConfig } from '../src/lib/analytics/config';
 import { buildAnalyticsBootstrapScript } from '../src/components/web/analytics/analytics-scripts';
 import {
+  bucketAnalyticsFailureReason,
+  buildApplicationStepEvent,
+  buildApplicationSubmitEvent,
+  buildSignInEvent,
   buildPageViewEvent,
+  getAnalyticsAuthContext,
   getAnalyticsRenderingMode,
   getAnalyticsRouteGroup,
+  getAnalyticsSafePathname,
+  getApplicationStepFromPathname,
   pushAnalyticsEvent,
 } from '../src/lib/analytics/data-layer';
 
@@ -83,6 +90,27 @@ describe('analytics data layer contract', () => {
     expect(getAnalyticsRenderingMode(pathname)).toBe(renderingMode);
   });
 
+  it('extracts application steps from canonical app routes only', () => {
+    expect(getApplicationStepFromPathname('/apply/funding')).toBe('funding');
+    expect(getApplicationStepFromPathname('/apply/bank-card')).toBe(
+      'bank-card',
+    );
+    expect(getApplicationStepFromPathname('/apply/funding?token=secret')).toBe(
+      'funding',
+    );
+  });
+
+  it('normalizes analytics paths before events are built', () => {
+    expect(
+      getAnalyticsSafePathname(
+        'https://example.test/apply/funding?token=secret#callback',
+      ),
+    ).toBe('/apply/funding');
+    expect(
+      getAnalyticsSafePathname('support/contact?email=a@example.test'),
+    ).toBe('/support/contact');
+  });
+
   it('builds page_view events without query strings or PII', () => {
     const config = getAnalyticsRuntimeConfig({
       NEXT_PUBLIC_ACME_ANALYTICS_ENABLED: 'true',
@@ -92,7 +120,7 @@ describe('analytics data layer contract', () => {
 
     const event = buildPageViewEvent({
       config,
-      pathname: '/apply/personal-info',
+      pathname: '/apply/personal-info?email=applicant@example.test',
       pageTitle: 'Apply',
       origin: 'https://example.test',
       authState: 'authenticated',
@@ -113,6 +141,82 @@ describe('analytics data layer contract', () => {
     });
     expect(event.event_id).toEqual(expect.any(String));
     expect(JSON.stringify(event)).not.toContain('@');
+  });
+
+  it('builds application milestone events from allowlisted fields', () => {
+    const config = getAnalyticsRuntimeConfig({
+      NEXT_PUBLIC_ACME_ANALYTICS_ENABLED: 'true',
+      NEXT_PUBLIC_ACME_GA4_MEASUREMENT_ID: 'G-ABC123',
+      NEXT_PUBLIC_ACME_ANALYTICS_ENVIRONMENT: 'dev',
+    });
+
+    const stepEvent = buildApplicationStepEvent({
+      config,
+      pathname: '/apply/bank-card',
+      pageTitle: 'Bank',
+      origin: 'https://example.test',
+      authState: 'authenticated',
+      assuranceLevel: 'aal1',
+      eventName: 'application_step_complete',
+      step: 'bank-card',
+      stepDestination: 'pre-approval',
+      result: 'success',
+    });
+    const submitEvent = buildApplicationSubmitEvent({
+      config,
+      pathname: '/apply/funding',
+      pageTitle: 'Funding',
+      origin: 'https://example.test',
+      authState: 'authenticated',
+      assuranceLevel: 'aal2',
+      eventName: 'generate_lead',
+      step: 'funding',
+    });
+
+    expect(stepEvent).toMatchObject({
+      event: 'application_step_complete',
+      journey_name: 'loan_application',
+      application_step: 'bank-card',
+      step_destination: 'pre-approval',
+      result: 'success',
+    });
+    expect(submitEvent).toMatchObject({
+      event: 'generate_lead',
+      milestone_name: 'ga4_recommended_lead_generated',
+      transport_origin: 'browser_after_server_success',
+    });
+    expect(JSON.stringify({ stepEvent, submitEvent })).not.toContain('4111');
+  });
+
+  it('uses auth contexts and failure buckets without raw auth errors', () => {
+    const config = getAnalyticsRuntimeConfig({
+      NEXT_PUBLIC_ACME_ANALYTICS_ENABLED: 'true',
+      NEXT_PUBLIC_ACME_GA4_MEASUREMENT_ID: 'G-ABC123',
+    });
+    const failureReasonBucket = bucketAnalyticsFailureReason(
+      'The Okta callback state did not match this sign-in attempt.',
+    );
+
+    const event = buildSignInEvent({
+      config,
+      pathname: '/account/sign-in',
+      pageTitle: 'Sign in',
+      origin: 'https://example.test',
+      authState: 'anonymous',
+      assuranceLevel: 'anonymous',
+      eventName: 'sign_in_failed',
+      authContext: getAnalyticsAuthContext('/apply/funding', 'aal2'),
+      failureReasonBucket,
+    });
+
+    expect(event).toMatchObject({
+      event: 'sign_in_failed',
+      auth_context: 'funding_step_up',
+      failure_reason_bucket: 'state_mismatch',
+      method: 'okta',
+      result: 'failure',
+    });
+    expect(JSON.stringify(event)).not.toContain('Okta callback');
   });
 
   it('pushes direct gtag events only in gtag mode', () => {
