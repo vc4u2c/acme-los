@@ -267,13 +267,14 @@ is connection configuration only; it does not act as the rollout switch.
 
 Toggle behavior to preserve:
 
-| Surface              | `ACME_BFF_PROXY_MODE=next` | `ACME_BFF_PROXY_MODE=bff`      |
-| -------------------- | -------------------------- | ------------------------------ |
-| Browser URL          | Next `/api/*`              | Same Next `/api/*`             |
-| Session authority    | Next web-server store      | BFF auth session store         |
-| CSRF issuer          | Next facade                | BFF, relayed through Next      |
-| Security inspector   | Next-owned snapshot        | BFF-owned snapshot             |
-| Customer/application | Next implementation        | BFF implementation behind Next |
+| Surface              | `ACME_BFF_PROXY_MODE=next` | `ACME_BFF_PROXY_MODE=bff`                                                      |
+| -------------------- | -------------------------- | ------------------------------------------------------------------------------ |
+| Browser URL          | Next `/api/*`              | Same Next `/api/*`                                                             |
+| Session authority    | Next web-server store      | BFF auth session store                                                         |
+| CSRF issuer          | Next facade                | BFF, relayed through Next                                                      |
+| Security inspector   | Next-owned snapshot        | BFF-owned snapshot                                                             |
+| Customer/application | Next implementation        | BFF implementation behind Next                                                 |
+| Observability events | Next implementation        | BFF when `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`; otherwise Next fallback |
 
 For the trusted identity bridge, Next forwards authenticated customer context
 with `x-acme-authenticated-*` headers. In local development the BFF accepts
@@ -282,11 +283,20 @@ the same `ACME_BFF_TRUSTED_PROXY_SECRET` value in the Next facade and the BFF so
 the BFF can reject spoofed trusted identity headers unless they came through the
 server-side proxy path.
 
+Browser-origin operational telemetry follows the same facade rule. The browser
+continues posting to `/api/observability/events`; when `ACME_BFF_PROXY_MODE=bff`
+and `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`, the Next facade enforces rate
+limit and CSRF checks, then delegates to `/bff/observability/events` over the
+trusted proxy boundary. Leaving the toggle off keeps the existing Next-owned
+ingestion path active.
+
 In Azure, the BFF ACA app is internal to the Container Apps environment. The
 public smoke path is the Next facade, especially `/api/health`. A direct BFF
 FQDN from a workstation can time out because it is not a public browser/API
 endpoint. BFF replica counts follow the environment runtime scale settings by
 default unless the environment config adds a dedicated `bffRuntime` override.
+Dev enables the observability-event BFF slice through that same `bffRuntime`
+configuration so the rollout remains source-owned.
 
 ## First Verification Pass
 

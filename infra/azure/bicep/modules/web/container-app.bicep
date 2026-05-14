@@ -39,6 +39,7 @@ param sessionSecretName string = 'web-session-secret'
 @secure()
 param sessionSecretKeyVaultUrl string
 param bffBaseUrl string = ''
+param bffObservabilityEventsEnabled bool = false
 param bffTrustedProxySecretName string = 'sec-acme-los-bff-trusted-proxy-secret'
 @secure()
 param bffTrustedProxySecretKeyVaultUrl string = ''
@@ -96,6 +97,10 @@ var bffBaseEnvironmentVariables = !empty(bffBaseUrl)
       {
         name: 'ACME_BFF_PROXY_MODE'
         value: 'bff'
+      }
+      {
+        name: 'ACME_BFF_OBSERVABILITY_EVENTS_ENABLED'
+        value: bffObservabilityEventsEnabled ? 'true' : 'false'
       }
     ]
   : []

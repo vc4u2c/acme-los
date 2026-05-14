@@ -177,6 +177,133 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public async Task PostBffObservabilityEvents_WhenToggleDisabled_ReturnsNotFound()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_BFF_OBSERVABILITY_EVENTS_ENABLED"] = "false",
+      });
+    using var client = _factory.CreateClient();
+    using var response = await client.PostAsJsonAsync(
+      "/bff/observability/events",
+      new
+      {
+        eventName = "logging.demo.server.manual",
+        route = "/logging-demo",
+      });
+
+    Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task PostBffObservabilityEvents_WithToggleAndCsrf_ReturnsAcceptedTraceResponse()
+  {
+    const string correlationId = "931f0597-d984-42e3-a652-e64fe3b719ef";
+    const string traceId = "0123456789abcdef0123456789abcdef";
+    const string parentSpanId = "0123456789abcdef";
+    const string traceFlags = "01";
+    const string traceparent = $"00-{traceId}-{parentSpanId}-{traceFlags}";
+
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_BFF_OBSERVABILITY_EVENTS_ENABLED"] = "true",
+      });
+    using var client = _factory.CreateClient();
+    var csrfToken =
+      await client.GetFromJsonAsync<IssueCsrfTokenResponse>("/bff/security/csrf");
+    using var request = new HttpRequestMessage(
+      HttpMethod.Post,
+      "/bff/observability/events");
+
+    request.Headers.Add("x-csrf-token", csrfToken!.CsrfToken);
+    request.Headers.Add("x-correlation-id", correlationId.ToUpperInvariant());
+    request.Headers.Add("traceparent", traceparent.ToUpperInvariant());
+    request.Content = JsonContent.Create(
+      new
+      {
+        eventName = "logging.demo.server.manual",
+        route = "/logging-demo",
+      });
+
+    using var response = await client.SendAsync(request);
+
+    Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+    Assert.True(
+      response.Headers.TryGetValues("x-correlation-id", out var values));
+    Assert.Contains(correlationId, values);
+
+    var payload =
+      await response.Content.ReadFromJsonAsync<ObservabilityEventResponse>();
+
+    Assert.NotNull(payload);
+    Assert.Equal(correlationId, payload!.CorrelationId);
+    Assert.Equal("logging.demo.server.manual", payload.EventName);
+    Assert.Equal("/logging-demo", payload.Route);
+    Assert.Equal(traceparent, payload.IncomingTraceparent);
+    Assert.Equal(parentSpanId, payload.ParentSpanId);
+    Assert.Equal(traceId, payload.TraceId);
+    Assert.Equal(traceFlags, payload.TraceFlags);
+    Assert.Equal(["logging.demo.server.manual"], payload.EmittedEvents);
+    Assert.StartsWith($"00-{traceId}-", payload.ServerTraceparent);
+  }
+
+  [Fact]
+  public async Task PostBffObservabilityEvents_WithToggleAndMissingCsrf_ReturnsBadRequest()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_BFF_OBSERVABILITY_EVENTS_ENABLED"] = "true",
+      });
+    using var client = _factory.CreateClient();
+    using var request = new HttpRequestMessage(
+      HttpMethod.Post,
+      "/bff/observability/events");
+
+    request.Headers.Add(
+      "x-correlation-id",
+      "931f0597-d984-42e3-a652-e64fe3b719ef");
+    request.Headers.Add(
+      "traceparent",
+      "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01");
+    request.Content = JsonContent.Create(
+      new
+      {
+        eventName = "logging.demo.server.manual",
+        route = "/logging-demo",
+      });
+
+    using var response = await client.SendAsync(request);
+
+    Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task PostBffObservabilityEvents_InProductionWithoutProxySecret_ReturnsForbidden()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_BFF_OBSERVABILITY_EVENTS_ENABLED"] = "true",
+        ["ACME_BFF_TRUSTED_PROXY_SECRET"] = null,
+      });
+    using var factory =
+      _factory.WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
+    using var client = factory.CreateClient();
+    using var response = await client.PostAsJsonAsync(
+      "/bff/observability/events",
+      new
+      {
+        eventName = "logging.demo.server.manual",
+        route = "/logging-demo",
+      });
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
   public async Task GetBffSecurityInspector_WithTrustedSession_ReturnsStoredTokens()
   {
     using var client = _factory.CreateClient();

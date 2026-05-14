@@ -190,6 +190,10 @@ Runtime identity and Next-to-BFF boundary:
 - the application boundary today is the internal ACA BFF ingress plus
   `ACME_BFF_TRUSTED_PROXY_SECRET`, which guards trusted identity headers before
   the BFF honors them
+- browser-origin operational telemetry stays on the public
+  `/api/observability/events` facade; `bffRuntime.observabilityEventsEnabled`
+  controls whether that facade delegates to the internal
+  `/bff/observability/events` slice
 - a later hardening pass can add managed-identity token validation, mTLS, or
   private-origin edge controls without changing the browser-facing `/api/*`
   contract
@@ -197,7 +201,7 @@ Runtime identity and Next-to-BFF boundary:
 The BFF runtime scale follows the environment `runtime.minReplicas` and
 `runtime.maxReplicas` values by default. Add an environment-level `bffRuntime`
 override only when the internal BFF should scale differently from the public web
-app.
+app or when enabling slice-specific BFF feature flags.
 
 If the runtime image changes and you want to force a new image build instead of
 reusing an existing tag, pass `-ImageTag` explicitly:

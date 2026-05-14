@@ -11,6 +11,8 @@ const sharedWebSessionSecret =
 const trustedBffProxySecret =
   process.env['ACME_BFF_TRUSTED_PROXY_SECRET'] ||
   'acme-los-bff-e2e-proxy-secret';
+const bffObservabilityEventsEnabled =
+  process.env['ACME_BFF_OBSERVABILITY_EVENTS_ENABLED'] || 'true';
 
 const nextWebServer = {
   command: 'node tools/scripts/run-web-e2e-server.mjs',
@@ -29,6 +31,7 @@ const nextWebServer = {
           ACME_BFF_BASE_URL: bffBaseURL,
           ACME_BFF_PROXY_MODE: 'bff',
           ACME_BFF_TRUSTED_PROXY_SECRET: trustedBffProxySecret,
+          ACME_BFF_OBSERVABILITY_EVENTS_ENABLED: bffObservabilityEventsEnabled,
         }
       : {}),
   },
@@ -46,6 +49,7 @@ const webServer = enableBffProxyE2E
           ...process.env,
           ACME_WEB_SESSION_SECRET: sharedWebSessionSecret,
           ACME_BFF_TRUSTED_PROXY_SECRET: trustedBffProxySecret,
+          ACME_BFF_OBSERVABILITY_EVENTS_ENABLED: bffObservabilityEventsEnabled,
           ASPNETCORE_ENVIRONMENT: 'Development',
         },
         timeout: 180000,

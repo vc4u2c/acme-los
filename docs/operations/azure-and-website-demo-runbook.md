@@ -554,6 +554,9 @@ Talking points:
 - browser-origin operational events use `POST /api/observability/events` only
   when they need to be visible in Azure; product flows should send those events
   as best-effort background calls so user work does not wait on telemetry
+- when `ACME_BFF_PROXY_MODE=bff` and
+  `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`, that same browser-facing route
+  delegates the allowlisted event ingestion to `/bff/observability/events`
 - the traced flow first writes `logging.demo.client.browser` in the browser,
   then posts an allowlisted event to `POST /api/observability/events` with the
   W3C `traceparent` header

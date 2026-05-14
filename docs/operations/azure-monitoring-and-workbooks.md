@@ -125,7 +125,13 @@ browser-origin events because the browser cannot write to ACA stdout or the
 server-side Application Insights exporter by itself.
 
 The `/logging-demo` route follows that pattern through the generic
-`POST /api/observability/events` endpoint:
+`POST /api/observability/events` endpoint. That public browser contract does
+not change during BFF rollout; when `ACME_BFF_PROXY_MODE=bff` and
+`ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`, the Next facade validates the
+browser request and proxies it to `/bff/observability/events`. With the toggle
+off, the same Next route keeps logging the event directly.
+
+Current emitted events:
 
 - server render emits `logging.demo.server.render`
 - traced flow emits a local browser console event as
@@ -158,8 +164,9 @@ local so the `dev` signal stays clean.
 
 The implementation uses the shared `@acme-los/core/logger` trace logger on the
 server, the runtime-neutral `@acme-los/core/logger/trace-context` helpers for
-header names and W3C parsing, the generic `/api/observability/events` route,
-and a small browser trace logger helper under the web app. Keep future
+header names and W3C parsing, the generic `/api/observability/events` route
+with an optional BFF-backed `/bff/observability/events` implementation, and a
+small browser trace logger helper under the web app. Keep future
 client-to-server telemetry flows on that shape: typed event name, W3C
 `traceparent`, optional `X-Correlation-ID` for business correlation,
 allowlisted payload, server validation, then structured server log emission. Do

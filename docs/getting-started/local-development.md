@@ -118,6 +118,7 @@ Terminal 1:
 ```powershell
 $env:ACME_BFF_BASE_URL='http://localhost:5186'
 $env:ACME_BFF_PROXY_MODE='bff'
+$env:ACME_BFF_OBSERVABILITY_EVENTS_ENABLED='true'
 npx.cmd nx run web-app:dev-redis
 ```
 
@@ -126,6 +127,7 @@ Terminal 2:
 ```powershell
 $env:ACME_WEB_STATE_STORE='redis'
 $env:ACME_REDIS_URL='redis://127.0.0.1:6379'
+$env:ACME_BFF_OBSERVABILITY_EVENTS_ENABLED='true'
 dotnet run --project apps/bff-api/src/Acme.Los.Bff.Api/Acme.Los.Bff.Api.csproj --launch-profile http
 ```
 

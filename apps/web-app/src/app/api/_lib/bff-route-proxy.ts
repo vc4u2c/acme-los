@@ -13,6 +13,7 @@ const REQUEST_HEADERS_TO_FORWARD = [
   'user-agent',
   'x-correlation-id',
   'x-csrf-token',
+  'x-forwarded-for',
   'traceparent',
   'tracestate',
 ] as const;

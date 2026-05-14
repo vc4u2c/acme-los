@@ -37,6 +37,9 @@
         "minReplicas": 2,
         "maxReplicas": 2
       },
+      "bffRuntime": {
+        "observabilityEventsEnabled": true
+      },
       "network": {
         "workloadVnetAddressSpace": "10.20.0.0/24",
         "acaInfrastructureSubnetAddressPrefix": "10.20.0.0/27",

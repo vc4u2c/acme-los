@@ -847,6 +847,18 @@ $bffRuntimeMaxReplicas = if ($null -ne $bffRuntimeMaxReplicaConfiguration) {
 } else {
   $runtimeMaxReplicas
 }
+$bffObservabilityEventsEnabledConfiguration =
+  Get-OptionalPropertyValue -InputObject $bffRuntimeConfiguration -Name 'observabilityEventsEnabled'
+$bffObservabilityEventsEnabled = if ($null -ne $bffObservabilityEventsEnabledConfiguration) {
+  ConvertTo-Boolean $bffObservabilityEventsEnabledConfiguration
+} else {
+  $false
+}
+$bffObservabilityEventsEnabledEnvValue = if ($resolvedBffDeploymentEnabled -and $bffObservabilityEventsEnabled) {
+  'true'
+} else {
+  'false'
+}
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path
 $resolvedBffVersion = Get-ResolvedBffVersion -ExplicitVersion $BffVersion -RepositoryRoot $repositoryRoot -FallbackVersion $resolvedBuildId
 $compiledParameterFile = New-CompiledParameterFile -SourceParameterFile $ParameterFile
@@ -1241,6 +1253,7 @@ $runtimeDeploymentArguments = @(
   '--parameters', "analyticsConsentDefaultAdUserData=$analyticsConsentDefaultAdUserData",
   '--parameters', "analyticsConsentDefaultAdPersonalization=$analyticsConsentDefaultAdPersonalization",
   '--parameters', "ga4MeasurementProtocolSecretName=$ga4MeasurementProtocolSecretName",
+  '--parameters', "bffObservabilityEventsEnabled=$bffObservabilityEventsEnabledEnvValue",
   '--parameters', "sessionSecretValue=$webSessionSecretValue",
   '--parameters', "applicationInsightsConnectionString=$platformApplicationInsightsConnectionString",
   '--parameters', "logAnalyticsWorkspaceId=$platformLogAnalyticsWorkspaceId",
@@ -1370,6 +1383,7 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   webImageRepository = $WebImageRepository
   bffDeploymentMode = $BffDeploymentMode
   bffEnabled = $resolvedBffDeploymentEnabled
+  bffObservabilityEventsEnabled = $bffObservabilityEventsEnabled
   bffImageRepository = $BffImageRepository
   bffVersion = $resolvedBffVersion
   imageTag = $resolvedImageTag

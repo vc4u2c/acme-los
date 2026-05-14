@@ -28,7 +28,8 @@ When `ACME_BFF_PROXY_MODE=bff`, the browser still talks to the same app-owned
 Next `/api/*` routes. The difference is server-side only: the Next facade
 delegates selected routes to the `.NET` BFF, and the BFF becomes the authority
 for auth transaction state, auth session state, CSRF issuance, customer profile
-state, and application-flow state.
+state, application-flow state, and feature-flagged operational telemetry
+ingestion.
 
 ## Web Auth Shape
 
