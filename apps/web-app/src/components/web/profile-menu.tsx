@@ -23,6 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@acme-los/ui-web';
+import { useTrackSignInStarted } from './analytics/auth-analytics-tracker';
 
 type MenuLink = {
   href?: string;
@@ -117,6 +118,7 @@ function MenuCopy({
 export function ProfileMenu(): React.ReactElement {
   const pathname = usePathname();
   const { session, signIn, signOut } = useAuthSession();
+  const trackSignInStarted = useTrackSignInStarted();
   const [headerOffset, setHeaderOffset] = React.useState(104);
   const [menuSideOffset, setMenuSideOffset] = React.useState(12);
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
@@ -297,6 +299,10 @@ export function ProfileMenu(): React.ReactElement {
                 key={item.label}
                 className="px-3 py-2.5 cursor-pointer"
                 onSelect={() => {
+                  trackSignInStarted({
+                    returnTo: item.returnTo,
+                    minimumAssuranceLevel: 'aal1',
+                  });
                   void signIn({
                     returnTo: item.returnTo,
                   });

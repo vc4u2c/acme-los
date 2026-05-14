@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "reservedFields": [
     "event",
     "event_id",
@@ -12,68 +12,186 @@
     "auth_state",
     "assurance_level",
     "application_step",
-    "journey_name"
+    "auth_context",
+    "failure_reason_bucket",
+    "journey_name",
+    "method",
+    "milestone_name",
+    "offer_type",
+    "result",
+    "step_destination",
+    "step_up_reason",
+    "transport_origin"
+  ],
+  "customDimensions": [
+    {
+      "parameterName": "environment",
+      "displayName": "Environment",
+      "scope": "event"
+    },
+    {
+      "parameterName": "route_group",
+      "displayName": "Route group",
+      "scope": "event"
+    },
+    {
+      "parameterName": "rendering_mode",
+      "displayName": "Rendering mode",
+      "scope": "event"
+    },
+    {
+      "parameterName": "auth_state",
+      "displayName": "Auth state",
+      "scope": "event"
+    },
+    {
+      "parameterName": "assurance_level",
+      "displayName": "Assurance level",
+      "scope": "event"
+    },
+    {
+      "parameterName": "journey_name",
+      "displayName": "Journey name",
+      "scope": "event"
+    },
+    {
+      "parameterName": "application_step",
+      "displayName": "Application step",
+      "scope": "event"
+    },
+    {
+      "parameterName": "step_destination",
+      "displayName": "Step destination",
+      "scope": "event"
+    },
+    {
+      "parameterName": "auth_context",
+      "displayName": "Auth context",
+      "scope": "event"
+    },
+    {
+      "parameterName": "result",
+      "displayName": "Result",
+      "scope": "event"
+    },
+    {
+      "parameterName": "failure_reason_bucket",
+      "displayName": "Failure reason bucket",
+      "scope": "event"
+    },
+    {
+      "parameterName": "transport_origin",
+      "displayName": "Transport origin",
+      "scope": "event"
+    }
+  ],
+  "keyEvents": [
+    "application_start",
+    "application_step_complete",
+    "application_submit_succeeded",
+    "funding_step_up_completed",
+    "generate_lead"
   ],
   "events": [
     {
       "name": "page_view",
       "surface": "client",
+      "dispatch": "gtm",
       "description": "One route view after initial load or client-side navigation.",
       "keyEventCandidate": false
     },
     {
       "name": "application_start",
       "surface": "client",
-      "description": "Applicant starts the loan application journey.",
+      "dispatch": "google_tag",
+      "description": "Applicant starts or resumes the loan application journey.",
       "keyEventCandidate": true
     },
     {
       "name": "application_step_view",
       "surface": "client",
+      "dispatch": "google_tag",
       "description": "Applicant views one application step.",
       "keyEventCandidate": false
     },
     {
       "name": "application_step_complete",
       "surface": "client",
+      "dispatch": "google_tag",
       "description": "Applicant saves or completes one application step.",
+      "keyEventCandidate": true
+    },
+    {
+      "name": "application_submit_clicked",
+      "surface": "client",
+      "dispatch": "google_tag",
+      "description": "Applicant clicks the final submit application action before the request is sent.",
+      "keyEventCandidate": false
+    },
+    {
+      "name": "application_submit_succeeded",
+      "surface": "client",
+      "dispatch": "google_tag",
+      "description": "Final application submit returned a successful server response.",
+      "keyEventCandidate": true
+    },
+    {
+      "name": "application_submit_failed",
+      "surface": "client",
+      "dispatch": "google_tag",
+      "description": "Final application submit failed with a coarse, non-sensitive failure bucket.",
+      "keyEventCandidate": false
+    },
+    {
+      "name": "generate_lead",
+      "surface": "client",
+      "dispatch": "google_tag",
+      "description": "GA4 recommended lead event emitted only after final application submit succeeds.",
+      "keyEventCandidate": true,
+      "ga4RecommendedEvent": true
+    },
+    {
+      "name": "sign_in_started",
+      "surface": "client",
+      "dispatch": "google_tag",
+      "description": "Hosted sign-in redirect is started from the browser.",
+      "keyEventCandidate": false
+    },
+    {
+      "name": "login",
+      "surface": "client",
+      "dispatch": "google_tag",
+      "description": "GA4 recommended login event emitted when an app-started hosted sign-in returns authenticated.",
+      "keyEventCandidate": false,
+      "ga4RecommendedEvent": true
+    },
+    {
+      "name": "sign_in_failed",
+      "surface": "client",
+      "dispatch": "google_tag",
+      "description": "Hosted sign-in returns to the app with a failure bucket.",
+      "keyEventCandidate": false
+    },
+    {
+      "name": "funding_step_up_started",
+      "surface": "client",
+      "dispatch": "google_tag",
+      "description": "Funding assurance challenge is started or expected for the funding step.",
+      "keyEventCandidate": false
+    },
+    {
+      "name": "funding_step_up_completed",
+      "surface": "client",
+      "dispatch": "google_tag",
+      "description": "Funding assurance challenge returns with an authenticated AAL2 session.",
       "keyEventCandidate": true
     },
     {
       "name": "preapproval_offer_selected",
       "surface": "client",
+      "dispatch": "google_tag",
       "description": "Applicant selects a preapproval offer.",
       "keyEventCandidate": true
-    },
-    {
-      "name": "funding_step_up_started",
-      "surface": "server",
-      "description": "Funding route starts a fresh assurance challenge.",
-      "keyEventCandidate": false
-    },
-    {
-      "name": "funding_step_up_completed",
-      "surface": "server",
-      "description": "Funding route receives a successful fresh assurance callback.",
-      "keyEventCandidate": true
-    },
-    {
-      "name": "sign_in_started",
-      "surface": "server",
-      "description": "Hosted sign-in redirect is started.",
-      "keyEventCandidate": false
-    },
-    {
-      "name": "sign_in_completed",
-      "surface": "server",
-      "description": "Hosted sign-in callback creates an authenticated app session.",
-      "keyEventCandidate": true
-    },
-    {
-      "name": "sign_out_completed",
-      "surface": "server",
-      "description": "App session is cleared and user is sent through hosted logout.",
-      "keyEventCandidate": false
     }
   ]
 }

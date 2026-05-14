@@ -163,6 +163,10 @@ The Next app now has a runtime analytics layer:
 - `AnalyticsRouteTracker` receives the server-resolved analytics config and
   emits one app-owned `page_view` event after hydration and on client route
   changes
+- journey milestones such as application step views, step completes, auth
+  attempts, login success, submit click, submit success, and submit failure are
+  emitted as app-owned events and mirrored through the already-loaded Google tag
+  so GA4 Realtime works without adding a new GTM tag for every milestone
 - page events intentionally use origin + pathname only; query strings, hashes,
   tokens, cookies, and form payloads are not sent
 - CSP opens Google script/connect endpoints only when analytics is enabled and
@@ -184,7 +188,9 @@ NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_PERSONALIZATION=denied
 Recommended runtime mode is GTM mode. Keep the GA4 Measurement ID in the
 manifest so GTM and future Measurement Protocol automation know the intended
 stream. The app initializes GA4 without automatic page views, then GTM forwards
-app-owned events such as `page_view`.
+`page_view`. Business milestones are still pushed to `dataLayer`, but the app
+also sends those custom events through `gtag` to keep the funnel source-owned and
+immediately visible in GA4.
 
 ## Repo-Owned Render Step
 
@@ -201,6 +207,21 @@ Outputs:
 
 The renderer does not call Google APIs. It gives the same kind of controlled
 local output that `okta:render` gives for auth config.
+
+Render the GA4/GTM admin plan:
+
+```powershell
+npm run analytics:admin-plan -- dev
+```
+
+Outputs:
+
+- `tmp/analytics/dev.ga4-admin-plan.json`
+
+The admin plan is the reviewable checklist for GA4 custom dimensions, key
+events, baseline GTM tags, custom-event triggers, and recommended custom
+reports. It is intentionally generated from `events.json` and the environment
+manifest so portal work can be checked against source control.
 
 After real Google IDs are in the environment manifest, append or copy the
 generated `tmp/analytics/<env>.web.env` values into local `.env.local` when
@@ -279,9 +300,15 @@ Required base fields:
 Application fields:
 
 - `application_step`
+- `step_destination`
+- `auth_context`
+- `failure_reason_bucket`
+- `method`
+- `milestone_name`
 - `offer_type`
 - `step_up_reason`
 - `result`
+- `transport_origin`
 
 Never send:
 
@@ -316,14 +343,18 @@ Client transitions:
 - emit a new `page_view` when the pathname changes
 - avoid duplicate initial `page_view` events from both GTM defaults and app code
 
-Server routes:
+Auth and submit milestones:
 
-- do not run GTM
-- send carefully allowlisted server events through Measurement Protocol only
-  when there is a business reason; this remains a future server-side analytics
-  step
-- include an event id so downstream analytics can deduplicate when a browser
-  event and a server event describe the same journey milestone
+- `sign_in_started` fires before hosted sign-in redirect when the app initiates
+  the sign-in attempt
+- `login` fires only after an app-started sign-in returns with an authenticated
+  session
+- `sign_in_failed` fires when the sign-in launch page receives an auth error;
+  only `failure_reason_bucket` is sent
+- `application_submit_clicked` fires before final submit is sent
+- `application_submit_succeeded` and GA4 recommended `generate_lead` fire only
+  after the final submit endpoint returns success
+- `application_submit_failed` fires with only a coarse failure bucket
 
 ## GTM Container Setup
 
@@ -350,7 +381,9 @@ Recommended first container setup:
    - `assurance_level`
    - `journey_name`
    - `application_step`
-6. Create Custom Event triggers for the other names in `events.json`.
+6. Optional: create Custom Event triggers for the other names in `events.json`
+   if a non-GA vendor needs GTM routing. Do not create duplicate GA4 Event tags
+   for events listed as `dispatch=google_tag` in the generated admin plan.
 7. Mark only the chosen business outcomes as GA4 key events.
 
 Do not add vendor tags that collect form fields, tokens, cookies, or full URLs
@@ -364,12 +397,27 @@ Good first GA4 key-event candidates:
 
 - `application_start`
 - `application_step_complete`
-- `preapproval_offer_selected`
+- `application_submit_succeeded`
+- `generate_lead`
 - `funding_step_up_completed`
-- `sign_in_completed`
+- `preapproval_offer_selected`
 
 Keep lower-level diagnostics, health checks, and security-inspector activity out
 of marketing analytics. Those belong in Application Insights and Log Analytics.
+
+## Recommended GA4 Reports
+
+Use the generated `tmp/analytics/<env>.ga4-admin-plan.json` report section as
+the source-owned spec. The first useful explorations are:
+
+- Application journey funnel: `application_start` to step views, step completes,
+  and `application_submit_succeeded`
+- Authentication outcome funnel: `sign_in_started`, `login`, and
+  `sign_in_failed` broken down by `auth_context` and `failure_reason_bucket`
+- Funding assurance funnel: `funding_step_up_started`,
+  `funding_step_up_completed`, and submit success
+- Submit outcome report: submit successes vs failures by failure bucket and
+  transport origin
 
 ## Environment Design
 

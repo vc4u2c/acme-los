@@ -16,6 +16,7 @@ import {
   type ApplicationStepSlug,
 } from './step-definitions';
 import { ApplicationStepFormCard } from './application-step-form-card';
+import { ApplicationStepAnalyticsTracker } from '../analytics/application-step-analytics-tracker';
 
 type StepPageProps = {
   step: ApplicationStepSlug;
@@ -34,6 +35,7 @@ export function ApplicationStepPage({
 
   return (
     <main className="min-h-screen text-[var(--foreground)]">
+      <ApplicationStepAnalyticsTracker step={step} />
       <SiteHeader items={applyNavigationItems} variant="application" />
 
       <header className="relative bg-[color:var(--surface)/0.88] backdrop-blur-xl before:pointer-events-none before:absolute before:bottom-0 before:left-4 before:right-4 before:h-3 before:content-[''] before:bg-[linear-gradient(180deg,var(--shadow-soft),transparent)] before:opacity-55 before:blur-md after:pointer-events-none after:absolute after:bottom-0 after:left-4 after:right-4 after:h-px after:content-[''] after:bg-[linear-gradient(90deg,transparent,var(--border),transparent)] after:opacity-85 sm:before:left-6 sm:before:right-6 sm:after:left-6 sm:after:right-6 lg:before:left-8 lg:before:right-8 lg:after:left-8 lg:after:right-8">
