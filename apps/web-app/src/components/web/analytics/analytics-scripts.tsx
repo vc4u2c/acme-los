@@ -4,7 +4,7 @@ import {
   type AnalyticsRuntimeConfig,
   getAnalyticsRuntimeConfig,
 } from '../../../lib/analytics/config';
-import { toGoogleConsentDefaults } from '../../../lib/analytics/data-layer';
+import { toGoogleConsentDefaults } from '@acme-los/core/analytics';
 
 export function buildAnalyticsBootstrapScript(
   config: AnalyticsRuntimeConfig,

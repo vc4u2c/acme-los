@@ -1,6 +1,10 @@
 import { getAnalyticsRuntimeConfig } from '../src/lib/analytics/config';
 import { buildAnalyticsBootstrapScript } from '../src/components/web/analytics/analytics-scripts';
 import {
+  normalizeAnalyticsPathname,
+  pushDataLayerEvent,
+} from '@acme-los/core/analytics';
+import {
   bucketAnalyticsFailureReason,
   buildApplicationStepEvent,
   buildApplicationSubmitEvent,
@@ -217,6 +221,28 @@ describe('analytics data layer contract', () => {
       result: 'failure',
     });
     expect(JSON.stringify(event)).not.toContain('Okta callback');
+  });
+
+  it('keeps generic dataLayer helpers vendor-neutral and privacy-safe', () => {
+    expect(
+      normalizeAnalyticsPathname(
+        'https://example.test/apply/funding?token=secret#callback',
+      ),
+    ).toBe('/apply/funding');
+
+    window.dataLayer = [];
+    pushDataLayerEvent(
+      {
+        event: 'custom_vendor_event',
+        page_path: '/apply/funding',
+      },
+      {
+        mode: 'disabled',
+      },
+    );
+
+    expect(window.dataLayer).toHaveLength(0);
+    delete window.dataLayer;
   });
 
   it('pushes direct gtag events only in gtag mode', () => {

@@ -12,6 +12,7 @@ Source of truth:
 - `infra/analytics/environments/stg.json`
 - `infra/analytics/environments/prod.json`
 - `infra/analytics/events.json`
+- `libs/core/analytics/*`
 - `apps/web-app/src/lib/analytics/*`
 - `apps/web-app/src/components/web/analytics/*`
 
@@ -155,6 +156,9 @@ Current caveat:
 
 The Next app now has a runtime analytics layer:
 
+- `@acme-los/core/analytics` owns vendor-neutral browser primitives: safe
+  pathname normalization, consent-mode mapping, event IDs, and dataLayer/gtag
+  dispatch
 - `AnalyticsScripts` initializes `window.dataLayer`, pushes Google consent
   defaults, configures GA4 with `send_page_view=false`, and loads GTM when
   `NEXT_PUBLIC_ACME_GTM_CONTAINER_ID` is present
@@ -281,7 +285,9 @@ external account IDs, and this folder as the repo-owned app/environment intent.
 ## Data Layer Contract
 
 Use a single app-owned `dataLayer` contract. Feature code should emit ACME LOS
-events, not vendor-specific tag calls.
+events, not vendor-specific tag calls. Shared browser mechanics belong in
+`@acme-los/core/analytics`; ACME LOS journey taxonomy belongs in
+`apps/web-app/src/lib/analytics/data-layer.ts`.
 
 Required base fields:
 
