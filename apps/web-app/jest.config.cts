@@ -11,6 +11,8 @@ const config = {
     '^(?!.*\\.(js|jsx|ts|tsx|css|json)$)': '@nx/react/plugins/jest',
   },
   moduleNameMapper: {
+    '^@acme-los/core/analytics$':
+      '<rootDir>/../../libs/core/analytics/src/index.ts',
     '^@acme-los/core/config$': '<rootDir>/../../libs/core/config/src/index.ts',
     '^@acme-los/core/logger$': '<rootDir>/../../libs/core/logger/src/index.ts',
     '^@acme-los/core/logger/trace-context$':

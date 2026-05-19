@@ -28,148 +28,406 @@ The clean story to tell is:
 
 ## Capability Inventory
 
-Use this section when you need the fast, grouped feature/design story before
-opening the portal or clicking through the website.
+Use this section when you need the grouped architecture story before opening the
+portal or clicking through the website. It is intentionally broad: the goal is
+to show the full platform surface, not just the visible web pages.
 
-### Architecture Shape
+### Executive Demo Themes
 
-- Nx monorepo with web, mobile, BFF, shared contracts, shared auth, shared UI,
-  Azure IaC, Okta manifests, and repo-owned scripts
-- Next.js remains the public browser facade; browser code calls same-origin
-  `/api/*` routes
-- `ACME_BFF_PROXY_MODE=next|bff` is the clean server-side migration switch for
-  routes that can be served by either Next or the BFF
-- in `bff` mode, the BFF owns auth/session state, CSRF issuance, customer
-  profile state, and application-flow state behind the stable Next facade
-- the security inspector reads BFF-owned token/session state through a
-  dev-only, trusted server-to-server BFF diagnostic endpoint when BFF mode is
+- consumer lending product experience across public pages, account pages, and a
+  seven-step application journey
+- production-shaped monorepo with web, mobile, BFF, shared libraries, release
+  automation, CI/CD, and source-owned infrastructure
+- server-side auth/session architecture with Okta, opaque cookies, CSRF,
+  funding step-up MFA, Redis-backed state, and a reversible BFF migration switch
+- Azure landing-zone-shaped runtime with Container Apps, Key Vault, Managed
+  Redis, private endpoints, private DNS, managed identity, monitoring, alerts,
+  pause/resume, and teardown
+- separate operational telemetry and digital analytics stories: Azure Monitor
+  for engineering/ops, GA4/GTM for product and journey analytics
+
+### Repository And Workspace Foundation
+
+- Nx 22 monorepo with `apps/*`, `libs/*`, `infra/*`, `tools/*`, and docs
+- npm package management and repo-level scripts in `package.json`
+- TypeScript path aliases for shared API, auth, core, domain, and UI packages
+- Nx project tags enforce ownership boundaries such as `scope:core`,
+  `scope:api`, `scope:auth`, `scope:domain`, `scope:ui`, `type:app`,
+  `platform:web`, and `platform:mobile`
+- shared libraries:
+  - `libs/api/contracts` for app-owned DTOs
+  - `libs/api/web-client` for browser-safe `/api/*` calls
+  - `libs/api/domain-client` for server/domain transport
+  - `libs/api/web-server` for Next facade server helpers
+  - `libs/auth/contracts`, `libs/auth/core`, and `libs/auth/web`
+  - `libs/core/config`, `libs/core/logger`, `libs/core/types`,
+    `libs/core/utils`, and `libs/core/analytics`
+  - `libs/domain/customer` and `libs/domain/application`
+  - `libs/ui/web` and `libs/ui/mobile`
+
+### Local Development And Developer Experience
+
+- normal web local run with `npx.cmd nx run web-app:dev`
+- hardened Redis-backed web run with `npx.cmd nx run web-app:dev-redis`
+- one-command local web plus BFF plus Redis stack with
+  `npx.cmd nx run web-app:dev-stack` or `npm run web:dev:stack`
+- local Redis lifecycle targets:
+  `web-app:redis-up`, `web-app:redis-down`, and `npm run redis:*`
+- direct BFF local run through `dotnet run`
+- Expo mobile local run with `npx.cmd nx run mobile-app:start`
+- VS Code REST Client `.http` checks for BFF health, auth/session, CSRF,
+  trusted proxy headers, and local API smoke tests
+- rendering demo routes for static, server, ISR, and client rendering modes
+- visible non-prod environment and version badges so a presenter can prove
+  where the app is running
+
+### Versioning, Release Notes, And Artifact Strategy
+
+- Nx Release owns independent versioning for `web-app`, `mobile-app`, and
+  `bff-api`
+- conventional commits drive semantic release decisions
+- project tags use `web-app@<version>`, `mobile-app@<version>`, and
+  `bff-api@<version>`
+- GitHub releases are created per release group; repo file changelogs are not
+  the release-note source of truth
+- release bundles are project-prefixed, for example web, mobile, and BFF API
+  release assets
+- deployable artifacts are also project-prefixed and include source SHA,
+  artifact name, artifact run, version metadata, and image tag
+- the web deployable currently carries the public Next app and runtime-coupled
+  internal BFF deployment
+- BFF semantic version is recorded independently and carried into Azure through
+  `ACME_BFF_VERSION`
+- `/api/health` exposes web and BFF version/build metadata when the BFF path is
   enabled
-- the raw BFF URL is for server-to-server and terminal checks; it is not a
-  browser application endpoint
 
-### Versioning And Release
+### GitHub CI/CD And Promotion
 
-- Nx Release versions `web-app`, `mobile-app`, and `bff-api` independently
-- GitHub releases use project tags such as `web-app@<version>`,
-  `mobile-app@<version>`, and `bff-api@<version>`
-- release assets are project-prefixed, including web, mobile, and BFF API
-  bundles
-- deploy metadata records web version, BFF version, source SHA, image tag, and
-  build ID
-- `/api/health` exposes web and BFF layer versions/builds when the BFF path is
-  enabled
+- PR and `main` CI run through `.github/workflows/ci.yml`
+- CD into `dev` runs after successful `main` CI through `.github/workflows/cd.yml`
+- reusable deployment workflow:
+  `.github/workflows/deploy-web-environment.yml`
+- environment wrapper workflows exist for `dev`, `qa`, `stg`, and `prod`
+- separate mobile deployment workflow exists for the mobile lane
+- teardown workflow exists for non-prod and requires explicit destructive
+  confirmation for production
+- GitHub environments are intended to model `dev`, `qa`, `stg`, and `prod`
+  approval boundaries
+- Azure deployment behavior stays in repo scripts and Bicep; GitHub Actions is
+  the orchestrator, not the deployment source of truth
+- promotion strategy is to validate once, produce recorded artifacts, and
+  promote artifact identity and source SHA rather than "whatever is on branch"
 
-### Engineering Guardrails
+### Engineering Guardrails And Verification
 
 - Husky blocks accidental direct local commits to `main`
-- `lint-staged` formats and lints staged files
+- `lint-staged` formats and lints staged source
 - `commitlint` enforces conventional commit shape
-- project-tag validation keeps Nx ownership boundaries explicit
-- Prettier, ESLint, Jest, Playwright, `.NET` xUnit, Reqnroll/Gherkin, and
-  `dotnet format` are part of the verification story
-- committed `.http` checks plus the VS Code REST Client extension cover local
-  BFF, Next facade, CSRF, and trusted-header smoke checks
+- `tools/scripts/validate-project-tags.mjs` guards Nx project tag hygiene
+- Prettier and ESLint cover the TypeScript/React workspace
+- Jest covers web, mobile, route handlers, auth/session, analytics, and shared
+  behavior
+- Playwright covers web browser e2e, accessibility smoke checks, application
+  start, security inspector, and mobile Expo Web smoke tests
+- `.NET` xUnit covers the BFF unit/integration layer
+- Reqnroll/Gherkin covers BFF acceptance-style flows for health, auth/session,
+  customer profile, and security behavior
+- `npm run dotnet:audit` and `npm audit` give vulnerability-audit paths
+- `npx.cmd nx run web-app:build --skip-nx-cache` validates Next production
+  build, TypeScript, and static route generation
 
-### Web UI And Product Experience
+### Web Product Experience
 
-- Next.js 16 App Router with React 19 and focused server/client boundaries
-- Tailwind CSS with shadcn-style `new-york` composition
-- Radix UI primitives, `class-variance-authority`, `tailwind-merge`, shared
-  `cn()`, and Lucide icons
-- TanStack React Query, React Form, and React Table power richer app workflows,
-  including the showcase grid/table system
-- public landing/support routes, seven-step application flow, customer
-  dashboard, security inspector, logging demo, and runtime environment/version
-  badges
+- Next.js 16 App Router with React 19
+- public landing page, rates/terms, support, legal, showcase, rendering demo,
+  logging demo, security demo, account sign-in, account profile, auth callback,
+  and seven-step application routes
+- seven application steps:
+  `personal-info`, `disclosures`, `employment-income`, `bank-card`,
+  `pre-approval`, `documents-signing`, and `funding`
+- customer dashboard under `/account/profile`
+- product-style landing page and support content rather than a blank sample app
+- runtime environment badge and build/version visibility
+- route shells keep server/client boundaries explicit; interactive form flows
+  live in focused client islands
+
+### Web UI System
+
+- Tailwind CSS styling with shadcn-style `new-york` composition
+- Radix UI primitives for accessible interaction surfaces
+- shared `cn()` utility, `class-variance-authority`, and `tailwind-merge`
+- Lucide icons for UI controls
+- shared web primitives under `libs/ui/web`: accordion, alert, button, card,
+  checkbox, dialog, dropdown menu, form field, input, progress, radio group,
+  select, sheet, and textarea
+- TanStack React Query for client data workflows
+- TanStack React Form and Zod schemas for form behavior and validation
+- TanStack React Table powers the showcase grid/table experience
+- accessibility checks include axe-based smoke coverage
 
 ### Mobile Experience
 
-- Expo 55 / React Native app shell
+- Expo 55 and React Native 0.83 application shell
 - NativeWind and Gluestack UI foundation
-- shared app release/version visibility through Expo config
-- mobile e2e uses Playwright against Expo Web for the current automation lane
+- React Navigation stack readiness
+- dashboard and showcase screens
+- shared mobile UI primitives under `libs/ui/mobile`
+- Expo config exposes release/version information
+- mobile e2e lane uses Playwright against Expo Web for the current automation
+  path
+- future Okta mobile auth integration is structurally prepared but not the
+  current demo focus
 
-### Auth And Session Security
+### Auth, Identity, And Session Security
 
-- Okta hosted sign-in and registration with environment-specific redirect
-  configuration
-- server-side PKCE, nonce/state validation, custom-domain Okta issuer policy,
-  and id-token validation
-- opaque HTTP-only session cookie; tokens stay out of normal browser storage
-- server-enforced idle expiry and absolute session expiry
-- CSRF protection on mutating browser/BFF paths
-- BFF-issued CSRF cookie in BFF mode, relayed through the stable
-  `/api/security/csrf` facade route
-- funding step-up MFA uses fresh Okta prompt semantics for stronger assurance
-- trusted Next-to-BFF identity headers require the shared proxy secret outside
-  local development
+- Okta hosted sign-in and hosted registration
+- environment-specific Okta manifests for `dev`, `qa`, `stg`, and `prod`
+- local and `dev` map to the Okta `dev` tenant with separate callback URLs
+- custom Okta domain issuer policy
+- server-side PKCE initiation and callback exchange
+- nonce/state validation and server-side id-token validation
+- opaque HTTP-only web session cookie
+- tokens stay out of normal browser storage
+- server-enforced idle timeout and absolute session expiry
+- browser idle warning modal can demonstrate short `dev` idle behavior
+- server-driven logout and Okta logout hint support
+- rate limiting and auth audit logging on sensitive paths
+- `leadId` tracking is separated from customer identity and session concerns
+
+### Funding Step-Up And Assurance
+
+- funding route requires stronger assurance than ordinary application steps
+- funding access starts a fresh Okta authorize request with MFA-oriented
+  `acr_values`, `prompt=login`, and `max_age=0`
+- each funding page entry consumes the latest funding step-up marker
+- funding save/submit APIs can use the bounded 10-minute funding API window
+  after callback
+- assurance checks are part of route and API enforcement, not only UI state
+- funding step-up is visible in both auth behavior and analytics events
+
+### CSRF, Facade Security, And Browser Boundary
+
+- browser code calls same-origin Next `/api/*` routes
+- raw BFF URL is for server-to-server or terminal checks, not browser app code
+- CSRF double-submit protection covers mutating browser/facade routes
+- BFF-issued CSRF cookie is relayed through `/api/security/csrf` in BFF mode
+- Next validates browser cookies/session/CSRF before proxying protected calls
+- Content Security Policy keeps application traffic scoped to the Next origin
+  plus approved identity and analytics endpoints
+- trusted Next-to-BFF identity headers require the internal boundary plus
+  `ACME_BFF_TRUSTED_PROXY_SECRET` outside local development
+- security inspector is explicitly local/dev oriented and opt-in elsewhere
 
 ### BFF And API Layer
 
-- `.NET` BFF with Minimal APIs, feature folders, OpenAPI JSON, Scalar UI,
-  health, readiness, and structured request logging
+- `.NET` 10 Minimal API BFF under Nx
+- OpenAPI JSON and Scalar UI in development
+- health, readiness, and live-style checks
 - auth flow endpoints for login, callback, logout, session sync, session read,
   touch, requirement checks, and logout hints
-- customer profile and application flow endpoints behind authenticated trusted
-  identity context
-- security inspector endpoint for local/dev diagnostics, reachable from the
-  browser only through the authenticated Next facade
-- Wolverine is used selectively behind the HTTP pipeline for
-  customer/application command and query handlers
-- the HTTP pipeline owns cookie, CSRF, trusted proxy, correlation, logging, and
-  OpenTelemetry concerns before handlers run
+- CSRF endpoint
+- customer profile endpoints
+- application flow endpoints
+- security inspector endpoint for local/dev diagnostics through the trusted
+  Next facade
+- observability event endpoint behind
+  `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED`
+- Wolverine-backed customer/application command and query handlers behind the
+  HTTP/security pipeline
+- BFF request logging, trusted proxy validation, cookie handling, CSRF,
+  correlation, and OpenTelemetry concerns live before handlers
 
-### Azure Platform
+### BFF Toggle And Migration Architecture
 
-- landing-zone-shaped governance with management groups, subscriptions,
-  budgets, and workload/platform split
-- Azure Container Apps runs the public web app and internal BFF app in `dev`
-- Azure Managed Redis is the shared server-side state path
+- `ACME_BFF_PROXY_MODE=next|bff` is the reversible server-side migration switch
+- browser contracts stay stable while route authority moves between Next and
+  the BFF
+- when toggle is `next`, switched routes stay in the Next implementation
+- when toggle is `bff`, Next keeps the public browser contract and delegates
+  selected auth/session/customer/application/security routes to the BFF
+- BFF mode makes the BFF the auth/session, CSRF, customer-profile, and
+  application-flow authority
+- security inspector reads the active authority, so BFF mode shows BFF-owned
+  token/session state
+- observability events can move to the BFF with a separate telemetry feature
+  toggle without changing the public browser route
+
+### State, Persistence, And Data Boundaries
+
+- Redis-backed server state is the hardened local and Azure path
+- local file-backed state exists as a developer fallback for the Next web app
+- BFF has Redis-backed stores plus local scaffolding fallback where appropriate
+- state categories include auth sessions, auth transactions, customer profile,
+  application flow, CSRF, and rate-limit state
+- Azure Redis uses Microsoft Entra auth through managed identity
+- local Redis uses Docker Compose and connection-string auth
+- customer/application data remains transitional server-side workflow state,
+  not the final durable system of record
+- future durable persistence should sit behind backend services or the BFF
+  without changing browser contracts
+
+### Azure Governance And Landing Zone
+
+- management-group hierarchy exists for platform, landing zones, online, and
+  sandbox organization
+- platform, non-prod online, prod online, and sandbox subscription model is
+  represented in source-owned config
+- subscription budget helper scripts exist for cost guardrails
+- platform/workload split separates shared monitoring/DNS from workload compute
+- Bicep and PowerShell scripts own environment creation instead of portal-only
+  steps
+- deployment stacks, bootstrap, sync, teardown, pause, and resume scripts keep
+  lifecycle operations repeatable
+
+### Azure Workload Runtime
+
+- Azure Container Apps runs the public Next web app
+- internal BFF Container App runs behind the Next facade
+- Container App Environment hosts the workload
+- Azure Managed Redis is the shared state path
 - Key Vault holds runtime secrets
-- Redis and Key Vault use private endpoints and private DNS
-- managed identity is used for runtime access where supported
-- BFF replica settings follow the environment runtime scale configuration unless
-  explicitly overridden, so `dev` does not accidentally run the BFF at zero
-  replicas while the web app stays warm
-- pause/resume and teardown flows are repo-owned scripts, not manual-only portal
-  operations
+- user-assigned managed identity supports ACR pull, Key Vault access, and Redis
+  Entra auth
+- workload VNet has app and data subnets
+- Redis and Key Vault use private endpoints in the data subnet
+- private DNS zones live in the platform subscription and link to workload
+  VNets
+- NSGs make the app-to-data boundary explicit
+- BFF replica settings follow environment runtime scale unless explicitly
+  overridden
+- non-prod pause/resume controls stop and restart web/BFF compute and alerting
+  posture for cost control
 
-### Observability
+### Observability And Operational Telemetry
 
 - Application Insights and Log Analytics collect app and platform telemetry
-- Azure workbook gives a presenter-friendly operational view
-- alerts exist for failures, exceptions, auth failures, and system errors
-- structured logs include environment, service, version, build, route, trace,
-  and correlation fields
-- logging demo shows W3C `traceparent`, app correlation IDs, client-origin event
-  ingestion, server-origin logs, and controlled error paths
+- Azure Monitor workbook provides a presenter-friendly operational view
+- alert rules exist for failed requests, exceptions, auth failures, and system
+  errors
+- structured JSON logs include environment, service, version, build, route,
+  trace, span, parent span, correlation, and request metadata
+- W3C `traceparent` is the standard trace propagation header
+- `X-Correlation-ID` is carried separately for app/business correlation
+- logging demo shows browser-origin telemetry, server-origin logs, traced flow,
+  API event ingestion, client errors, and server errors
+- `/api/observability/events` validates allowlisted browser-origin operational
+  events before logging them
+- telemetry ingestion can route to the BFF only when BFF mode and the telemetry
+  feature toggle are both enabled
 
-### Digital Analytics
+### Digital Analytics And Tag Management
 
-- GA4/GTM environment intent is source-owned under `infra/analytics`
-- manifests cover `dev`, `qa`, `stg`, and `prod`
-- the Next runtime loads GTM or direct GA4 only when enabled and valid Google
+- GA4/GTM admin-plane intent is source-owned under `infra/analytics`
+- environment manifests exist for `dev`, `qa`, `stg`, and `prod`
+- real browser-safe Google IDs are stored as public config values; API secrets
+  are not committed
+- `infra/analytics/events.json` defines the app-owned event taxonomy
+- first key-event candidates include application start, step completion,
+  submit success, `generate_lead`, funding step-up completion, and
+  preapproval offer selection
+- `@acme-los/core/analytics` owns generic browser analytics primitives:
+  consent mapping, safe pathname normalization, event IDs, dataLayer dispatch,
+  and direct gtag dispatch
+- web app analytics layer owns ACME LOS event builders for page views,
+  application milestones, sign-in attempts, login, sign-in failure, funding
+  step-up, submit click, submit success, submit failure, and `generate_lead`
+- Next runtime loads GTM or direct GA4 only when analytics is enabled and valid
   IDs are configured
-- `events.json` defines the app-owned data layer taxonomy and first key-event
-  candidates
-- `npm run analytics:render -- <env>` generates local/runtime config under
-  `tmp/analytics`
-- manual Google account, GA4 property, web stream, GTM container, consent, and
-  key-event setup is documented before runtime tags are enabled
+- GA4 automatic page views are disabled so app-owned `page_view` is the source
+  of truth
+- events strip query strings, hashes, tokens, cookies, PII, and form payloads
+- `npm run analytics:render -- <env>` renders local/runtime config
+- `npm run analytics:admin-plan -- <env>` renders custom dimensions,
+  key-event, GTM trigger/tag, and report-planning output
+- Google account, GA4 property, GTM container, consent, and key-event setup are
+  documented as manual/admin-plane steps until an approved Google admin
+  credential model exists
+
+### Runtime Health And Demo Proof Points
+
+- `/api/health` reports environment, build, instance/process details, web
+  health, and BFF health when enabled
+- repeated health calls can show ACA replica distribution through changing
+  instance metadata
+- `/api/health/live` exists for live-style checks
+- direct BFF health is useful from terminal/private contexts
+- security inspector proves active auth/session authority in local/dev
+- logging demo proves trace and correlation across browser, Next, and logs
+- Redis demo proves session continuity across multiple web replicas
+
+### Public Website Demo Surfaces
+
+- `/` landing page
+- `/rates-terms`
+- `/support/contact`
+- `/legal/privacy`, `/legal/terms`, `/legal/accessibility`, and
+  `/legal/licenses`
+- `/account/sign-in`
+- `/account/profile`
+- `/apply` and `/apply/[step]`
+- `/auth/callback`
+- `/security`
+- `/logging-demo`
+- `/showcase`
+- `/rendering-demo`, `/rendering-demo/static`, `/rendering-demo/server`,
+  `/rendering-demo/isr`, and `/rendering-demo/client`
+
+### Browser-Facing API Demo Surfaces
+
+- `/api/auth/start`
+- `/api/auth/callback`
+- `/api/auth/logout`
+- `/api/auth/session`
+- `/api/auth/session/touch`
+- `/api/customer/profile`
+- `/api/application/steps/[step]`
+- `/api/application/submit`
+- `/api/security/csrf`
+- `/api/security/inspector`
+- `/api/observability/events`
+- `/api/showcase/grid`
+- `/api/health`
+- `/api/health/live`
+
+### Admin Plane And Source-Owned Infrastructure
+
+- `infra/azure` owns Azure Bicep, config, and deployment scripts
+- `infra/okta` owns Okta environment manifests, branding input, render,
+  bootstrap, cleanup, and hosted sign-in helper scripts
+- `infra/analytics` owns GA4/GTM environment manifests, event taxonomy, admin
+  plan rendering, and local admin-token resolution helpers
+- generated runtime outputs go under ignored `tmp/*` paths
+- secrets stay in Key Vault, GitHub environments, local secret files, or local
+  environment variables, not committed docs/manifests
+
+### Documentation And Runbooks
+
+- root README gives quick start, current posture, and a short demo inventory
+- docs index routes readers by intent
+- architecture docs cover current platform, server auth flows, BFF rollout,
+  auth/API contracts, domain boundaries, and enterprise readiness
+- operations docs cover release/delivery, Azure bootstrap/teardown, governance,
+  monitoring/workbooks, GitHub/Azure environments, pipeline portability, and
+  this demo runbook
+- reference docs cover tech stack, HTTP API testing, VS Code setup, and Azure
+  naming standards
+- package-level READMEs cover BFF, Azure, Okta, analytics, web UI, and mobile UI
 
 ### Current Honest Assessment
 
 - `dev` is real and deploys from `main` through CI/CD
-- the BFF auth/session slice is now the intended end-state path when the BFF
-  toggle is enabled
+- BFF auth/session is the intended end-state path when the BFF toggle is
+  enabled
 - if a direct BFF URL times out from your workstation, that is expected for the
   internal ACA endpoint; use the public Next `/api/*` facade for browser and
   manual web checks
 - customer and application persistence are still transitional server-side state,
   not the final durable backend record
 - `qa` promotion proof, real alert receivers, durable persistence, Front Door,
-  WAF, custom domains, and private-origin production edge hardening remain next
-  phases
+  WAF, custom domains, private-origin production edge hardening, and regional
+  resilience remain next phases
+- server-side GA4 Measurement Protocol emission is not implemented yet; browser
+  GA/GTM runtime is the current product analytics path
 - the grouped security, scalability, fault-tolerance, and enterprise-readiness
   assessment lives in
   [Enterprise readiness](../architecture/enterprise-readiness.md)

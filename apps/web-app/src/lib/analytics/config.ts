@@ -1,13 +1,12 @@
-export type AnalyticsConsentValue = 'denied' | 'granted';
+import type {
+  AnalyticsConsentDefaults,
+  AnalyticsConsentValue,
+  AnalyticsDispatchMode,
+} from '@acme-los/core/analytics';
 
-export type AnalyticsMode = 'disabled' | 'gtag' | 'gtm';
+export type { AnalyticsConsentDefaults, AnalyticsConsentValue };
 
-export type AnalyticsConsentDefaults = {
-  analyticsStorage: AnalyticsConsentValue;
-  adStorage: AnalyticsConsentValue;
-  adUserData: AnalyticsConsentValue;
-  adPersonalization: AnalyticsConsentValue;
-};
+export type AnalyticsMode = AnalyticsDispatchMode;
 
 export type AnalyticsRuntimeConfig = {
   enabled: boolean;

@@ -1,8 +1,15 @@
+import {
+  createAnalyticsEventId,
+  getAnalyticsSafePathname,
+  pushDataLayerEvent,
+} from '@acme-los/core/analytics';
 import type {
-  AnalyticsMode,
-  AnalyticsRuntimeConfig,
-  AnalyticsConsentDefaults,
-} from './config';
+  AnalyticsDataLayerEvent,
+  AnalyticsDispatchMode,
+} from '@acme-los/core/analytics';
+import type { AnalyticsRuntimeConfig } from './config';
+
+export { getAnalyticsSafePathname } from '@acme-los/core/analytics';
 
 export type AnalyticsRenderingMode = 'client' | 'isr' | 'server' | 'static';
 
@@ -58,58 +65,30 @@ export type AcmeAnalyticsEventName =
   | 'sign_in_failed'
   | 'sign_in_started';
 
-export type AcmeAnalyticsEvent = {
-  event: AcmeAnalyticsEventName;
-  event_id: string;
-  environment: string;
-  page_location: string;
-  page_title: string;
-  page_path: string;
-  route_group: string;
-  rendering_mode: AnalyticsRenderingMode;
-  auth_state: AnalyticsAuthState;
-  assurance_level: string;
-  journey_name?: string;
-  application_step?: AnalyticsApplicationStep;
-  auth_context?: AnalyticsAuthContext;
-  failure_reason_bucket?: AnalyticsFailureReasonBucket;
-  method?: string;
-  milestone_name?: string;
-  offer_type?: string;
-  step_destination?: AnalyticsApplicationStep;
-  step_up_reason?: string;
-  result?: AnalyticsEventResult;
-  transport_origin?: 'browser' | 'browser_after_server_success';
-};
-
-declare global {
-  interface Window {
-    dataLayer?: unknown[];
-    gtag?: (...args: unknown[]) => void;
-  }
-}
-
-function createEventId(): string {
-  if (
-    typeof crypto !== 'undefined' &&
-    typeof crypto.randomUUID === 'function'
-  ) {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-}
-
-export function toGoogleConsentDefaults(
-  consent: AnalyticsConsentDefaults,
-): Record<string, 'denied' | 'granted'> {
-  return {
-    analytics_storage: consent.analyticsStorage,
-    ad_storage: consent.adStorage,
-    ad_user_data: consent.adUserData,
-    ad_personalization: consent.adPersonalization,
+export type AcmeAnalyticsEvent =
+  AnalyticsDataLayerEvent<AcmeAnalyticsEventName> & {
+    event: AcmeAnalyticsEventName;
+    event_id: string;
+    environment: string;
+    page_location: string;
+    page_title: string;
+    page_path: string;
+    route_group: string;
+    rendering_mode: AnalyticsRenderingMode;
+    auth_state: AnalyticsAuthState;
+    assurance_level: string;
+    journey_name?: string;
+    application_step?: AnalyticsApplicationStep;
+    auth_context?: AnalyticsAuthContext;
+    failure_reason_bucket?: AnalyticsFailureReasonBucket;
+    method?: string;
+    milestone_name?: string;
+    offer_type?: string;
+    step_destination?: AnalyticsApplicationStep;
+    step_up_reason?: string;
+    result?: AnalyticsEventResult;
+    transport_origin?: 'browser' | 'browser_after_server_success';
   };
-}
 
 export function getAnalyticsRouteGroup(pathname: string): string {
   if (pathname === '/') {
@@ -174,27 +153,6 @@ export function getAnalyticsRenderingMode(
   }
 
   return 'server';
-}
-
-export function getAnalyticsSafePathname(pathname: string): string {
-  const rawPathname = pathname.trim();
-
-  if (!rawPathname) {
-    return '/';
-  }
-
-  if (/^https?:\/\//i.test(rawPathname)) {
-    try {
-      return new URL(rawPathname).pathname || '/';
-    } catch {
-      return '/';
-    }
-  }
-
-  const [pathOnly] = rawPathname.split(/[?#]/);
-  const normalizedPath = pathOnly.startsWith('/') ? pathOnly : `/${pathOnly}`;
-
-  return normalizedPath || '/';
 }
 
 export function toAnalyticsAuthState(
@@ -327,7 +285,7 @@ export function buildPageViewEvent({
 
   return {
     event: 'page_view',
-    event_id: createEventId(),
+    event_id: createAnalyticsEventId(),
     environment: config.environment,
     page_location: `${origin}${safePathname}`,
     page_title: pageTitle,
@@ -372,7 +330,7 @@ function buildBaseEvent({
 
   return {
     event: eventName,
-    event_id: createEventId(),
+    event_id: createAnalyticsEventId(),
     environment: config.environment,
     page_location: `${origin}${safePathname}`,
     page_title: pageTitle,
@@ -574,17 +532,7 @@ export function buildSignInEvent({
 
 export function pushAnalyticsEvent(
   event: AcmeAnalyticsEvent,
-  options: { mode?: AnalyticsMode } = {},
+  options: { mode?: AnalyticsDispatchMode } = {},
 ): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  window.dataLayer = window.dataLayer ?? [];
-  window.dataLayer.push(event);
-
-  if (options.mode === 'gtag' && typeof window.gtag === 'function') {
-    const { event: eventName, ...parameters } = event;
-    window.gtag('event', eventName, parameters);
-  }
+  pushDataLayerEvent(event, options);
 }

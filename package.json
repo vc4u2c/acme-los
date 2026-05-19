@@ -52,10 +52,16 @@
     "@nx/workspace": {
       "picomatch": "^4.0.4"
     },
+    "@module-federation/dts-plugin@2.4.0": {
+      "ws": "8.20.1"
+    },
     "@opentelemetry/exporter-prometheus": "0.217.0",
     "@opentelemetry/sdk-node": "0.217.0",
     "@opentelemetry/otlp-transformer": {
       "protobufjs": "8.2.0"
+    },
+    "@grpc/proto-loader@0.8.1": {
+      "protobufjs": "7.6.0"
     },
     "@tootallnate/once": "^3.0.1",
     "axios": "^1.16.0",
@@ -63,12 +69,16 @@
     "http-proxy-agent": "^7.0.2",
     "ip-address": "^10.2.0",
     "koa": "^3.1.2",
+    "minimatch@10": {
+      "brace-expansion": "5.0.6"
+    },
     "node-forge": "^1.4.0",
     "patch-package": "^8.0.1",
     "postcss": "^8.5.14",
     "serialize-javascript": "^7.0.4",
     "tmp": "^0.2.5",
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.0",
+    "webpack-dev-server": "5.2.4"
   },
   "lint-staged": {
     "**/*.{js,jsx,ts,tsx,cjs,mjs,cts,mts}": [
