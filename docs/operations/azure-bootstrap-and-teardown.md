@@ -165,10 +165,12 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/az
 ```
 
 When the BFF is deployed, the script passes BFF version, trusted proxy secret,
-and BFF replica settings into the runtime stack. By default the BFF min/max
-replica settings follow the environment runtime settings in
-`infra/azure/config/platform.json`; add an environment `bffRuntime` block only
-when the BFF needs a different scale profile from the public web app.
+BFF replica settings, and optional `bffRuntime.serviceAuth` settings into the
+runtime stack. By default the BFF min/max replica settings follow the
+environment runtime settings in `infra/azure/config/platform.json`; add an
+environment `bffRuntime` block only when the BFF needs a different scale profile
+from the public web app or when enabling BFF-specific hardening such as Entra
+service auth.
 
 ## Pause And Resume A Non-Production Workload
 

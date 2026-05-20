@@ -1,86 +1,44 @@
-# BFF Implementation Checklist
+# BFF Implementation Status
 
-This doc turns the BFF rollout plan into a concrete first-pass implementation
-checklist.
+This page used to be the first-pass BFF checklist. The first pass has now
+landed, so this document records what is implemented and what remains.
 
 Related docs:
 
-- [bff-rollout-plan.md](./bff-rollout-plan.md)
-- [current-platform.md](./current-platform.md)
-- [auth-and-api-contracts.md](./auth-and-api-contracts.md)
+- [BFF rollout plan](./bff-rollout-plan.md)
+- [Current platform architecture](./current-platform.md)
+- [Auth and API contracts](./auth-and-api-contracts.md)
+- [ACME LOS BFF README](../../apps/bff-api/README.md)
 
-## Current Assumption
+## Current Status
 
-The repo direction is still:
+The BFF is real and source-owned:
 
-- BFF first
-- no repo relayout first
-- keep the current browser-facing `/api/*` contract stable during the first
-  rollout
+- `.NET 10` Minimal API under [apps/bff-api](../../apps/bff-api)
+- Nx-discovered build, test, run, publish, and release surfaces
+- xUnit coverage plus Reqnroll/Gherkin acceptance coverage
+- internal Azure Container App deployment behind the public Next facade
+- Redis-backed state in Azure/local hardened paths, with in-memory fallback for
+  lightweight scaffolding
+- feature-toggle handoff through `ACME_BFF_PROXY_MODE=next|bff`
+- optional telemetry slice through
+  `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`
+- optional Entra managed-identity service auth through
+  `bffRuntime.serviceAuth.mode=entra`
 
-## Practical SDK Note
+The browser contract remains unchanged: browser code calls the Next `/api/*`
+facade, and the Next server layer decides whether a route stays local or
+delegates to the BFF.
 
-The BFF now targets `.NET 10`. Use the SDK version expected by the repo before
-running BFF build, test, format, or Reqnroll acceptance checks.
-
-## First-Pass Scope
-
-The first pass should prove six things:
-
-1. the repo can host a `.NET` app under `apps/*`
-2. `Nx` can discover and run the app through `@nx/dotnet`
-3. the app can build, test, publish, and run locally
-4. the app has the minimum operational surface:
-   - health
-   - structured logging
-   - OpenTelemetry wiring
-   - API docs
-5. the app has the initial LOS feature folders
-6. the app can become the future home for customer and application persistence
-
-## Proposed Root And Projects
-
-```text
-apps/
-  bff-api/
-    Acme.Los.Bff.sln
-    Acme.Los.Bff.Api/
-    Acme.Los.Bff.Api.Tests/
-```
-
-## Initial Feature Folders
-
-The API project should start with these folders:
-
-```text
-Acme.Los.Bff.Api/
-  Features/
-    Auth/
-    Session/
-    Customer/
-    Application/
-    Observability/
-  Infrastructure/
-    OpenTelemetry/
-    Logging/
-    Redis/
-    Okta/
-  Common/
-```
-
-This is intentionally more structure than behavior. The first scaffold should
-show where code goes before it tries to solve all business logic.
-
-## Initial BFF Endpoints
-
-These are the initial routes the scaffold should expose or reserve.
+## Implemented Endpoint Surface
 
 ### Operational
 
+- `GET /`
 - `GET /health/live`
 - `GET /health/ready`
 - `GET /bff/health`
-- `GET /openapi/v1.json`
+- `GET /openapi/v1.json` in development
 - Scalar UI in development
 
 ### Auth And Session
@@ -115,127 +73,74 @@ These are the initial routes the scaffold should expose or reserve.
 
 - `POST /bff/observability/events`
 
-The BFF observability event ingestion route is implemented behind
-`ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`. When the toggle is off, the BFF
-route returns `404` and the browser-facing Next facade keeps using its existing
-`/api/observability/events` implementation. When the toggle is on with
-`ACME_BFF_PROXY_MODE=bff`, Next still owns the browser boundary and proxies the
-validated request to `/bff/observability/events`.
+The observability route returns `404` unless
+`ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`. Even when it is enabled, the
+browser still posts to `/api/observability/events`; the Next facade validates
+rate limits and CSRF, then proxies the request to the BFF.
 
-The first scaffold does not need all of these fully implemented. It should at
-least reserve the endpoint shape and make the operational routes real.
+## Security Boundary
 
-## Expected Nx Task Surface
+Current layers:
 
-After `@nx/dotnet` is added and the scaffold exists, the BFF projects should
-participate in the workspace through these targets:
+- raw BFF ACA ingress is internal in Azure
+- browser traffic stays on the Next origin
+- trusted identity headers require `ACME_BFF_TRUSTED_PROXY_SECRET` outside
+  local development
+- optional Entra service auth requires a managed-identity bearer token before
+  `/bff/*` routes run
+- security inspector is local/dev by default and opt-in elsewhere
 
-### API Project
+Recommended production path:
 
-- `restore`
-- `build`
-- `run`
-- `publish`
-- `clean`
+1. create the BFF API app registration or equivalent Entra audience per
+   environment
+2. configure `bffRuntime.serviceAuth.mode=entra`
+3. validate the Next managed identity as the allowed caller
+4. keep the trusted proxy secret enabled as defense-in-depth for identity
+   headers
+5. add private-origin edge hardening with Front Door/WAF after environment
+   promotion is repeatable
 
-### Test Project
-
-- `restore`
-- `build`
-- `test`
-- `clean`
-
-## Expected Nx Commands
-
-Once the scaffold is in place, these are the main commands we should be able to
-run:
+## Current Nx And .NET Commands
 
 ```powershell
-nx show projects
-nx build <bff-api-project-name>
-nx test <bff-api-test-project-name>
-nx run <bff-api-project-name>:run
-nx run <bff-api-project-name>:publish
+npx.cmd nx run Acme.Los.Bff.Api:build
+npx.cmd nx run Acme.Los.Bff.Api:run
+npx.cmd nx run Acme.Los.Bff.Api:publish
+npx.cmd nx run Acme.Los.Bff.Api.Tests:test
+npx.cmd nx run Acme.Los.Bff.Api.E2E:test
+dotnet test apps/bff-api/Acme.Los.Bff.sln
+dotnet format apps/bff-api/Acme.Los.Bff.sln --verify-no-changes
 ```
 
-If the inferred project names are awkward, normalize them in repo docs once the
-scaffold is present.
+## Remaining Work
 
-## Step-By-Step Checklist
+- prove `qa` with the same BFF, Redis, Key Vault, Okta, and monitoring shape as
+  `dev`
+- enable and verify `bffRuntime.serviceAuth.mode=entra` after each
+  environment's Entra BFF audience and token scope exist
+- move customer/application persistence from transitional state into durable
+  backend-owned storage
+- decide when the BFF deserves its own independent runtime promotion lane
+- add production edge controls: Front Door, WAF, stable custom domains, and
+  private-origin ACA access
+- keep direct raw BFF usage limited to local/dev terminal or diagnostics paths
 
-### Step 0: Workspace Enablement
+## Verification Baseline
 
-- [ ] add `@nx/dotnet`
-- [ ] confirm `nx.json` plugin wiring
-- [ ] confirm the repo still resolves existing Nx plugins cleanly
-
-### Step 1: Create The .NET Projects
-
-- [ ] create the solution file
-- [ ] create the API project
-- [ ] create the test project
-- [ ] add the test-project reference to the API project
-
-### Step 2: Make The App Operationally Useful
-
-- [ ] add `GET /health`
-- [ ] add `GET /ready`
-- [ ] enable OpenAPI generation
-- [ ] add Scalar UI
-- [ ] wire basic structured logging
-- [ ] wire baseline OpenTelemetry registration
-
-### Step 3: Add LOS Slice Structure
-
-- [ ] add the `Features/*` folders
-- [ ] add the `Infrastructure/*` folders
-- [ ] add placeholder endpoints or endpoint groups for auth, session, customer,
-      application, and observability
-
-### Step 4: Verify Nx Integration
-
-- [ ] `nx build` works for the API project
-- [ ] `nx test` works for the test project
-- [ ] `nx run ...:run` starts the API locally
-- [ ] `nx run ...:publish` produces output cleanly
-
-### Step 5: Verify Runtime Basics
-
-- [ ] health route returns success
-- [ ] readiness route returns success
-- [ ] OpenAPI document renders
-- [ ] Scalar UI renders
-- [ ] logs appear locally in structured form
-
-### Step 6: Record Follow-Ups
-
-- [ ] decide whether to keep built-in logging only or add Serilog
-- [ ] keep Wolverine usage limited to slices that benefit from handlers
-- [ ] keep Redis-backed session and short-lived state integration verified for
-      both local Docker Redis and Azure Entra Redis
-- [ ] keep the security inspector local/dev only and aligned with the active
-      `ACME_BFF_PROXY_MODE`
-
-## Suggested First Verification Loop
-
-Use this after the scaffold lands:
+Use the normal repo sweep before promotion:
 
 ```powershell
 npx.cmd prettier --check .
-npx.cmd nx show projects
-npx.cmd nx build <bff-api-project-name>
-npx.cmd nx test <bff-api-test-project-name>
-dotnet build apps/bff-api/Acme.Los.Bff.sln
+npx.cmd nx run-many -t lint test --all --outputStyle=stream
+npx.cmd nx run web-app:build --skip-nx-cache
+dotnet test apps/bff-api/Acme.Los.Bff.sln
 ```
 
-Add a local run check once the app target is discoverable under Nx.
+For Azure/runtime changes, add:
 
-## Not In Scope For The First Scaffold
-
-- production-ready persistence
-- full Okta callback handling
-- funding step-up enforcement
-- database migrations
-- background messaging
-- microservice decomposition
-- NuGet packaging
+```powershell
+az bicep build --file infra/azure/bicep/main.web.runtime.rg.bicep
+az bicep build --file infra/azure/bicep/modules/web/container-app.bicep
+az bicep build --file infra/azure/bicep/modules/bff/container-app.bicep
+```

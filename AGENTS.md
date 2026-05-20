@@ -49,6 +49,8 @@ This repo includes a curated subset of Codex skills under `.agents/skills` for:
 - E2E testing
 - backend and API patterns
 - documentation lookup
+- analytics and GA4/GTM setup
+- documentation maintenance
 - security review
 - verification loops
 

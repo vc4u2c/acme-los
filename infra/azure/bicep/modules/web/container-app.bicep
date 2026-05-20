@@ -43,6 +43,14 @@ param bffObservabilityEventsEnabled bool = false
 param bffTrustedProxySecretName string = 'sec-acme-los-bff-trusted-proxy-secret'
 @secure()
 param bffTrustedProxySecretKeyVaultUrl string = ''
+@allowed([
+  ''
+  'disabled'
+  'entra'
+])
+param bffServiceAuthMode string = ''
+param bffServiceAuthTokenScope string = ''
+param bffServiceAuthManagedIdentityClientId string = ''
 param targetPort int = 3000
 param containerCpu string = '0.5'
 param containerMemory string = '1Gi'
@@ -109,6 +117,22 @@ var bffTrustedProxyEnvironmentVariables = !empty(bffTrustedProxySecretKeyVaultUr
       {
         name: 'ACME_BFF_TRUSTED_PROXY_SECRET'
         secretRef: bffTrustedProxySecretName
+      }
+    ]
+  : []
+var bffServiceAuthEnvironmentVariables = toLower(bffServiceAuthMode) == 'entra'
+  ? [
+      {
+        name: 'ACME_BFF_SERVICE_AUTH_MODE'
+        value: 'entra'
+      }
+      {
+        name: 'ACME_BFF_SERVICE_AUTH_SCOPE'
+        value: bffServiceAuthTokenScope
+      }
+      {
+        name: 'ACME_BFF_SERVICE_AUTH_MANAGED_IDENTITY_CLIENT_ID'
+        value: bffServiceAuthManagedIdentityClientId
       }
     ]
   : []
@@ -286,7 +310,8 @@ var environmentVariables = concat(
   redisBaseEnvironmentVariables,
   redisEntraEnvironmentVariables,
   bffBaseEnvironmentVariables,
-  bffTrustedProxyEnvironmentVariables
+  bffTrustedProxyEnvironmentVariables,
+  bffServiceAuthEnvironmentVariables
 )
 
 var sessionSecrets = [

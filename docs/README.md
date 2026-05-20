@@ -30,7 +30,8 @@ state, Azure Container Apps, Key Vault/private endpoints, Application
 Insights/Log Analytics, GitHub Actions CI/CD, Nx Release versioning, Husky
 commit guardrails, shadcn/Radix/Tailwind UI primitives, and TanStack Query,
 Form, and Table workflows. It now also has a repo-owned GA4/GTM analytics admin
-plane, web runtime analytics wiring, and documented HTTP API testing path.
+plane, web runtime analytics wiring, optional managed-identity service auth
+between Next and the BFF, and a documented HTTP API testing path.
 
 ## Suggested Read Order
 
@@ -70,6 +71,7 @@ path:
 - [Azure governance and lifecycle](./operations/azure-governance-and-lifecycle.md)
 - [Azure bootstrap and teardown](./operations/azure-bootstrap-and-teardown.md)
 - [Azure monitoring and workbooks](./operations/azure-monitoring-and-workbooks.md)
+- [Repeated workflows and skill map](./operations/repeated-workflows-and-skill-map.md)
 - [GitHub and Azure environments](./operations/github-azure-environments.md)
 - [Pipeline portability](./operations/pipeline-portability.md)
 - [Azure infrastructure scaffold](../infra/azure/README.md)

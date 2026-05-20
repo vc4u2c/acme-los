@@ -49,6 +49,10 @@ The local default `TrustedProxySecret` in the `.http` file matches the local
 development default used by the one-command stack. Do not replace it with an
 Azure or production value.
 
+Entra service-auth bearer tokens are not part of the normal committed REST
+Client file. If `ACME_BFF_SERVICE_AUTH_MODE=entra` is enabled for a manual BFF
+test, keep the bearer token in a private scratch file and never commit it.
+
 ## CSRF Flow
 
 The REST Client file names the BFF CSRF request:

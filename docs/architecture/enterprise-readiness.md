@@ -51,13 +51,18 @@ Security strengths:
   Vault references, and Redis Entra auth
 - trusted BFF identity headers are guarded by the internal ACA boundary plus
   `ACME_BFF_TRUSTED_PROXY_SECRET`
+- the source-owned Next-to-BFF hardening path supports Entra managed-identity
+  bearer tokens through `bffRuntime.serviceAuth`; the BFF validates tenant,
+  audience, and allowed caller before `/bff/*` routes run
 - dev-only security inspector behavior is explicitly opt-in outside local/dev
 
 Security gaps before production hardening:
 
 - Front Door, WAF, stable custom domains, and private-origin ACA ingress are not
   in place yet
-- managed identity is not yet used as an app-level Next-to-BFF token assertion
+- each environment still needs the BFF API app registration/audience and token
+  scope values configured before `bffRuntime.serviceAuth.mode=entra` can be
+  turned on
 - production-grade secret rotation and break-glass runbooks need to be written
   and rehearsed
 - rate limits and abuse controls should be reviewed for every mutating API
@@ -133,8 +138,9 @@ Enterprise gaps to close next:
 - add Azure Monitor action-group receivers and on-call notification paths
 - add production data platform and migration path for customer/application data
 - add load/performance checks and dependency-failure drills
-- decide whether Next-to-BFF hardening should use managed-identity token
-  validation, mTLS, or both
+- enable and verify `bffRuntime.serviceAuth.mode=entra` after each environment's
+  BFF app registration is created; consider mTLS as an additional private-origin
+  control after that
 - add server-side Measurement Protocol emission for auth callbacks and other
   events the browser cannot observe
 

@@ -82,9 +82,14 @@ flowchart LR
 ```
 
 The shared managed identity is an Azure resource-access identity. It is not yet
-an app-level proof between Next and the BFF. The current service-to-service
-application boundary is the internal BFF ACA ingress plus
+an app-level proof between Next and the BFF in live `dev`. The current live
+service-to-service application boundary is the internal BFF ACA ingress plus
 `ACME_BFF_TRUSTED_PROXY_SECRET` before trusted identity headers are honored.
+The code and Azure runtime templates now support an opt-in Entra
+managed-identity bearer assertion through `bffRuntime.serviceAuth`: Next asks
+for the configured BFF token scope with its ACA managed identity, and the BFF
+validates tenant, audience, and allowed calling client id before `/bff/*`
+routes run.
 
 ## Current Auth Shape
 
@@ -116,7 +121,8 @@ application boundary is the internal BFF ACA ingress plus
   - handles CSRF-aware requests without exposing Okta or cookie internals to UI code
 - `libs/api/domain-client`
   - server-side wrappers for domain-facing `customer` and `application` endpoints
-  - this is the layer the Next facade can later point at a .NET BFF or legacy services through
+  - this is the layer the Next facade can point at the BFF while preserving the
+    browser-facing contract
 
 Current BFF bridge:
 
@@ -208,7 +214,8 @@ Still temporary by design:
 
 - the security inspector route is meant for local and dev troubleshooting and should stay opt-in outside those environments
 - the local file-backed store is a bridge fallback, not the final multi-instance production state path
-- the future .NET BFF should still replace the Next facade implementations while preserving the contracts
+- the BFF should continue replacing Next-owned backend behavior while preserving
+  the `/api/*` contracts
 - customer and application state still live in the web-server layer instead of a durable backend service
 
 ## Current Cloud Hardening Posture
@@ -256,13 +263,17 @@ Runtime identity:
 - keep GitHub or future Azure DevOps deployment identities separate from the app runtime identity
 - continue using managed identity for ACR pulls and Key Vault secret references
 - use direct Entra-authenticated Redis access in Azure deployments
+- enable `bffRuntime.serviceAuth.mode=entra` once the BFF API app registration
+  audience and token scope exist for the environment
 - keep the Redis connection-string path only for local Docker Redis
 
 Persistence:
 
 - keep Redis as shared session and short-lived state infrastructure for the current web runtime
 - do not make Redis the long-term system of record for customer or application data
-- move customer profile and application-flow persistence behind backend services or the future .NET BFF while preserving the contracts in `libs/api/contracts`
+- move customer profile and application-flow persistence behind backend
+  services or durable BFF-owned storage while preserving the contracts in
+  `libs/api/contracts`
 - keep the Next facade thin so this swap does not rewrite the UI or browser client wrappers
 
 ## Immediate Next Priorities
@@ -353,7 +364,9 @@ Related docs:
 - [Future repo relayout plan](./future-repo-relayout-plan.md)
 - [ADR-001: keep the current layout first](./adr-001-current-layout-first.md)
 
-The web app is being shaped so the current server-side PKCE flow can later move behind a .NET BFF without rewriting the UI layer.
+The BFF auth/session path now exists behind the Next facade. The remaining
+direction is to keep moving backend behavior behind the BFF without rewriting
+the UI layer or browser API contract.
 
 Current BFF auth/session endpoints:
 
@@ -431,11 +444,12 @@ Definition of done:
 - keep the security inspector route explicit and removable for non-demo environments
 - prefer Redis or another durable shared state backend outside simple local development
 
-### Phase 6: Prepare The .NET BFF Swap
+### Phase 6: Continue The BFF Swap
 
 - keep request and response contracts stable in `libs/api/contracts`
 - keep the web client calling app-owned endpoints, not Okta internals
-- keep the Next implementation thin enough that it can later proxy to or be replaced by .NET
+- keep the Next implementation thin enough that backend behavior can continue
+  moving into the BFF
 - avoid baking Next-specific auth or session assumptions into shared UI or domain code
 
 ### Phase 7: Registration Rework When Unpaused

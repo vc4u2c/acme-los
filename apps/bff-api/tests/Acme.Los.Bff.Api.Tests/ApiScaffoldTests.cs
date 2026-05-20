@@ -4,12 +4,14 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Acme.Los.Bff.Api.Contracts;
+using Acme.Los.Bff.Api.Common;
 using Acme.Los.Bff.Api.Infrastructure.Auth;
 using Acme.Los.Bff.Api.Infrastructure.State;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Acme.Los.Bff.Api.Tests;
 
@@ -600,6 +602,107 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public async Task GetBffAuthSession_WithServiceAuthRequiredAndMissingBearer_ReturnsForbidden()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_BFF_SERVICE_AUTH_MODE"] = "entra",
+        ["ACME_BFF_SERVICE_AUTH_TENANT_ID"] = "00000000-0000-0000-0000-000000000001",
+        ["ACME_BFF_SERVICE_AUTH_AUDIENCE"] = "api://acme-los-bff",
+        ["ACME_BFF_SERVICE_AUTH_ALLOWED_CLIENT_IDS"] = "web-client-id",
+        ["ACME_BFF_TRUSTED_PROXY_SECRET"] = "proxy-secret-123",
+      });
+    using var factory =
+      _factory.WithWebHostBuilder(builder => builder.UseEnvironment("Production"));
+    using var client = factory.CreateClient();
+    using var request = new HttpRequestMessage(
+      HttpMethod.Get,
+      "/bff/auth/session");
+
+    request.Headers.Add("x-acme-bff-proxy-secret", "proxy-secret-123");
+
+    using var response = await client.SendAsync(request);
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task GetBffAuthSession_WithServiceAuthAndProxySecret_AcceptsTrustedBoundary()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_BFF_SERVICE_AUTH_MODE"] = "entra",
+        ["ACME_BFF_SERVICE_AUTH_TENANT_ID"] = "00000000-0000-0000-0000-000000000001",
+        ["ACME_BFF_SERVICE_AUTH_AUDIENCE"] = "api://acme-los-bff",
+        ["ACME_BFF_SERVICE_AUTH_ALLOWED_CLIENT_IDS"] = "web-client-id",
+        ["ACME_BFF_TRUSTED_PROXY_SECRET"] = "proxy-secret-123",
+      });
+    using var factory =
+      _factory.WithWebHostBuilder(builder =>
+      {
+        builder.UseEnvironment("Production");
+        builder.ConfigureServices(services =>
+        {
+          services.AddSingleton<IBffServiceTokenValidator>(
+            new AcceptingBffServiceTokenValidator());
+        });
+      });
+    using var client = factory.CreateClient();
+    using var request = new HttpRequestMessage(
+      HttpMethod.Get,
+      "/bff/auth/session");
+
+    request.Headers.Authorization =
+      new System.Net.Http.Headers.AuthenticationHeaderValue(
+        "Bearer",
+        "accepted-service-token");
+    request.Headers.Add("x-acme-bff-proxy-secret", "proxy-secret-123");
+
+    using var response = await client.SendAsync(request);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+  }
+
+  [Fact]
+  public async Task GetBffAuthSession_WithServiceAuthAndMissingProxySecret_ReturnsForbidden()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_BFF_SERVICE_AUTH_MODE"] = "entra",
+        ["ACME_BFF_SERVICE_AUTH_TENANT_ID"] = "00000000-0000-0000-0000-000000000001",
+        ["ACME_BFF_SERVICE_AUTH_AUDIENCE"] = "api://acme-los-bff",
+        ["ACME_BFF_SERVICE_AUTH_ALLOWED_CLIENT_IDS"] = "web-client-id",
+        ["ACME_BFF_TRUSTED_PROXY_SECRET"] = "proxy-secret-123",
+      });
+    using var factory =
+      _factory.WithWebHostBuilder(builder =>
+      {
+        builder.UseEnvironment("Production");
+        builder.ConfigureServices(services =>
+        {
+          services.AddSingleton<IBffServiceTokenValidator>(
+            new AcceptingBffServiceTokenValidator());
+        });
+      });
+    using var client = factory.CreateClient();
+    using var request = new HttpRequestMessage(
+      HttpMethod.Get,
+      "/bff/auth/session");
+
+    request.Headers.Authorization =
+      new System.Net.Http.Headers.AuthenticationHeaderValue(
+        "Bearer",
+        "accepted-service-token");
+
+    using var response = await client.SendAsync(request);
+
+    Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+  }
+
+  [Fact]
   public async Task PutBffCustomerProfile_WithTrustedIdentityAndCsrf_PersistsProfile()
   {
     using var client = _factory.CreateClient();
@@ -1050,6 +1153,22 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       {
         Environment.SetEnvironmentVariable(name, value);
       }
+    }
+  }
+
+  private sealed class AcceptingBffServiceTokenValidator : IBffServiceTokenValidator
+  {
+    public Task<BffServiceTokenValidationResult> ValidateAsync(
+      string token,
+      CancellationToken cancellationToken)
+    {
+      return Task.FromResult(
+        string.Equals(
+          token,
+          "accepted-service-token",
+          StringComparison.Ordinal)
+          ? BffServiceTokenValidationResult.Valid("web-client-id", "web-object-id")
+          : BffServiceTokenValidationResult.Invalid());
     }
   }
 }

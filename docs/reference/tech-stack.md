@@ -20,7 +20,7 @@ If you want the fastest path to running the repo, start at:
 | Mobile                | Expo 55, React Native 0.83, NativeWind, Gluestack, React Navigation, Expo Web e2e lane                                                       |
 | BFF                   | `.NET` 10 Minimal API, OpenAPI, Scalar UI, health/readiness, dev-only inspector, Wolverine-backed customer/application handlers              |
 | Auth                  | Okta hosted sign-in/registration, server-side PKCE, id-token validation, opaque sessions, funding step-up MFA                                |
-| Security              | HTTP-only cookies, CSRF double-submit protection, trusted Next-to-BFF proxy secret, CSP, rate limiting/audit logging                         |
+| Security              | HTTP-only cookies, CSRF double-submit protection, trusted Next-to-BFF proxy secret, optional Entra service auth, CSP, rate limits/audit logs |
 | State                 | Redis-backed server state in hardened local/Azure paths, local file fallback for Next, BFF in-memory fallback for scaffolding                |
 | Azure                 | ACA, Key Vault, Azure Managed Redis, private endpoints, private DNS, NSGs, managed identity, environment-driven scale, budgets, pause/resume |
 | Observability         | Application Insights, Log Analytics, workbook, alerts, structured JSON logs, `traceparent`, correlation IDs                                  |
@@ -126,6 +126,8 @@ If you want the fastest path to running the repo, start at:
 - CSRF protection on mutating web routes
 - centralized server-side state for auth, customer, and application flow
 - security inspector enabled by default in `local` and `dev`, opt-in elsewhere
+- optional Entra managed-identity service auth between Next and the internal BFF
+  when `bffRuntime.serviceAuth.mode=entra` is configured
 
 ### Server State
 
@@ -267,6 +269,10 @@ Useful repo-level scripts in [package.json](../../package.json):
 - `analytics:render`
 - `analytics:check-admin-token`
 - `dotnet:audit`
+- `azure:show-state`
+- `azure:pause:web`
+- `azure:resume:web`
+- `analytics:admin-plan`
 
 Useful Redis-backed local web targets:
 

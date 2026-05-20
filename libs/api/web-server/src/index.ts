@@ -18,6 +18,16 @@ export {
   isBffProxyEnabled,
   type BffProxyMode,
 } from './lib/bff-config';
+export {
+  BFF_SERVICE_AUTH_MANAGED_IDENTITY_CLIENT_ID_ENV_NAME,
+  BFF_SERVICE_AUTH_MODE_ENV_NAME,
+  BFF_SERVICE_AUTH_SCOPE_ENV_NAME,
+  getBffServiceAuthorizationHeader,
+  getBffServiceAuthMode,
+  getBffServiceTokenScopeOrThrow,
+  resetBffServiceAuthCacheForTests,
+  type BffServiceAuthMode,
+} from './lib/bff-service-auth';
 export { logAuthAuditEvent } from './lib/auth-audit';
 export {
   clearReplacedWebAuthSession,

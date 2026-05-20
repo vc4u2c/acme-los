@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   BFF_TRUSTED_PROXY_SECRET_HEADER,
   getBffBaseUrlOrThrow,
+  getBffServiceAuthorizationHeader,
   getBffTrustedProxySecret,
   isBffProxyEnabled,
 } from '@acme-los/api/web-server';
@@ -52,10 +53,10 @@ function buildProxyTargetUrl(
   return targetUrl;
 }
 
-function buildUpstreamHeaders(
+async function buildUpstreamHeaders(
   request: NextRequest,
   extraHeaders?: Record<string, string | null | undefined>,
-): Headers {
+): Promise<Headers> {
   const headers = new Headers();
 
   for (const headerName of REQUEST_HEADERS_TO_FORWARD) {
@@ -81,6 +82,11 @@ function buildUpstreamHeaders(
     if (trimmedValue) {
       headers.set(headerName, trimmedValue);
     }
+  }
+
+  const authorizationHeader = await getBffServiceAuthorizationHeader();
+  if (authorizationHeader) {
+    headers.set('authorization', authorizationHeader);
   }
 
   return headers;
@@ -129,7 +135,7 @@ export async function maybeProxyToBff(
 
   const upstreamResponse = await fetch(targetUrl, {
     method: request.method,
-    headers: buildUpstreamHeaders(request, options.extraHeaders),
+    headers: await buildUpstreamHeaders(request, options.extraHeaders),
     body: rawBody && rawBody.length > 0 ? rawBody : undefined,
     cache: 'no-store',
     redirect: 'manual',

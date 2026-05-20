@@ -30,6 +30,16 @@ param applicationInsightsConnectionString string
 param trustedProxySecretName string
 @secure()
 param trustedProxySecretKeyVaultUrl string
+@allowed([
+  ''
+  'disabled'
+  'entra'
+])
+param serviceAuthMode string = ''
+param serviceAuthTenantId string = ''
+param serviceAuthAudience string = ''
+param serviceAuthAllowedClientIds string = ''
+param serviceAuthAllowedObjectIds string = ''
 param sessionSecretName string
 @secure()
 param sessionSecretKeyVaultUrl string
@@ -71,6 +81,30 @@ var redisEntraEnvironmentVariables = stateStoreMode == 'redis'
       {
         name: 'AZURE_CLIENT_ID'
         value: redisManagedIdentityClientId
+      }
+    ]
+  : []
+var serviceAuthEnvironmentVariables = toLower(serviceAuthMode) == 'entra'
+  ? [
+      {
+        name: 'ACME_BFF_SERVICE_AUTH_MODE'
+        value: 'entra'
+      }
+      {
+        name: 'ACME_BFF_SERVICE_AUTH_TENANT_ID'
+        value: serviceAuthTenantId
+      }
+      {
+        name: 'ACME_BFF_SERVICE_AUTH_AUDIENCE'
+        value: serviceAuthAudience
+      }
+      {
+        name: 'ACME_BFF_SERVICE_AUTH_ALLOWED_CLIENT_IDS'
+        value: serviceAuthAllowedClientIds
+      }
+      {
+        name: 'ACME_BFF_SERVICE_AUTH_ALLOWED_OBJECT_IDS'
+        value: serviceAuthAllowedObjectIds
       }
     ]
   : []
@@ -166,7 +200,8 @@ var environmentVariables = concat(
     }
   ],
   redisBaseEnvironmentVariables,
-  redisEntraEnvironmentVariables
+  redisEntraEnvironmentVariables,
+  serviceAuthEnvironmentVariables
 )
 
 resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {

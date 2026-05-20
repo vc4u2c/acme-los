@@ -194,6 +194,16 @@ CREATE POLICY "Users update own data"
 - [ ] Role-based access control implemented
 - [ ] Session management secure
 
+#### Service-To-Service Auth
+
+For ACME LOS Next-to-BFF or backend-to-backend calls:
+
+- Prefer managed-identity or workload-identity bearer tokens over shared secrets as the primary app-level proof.
+- Validate issuer, audience, tenant, token lifetime, and allowed caller `azp`/`appid`/`client_id` or `oid`.
+- Keep network boundaries and private/internal ingress in place; identity tokens do not replace network controls.
+- Use shared secrets only as a migration guard or defense-in-depth layer, and keep them in Key Vault or environment secrets.
+- Do not forward browser bearer tokens to internal services unless the flow is explicitly an on-behalf-of design.
+
 ### 5. XSS Prevention
 
 #### Sanitize HTML

@@ -18,6 +18,8 @@ using Wolverine;
 
 var builder = WebApplication.CreateBuilder(args);
 var stateStoreOptions = BffStateStoreOptions.FromConfiguration(builder.Configuration);
+var bffServiceAuthenticationOptions =
+  BffServiceAuthenticationOptions.FromEnvironment();
 
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options =>
@@ -41,9 +43,11 @@ builder.Services.AddProblemDetails(options =>
 
 builder.Services.AddOpenApi();
 builder.Services.AddHttpClient();
+builder.Services.AddHttpClient<IBffServiceTokenValidator, EntraBffServiceTokenValidator>();
 builder.Services.AddSingleton<ICsrfTokenService, CsrfTokenService>();
 builder.Services.AddSingleton<ISecurityInspectorService, SecurityInspectorService>();
 builder.Services.AddSingleton(stateStoreOptions);
+builder.Services.AddSingleton(bffServiceAuthenticationOptions);
 
 if (stateStoreOptions.UsesRedis)
 {
@@ -104,6 +108,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseStatusCodePages();
 app.UseMiddleware<BffRequestLoggingMiddleware>();
+app.UseMiddleware<BffServiceAuthenticationMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {

@@ -12,6 +12,10 @@ $env:ACME_BFF_TRUSTED_PROXY_SECRET = 'acme-los-local-dev-bff-proxy-secret'
 dotnet test apps/bff-api/e2e/Acme.Los.Bff.Api.E2E/Acme.Los.Bff.Api.E2E.csproj
 ```
 
+Leave `ACME_BFF_SERVICE_AUTH_MODE` unset for the normal local E2E lane. Service
+auth is covered by BFF integration tests and Azure runtime smoke checks once an
+environment has a configured Entra BFF audience.
+
 Keep browser journeys in Playwright. Use Reqnroll here for API/business
 acceptance scenarios where Gherkin helps describe the behavior:
 

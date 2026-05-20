@@ -38,6 +38,19 @@ Use this skill with the `verification-loop` skill. GitHub work is not done when 
 - Watch main CI/CD when deployment matters.
 - If an environment does not exist, align the workflow with real environments rather than leaving a permanent blocked gate.
 
+## Repeated ACME LOS Flow
+
+Use this shape when the user says "promote", "merge", "how is CD", or "delete local branches":
+
+1. Confirm `git status --short --branch` and avoid mixing unrelated local edits.
+2. Run or confirm the verification sweep that matches the change.
+3. Open or update the PR with a concise summary and verification notes.
+4. Watch PR checks before merge.
+5. Squash merge after required checks pass.
+6. Watch main CI/CD when deployment is in scope.
+7. Verify `/api/health` for `version`, `build`, `environment`, and BFF layer status when Azure deploys.
+8. Sync local `main` and delete local feature branches only after the branch is merged or intentionally abandoned.
+
 ## Deployment Artifact Checks
 
 For release/deploy changes, verify that artifact metadata, checkout ref, image tag, and app health agree:

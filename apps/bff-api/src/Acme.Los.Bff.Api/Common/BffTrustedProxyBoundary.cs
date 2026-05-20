@@ -10,6 +10,15 @@ internal static class BffTrustedProxyBoundary
 
   internal static bool HasTrustedProxyBoundary(HttpRequest request)
   {
+    var serviceAuthOptions = BffServiceAuthenticationOptions.FromEnvironment();
+
+    if (
+      serviceAuthOptions.IsRequired
+      && !BffServiceAuthentication.HasTrustedServiceIdentity(request.HttpContext))
+    {
+      return false;
+    }
+
     var configuredSecret =
       Environment.GetEnvironmentVariable(TrustedProxySecretEnvironmentName)?.Trim();
 

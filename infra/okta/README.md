@@ -45,7 +45,7 @@ Purpose:
 
 - reads the git-tracked environment and brand files
 - generates local app config files
-- generates machine-readable artifacts for future BFF and Okta tooling
+- generates machine-readable artifacts for the BFF and Okta tooling
 
 It does **not** call Okta.
 
@@ -152,7 +152,7 @@ These parts are solid:
 
 - config intent lives in git
 - runtime app auth is separate from Okta admin bootstrap
-- web, mobile, and future BFF settings come from the same environment file
+- web, mobile, and BFF settings come from the same environment file
 - branding intent is kept in one shared file
 - the bootstrap script is isolated to admin-plane setup, not runtime auth
 
