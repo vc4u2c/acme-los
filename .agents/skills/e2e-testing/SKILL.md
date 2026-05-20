@@ -136,6 +136,30 @@ export default defineConfig({
 });
 ```
 
+## ACME LOS Windows Sandbox Note
+
+When running the ACME LOS web E2E Firefox project from Codex on Windows, run the
+Firefox lane outside the sandbox with escalation. Inside the sandbox, Playwright
+Firefox can launch the parent process but fail to spawn its tab subprocess, then
+surface as:
+
+```text
+browserContext.newPage: Cannot read properties of undefined (reading '_page')
+```
+
+The confirming debug clue is:
+
+```text
+Failed to launch tab subprocess @SB::LA::SpawnTarget
+```
+
+Do not remove Firefox from the Playwright project list to make the gate pass.
+Use escalation for the Firefox run instead:
+
+```powershell
+npx.cmd nx run web-app-e2e:e2e --outputStyle=stream --skip-nx-cache -- --project=firefox
+```
+
 ## Flaky Test Patterns
 
 ### Quarantine

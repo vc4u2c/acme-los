@@ -108,10 +108,6 @@ npx.cmd nx run mobile-app-e2e:e2e --outputStyle=stream
 Remove-Item -Force apps/web-app/.next/dev/lock -ErrorAction SilentlyContinue; Remove-Item -Force apps/web-app/.next/lock -ErrorAction SilentlyContinue; npx.cmd nx run web-app-e2e:e2e --outputStyle=stream --skip-nx-cache
 ```
 
-The default local web E2E lane runs Chromium and WebKit. Set
-`ACME_E2E_ENABLE_FIREFOX=1` when you specifically want to include Firefox
-locally; CI can include Firefox by setting `CI=true`.
-
 ## Why Keep This Doc?
 
 Yes, this information exists in git history and old READMEs, but that is not a good developer experience.

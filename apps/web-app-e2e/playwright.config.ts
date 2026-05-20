@@ -3,9 +3,6 @@ import { defineConfig, devices } from '@playwright/test';
 // For CI, you may want to set BASE_URL to the deployed application.
 const baseURL = process.env['BASE_URL'] || 'http://127.0.0.1:4200';
 const enableBffProxyE2E = process.env['ACME_E2E_ENABLE_BFF'] === '1';
-const enableFirefoxProject =
-  process.env['CI'] === 'true' ||
-  process.env['ACME_E2E_ENABLE_FIREFOX'] === '1';
 
 /**
  * Read environment variables from file.
@@ -38,14 +35,10 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
 
-    ...(enableFirefoxProject
-      ? [
-          {
-            name: 'firefox',
-            use: { ...devices['Desktop Firefox'] },
-          },
-        ]
-      : []),
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
 
     {
       name: 'webkit',
