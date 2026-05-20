@@ -145,12 +145,12 @@ Repo changes for dev:
 - `npm run analytics:render -- dev` renders ignored runtime files under
   `tmp/analytics`
 
-Current caveat:
+Initial setup caveat:
 
 - GTM Preview was intentionally skipped during initial setup because dev Azure
-  was paused and runtime settings were not yet deployed. Verify with Tag
-  Assistant after dev is resumed/deployed, or with local env vars that load the
-  dev GTM container.
+  was paused at the time. For current verification, use GA4 Realtime, Tag
+  Assistant against the running dev app, or local env vars that load the dev GTM
+  container.
 
 ## Runtime Integration
 

@@ -83,12 +83,27 @@ const server = spawn(process.execPath, [standaloneServer], {
   cwd: standaloneWebAppRoot,
   env: process.env,
   shell: false,
-  stdio: 'inherit',
+  stdio: 'ignore',
 });
+
+let shutdownRequested = false;
+
+function requestShutdown(signal) {
+  if (shutdownRequested) {
+    return;
+  }
+
+  shutdownRequested = true;
+  server.kill(signal);
+
+  setTimeout(() => {
+    process.exit(0);
+  }, 5000).unref();
+}
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
-    server.kill(signal);
+    requestShutdown(signal);
   });
 }
 
@@ -97,6 +112,10 @@ server.on('error', (error) => {
 });
 
 server.on('exit', (code, signal) => {
+  if (shutdownRequested) {
+    process.exit(0);
+  }
+
   if (signal) {
     process.exit(1);
   }

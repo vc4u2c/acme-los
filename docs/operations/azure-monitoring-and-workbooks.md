@@ -350,9 +350,9 @@ ContainerAppConsoleLogs_CL
 | order by TimeGenerated asc;
 ```
 
-### Future .NET Services
+### Additional .NET Services
 
-Future .NET services should keep the same operational contract:
+Additional .NET services should keep the same operational contract:
 
 - structured JSON logs to stdout/stderr for ACA console logs
 - OpenTelemetry-compatible traces and logs for Application Insights

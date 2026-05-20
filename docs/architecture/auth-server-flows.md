@@ -24,6 +24,12 @@ The web app now uses:
 
 The browser should not be the source of truth for authenticated state.
 
+In `ACME_BFF_PROXY_MODE=bff`, the browser-facing route shape stays the same,
+but the BFF owns the PKCE transaction, callback exchange, auth session store,
+CSRF issuance, and logout-hint lookup behind the Next facade. Azure can add
+managed-identity service auth between Next and the BFF without changing the
+browser routes.
+
 ## Main Cookies
 
 Current browser-side auth shape:
@@ -229,13 +235,13 @@ Authentication and authorization decisions are split like this:
 - identity and primary login
   - Okta
 - callback validation and session creation
-  - Next server
+  - Next server in `next` mode; BFF behind the Next facade in `bff` mode
 - guarded route checks
   - Next server
 - assurance-level decisions for sensitive routes
   - Next server runtime
 - domain/business permissions
-  - future backend / BFF concern as the system grows
+  - backend/BFF concern as the system grows
 
 ## Why This Matters
 
@@ -253,4 +259,4 @@ Good future additions:
 - funding step-up detail flow
 - mobile auth flow once Okta mobile integration is live
 - Redis vs file fallback state resolution
-- future .NET BFF replacement flow
+- detailed BFF replacement flow for each remaining Next-owned backend route

@@ -1089,6 +1089,45 @@ $bffTrustedProxySecretValue = if ($resolvedBffDeploymentEnabled) {
 } else {
   ''
 }
+$bffServiceAuthConfiguration =
+  Get-OptionalPropertyValue -InputObject $bffRuntimeConfiguration -Name 'serviceAuth'
+$bffServiceAuthMode = Get-StringOrDefault `
+  -Value (Get-OptionalPropertyValue -InputObject $bffServiceAuthConfiguration -Name 'mode') `
+  -DefaultValue 'disabled'
+$bffServiceAuthMode = $bffServiceAuthMode.Trim().ToLowerInvariant()
+
+if ($bffServiceAuthMode -in @('off', 'none')) {
+  $bffServiceAuthMode = 'disabled'
+}
+
+if ($bffServiceAuthMode -notin @('disabled', 'entra')) {
+  throw "Unsupported bffRuntime.serviceAuth.mode '$bffServiceAuthMode'. Use 'disabled' or 'entra'."
+}
+
+$bffServiceAuthEnabled =
+  $resolvedBffDeploymentEnabled -and $bffServiceAuthMode -eq 'entra'
+$bffServiceAuthAudience = ''
+$bffServiceAuthTokenScope = ''
+$bffServiceAuthAllowedClientIds = ''
+$bffServiceAuthAllowedObjectIds = ''
+
+if ($bffServiceAuthEnabled) {
+  $bffServiceAuthAudience = Get-OptionalString (
+    Get-OptionalPropertyValue -InputObject $bffServiceAuthConfiguration -Name 'audience'
+  )
+  $bffServiceAuthTokenScope = Get-OptionalString (
+    Get-OptionalPropertyValue -InputObject $bffServiceAuthConfiguration -Name 'tokenScope'
+  )
+  $bffServiceAuthAllowedClientIds = Get-StringOrDefault `
+    -Value (Get-OptionalPropertyValue -InputObject $bffServiceAuthConfiguration -Name 'allowedClientIds') `
+    -DefaultValue $userAssignedIdentityClientId
+  $bffServiceAuthAllowedObjectIds = Get-StringOrDefault `
+    -Value (Get-OptionalPropertyValue -InputObject $bffServiceAuthConfiguration -Name 'allowedObjectIds')
+
+  if (-not $bffServiceAuthAudience -or -not $bffServiceAuthTokenScope) {
+    throw "bffRuntime.serviceAuth requires 'audience' and 'tokenScope' when mode is 'entra'."
+  }
+}
 $oktaEnvironmentNameConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'oktaEnvironmentName'
 $oktaEnvironmentName = if ($oktaEnvironmentNameConfiguration) {
   [string]$oktaEnvironmentNameConfiguration
@@ -1277,6 +1316,17 @@ if ($resolvedBffDeploymentEnabled) {
   )
 }
 
+if ($bffServiceAuthEnabled) {
+  $runtimeDeploymentArguments += @(
+    '--parameters', 'bffServiceAuthMode=entra',
+    '--parameters', "bffServiceAuthTenantId=$resolvedTenantId",
+    '--parameters', "bffServiceAuthAudience=$bffServiceAuthAudience",
+    '--parameters', "bffServiceAuthTokenScope=$bffServiceAuthTokenScope",
+    '--parameters', "bffServiceAuthAllowedClientIds=$bffServiceAuthAllowedClientIds",
+    '--parameters', "bffServiceAuthAllowedObjectIds=$bffServiceAuthAllowedObjectIds"
+  )
+}
+
 if ($resolvedStateStoreMode -eq 'redis') {
   if (-not $redisDatabaseId) {
     throw 'Redis database id was not returned from the workload deployment.'
@@ -1384,6 +1434,7 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   bffDeploymentMode = $BffDeploymentMode
   bffEnabled = $resolvedBffDeploymentEnabled
   bffObservabilityEventsEnabled = $bffObservabilityEventsEnabled
+  bffServiceAuthMode = if ($bffServiceAuthEnabled) { 'entra' } else { 'disabled' }
   bffImageRepository = $BffImageRepository
   bffVersion = $resolvedBffVersion
   imageTag = $resolvedImageTag

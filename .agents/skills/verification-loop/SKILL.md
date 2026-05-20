@@ -12,6 +12,7 @@ Use this skill to prove ACME LOS changes are ready instead of relying on local r
 - Start from a clean understanding of `git status --short --branch`; do not revert unrelated user work.
 - Run `prettier`, `lint`, and `test` before PR/promotion unless the user explicitly asks for a smaller check.
 - For auth/session/security changes, include a web build and web E2E when feasible.
+- For Next-to-BFF, BFF service-auth, Azure runtime, or deployment-script changes, include BFF tests and Bicep builds.
 - For major changes, run the full repo sweep below before promotion.
 - If a check cannot run because of sandboxing, missing credentials, a live dependency, or time, say exactly what was skipped and why.
 - Treat a failing check as work to fix, not a report to hand back, unless the failure is clearly unrelated or requires user credentials.
@@ -62,6 +63,20 @@ az bicep build --file infra/azure/bicep/main.web.rg.bicep
 az bicep build --file infra/azure/bicep/main.web.monitoring.rg.bicep
 ```
 
+For BFF runtime-module-only changes, also build the touched entrypoint/module:
+
+```powershell
+az bicep build --file infra/azure/bicep/main.web.runtime.rg.bicep
+az bicep build --file infra/azure/bicep/modules/web/container-app.bicep
+az bicep build --file infra/azure/bicep/modules/bff/container-app.bicep
+```
+
+For .NET BFF security changes, include:
+
+```powershell
+dotnet test apps/bff-api/Acme.Los.Bff.sln
+```
+
 After merge/deploy, verify the live `dev` app when credentials are available:
 
 ```powershell
@@ -73,9 +88,9 @@ Invoke-WebRequest -UseBasicParsing -Uri <dev-health-url> -TimeoutSec 120
 
 Confirm health `version`, `build`, image tag, environment, Redis auth mode, and any runtime settings touched by the change.
 
-## Future .NET Sweep
+## BFF And .NET Sweep
 
-Use when a .NET project is added under this repo or when an existing .NET service is changed:
+Use when the `.NET` BFF or another `.NET` service is changed:
 
 ```powershell
 dotnet format --verify-no-changes
@@ -110,6 +125,17 @@ Add Azure Bicep builds for infrastructure changes and live `dev` verification af
 - Before merge: ensure required checks pass and summarize any skipped local checks.
 - After merge to `main`: watch CI/CD, verify the deployed `dev` revision, and sync local `main`.
 - If an environment does not exist, keep the workflow aligned with real environments instead of leaving a permanent blocked gate.
+
+## Docs And Skill Sweeps
+
+Use this lighter loop when the change is documentation or skill-only:
+
+```powershell
+npx.cmd prettier --check .
+git diff --check
+```
+
+Add the broader lint/test sweep when docs describe behavior that was changed in code during the same branch.
 
 ## Report Format
 

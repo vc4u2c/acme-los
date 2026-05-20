@@ -1,15 +1,36 @@
 /** @jest-environment node */
 
 import { NextRequest } from 'next/server';
+import { DefaultAzureCredential } from '@azure/identity';
 import { createWebApiClient } from '@acme-los/api/web-client';
+import { resetBffServiceAuthCacheForTests } from '@acme-los/api/web-server';
 import { maybeProxyToBff } from '../src/app/api/_lib/bff-route-proxy';
+
+const mockGetToken = jest.fn();
+
+jest.mock('@azure/identity', () => ({
+  DefaultAzureCredential: jest.fn(() => ({
+    getToken: mockGetToken,
+  })),
+}));
 
 describe('BFF route proxy', () => {
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
   const originalUrl = process.env.ACME_BFF_URL;
   const originalProxyMode = process.env.ACME_BFF_PROXY_MODE;
   const originalTrustedProxySecret = process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
+  const originalServiceAuthMode = process.env.ACME_BFF_SERVICE_AUTH_MODE;
+  const originalServiceAuthScope = process.env.ACME_BFF_SERVICE_AUTH_SCOPE;
+  const originalServiceAuthManagedIdentityClientId =
+    process.env.ACME_BFF_SERVICE_AUTH_MANAGED_IDENTITY_CLIENT_ID;
   const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    mockGetToken.mockResolvedValue({
+      token: 'managed-identity-token-123',
+      expiresOnTimestamp: Date.now() + 60 * 60 * 1000,
+    });
+  });
 
   afterEach(() => {
     if (originalBaseUrl === undefined) {
@@ -36,7 +57,28 @@ describe('BFF route proxy', () => {
       process.env.ACME_BFF_TRUSTED_PROXY_SECRET = originalTrustedProxySecret;
     }
 
+    if (originalServiceAuthMode === undefined) {
+      delete process.env.ACME_BFF_SERVICE_AUTH_MODE;
+    } else {
+      process.env.ACME_BFF_SERVICE_AUTH_MODE = originalServiceAuthMode;
+    }
+
+    if (originalServiceAuthScope === undefined) {
+      delete process.env.ACME_BFF_SERVICE_AUTH_SCOPE;
+    } else {
+      process.env.ACME_BFF_SERVICE_AUTH_SCOPE = originalServiceAuthScope;
+    }
+
+    if (originalServiceAuthManagedIdentityClientId === undefined) {
+      delete process.env.ACME_BFF_SERVICE_AUTH_MANAGED_IDENTITY_CLIENT_ID;
+    } else {
+      process.env.ACME_BFF_SERVICE_AUTH_MANAGED_IDENTITY_CLIENT_ID =
+        originalServiceAuthManagedIdentityClientId;
+    }
+
     global.fetch = originalFetch;
+    resetBffServiceAuthCacheForTests();
+    mockGetToken.mockReset();
     jest.restoreAllMocks();
   });
 
@@ -178,6 +220,38 @@ describe('BFF route proxy', () => {
       'customer-123',
     );
     expect(headers.get('x-acme-authenticated-lead-id')).toBe('lead-123');
+  });
+
+  it('adds a managed identity bearer token when BFF service auth is enabled', async () => {
+    process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
+    process.env.ACME_BFF_PROXY_MODE = 'bff';
+    process.env.ACME_BFF_SERVICE_AUTH_MODE = 'entra';
+    process.env.ACME_BFF_SERVICE_AUTH_SCOPE = 'api://acme-los-bff/.default';
+    process.env.ACME_BFF_SERVICE_AUTH_MANAGED_IDENTITY_CLIENT_ID =
+      'web-managed-identity-client-id';
+    const fetchSpy = jest
+      .fn<typeof fetch>()
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true })));
+
+    global.fetch = fetchSpy as typeof fetch;
+
+    const request = new NextRequest(
+      'https://los.example.test/api/customer/profile',
+    );
+
+    await maybeProxyToBff(request, '/bff/customer/profile');
+
+    const requestInit = fetchSpy.mock.calls[0]?.[1];
+    const headers = requestInit?.headers as Headers;
+
+    expect(headers.get('authorization')).toBe(
+      'Bearer managed-identity-token-123',
+    );
+    expect(mockGetToken).toHaveBeenCalledWith('api://acme-los-bff/.default');
+    expect(DefaultAzureCredential).toHaveBeenCalledWith({
+      managedIdentityClientId: 'web-managed-identity-client-id',
+      workloadIdentityClientId: 'web-managed-identity-client-id',
+    });
   });
 
   it('keeps the browser web API client pointed at the Next facade', async () => {

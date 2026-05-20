@@ -31,6 +31,11 @@ for auth transaction state, auth session state, CSRF issuance, customer profile
 state, application-flow state, and feature-flagged operational telemetry
 ingestion.
 
+When `bffRuntime.serviceAuth.mode=entra` is enabled in Azure, the same
+browser-facing contract remains stable. The Next facade adds a managed-identity
+bearer token to its server-to-server BFF call, and the BFF validates tenant,
+audience, lifetime, and allowed caller identity before `/bff/*` routes run.
+
 ## Web Auth Shape
 
 The web app currently uses:
@@ -101,7 +106,7 @@ Must not own:
 Owns:
 
 - server-side customer and application transport calls
-- the current bridge point to future backend or BFF endpoints
+- the current bridge point to BFF and future backend endpoints
 
 Must not own:
 
@@ -124,7 +129,7 @@ Owns:
 Must stay:
 
 - server-only
-- thin enough that a future .NET BFF can replace or subsume it cleanly
+- thin enough that the BFF can continue replacing backend behavior cleanly
 
 ### Toggle Contract
 
@@ -136,6 +141,7 @@ Must stay:
 | Auth/session source of truth | Next server state store                 | BFF state store                                                    |
 | Security inspector           | Reads Next-owned token/session snapshot | Reads BFF-owned token/session snapshot through trusted diagnostics |
 | Raw tokens                   | Never in normal browser storage         | Never in normal browser storage                                    |
+| Service-to-service identity  | Not required for local/Next-only mode   | Optional Entra managed-identity bearer auth in Azure               |
 
 ## Authorization Today
 
@@ -252,7 +258,7 @@ active. It should not become a production support surface.
 
 ## Evolution Guidance
 
-As the repo moves toward a .NET BFF:
+As more behavior moves into the BFF:
 
 - keep UI code calling app-owned contracts
 - keep the web facade thin

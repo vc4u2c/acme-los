@@ -9,6 +9,7 @@ import {
   getBffTrustedProxySecret,
   isBffProxyEnabled,
 } from './bff-config';
+import { getBffServiceAuthorizationHeader } from './bff-service-auth';
 import {
   AUTH_SESSION_COOKIE_NAME,
   AUTH_TRANSACTION_COOKIE_NAME,
@@ -62,7 +63,9 @@ function buildBffInspectorUrl(): URL {
   );
 }
 
-function buildBffInspectorHeaders(request: NextRequest): Headers {
+async function buildBffInspectorHeaders(
+  request: NextRequest,
+): Promise<Headers> {
   const headers = new Headers({
     accept: 'application/json',
   });
@@ -89,6 +92,11 @@ function buildBffInspectorHeaders(request: NextRequest): Headers {
     headers.set(BFF_TRUSTED_PROXY_SECRET_HEADER, trustedProxySecret);
   }
 
+  const authorizationHeader = await getBffServiceAuthorizationHeader();
+  if (authorizationHeader) {
+    headers.set('authorization', authorizationHeader);
+  }
+
   return headers;
 }
 
@@ -97,7 +105,7 @@ async function readBffSecurityInspectorServerSnapshot(
 ): Promise<SecurityInspectorServerSnapshot> {
   const response = await fetch(buildBffInspectorUrl(), {
     method: 'GET',
-    headers: buildBffInspectorHeaders(request),
+    headers: await buildBffInspectorHeaders(request),
     cache: 'no-store',
     redirect: 'manual',
   });

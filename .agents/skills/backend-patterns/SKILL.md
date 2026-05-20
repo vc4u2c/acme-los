@@ -1,6 +1,6 @@
 ---
 name: backend-patterns
-description: Backend architecture patterns, API design, database optimization, logging, and server-side best practices for Node.js, Express, Next.js API routes, and future .NET services.
+description: Backend architecture patterns, API design, database optimization, logging, and server-side best practices for Node.js, Express, Next.js API routes, the current .NET BFF, and additional .NET services.
 origin: ECC
 ---
 
@@ -18,7 +18,7 @@ Backend architecture patterns and best practices for scalable server-side applic
 - Structuring error handling and validation for APIs
 - Building middleware (auth, logging, rate limiting)
 - Adding app telemetry or operational demo endpoints
-- Designing future .NET service boundaries that must share ACME LOS API, auth, and observability conventions
+- Designing .NET service boundaries that must share ACME LOS API, auth, and observability conventions
 
 ## ACME LOS Runtime Guidance
 
@@ -32,7 +32,7 @@ Backend architecture patterns and best practices for scalable server-side applic
 - Use the shared trace-context helpers for header names, `traceparent` parsing, and server-span `traceparent` creation instead of hand-rolling propagation logic in route handlers.
 - Keep event names stable and queryable, such as `logging.demo.client`, `auth.session.touch`, or `application.submit.failure`.
 
-### Future .NET Services
+### .NET Services
 
 - Keep HTTP contracts, event names, and telemetry field names language-neutral so future ASP.NET services can join the same platform without reshaping dashboards.
 - Prefer OpenTelemetry-compatible logging and tracing in .NET services, with structured JSON written to stdout for ACA console logs and exported telemetry for Application Insights.

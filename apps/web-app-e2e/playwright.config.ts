@@ -1,62 +1,11 @@
 import { defineConfig, devices } from '@playwright/test';
-import { workspaceRoot } from '@nx/devkit';
 
 // For CI, you may want to set BASE_URL to the deployed application.
 const baseURL = process.env['BASE_URL'] || 'http://127.0.0.1:4200';
 const enableBffProxyE2E = process.env['ACME_E2E_ENABLE_BFF'] === '1';
-const bffBaseURL =
-  process.env['ACME_E2E_BFF_BASE_URL'] || 'http://127.0.0.1:7206';
-const sharedWebSessionSecret =
-  process.env['ACME_WEB_SESSION_SECRET'] || 'acme-los-web-e2e-session-secret';
-const trustedBffProxySecret =
-  process.env['ACME_BFF_TRUSTED_PROXY_SECRET'] ||
-  'acme-los-bff-e2e-proxy-secret';
-const bffObservabilityEventsEnabled =
-  process.env['ACME_BFF_OBSERVABILITY_EVENTS_ENABLED'] || 'true';
-
-const nextWebServer = {
-  command: 'node tools/scripts/run-web-e2e-server.mjs',
-  url: baseURL,
-  reuseExistingServer: true,
-  cwd: workspaceRoot,
-  env: {
-    ...process.env,
-    ACME_AUTH_PROVIDER: 'mock',
-    ACME_WEB_SESSION_SECRET: sharedWebSessionSecret,
-    HOSTNAME: '127.0.0.1',
-    NEXT_PUBLIC_AUTH_PROVIDER: 'mock',
-    PORT: '4200',
-    ...(enableBffProxyE2E
-      ? {
-          ACME_BFF_BASE_URL: bffBaseURL,
-          ACME_BFF_PROXY_MODE: 'bff',
-          ACME_BFF_TRUSTED_PROXY_SECRET: trustedBffProxySecret,
-          ACME_BFF_OBSERVABILITY_EVENTS_ENABLED: bffObservabilityEventsEnabled,
-        }
-      : {}),
-  },
-  timeout: 180000,
-} as const;
-
-const webServer = enableBffProxyE2E
-  ? [
-      {
-        command: `dotnet run --project apps/bff-api/src/Acme.Los.Bff.Api/Acme.Los.Bff.Api.csproj --urls=${bffBaseURL}`,
-        url: bffBaseURL,
-        reuseExistingServer: true,
-        cwd: workspaceRoot,
-        env: {
-          ...process.env,
-          ACME_WEB_SESSION_SECRET: sharedWebSessionSecret,
-          ACME_BFF_TRUSTED_PROXY_SECRET: trustedBffProxySecret,
-          ACME_BFF_OBSERVABILITY_EVENTS_ENABLED: bffObservabilityEventsEnabled,
-          ASPNETCORE_ENVIRONMENT: 'Development',
-        },
-        timeout: 180000,
-      },
-      nextWebServer,
-    ]
-  : nextWebServer;
+const enableFirefoxProject =
+  process.env['CI'] === 'true' ||
+  process.env['ACME_E2E_ENABLE_FIREFOX'] === '1';
 
 /**
  * Read environment variables from file.
@@ -70,6 +19,8 @@ const webServer = enableBffProxyE2E
 export default defineConfig({
   testDir: './src',
   testIgnore: enableBffProxyE2E ? [] : ['**/bff-proxy.spec.ts'],
+  globalSetup: './global-setup.mjs',
+  globalTeardown: './global-teardown.mjs',
   fullyParallel: true,
   forbidOnly: !!process.env['CI'],
   retries: process.env['CI'] ? 2 : 0,
@@ -81,18 +32,20 @@ export default defineConfig({
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
   },
-  /* Run your local dev server before starting the tests */
-  webServer,
   projects: [
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
 
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
+    ...(enableFirefoxProject
+      ? [
+          {
+            name: 'firefox',
+            use: { ...devices['Desktop Firefox'] },
+          },
+        ]
+      : []),
 
     {
       name: 'webkit',

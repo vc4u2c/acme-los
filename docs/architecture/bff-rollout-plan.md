@@ -3,6 +3,10 @@
 This doc describes the recommended path for adding a .NET BFF to ACME LOS
 without relayouting the repo first.
 
+Status: the first BFF pass is implemented. Keep this page as the rollout
+strategy and use [BFF implementation status](./bff-implementation-checklist.md)
+for the current endpoint and verification snapshot.
+
 Related docs:
 
 - [current-platform.md](./current-platform.md)
@@ -163,6 +167,9 @@ Current bridge decision:
 - trusted identity headers are accepted only inside a trusted proxy boundary;
   outside local development, use `ACME_BFF_TRUSTED_PROXY_SECRET` or an
   equivalent private network control before the BFF honors those headers
+- Azure environments can add Entra managed-identity service auth through
+  `bffRuntime.serviceAuth.mode=entra`; the BFF validates tenant, audience, and
+  the allowed web managed identity before `/bff/*` routes run
 - auth start, callback, session read/sync/touch/clear, requirement checks, and
   logout hints move behind the same `ACME_BFF_PROXY_MODE` switch; Next remains
   the browser facade for the public redirect URLs, final `Set-Cookie` emission,
@@ -319,6 +326,8 @@ Initial Azure shape:
 - Redis and Key Vault stay private endpoint backed platform dependencies
 - the BFF trusted identity headers require `ACME_BFF_TRUSTED_PROXY_SECRET`
   outside local development
+- optional `bffRuntime.serviceAuth` adds an app-level Entra bearer assertion on
+  top of the internal ACA path and trusted proxy secret
 - the BFF runtime scale follows the environment runtime scale settings unless a
   `bffRuntime` override is added to the environment config
 - this is private ACA ingress, not a separate Azure Private Endpoint resource

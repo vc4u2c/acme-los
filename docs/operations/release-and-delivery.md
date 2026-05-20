@@ -151,8 +151,9 @@ and the source/image build SHA through `APP_BUILD_ID`.
 
 The web deployable also carries the runtime-coupled BFF deployment. BFF ACA
 scale follows the target environment runtime scale settings by default, with an
-optional future `bffRuntime` override if the BFF needs a different min/max
-replica shape from the public web app.
+optional `bffRuntime` override if the BFF needs a different min/max replica
+shape from the public web app or a BFF-specific feature flag such as
+observability ingestion or Entra service auth.
 
 When the BFF has independent consumers, split runtime promotion into
 `acme-los-bff-api-deployable-*` artifacts. Until then, keep the web deployable
@@ -163,6 +164,9 @@ Promotion smoke checks should validate both sides of the BFF toggle:
 
 - with `ACME_BFF_PROXY_MODE=bff`, `/api/health` reports a healthy BFF layer and
   `/security` reads the BFF-owned token/session snapshot in local/dev
+- when `bffRuntime.serviceAuth.mode=entra` is enabled, the same smoke path must
+  prove that Next can acquire the BFF token and the BFF accepts only the allowed
+  caller identity
 - with `ACME_BFF_PROXY_MODE=next`, the same browser-facing routes stay on the
   Next implementation and the BFF is not required for those switched contracts
 

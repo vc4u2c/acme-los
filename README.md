@@ -38,6 +38,9 @@ Current strengths:
 - Azure Container Apps `dev` runtime with Redis, Key Vault, managed identity,
   private endpoints for state/secrets, monitoring, pause/resume controls, and
   normal CI/CD deployment from `main`
+- source-owned Next-to-BFF service-auth hardening path using Entra
+  managed-identity bearer tokens, layered with internal BFF ingress and trusted
+  proxy-secret validation
 
 Still intentionally not final:
 
@@ -110,6 +113,8 @@ The presenter-focused version lives in
 - funding route step-up MFA with fresh Okta prompt semantics
 - trusted Next-to-BFF identity headers guarded by a shared proxy secret outside
   local development
+- optional Entra managed-identity bearer validation between Next and the BFF
+  once `bffRuntime.serviceAuth` is configured for an environment
 - CSP keeps browser application traffic on the Next origin and Okta, not the raw
   BFF origin
 
@@ -258,6 +263,10 @@ run without it, but any non-development BFF deployment that accepts trusted
 identity headers must require this secret or an equivalent private network
 boundary before those headers are honored.
 
+Entra managed-identity service auth is disabled in the local stack by default.
+Use it in Azure only after the environment has a BFF API audience and token
+scope, then set `bffRuntime.serviceAuth.mode=entra` in the environment config.
+
 Run the mobile app:
 
 ```powershell
@@ -302,6 +311,7 @@ Most useful follow-on docs:
 - [HTTP API testing](./docs/reference/http-api-testing.md)
 - [Azure platform plan](./docs/operations/azure-platform-plan.md)
 - [Azure and website demo runbook](./docs/operations/azure-and-website-demo-runbook.md)
+- [Repeated workflows and skill map](./docs/operations/repeated-workflows-and-skill-map.md)
 - [Azure governance and lifecycle](./docs/operations/azure-governance-and-lifecycle.md)
 - [Azure bootstrap and teardown](./docs/operations/azure-bootstrap-and-teardown.md)
 - [Azure monitoring and workbooks](./docs/operations/azure-monitoring-and-workbooks.md)

@@ -185,23 +185,45 @@ Runtime identity and Next-to-BFF boundary:
   user-assigned managed identity for Azure resource access
 - that identity is assigned `AcrPull`, Key Vault secret access, and Redis Entra
   access where those resources are deployed
-- the shared identity is not currently used as an app-level JWT assertion
-  between Next and the BFF
 - the application boundary today is the internal ACA BFF ingress plus
   `ACME_BFF_TRUSTED_PROXY_SECRET`, which guards trusted identity headers before
   the BFF honors them
+- the source-owned hardening path now supports an optional Entra
+  managed-identity bearer token between Next and the BFF through
+  `bffRuntime.serviceAuth`; when enabled, Next requests
+  `ACME_BFF_SERVICE_AUTH_SCOPE` with the ACA managed identity and the BFF
+  validates tenant, audience, and allowed calling client id before `/bff/*`
+  routes run
+- keep `ACME_BFF_TRUSTED_PROXY_SECRET` enabled with service auth so trusted
+  identity headers require both the internal app path and an app-level token
 - browser-origin operational telemetry stays on the public
   `/api/observability/events` facade; `bffRuntime.observabilityEventsEnabled`
   controls whether that facade delegates to the internal
   `/bff/observability/events` slice
-- a later hardening pass can add managed-identity token validation, mTLS, or
-  private-origin edge controls without changing the browser-facing `/api/*`
-  contract
+- environments should only set `bffRuntime.serviceAuth.mode` to `entra` after
+  the BFF API app registration/audience and token scope are created in Entra
 
 The BFF runtime scale follows the environment `runtime.minReplicas` and
 `runtime.maxReplicas` values by default. Add an environment-level `bffRuntime`
 override only when the internal BFF should scale differently from the public web
 app or when enabling slice-specific BFF feature flags.
+
+Example BFF service-auth configuration, after the Entra BFF API audience exists:
+
+```json
+"bffRuntime": {
+  "observabilityEventsEnabled": true,
+  "serviceAuth": {
+    "mode": "entra",
+    "audience": "api://acme-los-bff-dev",
+    "tokenScope": "api://acme-los-bff-dev/.default"
+  }
+}
+```
+
+`allowedClientIds` is optional in the deploy config; when omitted, the deploy
+script uses the web ACA user-assigned managed identity client id returned by the
+workload deployment.
 
 If the runtime image changes and you want to force a new image build instead of
 reusing an existing tag, pass `-ImageTag` explicitly:

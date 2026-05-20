@@ -18,6 +18,7 @@ import {
   getBffBaseUrlOrThrow,
   getBffTrustedProxySecret,
 } from './bff-config';
+import { getBffServiceAuthorizationHeader } from './bff-service-auth';
 
 const AUTH_SESSION_ID_HEADER = 'x-acme-auth-session-id';
 const AUTH_SESSION_MAX_AGE_HEADER = 'x-acme-auth-session-max-age';
@@ -53,10 +54,10 @@ function buildBffUrl(path: string): URL {
   return new URL(path, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
 }
 
-function buildBffAuthHeaders(
+async function buildBffAuthHeaders(
   context: BffAuthRequestContext,
   hasJsonBody: boolean,
-): Headers {
+): Promise<Headers> {
   const headers = new Headers({
     accept: 'application/json',
   });
@@ -96,6 +97,11 @@ function buildBffAuthHeaders(
     headers.set(BFF_TRUSTED_PROXY_SECRET_HEADER, trustedProxySecret);
   }
 
+  const authorizationHeader = await getBffServiceAuthorizationHeader();
+  if (authorizationHeader) {
+    headers.set('authorization', authorizationHeader);
+  }
+
   return headers;
 }
 
@@ -111,7 +117,7 @@ async function fetchBffAuthJson<T>(
   const hasJsonBody = options.body !== undefined;
   const response = await fetch(targetUrl, {
     method: options.method ?? 'GET',
-    headers: buildBffAuthHeaders(options, hasJsonBody),
+    headers: await buildBffAuthHeaders(options, hasJsonBody),
     body: hasJsonBody ? JSON.stringify(options.body) : undefined,
     cache: 'no-store',
     redirect: 'manual',

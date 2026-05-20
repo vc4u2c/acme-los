@@ -50,6 +50,17 @@ param bffVersion string = '0.0.0'
 param bffTrustedProxySecretName string = 'sec-acme-los-bff-trusted-proxy-secret'
 @secure()
 param bffTrustedProxySecretValue string = ''
+@allowed([
+  ''
+  'disabled'
+  'entra'
+])
+param bffServiceAuthMode string = ''
+param bffServiceAuthTenantId string = ''
+param bffServiceAuthAudience string = ''
+param bffServiceAuthTokenScope string = ''
+param bffServiceAuthAllowedClientIds string = ''
+param bffServiceAuthAllowedObjectIds string = ''
 param applicationInsightsConnectionString string
 param logAnalyticsWorkspaceId string
 param keyVaultName string
@@ -156,6 +167,9 @@ module containerApp './modules/web/container-app.bicep' = {
     bffObservabilityEventsEnabled: deployBff ? bffObservabilityEventsEnabled : false
     bffTrustedProxySecretName: bffTrustedProxySecretName
     bffTrustedProxySecretKeyVaultUrl: deployBff ? '${keyVaultUri}secrets/${bffTrustedProxySecretName}' : ''
+    bffServiceAuthMode: deployBff ? bffServiceAuthMode : ''
+    bffServiceAuthTokenScope: deployBff ? bffServiceAuthTokenScope : ''
+    bffServiceAuthManagedIdentityClientId: deployBff ? userAssignedIdentityClientId : ''
     targetPort: containerTargetPort
     containerCpu: containerCpu
     containerMemory: containerMemory
@@ -202,6 +216,11 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     sessionSecretKeyVaultUrl: '${keyVaultUri}secrets/${sessionSecretName}'
     trustedProxySecretName: bffTrustedProxySecretName
     trustedProxySecretKeyVaultUrl: '${keyVaultUri}secrets/${bffTrustedProxySecretName}'
+    serviceAuthMode: bffServiceAuthMode
+    serviceAuthTenantId: bffServiceAuthTenantId
+    serviceAuthAudience: bffServiceAuthAudience
+    serviceAuthAllowedClientIds: bffServiceAuthAllowedClientIds
+    serviceAuthAllowedObjectIds: bffServiceAuthAllowedObjectIds
     targetPort: bffContainerTargetPort
     containerCpu: bffContainerCpu
     containerMemory: bffContainerMemory

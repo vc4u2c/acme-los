@@ -216,6 +216,9 @@ to show the full platform surface, not just the visible web pages.
   plus approved identity and analytics endpoints
 - trusted Next-to-BFF identity headers require the internal boundary plus
   `ACME_BFF_TRUSTED_PROXY_SECRET` outside local development
+- optional Entra service auth lets Next attach a managed-identity bearer token
+  and lets the BFF validate tenant, audience, and allowed caller before `/bff/*`
+  routes execute
 - security inspector is explicitly local/dev oriented and opt-in elsewhere
 
 ### BFF And API Layer

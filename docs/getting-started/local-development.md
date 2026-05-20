@@ -148,6 +148,11 @@ both processes. Outside development, the BFF must require that shared secret or
 an equivalent private network boundary before it honors trusted identity
 headers.
 
+Managed-identity service auth is an Azure hardening layer, not a normal local
+developer requirement. Leave `ACME_BFF_SERVICE_AUTH_MODE` unset locally unless
+you are explicitly testing Entra token validation with a configured BFF
+audience and token scope.
+
 ## Run The Mobile App
 
 Start Expo:

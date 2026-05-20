@@ -24,7 +24,7 @@ The recommended order is:
 A relayout becomes reasonable when one or more of these are true:
 
 - the repo contains more than one product family
-- the repo contains multiple major backend apps, not just one future BFF
+- the repo contains multiple major backend apps, not just the current BFF
 - product-specific libraries are multiplying and the flat `libs/*` shape is
   causing real confusion
 - docs, scripts, CI, and naming standards have to repeatedly explain which

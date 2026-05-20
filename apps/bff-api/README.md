@@ -120,9 +120,9 @@ The `tests/` project should cover:
 - state-store configuration decisions
 - security boundary expectations such as auth and CSRF failures
 
-The `e2e/` folder is worth keeping from day one even if it starts with just a
-README. It gives the solution an obvious home for black-box tests that hit the
-running BFF over HTTP after we add a fuller local stack or CI environment.
+The `e2e/` folder now contains Reqnroll acceptance coverage. By default it runs
+in-process through `WebApplicationFactory<Program>`, and it can also point at a
+manually started local BFF by setting `ACME_BFF_E2E_BASE_URL`.
 
 Keep one `.http` file in the API project. It is still one of the fastest ways
 to smoke-test health, OpenAPI, auth/session behavior, and feature slices
@@ -132,17 +132,20 @@ The committed file is
 the manual testing guidance lives in
 [HTTP API testing](../../docs/reference/http-api-testing.md).
 
-## First-Pass Package Direction
+## Package Direction
 
-The first scaffold should add:
+The current BFF package surface includes:
 
 - OpenAPI generation
 - Scalar UI
 - health and readiness endpoints
 - structured logging
 - OpenTelemetry wiring
+- Redis-backed state support
+- trusted proxy boundary validation
+- optional Entra service-auth validation
 
-Hold these for later unless the scaffold proves too small:
+Hold these unless the need becomes concrete:
 
 - Serilog
 - Destructurama
@@ -282,6 +285,14 @@ those headers to keep the scaffold easy to run. Outside local development, set
 the same `ACME_BFF_TRUSTED_PROXY_SECRET` value in the Next facade and the BFF so
 the BFF can reject spoofed trusted identity headers unless they came through the
 server-side proxy path.
+
+For Azure environments that have an Entra BFF API audience, set
+`bffRuntime.serviceAuth.mode` to `entra` in the environment config. The Next
+facade then adds a managed-identity `Authorization: Bearer` token for the
+configured `ACME_BFF_SERVICE_AUTH_SCOPE`, and the BFF validates tenant,
+audience, and allowed caller before `/bff/*` routes run. Keep the trusted proxy
+secret enabled with service auth so trusted identity headers require both the
+service identity token and the server-side proxy secret.
 
 Browser-origin operational telemetry follows the same facade rule. The browser
 continues posting to `/api/observability/events`; when `ACME_BFF_PROXY_MODE=bff`
