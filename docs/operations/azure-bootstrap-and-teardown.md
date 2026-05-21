@@ -166,11 +166,13 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/az
 
 When the BFF is deployed, the script passes BFF version, trusted proxy secret,
 BFF replica settings, and optional `bffRuntime.serviceAuth` settings into the
-runtime stack. By default the BFF min/max replica settings follow the
-environment runtime settings in `infra/azure/config/platform.json`; add an
-environment `bffRuntime` block only when the BFF needs a different scale profile
-from the public web app or when enabling BFF-specific hardening such as Entra
-service auth.
+runtime stack. When service auth is set to `entra`, the script first deploys
+the Microsoft Graph Bicep entrypoint that owns the BFF API app registration,
+enterprise application, and web managed-identity app role assignment. By
+default the BFF min/max replica settings follow the environment runtime settings
+in `infra/azure/config/platform.json`; add an environment `bffRuntime` block
+only when the BFF needs a different scale profile from the public web app or
+when enabling BFF-specific hardening such as Entra service auth.
 
 ## Pause And Resume A Non-Production Workload
 

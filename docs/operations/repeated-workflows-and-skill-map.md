@@ -62,8 +62,9 @@ Use:
 
 - `ACME_BFF_PROXY_MODE=next|bff`
 - `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true|false`
-- `bffRuntime.serviceAuth.mode=entra` only after the Entra BFF audience and
-  token scope exist
+- `bffRuntime.serviceAuth.mode=entra`; in `dev`, the deploy path creates or
+  updates the Entra BFF audience and web managed-identity app role assignment
+  through Microsoft Graph Bicep
 - keep `ACME_BFF_TRUSTED_PROXY_SECRET` as defense-in-depth for trusted identity
   headers
 
