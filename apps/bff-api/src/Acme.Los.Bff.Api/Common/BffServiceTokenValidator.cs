@@ -71,7 +71,7 @@ internal sealed class EntraBffServiceTokenValidator : IBffServiceTokenValidator
         ValidateIssuer = true,
         ValidIssuers = _options.ValidIssuers,
         ValidateAudience = true,
-        ValidAudience = _options.Audience,
+        ValidAudiences = _options.Audiences,
         ValidateLifetime = true,
         ClockSkew = TimeSpan.FromMinutes(2),
         NameClaimType = "oid",

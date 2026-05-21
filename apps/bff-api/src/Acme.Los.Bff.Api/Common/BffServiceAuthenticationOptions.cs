@@ -18,14 +18,14 @@ internal sealed class BffServiceAuthenticationOptions
   private BffServiceAuthenticationOptions(
     string mode,
     string? tenantId,
-    string? audience,
+    IReadOnlySet<string> audiences,
     IReadOnlySet<string> allowedClientIds,
     IReadOnlySet<string> allowedObjectIds,
     string? jwksUrl)
   {
     Mode = mode;
     TenantId = tenantId;
-    Audience = audience;
+    Audiences = audiences;
     AllowedClientIds = allowedClientIds;
     AllowedObjectIds = allowedObjectIds;
     JwksUrl = jwksUrl;
@@ -33,7 +33,7 @@ internal sealed class BffServiceAuthenticationOptions
 
   internal string Mode { get; }
   internal string? TenantId { get; }
-  internal string? Audience { get; }
+  internal IReadOnlySet<string> Audiences { get; }
   internal IReadOnlySet<string> AllowedClientIds { get; }
   internal IReadOnlySet<string> AllowedObjectIds { get; }
   internal string? JwksUrl { get; }
@@ -41,7 +41,7 @@ internal sealed class BffServiceAuthenticationOptions
 
   internal bool IsFullyConfigured =>
     !string.IsNullOrWhiteSpace(TenantId)
-    && !string.IsNullOrWhiteSpace(Audience)
+    && Audiences.Count > 0
     && !string.IsNullOrWhiteSpace(JwksUrl)
     && (AllowedClientIds.Count > 0 || AllowedObjectIds.Count > 0);
 
@@ -78,7 +78,7 @@ internal sealed class BffServiceAuthenticationOptions
     return new BffServiceAuthenticationOptions(
       normalizedMode,
       tenantId,
-      ReadOptionalEnvironmentValue(AudienceEnvironmentName),
+      ReadEnvironmentSet(AudienceEnvironmentName),
       ReadEnvironmentSet(AllowedClientIdsEnvironmentName),
       ReadEnvironmentSet(AllowedObjectIdsEnvironmentName),
       jwksUrl);

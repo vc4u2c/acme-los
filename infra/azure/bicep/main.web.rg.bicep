@@ -325,6 +325,7 @@ output containerAppName string = resolvedContainerAppName
 output containerAppLatestRevisionFqdn string = ''
 output userAssignedIdentityName string = userAssignedIdentity.outputs.name
 output userAssignedIdentityClientId string = userAssignedIdentity.outputs.clientId
+output userAssignedIdentityPrincipalId string = userAssignedIdentity.outputs.principalId
 output userAssignedIdentityResourceId string = userAssignedIdentity.outputs.id
 output workloadVirtualNetworkName string = workloadSpokeNetwork.outputs.name
 output workloadVirtualNetworkId string = workloadSpokeNetwork.outputs.id

@@ -22,6 +22,8 @@ Current proven state:
 - `dev` is deployed to `Azure Container Apps` in `sub-acme-nonprod-online`
 - `Key Vault` and `Azure Managed Redis` are private-only
 - subnet-level NSGs are now part of the workload network posture
+- `dev` enables Entra managed-identity service auth between Next and the
+  internal BFF through source-owned Bicep
 - ACA stays public for now until Front Door is introduced later
 - `dev` now has a first Azure-native operations pack:
   - workbook
@@ -42,6 +44,9 @@ What is here now:
   - first web workload resource-group entrypoint
 - `bicep/main.web.runtime.rg.bicep`
   - container app runtime revision entrypoint
+- `bicep/main.entra.service-auth.rg.bicep`
+  - Microsoft Graph Bicep entrypoint for the BFF API app registration,
+    enterprise application, and managed-identity app role assignment
 - `bicep/main.web.monitoring.rg.bicep`
   - platform-owned Log Analytics, Application Insights, workbook, action group,
     and alert entrypoint
@@ -200,30 +205,39 @@ Runtime identity and Next-to-BFF boundary:
   `/api/observability/events` facade; `bffRuntime.observabilityEventsEnabled`
   controls whether that facade delegates to the internal
   `/bff/observability/events` slice
-- environments should only set `bffRuntime.serviceAuth.mode` to `entra` after
-  the BFF API app registration/audience and token scope are created in Entra
+- when `bffRuntime.serviceAuth.mode` is `entra`, the deploy script first runs
+  the Microsoft Graph Bicep service-auth entrypoint to create or update the BFF
+  API audience, enterprise application, and app role assignment for the web
+  managed identity
 
 The BFF runtime scale follows the environment `runtime.minReplicas` and
 `runtime.maxReplicas` values by default. Add an environment-level `bffRuntime`
 override only when the internal BFF should scale differently from the public web
 app or when enabling slice-specific BFF feature flags.
 
-Example BFF service-auth configuration, after the Entra BFF API audience exists:
+Default BFF service-auth configuration:
 
 ```json
 "bffRuntime": {
   "observabilityEventsEnabled": true,
   "serviceAuth": {
-    "mode": "entra",
-    "audience": "api://acme-los-bff-dev",
-    "tokenScope": "api://acme-los-bff-dev/.default"
+    "mode": "entra"
   }
 }
 ```
 
-`allowedClientIds` is optional in the deploy config; when omitted, the deploy
-script uses the web ACA user-assigned managed identity client id returned by the
-workload deployment.
+The default audience is `api://acme-los-bff-<environment>` and the token scope
+is `<audience>/.default`. `allowedClientIds` and `allowedObjectIds` are optional
+in the deploy config; when omitted, the deploy script uses the web ACA
+user-assigned managed identity client id and principal id returned by the
+workload deployment. The BFF accepts both the API URI and the Graph-created API
+application client id as valid token audiences for the same registration,
+because Entra access tokens can represent the API audience with either form.
+
+If an environment needs a custom API URI, set `audience`; the Graph Bicep
+entrypoint will use that URI and return the matching `.default` token scope.
+Microsoft Graph resources are deployed by Bicep, but they are tenant resources
+and are not managed by Azure Deployment Stacks.
 
 If the runtime image changes and you want to force a new image build instead of
 reusing an existing tag, pass `-ImageTag` explicitly:

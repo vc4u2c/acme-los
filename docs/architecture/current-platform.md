@@ -81,15 +81,13 @@ flowchart LR
   id -. ACR pull, Key Vault, Redis Entra .-> bff
 ```
 
-The shared managed identity is an Azure resource-access identity. It is not yet
-an app-level proof between Next and the BFF in live `dev`. The current live
-service-to-service application boundary is the internal BFF ACA ingress plus
-`ACME_BFF_TRUSTED_PROXY_SECRET` before trusted identity headers are honored.
-The code and Azure runtime templates now support an opt-in Entra
-managed-identity bearer assertion through `bffRuntime.serviceAuth`: Next asks
-for the configured BFF token scope with its ACA managed identity, and the BFF
-validates tenant, audience, and allowed calling client id before `/bff/*`
-routes run.
+The shared managed identity is also the app-level proof between Next and the
+BFF in live `dev`. The service-to-service application boundary is layered:
+internal BFF ACA ingress, `ACME_BFF_TRUSTED_PROXY_SECRET` before trusted
+identity headers are honored, and Entra managed-identity bearer auth through
+`bffRuntime.serviceAuth`. Next asks for the configured BFF token scope with its
+ACA managed identity, and the BFF validates tenant, audience, and the allowed
+calling client id or object id before `/bff/*` routes run.
 
 ## Current Auth Shape
 
@@ -263,8 +261,9 @@ Runtime identity:
 - keep GitHub or future Azure DevOps deployment identities separate from the app runtime identity
 - continue using managed identity for ACR pulls and Key Vault secret references
 - use direct Entra-authenticated Redis access in Azure deployments
-- enable `bffRuntime.serviceAuth.mode=entra` once the BFF API app registration
-  audience and token scope exist for the environment
+- keep `bffRuntime.serviceAuth.mode=entra` enabled in `dev`; the deploy path
+  uses Microsoft Graph Bicep to create or update the BFF API audience and app
+  role assignment for that environment
 - keep the Redis connection-string path only for local Docker Redis
 
 Persistence:

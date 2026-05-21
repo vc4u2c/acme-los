@@ -92,9 +92,9 @@ Current layers:
 
 Recommended production path:
 
-1. create the BFF API app registration or equivalent Entra audience per
-   environment
-2. configure `bffRuntime.serviceAuth.mode=entra`
+1. use Microsoft Graph Bicep to create the BFF API app registration, enterprise
+   application, and managed-identity app role assignment per environment
+2. configure `bffRuntime.serviceAuth.mode=entra`; `dev` already does this
 3. validate the Next managed identity as the allowed caller
 4. keep the trusted proxy secret enabled as defense-in-depth for identity
    headers
@@ -117,8 +117,8 @@ dotnet format apps/bff-api/Acme.Los.Bff.sln --verify-no-changes
 
 - prove `qa` with the same BFF, Redis, Key Vault, Okta, and monitoring shape as
   `dev`
-- enable and verify `bffRuntime.serviceAuth.mode=entra` after each
-  environment's Entra BFF audience and token scope exist
+- enable and verify `bffRuntime.serviceAuth.mode=entra` in `qa`, `stg`, and
+  `prod` after each environment's Entra BFF audience and token scope exist
 - move customer/application persistence from transitional state into durable
   backend-owned storage
 - decide when the BFF deserves its own independent runtime promotion lane

@@ -762,9 +762,9 @@ Current implementation note:
   internal BFF ACA app when BFF deployment is enabled
 - the internal BFF app follows the environment runtime replica settings by
   default, unless an explicit `bffRuntime` override is added
-- the runtime templates support optional Entra managed-identity service auth
-  between Next and the BFF through `bffRuntime.serviceAuth`; enable it only
-  after the BFF API audience and token scope exist for that environment
+- the runtime templates support Entra managed-identity service auth between
+  Next and the BFF through `bffRuntime.serviceAuth`; `dev` enables it through a
+  Microsoft Graph Bicep-owned BFF API audience and app role assignment
 - the `dev` Redis managed-identity path was live-verified on April 19, 2026
 - Azure Redis access-key authentication is disabled; connection-string auth is retained only for local Docker Redis
 - shared ACR is split by subscription role:

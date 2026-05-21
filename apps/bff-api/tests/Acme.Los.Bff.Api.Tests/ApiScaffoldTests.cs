@@ -602,6 +602,28 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public void BffServiceAuthenticationOptions_WithAudienceList_AcceptsUriAndClientIdAudiences()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_BFF_SERVICE_AUTH_MODE"] = "entra",
+        ["ACME_BFF_SERVICE_AUTH_TENANT_ID"] = "00000000-0000-0000-0000-000000000001",
+        ["ACME_BFF_SERVICE_AUTH_AUDIENCE"] = "api://acme-los-bff,bff-api-client-id",
+        ["ACME_BFF_SERVICE_AUTH_ALLOWED_CLIENT_IDS"] = "web-client-id",
+        ["ACME_BFF_SERVICE_AUTH_ALLOWED_OBJECT_IDS"] = "web-object-id",
+      });
+
+    var options = BffServiceAuthenticationOptions.FromEnvironment();
+
+    Assert.True(options.IsFullyConfigured);
+    Assert.Contains("api://acme-los-bff", options.Audiences);
+    Assert.Contains("bff-api-client-id", options.Audiences);
+    Assert.Contains("web-client-id", options.AllowedClientIds);
+    Assert.Contains("web-object-id", options.AllowedObjectIds);
+  }
+
+  [Fact]
   public async Task GetBffAuthSession_WithServiceAuthRequiredAndMissingBearer_ReturnsForbidden()
   {
     using var environment = new TemporaryEnvironmentVariables(

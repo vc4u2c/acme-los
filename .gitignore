@@ -69,6 +69,7 @@ apps/web-app/.env.local
 apps/mobile-app/.env.local
 tmp/okta/
 infra/azure/bicep/*.json
+!infra/azure/bicep/bicepconfig.json
 infra/azure/bicep/modules/**/*.json
 !infra/azure/bicep/modules/monitoring/workbook-template.json
 

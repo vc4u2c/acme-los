@@ -21,6 +21,7 @@ param(
   [string]$WorkloadTemplateFile,
   [string]$WebTemplateFile,
   [string]$WebRuntimeTemplateFile,
+  [string]$EntraServiceAuthTemplateFile,
   [string]$WebMonitoringTemplateFile,
   [string]$PlatformWorkloadLinksTemplateFile,
   [string]$ImagesSubscriptionTemplateFile,
@@ -57,6 +58,10 @@ if (-not $ImagesResourceTemplateFile) {
 
 if (-not $WebRuntimeTemplateFile) {
   $WebRuntimeTemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\main.web.runtime.rg.bicep'
+}
+
+if (-not $EntraServiceAuthTemplateFile) {
+  $EntraServiceAuthTemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\main.entra.service-auth.rg.bicep'
 }
 
 if (-not $WebMonitoringTemplateFile) {
@@ -578,11 +583,16 @@ function New-ContainerBuildContext {
     '.next',
     '.expo',
     'coverage',
+    'bin',
     'dist',
     'node_modules',
+    'obj',
     'playwright-report',
     'test-results',
-    'tmp'
+    'tmp',
+    '.tmp-dotnet',
+    'artifacts',
+    'web-build'
   )
 
   $excludedFileNames = @('.env.local')
@@ -791,6 +801,10 @@ if (-not (Test-Path -LiteralPath $ImagesResourceTemplateFile)) {
 
 if (-not (Test-Path -LiteralPath $WebRuntimeTemplateFile)) {
   throw "Runtime resource-group template '$WebRuntimeTemplateFile' was not found."
+}
+
+if (-not (Test-Path -LiteralPath $EntraServiceAuthTemplateFile)) {
+  throw "Entra service-auth template '$EntraServiceAuthTemplateFile' was not found."
 }
 
 $webMonitoringTemplateExists = Test-Path -LiteralPath $WebMonitoringTemplateFile
@@ -1048,6 +1062,7 @@ $managedEnvironmentId = Get-StringOutputValue -Outputs $outputs -Name 'container
 $resolvedContainerAppName = Get-StringOutputValue -Outputs $outputs -Name 'containerAppName'
 $userAssignedIdentityResourceId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityResourceId'
 $userAssignedIdentityClientId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityClientId'
+$userAssignedIdentityPrincipalId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityPrincipalId'
 $keyVaultName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultName'
 $keyVaultUri = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultUri'
 $redisDatabaseId = Get-StringOutputValue -Outputs $outputs -Name 'redisDatabaseId'
@@ -1060,6 +1075,10 @@ if (-not $resolvedContainerAppName) {
 
 if (-not $userAssignedIdentityClientId) {
   throw 'User-assigned identity client id was not returned from the workload deployment.'
+}
+
+if (-not $userAssignedIdentityPrincipalId) {
+  throw 'User-assigned identity principal id was not returned from the workload deployment.'
 }
 
 $managedEnvironmentDefaultDomain = Invoke-AzTsv -Arguments @(
@@ -1122,11 +1141,57 @@ if ($bffServiceAuthEnabled) {
     -Value (Get-OptionalPropertyValue -InputObject $bffServiceAuthConfiguration -Name 'allowedClientIds') `
     -DefaultValue $userAssignedIdentityClientId
   $bffServiceAuthAllowedObjectIds = Get-StringOrDefault `
-    -Value (Get-OptionalPropertyValue -InputObject $bffServiceAuthConfiguration -Name 'allowedObjectIds')
+    -Value (Get-OptionalPropertyValue -InputObject $bffServiceAuthConfiguration -Name 'allowedObjectIds') `
+    -DefaultValue $userAssignedIdentityPrincipalId
+
+  $entraServiceAuthDeploymentArguments = @(
+    'deployment', 'group', 'create',
+    '--subscription', $resolvedSubscriptionId,
+    '--resource-group', $resourceGroupName,
+    '--name', "entra-service-auth-$EnvironmentName",
+    '--template-file', $EntraServiceAuthTemplateFile,
+    '--parameters', "environmentName=$EnvironmentName",
+    '--parameters', "organizationShortName=$($configuration.organizationShortName)",
+    '--parameters', "workloadShortName=$($configuration.workloadShortName)",
+    '--parameters', "webManagedIdentityClientId=$userAssignedIdentityClientId",
+    '--parameters', "webManagedIdentityPrincipalId=$userAssignedIdentityPrincipalId",
+    '--output', 'json'
+  )
+
+  if ($bffServiceAuthAudience) {
+    $entraServiceAuthDeploymentArguments += @(
+      '--parameters',
+      "bffApiIdentifierUri=$bffServiceAuthAudience"
+    )
+  }
+
+  $entraServiceAuthDeployment = Invoke-AzJson -Arguments $entraServiceAuthDeploymentArguments
+  $entraServiceAuthOutputs = Get-DeploymentOutputs -DeploymentResult $entraServiceAuthDeployment
+  $bffServiceAuthApplicationClientId =
+    Get-StringOutputValue -Outputs $entraServiceAuthOutputs -Name 'bffApiApplicationClientId'
+
+  if (-not $bffServiceAuthAudience) {
+    $bffServiceAuthAudience =
+      Get-StringOutputValue -Outputs $entraServiceAuthOutputs -Name 'bffServiceAuthAudience'
+  }
+
+  if (-not $bffServiceAuthTokenScope) {
+    $bffServiceAuthTokenScope =
+      Get-StringOutputValue -Outputs $entraServiceAuthOutputs -Name 'bffServiceAuthTokenScope'
+  }
 
   if (-not $bffServiceAuthAudience -or -not $bffServiceAuthTokenScope) {
-    throw "bffRuntime.serviceAuth requires 'audience' and 'tokenScope' when mode is 'entra'."
+    throw "bffRuntime.serviceAuth requires the Entra BFF audience and token scope. Configure them explicitly or allow '$EntraServiceAuthTemplateFile' to create them."
   }
+
+  $acceptedAudiences =
+    @(
+      $bffServiceAuthAudience,
+      $bffServiceAuthApplicationClientId
+    ) |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+      Select-Object -Unique
+  $bffServiceAuthAudience = [string]::Join(',', $acceptedAudiences)
 }
 $oktaEnvironmentNameConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'oktaEnvironmentName'
 $oktaEnvironmentName = if ($oktaEnvironmentNameConfiguration) {
@@ -1435,6 +1500,10 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   bffEnabled = $resolvedBffDeploymentEnabled
   bffObservabilityEventsEnabled = $bffObservabilityEventsEnabled
   bffServiceAuthMode = if ($bffServiceAuthEnabled) { 'entra' } else { 'disabled' }
+  bffServiceAuthAudience = $bffServiceAuthAudience
+  bffServiceAuthTokenScope = $bffServiceAuthTokenScope
+  bffServiceAuthAllowedClientIds = $bffServiceAuthAllowedClientIds
+  bffServiceAuthAllowedObjectIds = $bffServiceAuthAllowedObjectIds
   bffImageRepository = $BffImageRepository
   bffVersion = $resolvedBffVersion
   imageTag = $resolvedImageTag
@@ -1450,6 +1519,7 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   bffContainerAppLatestRevisionFqdn = $deployedBffContainerAppLatestRevisionFqdn
   userAssignedIdentityName = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityName'
   userAssignedIdentityClientId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityClientId'
+  userAssignedIdentityPrincipalId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityPrincipalId'
   workloadVirtualNetworkName = Get-StringOutputValue -Outputs $outputs -Name 'workloadVirtualNetworkName'
   workloadVirtualNetworkId = $workloadVirtualNetworkId
   appSubnetName = Get-StringOutputValue -Outputs $outputs -Name 'appSubnetName'

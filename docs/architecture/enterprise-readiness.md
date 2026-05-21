@@ -52,17 +52,17 @@ Security strengths:
 - trusted BFF identity headers are guarded by the internal ACA boundary plus
   `ACME_BFF_TRUSTED_PROXY_SECRET`
 - the source-owned Next-to-BFF hardening path supports Entra managed-identity
-  bearer tokens through `bffRuntime.serviceAuth`; the BFF validates tenant,
-  audience, and allowed caller before `/bff/*` routes run
+  bearer tokens through `bffRuntime.serviceAuth`; `dev` enables this path, and
+  the BFF validates tenant, audience, and allowed caller before `/bff/*` routes
+  run
 - dev-only security inspector behavior is explicitly opt-in outside local/dev
 
 Security gaps before production hardening:
 
 - Front Door, WAF, stable custom domains, and private-origin ACA ingress are not
   in place yet
-- each environment still needs the BFF API app registration/audience and token
-  scope values configured before `bffRuntime.serviceAuth.mode=entra` can be
-  turned on
+- `qa`, `stg`, and `prod` still need the same BFF API audience/app role path
+  proven before `bffRuntime.serviceAuth.mode=entra` is turned on there
 - production-grade secret rotation and break-glass runbooks need to be written
   and rehearsed
 - rate limits and abuse controls should be reviewed for every mutating API
@@ -138,9 +138,9 @@ Enterprise gaps to close next:
 - add Azure Monitor action-group receivers and on-call notification paths
 - add production data platform and migration path for customer/application data
 - add load/performance checks and dependency-failure drills
-- enable and verify `bffRuntime.serviceAuth.mode=entra` after each environment's
-  BFF app registration is created; consider mTLS as an additional private-origin
-  control after that
+- enable and verify `bffRuntime.serviceAuth.mode=entra` in `qa`, `stg`, and
+  `prod` after each environment's BFF app registration is created; consider
+  mTLS as an additional private-origin control after that
 - add server-side Measurement Protocol emission for auth callbacks and other
   events the browser cannot observe
 

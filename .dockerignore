@@ -5,10 +5,15 @@
 .expo
 coverage
 dist
+**/bin
+**/obj
 node_modules
 tmp
+.tmp-dotnet
 test-results
 playwright-report
+artifacts
+web-build
 apps/mobile-app/.expo
 apps/mobile-app/dist
 apps/web-app/.next
