@@ -24,6 +24,8 @@ Use:
 Skill to use and improve:
 
 - `azure-landing-zone-and-aca`
+- `karpathy-guidelines` when the request is broad enough that scope control
+  matters
 
 ### PR, Promotion, Merge, And Branch Cleanup
 
@@ -46,6 +48,7 @@ Use:
 
 Skill to use and improve:
 
+- `karpathy-guidelines`
 - `github-pr-and-actions`
 - `verification-loop`
 
@@ -109,11 +112,19 @@ Common requests:
 Use:
 
 - `npm.cmd audit --audit-level=moderate`
+- `npm.cmd audit --json`
+- `npm.cmd ls <package>`
 - `npm run dotnet:audit`
-- prefer scoped `overrides` and lockfile updates over broad dependency churn
+- prefer patched transitive lockfile updates when the existing semver range
+  allows them
+- prefer scoped direct dependency upgrades when the patched version is outside
+  the existing range
+- avoid `npm audit fix --force` unless the breaking-change risk is explicitly
+  accepted
 
 Skills to use and improve:
 
+- `karpathy-guidelines`
 - `security-review`
 - `verification-loop`
 
@@ -149,13 +160,17 @@ Skill to use and improve:
 - `analytics-and-gtm`: added a dedicated GA4/GTM product analytics workflow.
 - `docs-maintenance`: added a dedicated doc inventory, stale-claim review, and
   formatting workflow for repo-wide Markdown cleanup.
+- `karpathy-guidelines`: added concise ACME working rules for broad, ambiguous,
+  architectural, and security-sensitive changes.
+- `security-review`: tightened dependency-vulnerability handling around
+  advisory inspection, transitive-path tracing, lockfile-only fixes, and
+  avoiding broad forced upgrades.
 
 ## Next Skill Candidate
 
-The next useful skill candidate is an ACME LOS dependency-maintenance skill:
+The next useful skill candidate is an ACME LOS release-readiness skill:
 
-- trigger on "vulnerabilities", "npm audit", "NuGet audit", or "dependency
-  sweep"
-- inspect package manager output before changing versions
-- keep overrides narrow, documented, and removable
-- pair dependency changes with the verification loop for affected packages
+- trigger on "ready to promote", "enterprise ready", "release candidate", or
+  "ship it"
+- combine PR checks, dependency audit, Azure state, health verification, docs,
+  and manual-smoke guidance into one concise readiness report

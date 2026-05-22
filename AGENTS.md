@@ -53,5 +53,7 @@ This repo includes a curated subset of Codex skills under `.agents/skills` for:
 - documentation maintenance
 - security review
 - verification loops
+- karpathy-guidelines for broad, ambiguous, architectural, or security-sensitive
+  work where scope control and verification discipline matter
 
 Use them when the task clearly matches.
