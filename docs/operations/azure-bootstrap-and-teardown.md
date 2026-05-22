@@ -114,6 +114,8 @@ Current bootstrap scope:
 - GitHub OIDC federated credentials
 - scoped platform-network access for deployment identities so they can manage
   environment-specific private DNS links
+- Microsoft Graph app permissions for deployment identities when an environment
+  has `bffRuntime.serviceAuth.mode` set to `entra`
 
 Current bootstrap non-scope:
 
@@ -173,6 +175,24 @@ default the BFF min/max replica settings follow the environment runtime settings
 in `infra/azure/config/platform.json`; add an environment `bffRuntime` block
 only when the BFF needs a different scale profile from the public web app or
 when enabling BFF-specific hardening such as Entra service auth.
+
+Before the first deployment of an environment with BFF Entra service auth,
+refresh the automation bootstrap:
+
+```powershell
+npm run azure:bootstrap
+```
+
+For each opted-in environment, the bootstrap script grants the environment
+deployment identity these Microsoft Graph application permissions:
+
+- `Application.ReadWrite.All`
+- `AppRoleAssignment.ReadWrite.All`
+
+Those permissions are required by the source-controlled Graph Bicep template,
+not by the application runtime. The bootstrap caller must be authorized to grant
+tenant-wide Microsoft Graph application permissions; otherwise the script fails
+early and the CD identity will not be partially configured.
 
 ## Pause And Resume A Non-Production Workload
 

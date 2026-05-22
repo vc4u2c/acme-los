@@ -16,6 +16,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$microsoftGraphAppId = '00000003-0000-0000-c000-000000000000'
+$bffServiceAuthGraphAppRoleValues = @(
+  'Application.ReadWrite.All',
+  'AppRoleAssignment.ReadWrite.All'
+)
+
 if (-not $ConfigurationPath) {
   $ConfigurationPath = Join-Path $PSScriptRoot '..\..\..\infra\azure\config\platform.json'
 }
@@ -188,6 +194,33 @@ function Get-EnvironmentSubscriptionId {
     'prod' { return $AzureContext.ProdSubscriptionId }
     default { return $AzureContext.NonProdSubscriptionId }
   }
+}
+
+function Test-BffServiceAuthUsesEntra {
+  param(
+    $Configuration,
+    [string]$EnvironmentName
+  )
+
+  $environmentConfiguration = Get-EnvironmentConfiguration -Configuration $Configuration -EnvironmentName $EnvironmentName
+
+  if (-not $environmentConfiguration.PSObject.Properties['bffRuntime']) {
+    return $false
+  }
+
+  $bffRuntime = $environmentConfiguration.bffRuntime
+
+  if (-not $bffRuntime.PSObject.Properties['serviceAuth']) {
+    return $false
+  }
+
+  $serviceAuth = $bffRuntime.serviceAuth
+
+  if (-not $serviceAuth.PSObject.Properties['mode']) {
+    return $false
+  }
+
+  return [string]$serviceAuth.mode -eq 'entra'
 }
 
 function Get-WorkloadResourceGroupName {
@@ -513,6 +546,147 @@ function Ensure-RoleAssignment {
   }
 }
 
+function Get-MicrosoftGraphAppRoleMap {
+  param([string[]]$RoleValues)
+
+  $graphServicePrincipal = az ad sp show --id $microsoftGraphAppId --output json | ConvertFrom-Json
+  $roleMap = @{}
+
+  foreach ($roleValue in $RoleValues) {
+    $role = @(
+      $graphServicePrincipal.appRoles |
+        Where-Object {
+          $_.value -eq $roleValue -and $_.allowedMemberTypes -contains 'Application'
+        } |
+        Select-Object -First 1
+    )
+
+    if ($role.Count -eq 0 -or -not $role[0]) {
+      throw "Microsoft Graph application role '$roleValue' was not found."
+    }
+
+    $roleMap[$roleValue] = [string]$role[0].id
+  }
+
+  return @{
+    ServicePrincipal = $graphServicePrincipal
+    RoleMap = $roleMap
+  }
+}
+
+function Get-ApplicationRequiredGraphRoleIds {
+  param([string]$ApplicationAppId)
+
+  $requiredResourceAccess = ConvertTo-ObjectArray (az ad app permission list --id $ApplicationAppId --output json | ConvertFrom-Json)
+  $graphAccess = @(
+    $requiredResourceAccess |
+      Where-Object { $_.resourceAppId -eq $microsoftGraphAppId } |
+      Select-Object -First 1
+  )
+
+  if ($graphAccess.Count -eq 0 -or -not $graphAccess[0]) {
+    return @()
+  }
+
+  return @(
+    $graphAccess[0].resourceAccess |
+      Where-Object { $_.type -eq 'Role' } |
+      ForEach-Object { [string]$_.id }
+  )
+}
+
+function Get-ServicePrincipalAppRoleAssignments {
+  param([string]$ServicePrincipalObjectId)
+
+  $assignmentsUri = "https://graph.microsoft.com/v1.0/servicePrincipals/$ServicePrincipalObjectId/appRoleAssignments?`$select=appRoleId,resourceDisplayName,resourceId"
+  $response = az rest --method GET --uri $assignmentsUri --output json | ConvertFrom-Json
+  return ConvertTo-ObjectArray $response.value
+}
+
+function Ensure-BffServiceAuthGraphPermissions {
+  param(
+    [string]$ApplicationAppId,
+    [string]$DisplayName,
+    $ServicePrincipal
+  )
+
+  $graphRoleInfo = Get-MicrosoftGraphAppRoleMap -RoleValues $bffServiceAuthGraphAppRoleValues
+  $graphServicePrincipal = $graphRoleInfo.ServicePrincipal
+  $roleMap = $graphRoleInfo.RoleMap
+  $requiredRoleIds = @($bffServiceAuthGraphAppRoleValues | ForEach-Object { $roleMap[$_] })
+  $existingRequiredRoleIds = @(Get-ApplicationRequiredGraphRoleIds -ApplicationAppId $ApplicationAppId)
+  $missingRequiredRoleIds = @(
+    $requiredRoleIds |
+      Where-Object { $existingRequiredRoleIds -notcontains $_ }
+  )
+
+  if ($missingRequiredRoleIds.Count -gt 0) {
+    $missingPermissionSpecs = @($missingRequiredRoleIds | ForEach-Object { "$_=Role" })
+    $missingRoleNames = @($bffServiceAuthGraphAppRoleValues | Where-Object { $missingRequiredRoleIds -contains $roleMap[$_] })
+
+    if ($PSCmdlet.ShouldProcess("Entra application '$DisplayName'", "Add Microsoft Graph app permissions: $($missingRoleNames -join ', ')")) {
+      az ad app permission add --id $ApplicationAppId --api $microsoftGraphAppId --api-permissions $missingPermissionSpecs --output none
+    }
+  }
+
+  $existingAssignments = @(Get-ServicePrincipalAppRoleAssignments -ServicePrincipalObjectId $ServicePrincipal.id)
+  $missingAssignmentRoleValues = @(
+    $bffServiceAuthGraphAppRoleValues |
+      Where-Object {
+        $roleId = $roleMap[$_]
+        -not @(
+          $existingAssignments |
+            Where-Object {
+              [string]$_.resourceId -eq [string]$graphServicePrincipal.id -and [string]$_.appRoleId -eq [string]$roleId
+            }
+        )
+      }
+  )
+
+  $createdAssignmentRoleValues = @()
+
+  foreach ($roleValue in $missingAssignmentRoleValues) {
+    $roleId = $roleMap[$roleValue]
+
+    if ($PSCmdlet.ShouldProcess("Service principal '$DisplayName'", "Grant Microsoft Graph app role '$roleValue'")) {
+      $assignment = @{
+        principalId = $ServicePrincipal.id
+        resourceId = $graphServicePrincipal.id
+        appRoleId = $roleId
+      } | ConvertTo-Json -Compress
+
+      az rest `
+        --method POST `
+        --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$($ServicePrincipal.id)/appRoleAssignments" `
+        --headers 'Content-Type=application/json' `
+        --body $assignment `
+        --output none
+
+      $createdAssignmentRoleValues += $roleValue
+    }
+  }
+
+  if ($createdAssignmentRoleValues.Count -gt 0) {
+    $verifiedAssignments = @(Get-ServicePrincipalAppRoleAssignments -ServicePrincipalObjectId $ServicePrincipal.id)
+    $stillMissing = @(
+      $createdAssignmentRoleValues |
+        Where-Object {
+          $roleId = $roleMap[$_]
+          -not @(
+            $verifiedAssignments |
+              Where-Object {
+                [string]$_.resourceId -eq [string]$graphServicePrincipal.id -and [string]$_.appRoleId -eq [string]$roleId
+              }
+          )
+        }
+    )
+
+    if ($stillMissing.Count -gt 0) {
+      throw "Microsoft Graph app role assignment verification failed for '$DisplayName': $($stillMissing -join ', '). The signed-in bootstrap principal must be allowed to grant tenant-wide Graph application permissions."
+    }
+  }
+}
+
 function Get-EnvironmentVariables {
   param(
     $Configuration,
@@ -582,6 +756,7 @@ function Write-PlanSummary {
     Write-Host "    acr: $($environmentVariables.AZURE_CONTAINER_REGISTRY_NAME)"
     Write-Host "    key vault: $($environmentVariables.AZURE_KEY_VAULT_NAME)"
     Write-Host "    okta env: $($environmentVariables.OKTA_ENVIRONMENT_NAME)"
+    Write-Host "    BFF service auth: $(if (Test-BffServiceAuthUsesEntra -Configuration $Configuration -EnvironmentName $environmentName) { 'entra (Graph app permissions required)' } else { 'not enabled' })"
   }
 }
 
@@ -647,11 +822,15 @@ foreach ($environmentName in $environmentNames) {
     $application = Ensure-EntraApplication -DisplayName $displayName
 
     if ($application) {
-      Ensure-ServicePrincipal -AppId $application.appId | Out-Null
+      $servicePrincipal = Ensure-ServicePrincipal -AppId $application.appId
       Ensure-FederatedCredential -ApplicationObjectId $application.id -CredentialName "github-environment-$environmentName" -Subject "repo:$($gitHubContext.Owner)/$($gitHubContext.RepositoryName):environment:$environmentName"
 
       if ($IncludeMainBranchSubject.IsPresent) {
         Ensure-FederatedCredential -ApplicationObjectId $application.id -CredentialName 'github-main' -Subject "repo:$($gitHubContext.Owner)/$($gitHubContext.RepositoryName):ref:refs/heads/main"
+      }
+
+      if ($servicePrincipal -and (Test-BffServiceAuthUsesEntra -Configuration $configuration -EnvironmentName $environmentName)) {
+        Ensure-BffServiceAuthGraphPermissions -ApplicationAppId $application.appId -DisplayName $displayName -ServicePrincipal $servicePrincipal
       }
 
       $targetSubscriptionId = Get-EnvironmentSubscriptionId -Configuration $configuration -AzureContext $azureContext -EnvironmentName $environmentName
