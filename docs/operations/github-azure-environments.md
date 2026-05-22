@@ -110,6 +110,13 @@ One important refinement for this repo:
   - on `rg-acme-hub-network-cus-01`
 - that scope lets the workload deployment create and remove only its own
   platform-side private DNS virtual network links
+- environments that opt into BFF Entra service auth also need Microsoft Graph
+  application permissions on their deployment identity:
+  - `Application.ReadWrite.All`
+  - `AppRoleAssignment.ReadWrite.All`
+- those Graph permissions let the source-controlled Microsoft Graph Bicep
+  template create or update the BFF API app registration, enterprise
+  application, and web managed-identity app role assignment
 
 ## Recommended Variable And Secret Model
 
@@ -298,6 +305,19 @@ The implementation keeps that pattern, but updates it for this repo:
 5. set environment variables
 6. grant each environment identity scoped access to the platform network RG for
    private DNS link management
+7. grant Microsoft Graph app permissions only for environments whose
+   `bffRuntime.serviceAuth.mode` is `entra`
+
+The Graph app permissions are intentionally environment-gated. Today `dev` has
+BFF Entra service auth enabled, so the `dev` deployment app receives the Graph
+permissions required by `main.entra.service-auth.rg.bicep`. `qa`, `stg`, and
+`prod` receive the same permissions only when their platform config opts into
+the same service-auth mode.
+
+The signed-in bootstrap principal must be allowed to grant tenant-wide
+Microsoft Graph application permissions. If that permission is missing, the
+script should fail during bootstrap instead of leaving CD to fail later during
+deployment.
 
 Portability rule:
 

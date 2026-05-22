@@ -237,7 +237,11 @@ because Entra access tokens can represent the API audience with either form.
 If an environment needs a custom API URI, set `audience`; the Graph Bicep
 entrypoint will use that URI and return the matching `.default` token scope.
 Microsoft Graph resources are deployed by Bicep, but they are tenant resources
-and are not managed by Azure Deployment Stacks.
+and are not managed by Azure Deployment Stacks. The GitHub/Azure bootstrap
+script grants `Application.ReadWrite.All` and `AppRoleAssignment.ReadWrite.All`
+to only the environment deployment identities whose platform config enables
+`bffRuntime.serviceAuth.mode = entra`, so the CD identity can run this Graph
+Bicep entrypoint without a portal-only permission fix.
 
 If the runtime image changes and you want to force a new image build instead of
 reusing an existing tag, pass `-ImageTag` explicitly:
