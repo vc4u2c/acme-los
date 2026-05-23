@@ -439,15 +439,31 @@ async function verifyTransaction(transaction: Transaction) {
 # Check for vulnerabilities
 npm audit
 
-# Fix automatically fixable issues
-npm audit fix
-
 # Update dependencies
 npm update
 
 # Check for outdated packages
 npm outdated
 ```
+
+For ACME LOS, prefer an evidence-driven and narrow dependency fix:
+
+1. Run `npm.cmd audit --json` and identify the exact advisory, package, range,
+   and dependency path.
+2. Run `npm.cmd ls <package>` to confirm which direct dependency brings it in.
+3. If the direct dependency already allows a patched transitive version, prefer
+   a lockfile-only update such as:
+
+```powershell
+npm.cmd update <package> --package-lock-only
+```
+
+4. If the patched version is outside the current semver range, update the
+   narrowest direct dependency that owns the vulnerable package.
+5. Avoid `npm audit fix --force` unless the user explicitly accepts the
+   breaking-change risk and the diff has been reviewed.
+6. Re-run `npm.cmd audit --audit-level=high`, `npm.cmd ls <package>`, and the
+   matching ACME verification sweep before opening or merging a PR.
 
 #### Lock Files
 
