@@ -11,7 +11,11 @@
       "registrationRequiresEmailVerification": true,
       "registrationRequiresPhoneVerification": false,
       "adaptiveMfaOnSignIn": true,
-      "fundingRouteStepUp": true
+      "fundingRouteStepUp": true,
+      "fundingStepUpMethod": "email",
+      "fundingStepUpRequiresPassword": false,
+      "recoveryContactHints": true,
+      "themeToggle": true
     }
   },
   "web": {

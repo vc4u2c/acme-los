@@ -2,8 +2,12 @@
 
 import * as React from 'react';
 import { MoonIcon, SunIcon } from './icons';
-
-type ThemeMode = 'light' | 'dark';
+import {
+  createThemeCookie,
+  resolveThemeCookieDomain,
+  THEME_STORAGE_KEY,
+  type ThemeMode,
+} from '../../lib/theme-preference';
 
 function getCurrentTheme(): ThemeMode {
   if (typeof document === 'undefined') {
@@ -26,7 +30,12 @@ export function ThemeToggle(): React.ReactElement {
     const nextTheme = isDark ? 'light' : 'dark';
 
     document.documentElement.dataset.theme = nextTheme;
-    window.localStorage.setItem('acme-los-theme', nextTheme);
+    window.localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+    document.cookie = createThemeCookie(nextTheme, {
+      hostname: window.location.hostname,
+      secure: window.location.protocol === 'https:',
+      cookieDomain: resolveThemeCookieDomain(),
+    });
     setTheme(nextTheme);
   }, [isDark]);
 

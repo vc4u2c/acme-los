@@ -15,6 +15,8 @@ param oktaClientId string
 param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
 param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
+param themeCookieDomain string = ''
+param customDomains array = []
 param analyticsEnabled bool = false
 param analyticsEnvironmentName string = appEnvironmentName
 param gtmContainerId string = ''
@@ -207,6 +209,10 @@ var environmentVariables = concat(
       value: oktaFundingAcrValues
     }
     {
+      name: 'NEXT_PUBLIC_ACME_THEME_COOKIE_DOMAIN'
+      value: themeCookieDomain
+    }
+    {
       name: 'NEXT_PUBLIC_ACME_ANALYTICS_ENABLED'
       value: analyticsEnabled ? 'true' : 'false'
     }
@@ -352,6 +358,7 @@ resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
         allowInsecure: false
         targetPort: targetPort
         transport: 'auto'
+        customDomains: customDomains
       }
       registries: [
         {

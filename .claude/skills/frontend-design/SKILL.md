@@ -1,17 +1,15 @@
 ---
 name: frontend-design
-description: Apply the repo frontend design workflow when a task needs art direction, hierarchy, layout polish, or design-system-minded UI implementation.
-when_to_use: Use for landing pages, dashboards, app shells, showcase screens, component polish, or Figma-driven frontend work where imagery, spacing, typography, and motion matter as much as the code.
+description: Production frontend design guidance for polished ACME LOS web surfaces, components, pages, and responsive UI.
 ---
 
-Before acting, read `../../.agents/skills/frontend-design/SKILL.md` and use it
-as the source of truth for this repository's frontend design workflow.
+# Frontend Design
 
-When the task is driven by screenshots, Figma, or another UI reference:
+This Claude-compatible skill mirrors `.agents/skills/frontend-design/SKILL.md`.
 
-- inspect the reference before building
-- reuse existing components and tokens instead of cloning primitives
-- validate the final UI visually at desktop and mobile sizes
+When this skill triggers:
 
-When the task is mostly implementation with little visual judgment, stay
-grounded in repo conventions and do not force design flourishes.
+1. Read `.agents/skills/frontend-design/SKILL.md`.
+2. Follow that workflow as the source of truth.
+3. Resolve any relative `scripts/`, `references/`, or `assets/` paths from `.agents/skills/frontend-design/`.
+4. Adapt Codex-specific tool names to the equivalent Claude Code capabilities.

@@ -282,6 +282,26 @@ Current proven state:
   Next facade for manual checks unless you are inside the ACA environment or a
   private-network diagnostic context
 
+Branded web-hostname activation is source-owned but intentionally separate from
+base deployment because Azure managed-certificate issuance depends on public
+DNS validation. The helper reads Azure verification values and checks DNS; the
+certificate and hostname binding remain Bicep-owned:
+
+```powershell
+npm run azure:custom-domain:web -- -EnvironmentName dev -Action show-plan
+# Add the returned CNAME and TXT values at the authoritative DNS provider.
+npm run azure:custom-domain:web -- -EnvironmentName dev -Action verify-dns
+```
+
+Only after DNS verification succeeds should
+`environments.dev.publicDomain.enabled` be set to `true` and the web runtime
+be deployed through Bicep while callbacks still use the ACA hostname. After
+`https://apply-dev.avanai.net/api/health` succeeds, change the Okta `dev`
+deployed base URL to `https://apply-dev.avanai.net`, run `okta:bootstrap`, and
+deploy the web runtime again. This enables round-trip light/dark preference
+continuity with `auth.avanai.net` through a non-sensitive parent-domain cookie;
+auth/session cookies remain host-scoped.
+
 Practical smoke-check path after a deploy:
 
 ```powershell

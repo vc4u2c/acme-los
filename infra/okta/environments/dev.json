@@ -2,7 +2,7 @@
   "environment": "dev",
   "okta": {
     "issuer": "https://auth.avanai.net/oauth2/default",
-    "webClientId": "0oa11s2g3d9VFjxv9698",
+    "webClientId": "0oa13cmyyzp5XlWAv698",
     "mobileClientId": "0oa114pxwpwIRfEnb698",
     "fundingStepUpAcrValues": "urn:okta:loa:2fa:any",
     "hostedExperience": {
@@ -11,12 +11,18 @@
       "registrationRequiresEmailVerification": true,
       "registrationRequiresPhoneVerification": false,
       "adaptiveMfaOnSignIn": true,
-      "fundingRouteStepUp": true
+      "fundingRouteStepUp": true,
+      "fundingStepUpMethod": "email",
+      "fundingStepUpRequiresPassword": false,
+      "recoveryContactHints": true,
+      "themeToggle": true,
+      "themeCookieDomain": "avanai.net"
     }
   },
   "web": {
     "baseUrl": "http://localhost:3000",
     "deployedBaseUrl": "https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io",
+    "additionalBaseUrls": ["https://apply-dev.avanai.net"],
     "redirectPath": "/auth/callback",
     "postLogoutRedirectPath": "/"
   },

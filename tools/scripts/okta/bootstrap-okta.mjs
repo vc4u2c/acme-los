@@ -359,16 +359,8 @@ async function createApplication(payload) {
   return oktaRequest('POST', '/api/v1/apps', payload);
 }
 
-async function deleteApplication(app) {
-  if (!app) {
-    return;
-  }
-
-  if (app.status !== 'INACTIVE') {
-    await oktaRequest('POST', `/api/v1/apps/${app.id}/lifecycle/deactivate`);
-  }
-
-  await oktaRequest('DELETE', `/api/v1/apps/${app.id}`);
+async function updateApplication(appId, payload) {
+  return oktaRequest('PUT', `/api/v1/apps/${appId}`, payload);
 }
 
 async function findTrustedOriginByOrigin(origin) {
@@ -924,7 +916,6 @@ function authorizationServerClaimMatches(existingClaim, expectedClaim) {
   );
 }
 
-const localWebBaseUrl = resolveLocalWebBaseUrl(environment.web);
 const deployedWebBaseUrl = resolveDeployedWebBaseUrl(environment.web);
 const allowedWebBaseUrls = resolveAllowedWebBaseUrls(environment.web);
 const webRedirectPath = requiredString(
@@ -934,11 +925,6 @@ const webRedirectPath = requiredString(
 const webPostLogoutRedirectPath = requiredString(
   environment.web?.postLogoutRedirectPath,
   'web.postLogoutRedirectPath',
-);
-const webRedirectUri = toAbsoluteUrl(localWebBaseUrl, webRedirectPath);
-const webPostLogoutRedirectUri = toAbsoluteUrl(
-  localWebBaseUrl,
-  webPostLogoutRedirectPath,
 );
 const mobileRedirectUri = toMobileRedirectUri(
   requiredString(environment.mobile?.scheme, 'mobile.scheme'),
@@ -957,6 +943,12 @@ const helpUrl = toAbsoluteUrl(
   requiredString(brandProfile.helpPath, 'brand.helpPath'),
 );
 const hostedExperience = environment.okta?.hostedExperience ?? {};
+const fundingStepUpMethod =
+  optionalString(hostedExperience.fundingStepUpMethod) ?? 'email';
+const fundingStepUpRequiresPassword =
+  hostedExperience.fundingStepUpRequiresPassword === true;
+const themeCookieDomain =
+  optionalString(hostedExperience.themeCookieDomain) ?? '';
 const authorizationServerId = resolveAuthorizationServerId(issuer);
 const requiresEmailAuthenticator = Boolean(
   hostedExperience.registrationRequiresEmailVerification ||
@@ -1020,6 +1012,7 @@ const hostedBranding = {
     brandProfile.signUpSubtitle,
     'brand.signUpSubtitle',
   ),
+  ThemeCookieDomain: themeCookieDomain,
 };
 
 const customerGroupName = `acme-los-customers-${environment.environment}`;
@@ -1191,13 +1184,16 @@ for (const expectedApp of [expectedWebApp, expectedMobileApp]) {
       expectedApp.label,
     );
     if (mismatches.length > 0) {
-      await deleteApplication(existingApp);
-      const recreatedApp = await createApplication(expectedApp.payload);
+      const updatedApp = await updateApplication(
+        existingApp.id,
+        expectedApp.payload,
+      );
 
       results[expectedApp.label] = {
-        mode: 'recreated',
-        id: recreatedApp.id,
-        clientId: extractClientId(recreatedApp),
+        mode: 'updated',
+        id: updatedApp.id,
+        clientId: extractClientId(updatedApp) || extractClientId(existingApp),
+        changedFields: mismatches,
       };
       continue;
     }
@@ -1827,6 +1823,10 @@ results.accessPolicy = {
   mode: accessPolicyResult.mode,
   id: accessPolicyResult.policy.id,
 };
+results.fundingStepUpPolicyIntent = {
+  method: fundingStepUpMethod,
+  requiresPassword: fundingStepUpRequiresPassword,
+};
 
 if (hostedExperience.adaptiveMfaOnSignIn) {
   try {
@@ -1924,7 +1924,7 @@ if (hostedExperience.rememberUser) {
 
 if (hostedExperience.fundingRouteStepUp) {
   warnings.push(
-    'Funding step-up remains enforced in application code through acr_values on the guarded funding step. The Okta policy bootstrap ensures 2FA-capable app access, but route-level step-up is still a runtime concern.',
+    `Funding step-up remains enforced in application code through acr_values on the guarded funding step. The runtime request no longer forces prompt=login/max_age=0, so an existing password session can satisfy the password portion while Okta presents the configured ${fundingStepUpMethod} step-up factor. Verify this behavior once after publishing the hosted page and policy changes.`,
   );
 }
 
@@ -1962,6 +1962,7 @@ writeJsonFile(bootstrapOutputsPath, {
   mfaEnrollmentPolicyId: results.mfaEnrollmentPolicy.id,
   sessionPolicyId: results.sessionPolicy.id,
   accessPolicyId: results.accessPolicy.id,
+  fundingStepUpPolicyIntent: results.fundingStepUpPolicyIntent,
   warnings,
 });
 

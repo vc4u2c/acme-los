@@ -33,6 +33,11 @@
       "subscriptionRole": "nonprod",
       "appEnvironmentName": "dev",
       "oktaEnvironmentName": "dev",
+      "publicDomain": {
+        "enabled": false,
+        "hostname": "apply-dev.avanai.net",
+        "managedCertificateValidationMethod": "CNAME"
+      },
       "runtime": {
         "minReplicas": 2,
         "maxReplicas": 2

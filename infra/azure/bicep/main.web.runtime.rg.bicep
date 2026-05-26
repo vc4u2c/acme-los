@@ -32,6 +32,13 @@ param oktaClientId string
 param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
 param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
+param themeCookieDomain string = ''
+param customDomainEnabled bool = false
+param customDomainHostname string = ''
+@allowed([
+  'CNAME'
+])
+param customDomainValidationMethod string = 'CNAME'
 param analyticsEnabled bool = false
 param analyticsEnvironmentName string = environmentName
 param gtmContainerId string = ''
@@ -93,6 +100,21 @@ var redisKeyPrefix = '${organizationShortName}-${workloadShortName}:web:${enviro
 var bffRedisKeyPrefix = '${organizationShortName}-${workloadShortName}:bff:${environmentName}'
 var resolvedContainerAppDiagnosticSettingsName = toLower('diag-${organizationShortName}-${workloadShortName}-ca-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedBffContainerAppDiagnosticSettingsName = toLower('diag-${organizationShortName}-${workloadShortName}-bff-ca-${environmentName}-${regionShortName}-${instanceNumber}')
+var customDomainCertificateName = toLower('mcert-${organizationShortName}-${workloadShortName}-${environmentName}-${replace(customDomainHostname, '.', '-')}')
+
+resource managedEnvironmentResource 'Microsoft.App/managedEnvironments@2025-01-01' existing = {
+  name: last(split(managedEnvironmentId, '/'))
+}
+
+resource customDomainCertificate 'Microsoft.App/managedEnvironments/managedCertificates@2025-01-01' = if (customDomainEnabled) {
+  parent: managedEnvironmentResource
+  name: customDomainCertificateName
+  location: location
+  properties: {
+    subjectName: customDomainHostname
+    domainControlValidation: customDomainValidationMethod
+  }
+}
 
 resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: keyVaultName
@@ -145,6 +167,16 @@ module containerApp './modules/web/container-app.bicep' = {
     oktaRedirectUri: oktaRedirectUri
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
     oktaFundingAcrValues: oktaFundingAcrValues
+    themeCookieDomain: themeCookieDomain
+    customDomains: customDomainEnabled
+      ? [
+          {
+            name: customDomainHostname
+            bindingType: 'SniEnabled'
+            certificateId: customDomainCertificate!.id
+          }
+        ]
+      : []
     analyticsEnabled: analyticsEnabled
     analyticsEnvironmentName: analyticsEnvironmentName
     gtmContainerId: gtmContainerId

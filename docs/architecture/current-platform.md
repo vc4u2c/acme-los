@@ -105,10 +105,11 @@ calling client id or object id before `/bff/*` routes run.
 - standard sign-in is password-first
 - adaptive sign-in can step up to 2FA on high-risk access
 - funding route access always starts a fresh application-owned step-up check:
-  the Okta authorize request carries `acr_values`, `prompt=login`, and
-  `max_age=0`; each funding page entry consumes the latest funding step-up
-  marker, while funding save/submit APIs can use that marker during the bounded
-  10-minute funding API window created by the latest Okta callback
+  the Okta authorize request carries the configured `acr_values` without
+  forcing `prompt=login` or `max_age=0`; each funding page entry consumes the
+  latest funding step-up marker, while funding save/submit APIs can use that
+  marker during the bounded 10-minute funding API window created by the latest
+  Okta callback
 
 ## Current API Boundary
 
@@ -237,7 +238,11 @@ What is already strong:
 What is not fully hardened yet:
 
 - the app is still directly reachable on the ACA hostname
-- Front Door, WAF, stable custom domains, and private-only ACA ingress are still later phases
+- `apply-dev.avanai.net` is source-configured as the Bicep-managed branded
+  web-hostname activation path, but it is not a proven live endpoint until DNS
+  validation, managed-certificate deployment, and Okta callback cutover are
+  complete
+- Front Door, WAF, and private-only ACA ingress are still later phases
 - the environment model is proven in `dev`, but still needs the same repeatability proven in `qa`
 - regional failover and broader production resilience controls are not in place yet
 
@@ -247,6 +252,13 @@ Current practical reading:
 - security posture for `dev`: good and intentional
 - production edge hardening: not done yet
 - operational maturity: real, but still growing toward full production standards
+
+Theme continuity across the hosted-auth round trip is intentionally limited to
+the display-only `acme_theme=light|dark` preference. Okta at
+`auth.avanai.net` can share that cookie with the planned
+`apply-dev.avanai.net` web hostname after activation; opaque app-session,
+anti-CSRF, and authorization state cookies remain isolated to their owning
+hosts.
 
 See [Enterprise readiness](./enterprise-readiness.md) for the grouped security,
 scalability, fault-tolerance, and enterprise-readiness assessment.

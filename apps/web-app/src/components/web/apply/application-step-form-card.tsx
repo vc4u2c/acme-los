@@ -192,16 +192,16 @@ export function ApplicationStepFormCard({
   );
 
   return (
-    <form className="space-y-7" onSubmit={onSubmit}>
+    <form className="space-y-5" onSubmit={onSubmit}>
       {renderStepFields(step, form)}
 
       {statusMessage ? (
-        <div className="rounded-[1.35rem] border border-[var(--accent)] bg-[var(--surface-spot)] px-4 py-3 text-sm font-medium text-[var(--accent-ink)]">
+        <div className="rounded-[1rem] border border-[var(--accent)] bg-[var(--surface-spot)] px-3 py-2.5 text-sm font-medium text-[var(--accent-ink)]">
           {statusMessage}
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="sm:min-w-[196px]">
           {previousStep ? (
             <Button
