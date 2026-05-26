@@ -21,13 +21,13 @@ import { validateStepField } from './schemas';
 import type { ApplicationStepSlug } from './step-definitions';
 
 export const fieldClassName =
-  'h-10 rounded-[1rem] border-[var(--border)] bg-[color:var(--surface-strong)/0.92] px-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] shadow-sm focus-visible:ring-[var(--ring)]';
+  'h-9 rounded-[0.85rem] border-[var(--border)] bg-[color:var(--surface-strong)/0.92] px-2.5 text-[13px] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] shadow-sm focus-visible:ring-[var(--ring)]';
 
 export const selectClassName =
-  'flex h-10 w-full rounded-[1rem] border border-[var(--border)] bg-[color:var(--surface-strong)/0.92] px-3 text-sm text-[var(--foreground)] shadow-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--ring-soft)]';
+  'flex h-9 w-full rounded-[0.85rem] border border-[var(--border)] bg-[color:var(--surface-strong)/0.92] px-2.5 text-[13px] text-[var(--foreground)] shadow-sm outline-none transition focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--ring-soft)]';
 
 export const textareaClassName =
-  'min-h-[128px] w-full rounded-[1.2rem] border border-[var(--border)] bg-[color:var(--surface-strong)/0.92] px-3.5 py-2.5 text-[15px] leading-6 text-[var(--foreground)] shadow-sm outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--ring-soft)]';
+  'min-h-[108px] w-full rounded-[1rem] border border-[var(--border)] bg-[color:var(--surface-strong)/0.92] px-3 py-2 text-sm leading-5 text-[var(--foreground)] shadow-sm outline-none transition placeholder:text-[var(--muted-foreground)] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--ring-soft)]';
 
 type FieldProps = {
   id?: string;
@@ -127,13 +127,19 @@ export function Field({
   children,
 }: FieldProps): React.ReactElement {
   return (
-    <FormField>
-      <div className="space-y-1">
-        <FormLabel htmlFor={id} className="text-[var(--muted-foreground)]">
+    <FormField className="space-y-2">
+      <div className="space-y-0.5">
+        <FormLabel
+          htmlFor={id}
+          className="text-xs tracking-[0.2em] text-[var(--muted-foreground)]"
+        >
           {label}
         </FormLabel>
         {hint ? (
-          <FormHint id={hintId} className="text-[var(--muted-foreground)]">
+          <FormHint
+            id={hintId}
+            className="text-xs leading-5 text-[var(--muted-foreground)]"
+          >
             {hint}
           </FormHint>
         ) : null}
@@ -340,24 +346,24 @@ export function ChoiceGroupField({
 
         return (
           <fieldset className="space-y-2">
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               <legend
                 id={legendId}
-                className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
+                className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted-foreground)]"
               >
                 {label}
               </legend>
               {hint ? (
                 <FormHint
                   id={hintId}
-                  className="text-[var(--muted-foreground)]"
+                  className="text-xs leading-5 text-[var(--muted-foreground)]"
                 >
                   {hint}
                 </FormHint>
               ) : null}
             </div>
             <RadioGroup
-              className="sm:grid-cols-2"
+              className="gap-2 sm:grid-cols-2"
               aria-labelledby={legendId}
               aria-describedby={joinDescribedBy(hintId, errorId)}
               aria-invalid={error ? true : undefined}
@@ -375,13 +381,20 @@ export function ChoiceGroupField({
                   aria-invalid={error ? true : undefined}
                   description={option.description}
                   itemClassName={[
-                    'border-[var(--border)] bg-[color:var(--surface-strong)/0.94] text-[var(--foreground)] peer-checked:border-[var(--brand)] peer-checked:bg-[var(--surface-accent)] peer-focus-visible:ring-[var(--ring-soft)]',
+                    'min-h-[86px] rounded-[1rem] border-[var(--border)] bg-[color:var(--surface-strong)/0.94] p-3 text-[var(--foreground)] peer-checked:border-[var(--brand)] peer-checked:bg-[var(--surface-accent)] peer-focus-visible:ring-[var(--ring-soft)]',
                     itemClassName,
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  labelClassName={labelClassName}
-                  descriptionClassName={descriptionClassName}
+                  labelClassName={['text-sm', labelClassName]
+                    .filter(Boolean)
+                    .join(' ')}
+                  descriptionClassName={[
+                    'mt-1.5 leading-5',
+                    descriptionClassName,
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                 >
                   {option.label}
                 </RadioGroupItem>
@@ -422,7 +435,7 @@ export function CheckboxField({
 
         return (
           <div className="space-y-2">
-            <label className="flex items-start gap-3 rounded-[1.2rem] border border-[var(--border)] bg-[color:var(--surface-strong)/0.94] p-3.5 shadow-sm">
+            <label className="flex items-start gap-2.5 rounded-[1rem] border border-[var(--border)] bg-[color:var(--surface-strong)/0.94] p-3 shadow-sm">
               <Checkbox
                 id={fieldId}
                 name={field.name}
@@ -435,13 +448,13 @@ export function CheckboxField({
                 aria-invalid={error ? true : undefined}
                 className="mt-1 border-[var(--border-strong)] text-[var(--brand)] focus-visible:ring-[var(--ring)]"
               />
-              <span className="space-y-1">
-                <span className="block text-base font-semibold text-[var(--foreground)]">
+              <span className="space-y-0.5">
+                <span className="block text-sm font-semibold text-[var(--foreground)]">
                   {label}
                 </span>
                 <span
                   id={descriptionId}
-                  className="block text-sm leading-6 text-[var(--muted-foreground)]"
+                  className="block text-sm leading-5 text-[var(--muted-foreground)]"
                 >
                   {description}
                 </span>

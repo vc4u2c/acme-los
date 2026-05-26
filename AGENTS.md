@@ -51,9 +51,24 @@ This repo includes a curated subset of Codex skills under `.agents/skills` for:
 - documentation lookup
 - analytics and GA4/GTM setup
 - documentation maintenance
+- dependency vulnerability management for npm and NuGet audit findings
 - security review
 - verification loops
 - karpathy-guidelines for broad, ambiguous, architectural, or security-sensitive
   work where scope control and verification discipline matter
 
 Use them when the task clearly matches.
+
+## Agentic Development Model
+
+- Keep reusable domain workflow knowledge in `.agents/skills`; load only the
+  matching skill for the current work.
+- Codex project agents are configured in `.codex/config.toml` with narrow
+  specialist roles, a four-thread cap, and a one-level delegation depth.
+- Use `explorer`, `docs_researcher`, `reviewer`, and `frontend_designer` only
+  for bounded parallel work that provides evidence or an independent check;
+  keep implementation on the main path unless a worker owns a disjoint slice.
+- Claude adapters under `.claude` mirror this model without duplicating the
+  canonical skill instructions.
+- Run `npm run agents:verify` after adding or changing a skill or project
+  agent.

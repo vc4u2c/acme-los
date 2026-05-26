@@ -55,6 +55,7 @@ Outputs:
 - `apps/mobile-app/.env.local`
 - `tmp/okta/<env>.bff.authsettings.json`
 - `tmp/okta/<env>.okta-hosted-branding.json`
+- `tmp/okta/<env>.okta-hosted-pages.json`
 - `tmp/okta/<env>.okta-applications.json`
 
 ### `npm run okta:bootstrap -- <env>`
@@ -80,6 +81,7 @@ It currently handles:
 - customer-brand creation or reuse
 - customer-brand theme colors
 - customer-brand hosted logo and favicon upload
+- customer-brand hosted sign-in and error page content from the repo template
 - email authenticator activation/update
 - customer group
 - MFA enrollment policy
@@ -175,19 +177,31 @@ Current limitations:
 That means:
 
 - branding colors, logo, and favicon are automated
-- hosted sign-in and error page HTML/content are automated after the custom domain is linked
+- hosted sign-in and error page HTML/content are automated by
+  `tools/scripts/okta/hosted-sign-in-page.mjs` after the custom domain is linked
+- hosted-page polish includes compact ACME-styled controls, recovery/contact
+  hints, and a light/dark theme toggle
+- theme persistence uses only the non-sensitive `acme_theme=light|dark`
+  preference cookie; when the app runs at a sibling `*.avanai.net` hostname,
+  the cookie is scoped to `avanai.net` so theme follows the redirect round trip
+- auth session, state, CSRF, and token cookies remain host-scoped and are never
+  shared with the Okta hostname
 - registration is working against the system default profile-enrollment rule, not a fully custom rule
 - the current dev org already has the custom domain linked manually:
   - `auth.avanai.net`
+- the `dev` manifest prepares `https://apply-dev.avanai.net` as an allowed
+  origin, but theme continuity from app to Okta is not live until that hostname
+  is DNS-validated, enabled through the Bicep-managed web custom-domain
+  deployment, and made the deployed web base URL
 
 Current auth shape in this repo:
 
 - registration always requires password plus email enrollment because the MFA enrollment policy requires both authenticators
 - standard sign-in is password-first
 - adaptive sign-in, when the high-risk rule is supported and triggered, steps up to 2FA with password required as the first factor
-- the funding step is still enforced in application runtime with `acr_values`,
-  `prompt=login`, and `max_age=0`, which is the correct place for route-level
-  step-up
+- the funding step is still enforced in application runtime with `acr_values`;
+  the request no longer forces `prompt=login` or `max_age=0`, so Okta can use
+  the existing password session and present the configured email step-up factor
 - an existing `aal2` web session does not by itself unlock funding; the current
   server-side session needs the latest funding step-up marker, funding page
   entry consumes that marker, and funding APIs can use it during the bounded
@@ -209,6 +223,11 @@ So the current recommendation is:
 
 - local/dev bootstrap: `OKTA_API_TOKEN`
 
+`okta:bootstrap` updates an existing OIDC application in place when redirect
+or logout URI configuration changes. Do not delete and recreate a live web
+client simply to add a branded hostname, because that rotates its client ID
+and requires an immediate application redeploy.
+
 If you find an old admin service app in the Okta org that is not referenced by this repo, treat it as leftover infrastructure and remove it. It is not part of the current repo-driven bootstrap path.
 
 ## Files To Read First
@@ -219,3 +238,4 @@ If you want the simple mental model, read these in order:
 2. `infra/okta/brand/acme-los.json`
 3. `tools/scripts/okta/render-auth-config.mjs`
 4. `tools/scripts/okta/bootstrap-okta.mjs`
+5. `tools/scripts/okta/hosted-sign-in-page.mjs`

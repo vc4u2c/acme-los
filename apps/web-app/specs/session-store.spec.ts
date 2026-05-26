@@ -348,7 +348,7 @@ describe('web auth session store idle expiry', () => {
     ).toBeTruthy();
   });
 
-  it('binds step-up auth transactions to the current user and forces a fresh Okta check', () => {
+  it('binds step-up auth transactions to the current user and requests stronger Okta assurance', () => {
     process.env.ACME_AUTH_PROVIDER = 'okta';
     process.env.ACME_OKTA_ISSUER = 'https://example.okta.com/oauth2/default';
     process.env.ACME_OKTA_CLIENT_ID = 'client-id';
@@ -373,8 +373,8 @@ describe('web auth session store idle expiry', () => {
     expect(authorizeUrl.searchParams.get('acr_values')).toBe(
       'urn:okta:loa:2fa:any',
     );
-    expect(authorizeUrl.searchParams.get('prompt')).toBe('login');
-    expect(authorizeUrl.searchParams.get('max_age')).toBe('0');
+    expect(authorizeUrl.searchParams.has('prompt')).toBe(false);
+    expect(authorizeUrl.searchParams.has('max_age')).toBe(false);
     expect(transaction.cookiePayload.stepUp).toEqual({
       reason: 'funding',
       maxAgeSeconds: 10 * 60,

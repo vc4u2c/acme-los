@@ -15,7 +15,7 @@ export function renderStepFields(
   switch (step) {
     case 'personal-info':
       return (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2">
           <TextInputField
             form={form}
             step={step}
@@ -54,7 +54,7 @@ export function renderStepFields(
             />
           </div>
           <TextInputField form={form} step={step} name="city" label="City" />
-          <div className="grid gap-6 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             <TextInputField
               form={form}
               step={step}
@@ -73,7 +73,7 @@ export function renderStepFields(
       );
     case 'disclosures':
       return (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <ChoiceGroupField
             form={form}
             step={step}
@@ -126,8 +126,8 @@ export function renderStepFields(
       );
     case 'employment-income':
       return (
-        <div className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
+        <div className="space-y-5">
+          <div className="grid gap-4 md:grid-cols-2">
             <TextInputField
               form={form}
               step={step}
@@ -174,14 +174,14 @@ export function renderStepFields(
       );
     case 'bank-card':
       return (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <TextInputField
             form={form}
             step={step}
             name="bankName"
             label="Bank name"
           />
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             <TextInputField
               form={form}
               step={step}
@@ -197,7 +197,7 @@ export function renderStepFields(
               inputMode="numeric"
             />
           </div>
-          <div className="grid gap-6 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2">
             <TextInputField
               form={form}
               step={step}
@@ -222,7 +222,7 @@ export function renderStepFields(
       );
     case 'pre-approval':
       return (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <TextInputField
             form={form}
             step={step}
@@ -257,7 +257,7 @@ export function renderStepFields(
       );
     case 'documents-signing':
       return (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <CheckboxField
             form={form}
             step={step}
@@ -290,15 +290,15 @@ export function renderStepFields(
       );
     case 'funding':
       return (
-        <div className="space-y-6">
+        <div className="space-y-5">
           <ChoiceGroupField
             form={form}
             step={step}
             name="fundingMethod"
             label="Funding method"
-            itemClassName="min-h-[96px] rounded-[1.25rem] p-3.5"
-            labelClassName="text-base"
-            descriptionClassName="mt-2 max-w-[34ch] leading-6"
+            itemClassName="min-h-[84px] rounded-[1rem] p-3"
+            labelClassName="text-sm"
+            descriptionClassName="mt-1.5 max-w-[34ch] leading-5"
             options={[
               {
                 label: 'Direct deposit',

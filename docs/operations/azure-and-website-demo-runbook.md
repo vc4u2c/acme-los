@@ -193,12 +193,15 @@ to show the full platform surface, not just the visible web pages.
 - server-driven logout and Okta logout hint support
 - rate limiting and auth audit logging on sensitive paths
 - `leadId` tracking is separated from customer identity and session concerns
+- hosted Okta light/dark mode is persisted with the non-sensitive
+  `acme_theme` preference; cross-redirect continuity activates once the app is
+  live at the prepared sibling hostname `apply-dev.avanai.net`
 
 ### Funding Step-Up And Assurance
 
 - funding route requires stronger assurance than ordinary application steps
 - funding access starts a fresh Okta authorize request with MFA-oriented
-  `acr_values`, `prompt=login`, and `max_age=0`
+  `acr_values`, without forcing `prompt=login` or `max_age=0`
 - each funding page entry consumes the latest funding step-up marker
 - funding save/submit APIs can use the bounded 10-minute funding API window
   after callback
@@ -427,8 +430,8 @@ to show the full platform surface, not just the visible web pages.
 - customer and application persistence are still transitional server-side state,
   not the final durable backend record
 - `qa` promotion proof, real alert receivers, durable persistence, Front Door,
-  WAF, custom domains, private-origin production edge hardening, and regional
-  resilience remain next phases
+  WAF, activation of the prepared branded app hostname, private-origin
+  production edge hardening, and regional resilience remain next phases
 - server-side GA4 Measurement Protocol emission is not implemented yet; browser
   GA/GTM runtime is the current product analytics path
 - the grouped security, scalability, fault-tolerance, and enterprise-readiness
@@ -438,6 +441,9 @@ to show the full platform surface, not just the visible web pages.
 ## Refresh Before The Demo
 
 The `dev` ACA public hostname can change when the environment is rebuilt.
+The stable customer-facing hostname `apply-dev.avanai.net` is prepared in
+source but should not be used as the demo URL until DNS validation,
+Bicep-managed certificate binding, and Okta callback cutover have completed.
 
 Run this before the demo if you want to confirm the current URL:
 
@@ -661,6 +667,8 @@ Talking points:
 - same Okta tenant is used for `local` and `dev`
 - redirect URIs differ by environment
 - auth is server-side, not a client-only token dance
+- after branded app-host activation, light/dark mode remains consistent through
+  the redirect to `auth.avanai.net` without sharing auth cookies
 
 ### 3. Continue Into The Application Flow
 
@@ -687,8 +695,9 @@ What to prove:
 
 - unauthenticated access redirects to
   `/account/sign-in?returnTo=%2Fapply%2Ffunding&aal=aal2`
-- the funding sign-in start asks Okta for fresh MFA with `acr_values`,
-  `prompt=login`, and `max_age=0`
+- the funding sign-in start asks Okta for stronger assurance with
+  `acr_values`, while allowing an existing password session to proceed to the
+  configured email step-up factor
 - an existing `aal2` session is not enough by itself; each funding page entry
   consumes the funding step-up marker written by the latest Okta callback
 - after the Okta challenge completes, funding save/submit APIs can use that
@@ -719,8 +728,8 @@ $decodedAuthorizeQuery = [System.Net.WebUtility]::UrlDecode($authorizeUrl.Query)
 
 $authorizeUrl.Host
 $decodedAuthorizeQuery -match "acr_values=urn:okta:loa:2fa:any"
-$decodedAuthorizeQuery -match "prompt=login"
-$decodedAuthorizeQuery -match "max_age=0"
+$decodedAuthorizeQuery -notmatch "prompt=login"
+$decodedAuthorizeQuery -notmatch "max_age=0"
 ```
 
 Expected result:
@@ -735,11 +744,11 @@ user:
 
 1. sign in normally
 2. open `/apply/funding`
-3. complete the fresh Okta prompt/MFA challenge
+3. complete the Okta email step-up challenge
 4. confirm the funding page loads and funding save/submit calls no longer return
    the step-up error during the 10-minute API window
 5. leave funding and open `/apply/funding` again; it should start a new Okta
-   prompt/MFA challenge instead of reusing the consumed route-entry marker
+   step-up challenge instead of reusing the consumed route-entry marker
 
 ### 5. Show The Security Demo Page
 

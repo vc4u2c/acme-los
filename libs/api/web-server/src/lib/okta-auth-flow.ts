@@ -113,8 +113,6 @@ export function startOktaAuthTransaction({
       'acr_values',
       config.okta.fundingStepUpAcrValues,
     );
-    authorizeUrl.searchParams.set('prompt', 'login');
-    authorizeUrl.searchParams.set('max_age', '0');
   }
 
   return {

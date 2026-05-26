@@ -179,6 +179,12 @@ const webPostLogoutRedirectUri = toAbsoluteUrl(
 const mobileRedirectUri = toMobileRedirectUri(mobileScheme, mobileRedirectPath);
 
 const hostedExperience = environment.okta?.hostedExperience ?? {};
+const fundingStepUpMethod =
+  optionalString(hostedExperience.fundingStepUpMethod) ?? 'email';
+const fundingStepUpRequiresPassword =
+  hostedExperience.fundingStepUpRequiresPassword === true;
+const themeCookieDomain =
+  optionalString(hostedExperience.themeCookieDomain) ?? '';
 const policySummary = [
   `remember-user=${Boolean(hostedExperience.rememberUser)}`,
   `keep-me-signed-in=${Boolean(hostedExperience.keepMeSignedIn)}`,
@@ -186,6 +192,11 @@ const policySummary = [
   `registration-phone-verification=${Boolean(hostedExperience.registrationRequiresPhoneVerification)}`,
   `adaptive-mfa-sign-in=${Boolean(hostedExperience.adaptiveMfaOnSignIn)}`,
   `funding-step-up=${Boolean(hostedExperience.fundingRouteStepUp)}`,
+  `funding-step-up-method=${fundingStepUpMethod}`,
+  `funding-step-up-password=${fundingStepUpRequiresPassword}`,
+  `recovery-contact-hints=${Boolean(hostedExperience.recoveryContactHints)}`,
+  `theme-toggle=${Boolean(hostedExperience.themeToggle)}`,
+  `theme-cookie-domain=${themeCookieDomain || 'host-only'}`,
 ].join(', ');
 
 const hostedBranding = {
@@ -253,6 +264,7 @@ const hostedBranding = {
     brandProfile.signUpSubtitle,
     'brand.signUpSubtitle',
   ),
+  ThemeCookieDomain: themeCookieDomain,
 };
 
 const webEnvContents = [
@@ -266,6 +278,7 @@ const webEnvContents = [
   `NEXT_PUBLIC_OKTA_REDIRECT_URI=${webRedirectUri}`,
   `NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI=${webPostLogoutRedirectUri}`,
   `NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES=${fundingStepUpAcrValues}`,
+  `NEXT_PUBLIC_ACME_THEME_COOKIE_DOMAIN=${themeCookieDomain}`,
   '',
 ].join('\n');
 
@@ -311,6 +324,11 @@ const bffSettings = {
         ),
         AdaptiveMfaOnSignIn: Boolean(hostedExperience.adaptiveMfaOnSignIn),
         FundingRouteStepUp: Boolean(hostedExperience.fundingRouteStepUp),
+        FundingStepUpMethod: fundingStepUpMethod,
+        FundingStepUpRequiresPassword: fundingStepUpRequiresPassword,
+        RecoveryContactHints: Boolean(hostedExperience.recoveryContactHints),
+        ThemeToggle: Boolean(hostedExperience.themeToggle),
+        ThemeCookieDomain: themeCookieDomain,
       },
       Branding: hostedBranding,
     },
@@ -341,6 +359,8 @@ const oktaApplications = {
   },
   StepUp: {
     FundingAcrValues: fundingStepUpAcrValues,
+    Method: fundingStepUpMethod,
+    RequiresPassword: fundingStepUpRequiresPassword,
   },
 };
 

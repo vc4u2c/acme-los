@@ -96,6 +96,7 @@ Scripts:
 - [bootstrap-governance.ps1](../../tools/scripts/azure/bootstrap-governance.ps1)
 - [setup-github-azure-environments.ps1](../../tools/scripts/azure/setup-github-azure-environments.ps1)
 - [deploy-web-environment.ps1](../../tools/scripts/azure/deploy-web-environment.ps1)
+- [configure-web-custom-domain.ps1](../../tools/scripts/azure/configure-web-custom-domain.ps1)
 - [set-web-environment-state.ps1](../../tools/scripts/azure/set-web-environment-state.ps1)
 - [teardown-web-environment.ps1](../../tools/scripts/azure/teardown-web-environment.ps1)
 
@@ -122,6 +123,9 @@ And they currently handle:
 - platform-network `Contributor` role assignment for each environment identity on `rg-acme-hub-network-cus-01`
 - alert-aware pause and resume command paths for the ACA web workload and
   internal BFF when deployed
+- a source-owned custom web hostname flow: a DNS planning/verification helper
+  plus Bicep-managed certificate and ingress binding after validation records
+  exist
 - local deploy and teardown command paths for non-production workloads
 
 Current lifecycle model:
@@ -158,6 +162,47 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/az
 ```
 
 The web deployment path is now proven end to end for `dev`.
+
+## Branded Web Hostname And Theme Round Trip
+
+`dev` declares the intended customer-facing web hostname
+`apply-dev.avanai.net` in `config/platform.json`. The Okta branded hostname is
+already `auth.avanai.net`. Once both are live sibling hostnames, the UI can
+carry the non-sensitive `acme_theme=light|dark` preference through an Okta
+redirect using a `Domain=avanai.net; Secure; SameSite=Lax` cookie.
+
+This is deliberately a staged activation. `publicDomain.enabled` remains
+`false` while DNS is absent, so routine deploys cannot attempt a certificate
+binding prematurely. Keep the current ACA URL as the active Okta deployed base
+URL until DNS is ready:
+
+```powershell
+npm run azure:custom-domain:web -- -EnvironmentName dev -Action show-plan
+# Create the returned CNAME and TXT records in the authoritative avanai.net DNS zone.
+npm run azure:custom-domain:web -- -EnvironmentName dev -Action verify-dns
+```
+
+After DNS verification succeeds:
+
+1. Change `infra/azure/config/platform.json` so
+   `environments.dev.publicDomain.enabled` is `true`.
+2. Deploy the web runtime while the Okta deployed base URL is still the ACA
+   hostname; Bicep creates the managed certificate and ingress binding.
+3. Verify `https://apply-dev.avanai.net/api/health`.
+4. Change `infra/okta/environments/dev.json` so `web.deployedBaseUrl` is
+   `https://apply-dev.avanai.net`; keep the ACA URL in `additionalBaseUrls`
+   only if a temporary diagnostic callback remains necessary.
+5. Run `npm run okta:bootstrap -- dev` so Okta redirect and trusted-origin
+   configuration matches the active customer URL.
+6. Deploy the web runtime again so its browser and server configuration use the
+   branded origin and theme-cookie domain.
+7. Verify sign-in, sign-out, funding email step-up, and light/dark continuity
+   across the app-to-Okta round trip.
+
+The DNS verification helper is source-owned because the managed certificate
+depends on validation outside the Azure workload deployment; the binding
+itself remains in Bicep. No auth, session, or CSRF cookies are shared across
+subdomains.
 
 Current public health check:
 

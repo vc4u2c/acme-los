@@ -1205,21 +1205,45 @@ $analyticsEnvironmentName = if ($analyticsEnvironmentNameConfiguration) {
 } else {
   $EnvironmentName
 }
+$publicDomainConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'publicDomain'
+$customDomainEnabled = ConvertTo-Boolean (
+  Get-OptionalPropertyValue -InputObject $publicDomainConfiguration -Name 'enabled'
+)
+$customDomainEnabledEnvValue = if ($customDomainEnabled) { 'true' } else { 'false' }
+$customDomainHostname = Get-StringOrDefault -Value (
+  Get-OptionalPropertyValue -InputObject $publicDomainConfiguration -Name 'hostname'
+)
+$customDomainValidationMethod = Get-StringOrDefault `
+  -Value (Get-OptionalPropertyValue -InputObject $publicDomainConfiguration -Name 'managedCertificateValidationMethod') `
+  -DefaultValue 'CNAME'
+
+if ($customDomainEnabled -and -not $customDomainHostname) {
+  throw "Environment '$EnvironmentName' enables publicDomain but does not declare a hostname."
+}
+
 $webSessionSecretValue = New-SecureRandomBase64Url
 $oktaEnvironment = Get-OktaEnvironmentConfiguration -RepositoryRoot $repositoryRoot -OktaEnvironmentName $oktaEnvironmentName
 $analyticsEnvironment = Get-AnalyticsEnvironmentConfiguration -RepositoryRoot $repositoryRoot -AnalyticsEnvironmentName $analyticsEnvironmentName
 $configuredDeployedWebBaseUrl = Resolve-DeployedWebBaseUrl -WebConfiguration $oktaEnvironment.web
+$resolvedPublicWebBaseUrl = $resolvedContainerAppBaseUrl
 
 if (
   $configuredDeployedWebBaseUrl -and
   ($configuredDeployedWebBaseUrl.TrimEnd('/') -ne $resolvedContainerAppBaseUrl.TrimEnd('/'))
 ) {
-  Write-Warning "Okta environment '$oktaEnvironmentName' deployed base URL '$configuredDeployedWebBaseUrl' does not match the current ACA public URL '$resolvedContainerAppBaseUrl'. The deployed container will use the ACA public URL. Update infra/okta/environments/$oktaEnvironmentName.json and rerun okta:bootstrap for this environment."
+  $configuredDeployedWebHost = ([Uri]$configuredDeployedWebBaseUrl).Host.ToLowerInvariant()
+  if (-not $customDomainEnabled -or $configuredDeployedWebHost -ne $customDomainHostname.ToLowerInvariant()) {
+    throw "Okta environment '$oktaEnvironmentName' declares deployed base URL '$configuredDeployedWebBaseUrl', but the matching publicDomain is not enabled for Azure deployment."
+  }
+
+  $resolvedPublicWebBaseUrl = $configuredDeployedWebBaseUrl.TrimEnd('/')
+  Write-Host "Using Bicep-managed custom web hostname '$resolvedPublicWebBaseUrl' for Okta callbacks and browser configuration."
 }
 
 $oktaIssuer = Get-OptionalString $oktaEnvironment.okta.issuer
 $oktaClientId = Get-OptionalString $oktaEnvironment.okta.webClientId
 $oktaFundingAcrValues = Get-OptionalString $oktaEnvironment.okta.fundingStepUpAcrValues
+$themeCookieDomain = Get-StringOrDefault -Value $oktaEnvironment.okta.hostedExperience.themeCookieDomain
 $oktaRedirectPath = Get-OptionalString $oktaEnvironment.web.redirectPath
 $oktaPostLogoutRedirectPath = Get-OptionalString $oktaEnvironment.web.postLogoutRedirectPath
 
@@ -1227,8 +1251,8 @@ if (-not $oktaIssuer -or -not $oktaClientId -or -not $oktaRedirectPath -or -not 
   throw "Okta environment '$oktaEnvironmentName' is missing required web auth settings."
 }
 
-$resolvedOktaRedirectUri = Join-AbsoluteUrl -BaseUrl $resolvedContainerAppBaseUrl -Path $oktaRedirectPath
-$resolvedOktaPostLogoutRedirectUri = Join-AbsoluteUrl -BaseUrl $resolvedContainerAppBaseUrl -Path $oktaPostLogoutRedirectPath
+$resolvedOktaRedirectUri = Join-AbsoluteUrl -BaseUrl $resolvedPublicWebBaseUrl -Path $oktaRedirectPath
+$resolvedOktaPostLogoutRedirectUri = Join-AbsoluteUrl -BaseUrl $resolvedPublicWebBaseUrl -Path $oktaPostLogoutRedirectPath
 $analyticsEnabled = ConvertTo-Boolean $analyticsEnvironment.enabled
 $analyticsEnabledEnvValue = if ($analyticsEnabled) { 'true' } else { 'false' }
 $analyticsRuntimeEnvironmentName = Get-StringOrDefault -Value $analyticsEnvironment.environment -DefaultValue $EnvironmentName
@@ -1258,6 +1282,7 @@ if (-not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionI
       --build-arg "NEXT_PUBLIC_OKTA_REDIRECT_URI=$resolvedOktaRedirectUri" `
       --build-arg "NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI=$resolvedOktaPostLogoutRedirectUri" `
       --build-arg "NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES=$oktaFundingAcrValues" `
+      --build-arg "NEXT_PUBLIC_ACME_THEME_COOKIE_DOMAIN=$themeCookieDomain" `
       --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_ENABLED=$analyticsEnabledEnvValue" `
       --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_ENVIRONMENT=$analyticsRuntimeEnvironmentName" `
       --build-arg "NEXT_PUBLIC_ACME_GTM_CONTAINER_ID=$gtmContainerId" `
@@ -1348,6 +1373,10 @@ $runtimeDeploymentArguments = @(
   '--parameters', "oktaRedirectUri=$resolvedOktaRedirectUri",
   '--parameters', "oktaPostLogoutRedirectUri=$resolvedOktaPostLogoutRedirectUri",
   '--parameters', "oktaFundingAcrValues=$oktaFundingAcrValues",
+  '--parameters', "themeCookieDomain=$themeCookieDomain",
+  '--parameters', "customDomainEnabled=$customDomainEnabledEnvValue",
+  '--parameters', "customDomainHostname=$customDomainHostname",
+  '--parameters', "customDomainValidationMethod=$customDomainValidationMethod",
   '--parameters', "analyticsEnabled=$analyticsEnabledEnvValue",
   '--parameters', "analyticsEnvironmentName=$analyticsRuntimeEnvironmentName",
   '--parameters', "gtmContainerId=$gtmContainerId",
@@ -1513,6 +1542,7 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   containerAppEnvironmentName = Get-StringOutputValue -Outputs $outputs -Name 'containerAppEnvironmentName'
   containerAppName = Get-StringOutputValue -Outputs $runtimeOutputs -Name 'containerAppName'
   containerAppBaseUrl = $resolvedContainerAppBaseUrl
+  publicWebBaseUrl = $resolvedPublicWebBaseUrl
   containerAppLatestRevisionFqdn = Get-StringOutputValue -Outputs $runtimeOutputs -Name 'containerAppLatestRevisionFqdn'
   bffContainerAppName = $deployedBffContainerAppName
   bffContainerAppBaseUrl = $deployedBffContainerAppBaseUrl

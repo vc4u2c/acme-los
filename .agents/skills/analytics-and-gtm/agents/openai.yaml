@@ -1,0 +1,7 @@
+interface:
+  display_name: 'Analytics And GTM'
+  short_description: 'GA4/GTM analytics events, goals, consent, and reporting'
+  brand_color: '#2563EB'
+  default_prompt: 'Configure or verify ACME LOS GA4/GTM analytics without exposing sensitive data.'
+policy:
+  allow_implicit_invocation: true

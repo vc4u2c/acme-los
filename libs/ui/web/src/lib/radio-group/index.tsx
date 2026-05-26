@@ -44,13 +44,13 @@ export const RadioGroupItem = React.forwardRef<
         <input ref={ref} type="radio" className="peer sr-only" {...props} />
         <span
           className={cn(
-            'relative flex min-h-[108px] cursor-pointer flex-col justify-between rounded-[1.2rem] border border-[var(--border)] bg-[var(--surface-strong)] p-4 text-left shadow-sm transition duration-200 hover:border-[var(--border-strong)] hover:bg-[var(--surface)] peer-checked:border-[var(--brand)] peer-checked:bg-[var(--surface-accent)] peer-checked:shadow-lg peer-checked:shadow-[color:var(--brand-shadow)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--ring-soft)]',
+            'relative flex min-h-[86px] cursor-pointer flex-col justify-between rounded-[1rem] border border-[var(--border)] bg-[var(--surface-strong)] p-3 text-left shadow-sm transition duration-200 hover:border-[var(--border-strong)] hover:bg-[var(--surface)] peer-checked:border-[var(--brand)] peer-checked:bg-[var(--surface-accent)] peer-checked:shadow-lg peer-checked:shadow-[color:var(--brand-shadow)] peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--ring-soft)]',
             itemClassName,
           )}
         >
           <span
             className={cn(
-              'text-base font-semibold leading-tight text-[var(--foreground)]',
+              'text-sm font-semibold leading-tight text-[var(--foreground)]',
               labelClassName,
             )}
           >
@@ -59,7 +59,7 @@ export const RadioGroupItem = React.forwardRef<
           {description ? (
             <span
               className={cn(
-                'mt-2 max-w-[30ch] text-sm leading-6 text-[var(--muted-foreground)]',
+                'mt-1.5 max-w-[30ch] text-sm leading-5 text-[var(--muted-foreground)]',
                 descriptionClassName,
               )}
             >

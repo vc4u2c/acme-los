@@ -1,0 +1,7 @@
+interface:
+  display_name: 'Scope And Verification Guardrails'
+  short_description: 'Keep broad or sensitive changes surgical and verified'
+  brand_color: '#475569'
+  default_prompt: 'Apply ACME LOS scope-control and verification guardrails to this change.'
+policy:
+  allow_implicit_invocation: true

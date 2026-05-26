@@ -3,6 +3,41 @@
 This is the lightweight map of the work that keeps coming up in this repo and
 the skills that should get sharper over time.
 
+## Agentic Development Model
+
+The repo uses one canonical source for reusable task knowledge:
+`.agents/skills/<name>/SKILL.md`. Codex loads the applicable skill body only
+when the task matches it, which keeps general context small while preserving
+repo-specific accuracy. Claude wrappers under `.claude/skills` point back to
+the same canonical bodies instead of copying their instructions.
+
+All current skills are guidance and verification skills. They remain available
+for both automatic selection and explicit developer invocation. A future skill
+that directly performs an irreversible action, such as a publish or merge
+command, should be manual-only rather than automatically invoked.
+
+Specialist agents are for bounded work that can proceed beside the main path:
+
+| Logical role        | Use for                                          | Codex                  | Claude                  |
+| ------------------- | ------------------------------------------------ | ---------------------- | ----------------------- |
+| Explorer            | Read-only execution-path and impact tracing      | `explorer`             | `explorer`              |
+| Reviewer            | Independent correctness and security review      | `reviewer`             | `reviewer`              |
+| Docs researcher     | Current primary-documentation verification       | `docs_researcher`      | `docs-researcher`       |
+| Frontend designer   | Visual and responsive implementation polish      | `frontend_designer`    | `frontend-designer`     |
+| Implementation work | Disjoint, explicitly owned implementation slices | built-in `worker` role | `implementation-worker` |
+
+Codex is configured in `.codex/config.toml` with `max_threads = 4` and
+`max_depth = 1`; the cap prevents unbounded fan-out and repeated context costs.
+Do not delegate critical-path work merely to look agentic. Delegate targeted
+research, review, or disjoint implementation only when it shortens the path or
+adds a meaningful independent check.
+
+After changing a skill or agent adapter, run:
+
+```powershell
+npm run agents:verify
+```
+
 ## Repeated Workflows
 
 ### Azure Lifecycle
@@ -124,6 +159,7 @@ Use:
 
 Skills to use and improve:
 
+- `dependency-vulnerability-management`
 - `karpathy-guidelines`
 - `security-review`
 - `verification-loop`
@@ -165,6 +201,8 @@ Skill to use and improve:
 - `security-review`: tightened dependency-vulnerability handling around
   advisory inspection, transitive-path tracing, lockfile-only fixes, and
   avoiding broad forced upgrades.
+- `dependency-vulnerability-management`: added a dedicated npm and NuGet
+  vulnerability scan, triage, fix, verification, and PR-reporting workflow.
 
 ## Next Skill Candidate
 
