@@ -236,8 +236,7 @@ to show the full platform surface, not just the visible web pages.
 - application flow endpoints
 - security inspector endpoint for local/dev diagnostics through the trusted
   Next facade
-- observability event endpoint behind
-  `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED`
+- diagnostic trace endpoint for logging-demo Next-to-BFF correlation proof
 - Wolverine-backed customer/application command and query handlers behind the
   HTTP/security pipeline
 - BFF request logging, trusted proxy validation, cookie handling, CSRF,
@@ -255,8 +254,8 @@ to show the full platform surface, not just the visible web pages.
   application-flow authority
 - security inspector reads the active authority, so BFF mode shows BFF-owned
   token/session state
-- observability events can move to the BFF with a separate telemetry feature
-  toggle without changing the public browser route
+- browser-origin telemetry stays on the Next facade; the logging demo uses a
+  separate diagnostic trace API to prove the Next-to-BFF hop
 
 ### State, Persistence, And Data Boundaries
 
@@ -813,9 +812,11 @@ Show:
 - the per-action `X-Correlation-ID` response/request header
 - the full correlation id and trace id shown after each action
 - the `Handled by` value: `next-facade` when the Next route handles the event
-  directly, `bff-api` when the request round-trips through the BFF
+  directly, `bff-api` when the diagnostic trace request round-trips through the
+  BFF
 - `Run traced flow`
 - `Emit API event`
+- `Call BFF trace API`
 - `Log client error`
 - `Log server error`
 
@@ -826,11 +827,6 @@ Talking points:
 - browser-origin operational events use `POST /api/observability/events` only
   when they need to be visible in Azure; product flows should send those events
   as best-effort background calls so user work does not wait on telemetry
-- when `ACME_BFF_PROXY_MODE=bff` and
-  `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`, that same browser-facing route
-  delegates the allowlisted event ingestion to `/bff/observability/events`;
-  the Next facade forwards `traceparent`, `tracestate`, and `X-Correlation-ID`
-  and the BFF echoes the same correlation id back
 - the traced flow first writes `logging.demo.client.browser` in the browser,
   then posts an allowlisted event to `POST /api/observability/events` with the
   W3C `traceparent` header
@@ -840,6 +836,10 @@ Talking points:
 - the standalone `Emit API event` action proves the generic endpoint can
   validate a bounded event and write through the shared logger; it is not how
   ordinary server-side logs are emitted
+- `Call BFF trace API` posts to `POST /api/diagnostics/trace`; the Next facade
+  validates CSRF, creates the next server span, forwards `traceparent`,
+  `tracestate`, and `X-Correlation-ID` to `/bff/diagnostics/trace`, and the BFF
+  echoes the same correlation id back
 - server logs keep the browser span as `parentSpanId`/`incomingTraceparent` and
   write the server span as `spanId`/`traceparent`, which is the shape future
   downstream .NET calls should continue through OpenTelemetry propagation

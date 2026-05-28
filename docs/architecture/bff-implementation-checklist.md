@@ -21,8 +21,6 @@ The BFF is real and source-owned:
 - Redis-backed state in Azure/local hardened paths, with in-memory fallback for
   lightweight scaffolding
 - feature-toggle handoff through `ACME_BFF_PROXY_MODE=next|bff`
-- optional telemetry slice through
-  `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`
 - optional Entra managed-identity service auth through
   `bffRuntime.serviceAuth.mode=entra`
 
@@ -69,14 +67,16 @@ delegates to the BFF.
 - `PUT /bff/application/steps/{step}`
 - `POST /bff/application/submit`
 
-### Observability
+### Diagnostics
 
-- `POST /bff/observability/events`
+- `POST /bff/diagnostics/trace`
 
-The observability route returns `404` unless
-`ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`. Even when it is enabled, the
-browser still posts to `/api/observability/events`; the Next facade validates
-rate limits and CSRF, then proxies the request to the BFF.
+The diagnostic trace route exists for local/dev support and the logging demo.
+The browser still posts operational telemetry to `/api/observability/events`;
+the Next facade logs that allowlisted telemetry directly. The separate
+`/api/diagnostics/trace` facade route calls `/bff/diagnostics/trace` to prove
+Next-to-BFF correlation, traceparent propagation, CSRF validation, and the
+trusted proxy boundary on a real API hop.
 
 ## Security Boundary
 

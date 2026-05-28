@@ -4,7 +4,6 @@ import {
   applyRateLimitHeaders,
   assertValidCsrf,
   checkRateLimit,
-  isBffObservabilityEventsEnabled,
 } from '@acme-los/api/web-server';
 import { createConsoleLogger, createTraceLogger } from '@acme-los/core/logger';
 import {
@@ -21,7 +20,6 @@ import {
   showcaseGridRiskGradeOptions,
   showcaseGridStatusOptions,
 } from '../../../../lib/showcase-grid';
-import { maybeProxyToBff } from '../../_lib/bff-route-proxy';
 
 export const runtime = 'nodejs';
 
@@ -244,18 +242,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     assertValidCsrf(request);
-
-    if (isBffObservabilityEventsEnabled()) {
-      const proxiedResponse = await maybeProxyToBff(
-        request,
-        '/bff/observability/events',
-      );
-
-      if (proxiedResponse) {
-        applyRateLimitHeaders(proxiedResponse, rateLimit);
-        return proxiedResponse;
-      }
-    }
 
     const payload = observabilityEventRequestSchema.parse(await request.json());
     const traceContext = parseInboundTraceContext({

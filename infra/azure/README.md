@@ -247,9 +247,9 @@ Runtime identity and Next-to-BFF boundary:
 - keep `ACME_BFF_TRUSTED_PROXY_SECRET` enabled with service auth so trusted
   identity headers require both the internal app path and an app-level token
 - browser-origin operational telemetry stays on the public
-  `/api/observability/events` facade; `bffRuntime.observabilityEventsEnabled`
-  controls whether that facade delegates to the internal
-  `/bff/observability/events` slice
+  `/api/observability/events` facade and is logged by Next after validation
+- the logging-demo BFF trace action uses `/api/diagnostics/trace` to make a
+  real server-to-server call to `/bff/diagnostics/trace`
 - when `bffRuntime.serviceAuth.mode` is `entra`, the deploy script first runs
   the Microsoft Graph Bicep service-auth entrypoint to create or update the BFF
   API audience, enterprise application, and app role assignment for the web
@@ -264,7 +264,6 @@ Default BFF service-auth configuration:
 
 ```json
 "bffRuntime": {
-  "observabilityEventsEnabled": true,
   "serviceAuth": {
     "mode": "entra"
   }

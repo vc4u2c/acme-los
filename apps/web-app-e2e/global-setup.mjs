@@ -23,8 +23,6 @@ const sharedWebSessionSecret =
   process.env.ACME_WEB_SESSION_SECRET || 'acme-los-web-e2e-session-secret';
 const trustedBffProxySecret =
   process.env.ACME_BFF_TRUSTED_PROXY_SECRET || 'acme-los-bff-e2e-proxy-secret';
-const bffObservabilityEventsEnabled =
-  process.env.ACME_BFF_OBSERVABILITY_EVENTS_ENABLED || 'true';
 
 function writeState(state) {
   mkdirSync(dirname(statePath), { recursive: true });
@@ -131,8 +129,6 @@ export default async function globalSetup() {
             ...process.env,
             ACME_WEB_SESSION_SECRET: sharedWebSessionSecret,
             ACME_BFF_TRUSTED_PROXY_SECRET: trustedBffProxySecret,
-            ACME_BFF_OBSERVABILITY_EVENTS_ENABLED:
-              bffObservabilityEventsEnabled,
             ASPNETCORE_ENVIRONMENT: 'Development',
           },
         ),
@@ -158,8 +154,6 @@ export default async function globalSetup() {
                 ACME_BFF_BASE_URL: bffBaseURL,
                 ACME_BFF_PROXY_MODE: 'bff',
                 ACME_BFF_TRUSTED_PROXY_SECRET: trustedBffProxySecret,
-                ACME_BFF_OBSERVABILITY_EVENTS_ENABLED:
-                  bffObservabilityEventsEnabled,
               }
             : {}),
         },

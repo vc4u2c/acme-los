@@ -7,14 +7,12 @@ export {
 } from './lib/application-flow';
 export { buildSignInRedirectPath } from './lib/auth-routing';
 export {
-  BFF_OBSERVABILITY_EVENTS_ENABLED_ENV_NAME,
   BFF_PROXY_MODE_ENV_NAME,
   BFF_TRUSTED_PROXY_SECRET_HEADER,
   getBffBaseUrl,
   getBffBaseUrlOrThrow,
   getBffProxyMode,
   getBffTrustedProxySecret,
-  isBffObservabilityEventsEnabled,
   isBffProxyEnabled,
   type BffProxyMode,
 } from './lib/bff-config';

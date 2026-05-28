@@ -126,10 +126,12 @@ server-side Application Insights exporter by itself.
 
 The `/logging-demo` route follows that pattern through the generic
 `POST /api/observability/events` endpoint. That public browser contract does
-not change during BFF rollout; when `ACME_BFF_PROXY_MODE=bff` and
-`ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`, the Next facade validates the
-browser request and proxies it to `/bff/observability/events`. With the toggle
-off, the same Next route keeps logging the event directly.
+not change during BFF rollout: the Next facade validates the browser request,
+applies rate limiting and CSRF checks, and logs the allowlisted event directly.
+The separate BFF trace demo uses `POST /api/diagnostics/trace`, which makes a
+real server-to-server call to `/bff/diagnostics/trace` so operators can see
+Next-to-BFF trace propagation without turning browser log ingestion into a BFF
+responsibility.
 
 Current emitted events:
 
@@ -139,14 +141,13 @@ Current emitted events:
 - every button action creates a fresh W3C `traceparent` header
 - every button action also sends a fresh `X-Correlation-ID` header for
   demo/business correlation; this is separate from distributed tracing
-- when BFF observability ingestion is enabled, the Next facade forwards
-  `traceparent`, `tracestate`, and `X-Correlation-ID` to
-  `/bff/observability/events`; the BFF echoes the same correlation id back
 - the browser posts an allowlisted event name and bounded telemetry payload with
   that trace context to the server
 - the server writes paired container log events:
   `logging.demo.client.received` and `logging.demo.server.processed`
 - standalone API-handled action emits `logging.demo.server.manual`
+- the BFF trace action emits `diagnostics.trace.next.forwarded` from Next and
+  `diagnostics.trace.bff.received` from the BFF for the same correlation id
 - controlled error actions emit `logging.demo.client.error.received` and
   `logging.demo.server.error`
 - server logs include the extracted `traceId`, `parentSpanId`, `spanId`, and
@@ -157,10 +158,10 @@ Current emitted events:
 - logger emission is fire-and-forget; request handling does not await a logging
   transport before continuing
 - the UI shows the handler runtime, full correlation id, trace id, incoming
-  `traceparent`, server `traceparent`, browser span id, and server span id so
+  `traceparent`, server `traceparent`, parent span id, and server span id so
   operators can paste the exact values into Kusto; `handledBy` is
-  `next-facade` when Next handles the event directly and `bff-api` when the BFF
-  handles it
+  `next-facade` when Next handles browser telemetry directly and `bff-api` when
+  the diagnostic trace action round-trips through the BFF
 
 Local browser logs and local Next.js server logs do not go to the deployed dev
 Application Insights resource unless a local process is deliberately configured
@@ -169,14 +170,14 @@ local so the `dev` signal stays clean.
 
 The implementation uses the shared `@acme-los/core/logger` trace logger on the
 server, the runtime-neutral `@acme-los/core/logger/trace-context` helpers for
-header names and W3C parsing, the generic `/api/observability/events` route
-with an optional BFF-backed `/bff/observability/events` implementation, and a
-small browser trace logger helper under the web app. Keep future
-client-to-server telemetry flows on that shape: typed event name, W3C
-`traceparent`, optional `X-Correlation-ID` for business correlation,
-allowlisted payload, server validation, then structured server log emission. Do
-not invent a custom `X-TraceId` header unless a legacy integration specifically
-requires one.
+header names and W3C parsing, the generic `/api/observability/events` route for
+browser-origin telemetry, the `/api/diagnostics/trace` to
+`/bff/diagnostics/trace` path for the BFF hop, and a small browser trace logger
+helper under the web app. Keep future client-to-server telemetry flows on that
+shape: typed event name, W3C `traceparent`, optional `X-Correlation-ID` for
+business correlation, allowlisted payload, server validation, then structured
+server log emission. Do not invent a custom `X-TraceId` header unless a legacy
+integration specifically requires one.
 
 For product browser events, call the endpoint as a best-effort background
 operation so user workflows do not wait on telemetry delivery. Normal
