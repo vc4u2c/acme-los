@@ -21,6 +21,7 @@ type LoggingDemoResponse = {
   correlationId: string;
   emittedEvents: string[];
   eventName: string;
+  handledBy: string;
   incomingTraceparent: string;
   parentSpanId: string;
   route: string;
@@ -104,6 +105,7 @@ function TraceResultPanel({
         </p>
       </div>
       <IdentifierRow label="Correlation ID" value={result.correlationId} />
+      <IdentifierRow label="Handled by" value={result.handledBy} />
       <IdentifierRow label="Trace ID" value={result.traceId} />
       <IdentifierRow label="Browser span ID" value={result.parentSpanId} />
       <IdentifierRow label="Server span ID" value={result.serverSpanId} />

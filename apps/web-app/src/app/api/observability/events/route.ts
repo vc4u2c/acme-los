@@ -150,6 +150,7 @@ type ObservabilityEventResponse = {
   correlationId: string;
   emittedEvents: string[];
   eventName: string;
+  handledBy: string;
   incomingTraceparent: string;
   parentSpanId: string;
   route: string;
@@ -164,6 +165,7 @@ function createObservabilityEventResponse({
   correlationId,
   emittedEvents,
   eventName,
+  handledBy,
   incomingTraceparent,
   parentSpanId,
   route,
@@ -177,6 +179,7 @@ function createObservabilityEventResponse({
     correlationId,
     emittedEvents,
     eventName,
+    handledBy,
     incomingTraceparent,
     parentSpanId,
     route,
@@ -290,6 +293,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       route: payload.route,
       observabilityEndpoint: observabilityEventsRoute,
       requestedEvent: payload.eventName,
+      handledBy: 'next-facade',
     });
 
     let emittedEvents: string[];
@@ -378,6 +382,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         correlationId,
         emittedEvents,
         eventName: payload.eventName,
+        handledBy: 'next-facade',
         incomingTraceparent: traceContext.traceparent,
         parentSpanId: traceContext.parentSpanId,
         route: payload.route,

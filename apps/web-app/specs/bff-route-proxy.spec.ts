@@ -170,6 +170,14 @@ describe('BFF route proxy', () => {
       }),
     );
 
+    const requestInit = fetchSpy.mock.calls[0]?.[1];
+    const headers = requestInit?.headers as Headers;
+
+    expect(headers.get('x-correlation-id')).toBe('corr-123');
+    expect(headers.get('traceparent')).toBe(
+      '00-0123456789abcdef0123456789abcdef-0123456789abcdef-01',
+    );
+
     expect(response).not.toBeNull();
     if (response === null) {
       throw new Error('Expected the BFF proxy to return a response.');

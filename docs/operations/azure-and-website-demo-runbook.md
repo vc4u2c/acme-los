@@ -812,6 +812,8 @@ Show:
 - the per-action `traceparent` behavior
 - the per-action `X-Correlation-ID` response/request header
 - the full correlation id and trace id shown after each action
+- the `Handled by` value: `next-facade` when the Next route handles the event
+  directly, `bff-api` when the request round-trips through the BFF
 - `Run traced flow`
 - `Emit API event`
 - `Log client error`
@@ -826,7 +828,9 @@ Talking points:
   as best-effort background calls so user work does not wait on telemetry
 - when `ACME_BFF_PROXY_MODE=bff` and
   `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`, that same browser-facing route
-  delegates the allowlisted event ingestion to `/bff/observability/events`
+  delegates the allowlisted event ingestion to `/bff/observability/events`;
+  the Next facade forwards `traceparent`, `tracestate`, and `X-Correlation-ID`
+  and the BFF echoes the same correlation id back
 - the traced flow first writes `logging.demo.client.browser` in the browser,
   then posts an allowlisted event to `POST /api/observability/events` with the
   W3C `traceparent` header
@@ -890,6 +894,12 @@ Run the `AppTraces` queries from `log-acme-los-dev-cus-01` or
 `appi-acme-los-dev-cus-01`. If `AppTraces` does not resolve, the Logs blade is
 scoped to the wrong resource.
 
+For the container-log correlation query, keep the raw `LogMessage` column
+visible. Next shared logger rows expose lower-case fields such as
+`correlationId` and `handledBy`; .NET BFF JSON console rows can nest those
+values in the framework payload/scope, but the same correlation id still appears
+in the raw row.
+
 ```kusto
 AppRequests
 | where TimeGenerated > ago(30m)
@@ -946,7 +956,7 @@ AppTraces
     clientScreenHeight = toint(clientTelemetry.screen.height),
     clientPixelRatio = todouble(clientTelemetry.screen.pixelRatio),
     clientConnectionType = tostring(clientTelemetry.connection.effectiveType)
-| where correlationId == targetCorrelationId
+| where correlationId == targetCorrelationId or LogMessage has targetCorrelationId
 | project
     TimeGenerated,
     SeverityLevel,
@@ -1011,14 +1021,18 @@ ContainerAppConsoleLogs_CL
 
 ```kusto
 let targetCorrelationId = 'paste-full-correlation-id-from-ui';
-let containerAppName = 'ca-acme-los-web-dev-cus-01';
+let containerAppNames = dynamic([
+  'ca-acme-los-web-dev-cus-01',
+  'ca-acme-los-bff-dev-cus-01'
+]);
 ContainerAppConsoleLogs_CL
 | where TimeGenerated > ago(30m)
 | extend
     ContainerApp = tostring(ContainerAppName_s),
     RevisionName = tostring(RevisionName_s),
     LogMessage = tostring(Log_s)
-| where ContainerApp =~ containerAppName
+| where ContainerApp in~ (containerAppNames)
+| where LogMessage has targetCorrelationId
 | extend payload = parse_json(LogMessage)
 | extend
     clientError = payload.clientError,
@@ -1028,6 +1042,7 @@ ContainerAppConsoleLogs_CL
     message = tostring(payload.message),
     event = tostring(payload.event),
     correlationId = tostring(payload.correlationId),
+    handledBy = tostring(payload.handledBy),
     traceId = tostring(payload.traceId),
     spanId = tostring(payload.spanId),
     parentSpanId = tostring(payload.parentSpanId),
@@ -1055,11 +1070,14 @@ ContainerAppConsoleLogs_CL
 | where correlationId == targetCorrelationId
 | project
     TimeGenerated,
+    ContainerApp,
     RevisionName,
     level,
     message,
+    LogMessage,
     event,
     correlationId,
+    handledBy,
     traceId,
     spanId,
     parentSpanId,

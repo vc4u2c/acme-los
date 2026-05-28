@@ -61,6 +61,7 @@ type ShowcaseGridSubmitResponse = {
   correlationId: string;
   emittedEvents: string[];
   eventName: string;
+  handledBy: string;
   incomingTraceparent: string;
   parentSpanId: string;
   route: string;
