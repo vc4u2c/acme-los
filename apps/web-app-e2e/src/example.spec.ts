@@ -263,6 +263,9 @@ test('shows the web home, rendering demos, and showcase route', async ({
     page.getByRole('button', { name: /Emit API event/i }),
   ).toBeVisible();
   await expect(
+    page.getByRole('button', { name: /Call BFF trace API/i }),
+  ).toBeVisible();
+  await expect(
     page.getByRole('button', { name: /Run traced flow/i }),
   ).toBeVisible();
   await expect(
@@ -272,6 +275,9 @@ test('shows the web home, rendering demos, and showcase route', async ({
     page.getByRole('button', { name: /Log server error/i }),
   ).toBeVisible();
   await expect(page.getByTestId('logging-demo-server-result')).toHaveText(
+    /No event emitted yet/i,
+  );
+  await expect(page.getByTestId('logging-demo-bff-trace-result')).toHaveText(
     /No event emitted yet/i,
   );
   await expect(page.getByTestId('logging-demo-client-result')).toHaveText(

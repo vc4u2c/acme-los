@@ -95,7 +95,7 @@ apps/
           Auth/
           Customer/
           Application/
-          Observability/
+          Diagnostics/
           Platform/
           Security/
         Infrastructure/
@@ -217,6 +217,7 @@ Current switched routes:
 - `GET|PUT /api/customer/profile` -> `/bff/customer/profile`
 - `GET|PUT /api/application/steps/[step]` -> `/bff/application/steps/{step}`
 - `POST /api/application/submit` -> `/bff/application/submit`
+- `POST /api/diagnostics/trace` -> `/bff/diagnostics/trace`
 
 `GET|POST|DELETE /api/auth/session`,
 `POST /api/auth/session/touch`, guarded API session checks, server-rendered
@@ -270,14 +271,15 @@ is connection configuration only; it does not act as the rollout switch.
 
 Toggle behavior to preserve:
 
-| Surface              | `ACME_BFF_PROXY_MODE=next` | `ACME_BFF_PROXY_MODE=bff`                                                      |
-| -------------------- | -------------------------- | ------------------------------------------------------------------------------ |
-| Browser URL          | Next `/api/*`              | Same Next `/api/*`                                                             |
-| Session authority    | Next web-server store      | BFF auth session store                                                         |
-| CSRF issuer          | Next facade                | BFF, relayed through Next                                                      |
-| Security inspector   | Next-owned snapshot        | BFF-owned snapshot                                                             |
-| Customer/application | Next implementation        | BFF implementation behind Next                                                 |
-| Observability events | Next implementation        | BFF when `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`; otherwise Next fallback |
+| Surface              | `ACME_BFF_PROXY_MODE=next` | `ACME_BFF_PROXY_MODE=bff`                            |
+| -------------------- | -------------------------- | ---------------------------------------------------- |
+| Browser URL          | Next `/api/*`              | Same Next `/api/*`                                   |
+| Session authority    | Next web-server store      | BFF auth session store                               |
+| CSRF issuer          | Next facade                | BFF, relayed through Next                            |
+| Security inspector   | Next-owned snapshot        | BFF-owned snapshot                                   |
+| Customer/application | Next implementation        | BFF implementation behind Next                       |
+| Browser telemetry    | Next facade logging        | Still Next facade logging                            |
+| Diagnostic tracing   | Not proxied                | Next facade calls `/bff/diagnostics/trace` for demos |
 
 For the trusted identity bridge, Next forwards authenticated customer context
 with `x-acme-authenticated-*` headers. In local development the BFF accepts
@@ -295,19 +297,20 @@ secret enabled with service auth so trusted identity headers require both the
 service identity token and the server-side proxy secret.
 
 Browser-origin operational telemetry follows the same facade rule. The browser
-continues posting to `/api/observability/events`; when `ACME_BFF_PROXY_MODE=bff`
-and `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true`, the Next facade enforces rate
-limit and CSRF checks, then delegates to `/bff/observability/events` over the
-trusted proxy boundary. Leaving the toggle off keeps the existing Next-owned
-ingestion path active.
+continues posting to `/api/observability/events`; the Next facade enforces rate
+limit and CSRF checks, validates the allowlisted payload, and writes the
+structured log event through the shared logger. The BFF diagnostic tracing route
+is separate on purpose: `/api/diagnostics/trace` makes a real server-to-server
+call to `/bff/diagnostics/trace` so demos can show trace propagation without
+turning browser log ingestion into a BFF responsibility.
 
 In Azure, the BFF ACA app is internal to the Container Apps environment. The
 public smoke path is the Next facade, especially `/api/health`. A direct BFF
 FQDN from a workstation can time out because it is not a public browser/API
 endpoint. BFF replica counts follow the environment runtime scale settings by
 default unless the environment config adds a dedicated `bffRuntime` override.
-Dev enables the observability-event BFF slice through that same `bffRuntime`
-configuration so the rollout remains source-owned.
+Dev enables Entra service auth for the BFF through that same `bffRuntime`
+configuration so the server-to-server boundary remains source-owned.
 
 ## First Verification Pass
 

@@ -1,7 +1,7 @@
+using Acme.Los.Bff.Api.Features.Diagnostics;
 using Acme.Los.Bff.Api.Features.Application;
 using Acme.Los.Bff.Api.Features.Auth;
 using Acme.Los.Bff.Api.Features.Customer;
-using Acme.Los.Bff.Api.Features.Observability;
 using Acme.Los.Bff.Api.Features.Platform;
 using Acme.Los.Bff.Api.Features.Security;
 using Acme.Los.Bff.Api.Common;
@@ -140,7 +140,7 @@ app.MapBffCsrfEndpoints();
 app.MapBffAuthSessionEndpoints();
 app.MapBffCustomerEndpoints();
 app.MapBffApplicationEndpoints();
-app.MapBffObservabilityEndpoints();
+app.MapBffDiagnosticsEndpoints();
 
 app.Run();
 

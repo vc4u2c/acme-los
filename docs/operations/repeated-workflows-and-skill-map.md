@@ -93,13 +93,14 @@ Common requests:
 
 - confirm which routes are implemented in the BFF
 - keep `ACME_BFF_PROXY_MODE=next|bff` behavior reversible
-- move telemetry slices behind the BFF toggle
+- keep browser telemetry on the Next facade while proving BFF trace propagation
 - harden Next-to-BFF with managed identity
 
 Use:
 
 - `ACME_BFF_PROXY_MODE=next|bff`
-- `ACME_BFF_OBSERVABILITY_EVENTS_ENABLED=true|false`
+- `/api/observability/events` for browser-origin logs handled by Next
+- `/api/diagnostics/trace` for the logging-demo Next-to-BFF trace hop
 - `bffRuntime.serviceAuth.mode=entra`; in `dev`, the deploy path creates or
   updates the Entra BFF audience and web managed-identity app role assignment
   through Microsoft Graph Bicep

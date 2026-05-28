@@ -43,7 +43,6 @@
         "maxReplicas": 2
       },
       "bffRuntime": {
-        "observabilityEventsEnabled": true,
         "serviceAuth": {
           "mode": "entra"
         }

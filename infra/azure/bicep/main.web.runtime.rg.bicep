@@ -52,7 +52,6 @@ param containerRegistryLoginServer string
 param containerImage string
 param bffContainerImage string = ''
 param bffBaseUrl string = ''
-param bffObservabilityEventsEnabled bool = false
 param bffVersion string = '0.0.0'
 param bffTrustedProxySecretName string = 'sec-acme-los-bff-trusted-proxy-secret'
 @secure()
@@ -196,7 +195,6 @@ module containerApp './modules/web/container-app.bicep' = {
     sessionSecretName: sessionSecretName
     sessionSecretKeyVaultUrl: '${keyVaultUri}secrets/${sessionSecretName}'
     bffBaseUrl: deployBff ? bffBaseUrl : ''
-    bffObservabilityEventsEnabled: deployBff ? bffObservabilityEventsEnabled : false
     bffTrustedProxySecretName: bffTrustedProxySecretName
     bffTrustedProxySecretKeyVaultUrl: deployBff ? '${keyVaultUri}secrets/${bffTrustedProxySecretName}' : ''
     bffServiceAuthMode: deployBff ? bffServiceAuthMode : ''
@@ -230,7 +228,6 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     appEnvironmentName: environmentName
     appBuildId: appBuildId
     bffVersion: bffVersion
-    observabilityEventsEnabled: bffObservabilityEventsEnabled
     authProvider: authProvider
     oktaEnvironmentName: oktaEnvironmentName
     oktaIssuer: oktaIssuer

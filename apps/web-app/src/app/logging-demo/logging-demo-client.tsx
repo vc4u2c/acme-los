@@ -60,6 +60,31 @@ async function postObservabilityEvent(
   return (await response.json()) as LoggingDemoResponse;
 }
 
+async function postBffDiagnosticTrace(
+  traceHeaders: Record<string, string>,
+): Promise<LoggingDemoResponse> {
+  const csrfToken = await createWebApiClient().security.getCsrfToken();
+  const response = await fetch('/api/diagnostics/trace', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      ...traceHeaders,
+      'x-csrf-token': csrfToken,
+    },
+    body: JSON.stringify({
+      route: loggingDemoRoute,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `BFF diagnostic trace request failed with status ${response.status}`,
+    );
+  }
+
+  return (await response.json()) as LoggingDemoResponse;
+}
+
 function IdentifierRow({
   label,
   value,
@@ -107,7 +132,7 @@ function TraceResultPanel({
       <IdentifierRow label="Correlation ID" value={result.correlationId} />
       <IdentifierRow label="Handled by" value={result.handledBy} />
       <IdentifierRow label="Trace ID" value={result.traceId} />
-      <IdentifierRow label="Browser span ID" value={result.parentSpanId} />
+      <IdentifierRow label="Parent span ID" value={result.parentSpanId} />
       <IdentifierRow label="Server span ID" value={result.serverSpanId} />
       <IdentifierRow
         label="Incoming traceparent"
@@ -134,13 +159,15 @@ export function LoggingDemoClient(): React.ReactElement {
     React.useState<LoggingDemoResponse | null>(null);
   const [lastServerResult, setLastServerResult] =
     React.useState<LoggingDemoResponse | null>(null);
+  const [lastBffTraceResult, setLastBffTraceResult] =
+    React.useState<LoggingDemoResponse | null>(null);
   const [lastClientErrorResult, setLastClientErrorResult] =
     React.useState<LoggingDemoResponse | null>(null);
   const [lastServerErrorResult, setLastServerErrorResult] =
     React.useState<LoggingDemoResponse | null>(null);
   const [errorMessage, setErrorMessage] = React.useState<string | null>(null);
   const [pendingAction, setPendingAction] = React.useState<
-    'trace' | 'server' | 'client-error' | 'server-error' | null
+    'trace' | 'server' | 'bff-trace' | 'client-error' | 'server-error' | null
   >(null);
 
   async function runTracedFlow() {
@@ -199,6 +226,24 @@ export function LoggingDemoClient(): React.ReactElement {
         error instanceof Error
           ? error.message
           : 'Unable to emit API-handled event.',
+      );
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function callBffTraceApi() {
+    setErrorMessage(null);
+    setPendingAction('bff-trace');
+
+    try {
+      const logScope = createBrowserLogScope({ route: loggingDemoRoute });
+      setLastBffTraceResult(await postBffDiagnosticTrace(logScope.headers));
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Unable to call BFF diagnostic trace API.',
       );
     } finally {
       setPendingAction(null);
@@ -314,6 +359,43 @@ export function LoggingDemoClient(): React.ReactElement {
             {pendingAction === 'trace'
               ? 'Running traced flow'
               : 'Run traced flow'}
+          </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-[1.9rem] border-[var(--border)] bg-[color:var(--surface)/0.95] text-[var(--foreground)] shadow-xl shadow-[color:var(--shadow-soft)]">
+        <CardHeader>
+          <p className="text-sm font-semibold uppercase tracking-[0.28em] text-[var(--brand)]">
+            BFF API trace
+          </p>
+          <CardTitle className="font-display text-3xl text-[var(--foreground)]">
+            Next facade to BFF API
+          </CardTitle>
+          <CardDescription className="text-base leading-7 text-[var(--muted-foreground)]">
+            This calls a diagnostic API through the Next facade so the same
+            correlation id follows a realistic downstream BFF request.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface-strong)] p-5">
+            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--brand)]">
+              Last BFF API call
+            </p>
+            <div data-testid="logging-demo-bff-trace-result" className="mt-3">
+              <TraceResultPanel result={lastBffTraceResult} />
+            </div>
+          </div>
+          <Button
+            type="button"
+            disabled={pendingAction !== null}
+            onClick={() => {
+              void callBffTraceApi();
+            }}
+            className="rounded-full bg-[var(--brand)] px-6 text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)] hover:bg-[var(--brand-strong)]"
+          >
+            {pendingAction === 'bff-trace'
+              ? 'Calling BFF API'
+              : 'Call BFF trace API'}
           </Button>
         </CardContent>
       </Card>

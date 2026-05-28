@@ -116,7 +116,7 @@ Acme.Los.Bff.Api/
     Session/
     Customer/
     Application/
-    Observability/
+    Diagnostics/
   Infrastructure/
     Okta/
     Redis/
