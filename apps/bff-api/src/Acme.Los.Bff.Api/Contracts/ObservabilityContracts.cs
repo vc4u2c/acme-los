@@ -5,6 +5,7 @@ public sealed record ObservabilityEventResponse(
   string CorrelationId,
   IReadOnlyList<string> EmittedEvents,
   string EventName,
+  string HandledBy,
   string IncomingTraceparent,
   string ParentSpanId,
   string Route,

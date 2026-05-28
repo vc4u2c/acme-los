@@ -139,6 +139,9 @@ Current emitted events:
 - every button action creates a fresh W3C `traceparent` header
 - every button action also sends a fresh `X-Correlation-ID` header for
   demo/business correlation; this is separate from distributed tracing
+- when BFF observability ingestion is enabled, the Next facade forwards
+  `traceparent`, `tracestate`, and `X-Correlation-ID` to
+  `/bff/observability/events`; the BFF echoes the same correlation id back
 - the browser posts an allowlisted event name and bounded telemetry payload with
   that trace context to the server
 - the server writes paired container log events:
@@ -153,9 +156,11 @@ Current emitted events:
   `environment`, `nodeEnv`, `version`, `build`, and `timestamp`
 - logger emission is fire-and-forget; request handling does not await a logging
   transport before continuing
-- the UI shows the full correlation id, trace id, incoming `traceparent`, server
-  `traceparent`, browser span id, and server span id so operators can paste the
-  exact values into Kusto
+- the UI shows the handler runtime, full correlation id, trace id, incoming
+  `traceparent`, server `traceparent`, browser span id, and server span id so
+  operators can paste the exact values into Kusto; `handledBy` is
+  `next-facade` when Next handles the event directly and `bff-api` when the BFF
+  handles it
 
 Local browser logs and local Next.js server logs do not go to the deployed dev
 Application Insights resource unless a local process is deliberately configured
@@ -210,6 +215,7 @@ AppTraces
 | extend
     event = tostring(props.event),
     correlationId = tostring(props.correlationId),
+    handledBy = tostring(props.handledBy),
     traceId = tostring(props.traceId),
     spanId = tostring(props.spanId),
     parentSpanId = tostring(props.parentSpanId),
@@ -234,13 +240,14 @@ AppTraces
     clientScreenHeight = toint(clientTelemetry.screen.height),
     clientPixelRatio = todouble(clientTelemetry.screen.pixelRatio),
     clientConnectionType = tostring(clientTelemetry.connection.effectiveType)
-| where correlationId == targetCorrelationId
+| where correlationId == targetCorrelationId or LogMessage has targetCorrelationId
 | project
     TimeGenerated,
     SeverityLevel,
     Message,
     event,
     correlationId,
+    handledBy,
     traceId,
     spanId,
     parentSpanId,
@@ -272,18 +279,25 @@ ACA container logs by correlation id.
 
 Run this from the `log-acme-los-dev-cus-01` Log Analytics workspace. The current
 `dev` workspace exposes Container Apps console logs as
-`ContainerAppConsoleLogs_CL`.
+`ContainerAppConsoleLogs_CL`. This query includes both the public Next container
+app and the internal BFF container app; keep the raw `LogMessage` column visible
+when inspecting .NET BFF JSON console rows because their structured fields are
+nested differently from the Next shared logger payload.
 
 ```kusto
 let targetCorrelationId = 'paste-full-correlation-id-from-ui';
-let containerAppName = 'ca-acme-los-web-dev-cus-01';
+let containerAppNames = dynamic([
+  'ca-acme-los-web-dev-cus-01',
+  'ca-acme-los-bff-dev-cus-01'
+]);
 ContainerAppConsoleLogs_CL
 | where TimeGenerated > ago(2h)
 | extend
     ContainerApp = tostring(ContainerAppName_s),
     RevisionName = tostring(RevisionName_s),
     LogMessage = tostring(Log_s)
-| where ContainerApp =~ containerAppName
+| where ContainerApp in~ (containerAppNames)
+| where LogMessage has targetCorrelationId
 | extend payload = parse_json(LogMessage)
 | extend
     clientError = payload.clientError,
@@ -291,6 +305,7 @@ ContainerAppConsoleLogs_CL
 | extend
     event = tostring(payload.event),
     correlationId = tostring(payload.correlationId),
+    handledBy = tostring(payload.handledBy),
     traceId = tostring(payload.traceId),
     spanId = tostring(payload.spanId),
     parentSpanId = tostring(payload.parentSpanId),
@@ -321,8 +336,11 @@ ContainerAppConsoleLogs_CL
     RevisionName,
     level = tostring(payload.level),
     message = tostring(payload.message),
+    ContainerApp,
+    LogMessage,
     event,
     correlationId,
+    handledBy,
     traceId,
     spanId,
     parentSpanId,

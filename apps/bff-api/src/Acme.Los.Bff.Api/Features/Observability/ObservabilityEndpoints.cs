@@ -189,6 +189,7 @@ public static class ObservabilityEndpoints
           ["Route"] = payload.Route,
           ["ObservabilityEndpoint"] = ObservabilityEventsRoute,
           ["RequestedEvent"] = payload.EventName,
+          ["HandledBy"] = "bff-api",
         });
 
       var emittedEvents = EmitObservabilityLogs(logger, payload, acceptedAt);
@@ -202,6 +203,7 @@ public static class ObservabilityEndpoints
           traceContext.CorrelationId,
           emittedEvents,
           payload.EventName,
+          "bff-api",
           traceContext.Traceparent,
           traceContext.ParentSpanId,
           payload.Route,

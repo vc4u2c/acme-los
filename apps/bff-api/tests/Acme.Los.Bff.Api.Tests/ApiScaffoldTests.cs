@@ -242,6 +242,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.NotNull(payload);
     Assert.Equal(correlationId, payload!.CorrelationId);
     Assert.Equal("logging.demo.server.manual", payload.EventName);
+    Assert.Equal("bff-api", payload.HandledBy);
     Assert.Equal("/logging-demo", payload.Route);
     Assert.Equal(traceparent, payload.IncomingTraceparent);
     Assert.Equal(parentSpanId, payload.ParentSpanId);

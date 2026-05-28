@@ -78,6 +78,7 @@ describe('observability events route', () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(response.status).toBe(202);
+    expect(payload.handledBy).toBe('next-facade');
     expect(payload.eventName).toBe('logging.demo.server.manual');
     expect(payload.route).toBe('/logging-demo');
   });
@@ -92,6 +93,7 @@ describe('observability events route', () => {
       correlationId,
       emittedEvents: ['logging.demo.server.manual'],
       eventName: 'logging.demo.server.manual',
+      handledBy: 'bff-api',
       incomingTraceparent: traceparent,
       parentSpanId: '0123456789abcdef',
       route: '/logging-demo',
@@ -127,6 +129,7 @@ describe('observability events route', () => {
     );
     expect(headers.get('x-acme-bff-proxy-secret')).toBe('proxy-secret-123');
     expect(headers.get('x-csrf-token')).toBe('csrf-token-123');
+    expect(headers.get('x-correlation-id')).toBe(correlationId);
     expect(headers.get('traceparent')).toBe(traceparent);
     expect(response.status).toBe(202);
     expect(payload).toEqual(bffPayload);
