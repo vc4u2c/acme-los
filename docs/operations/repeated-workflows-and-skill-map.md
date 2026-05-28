@@ -148,8 +148,11 @@ Use:
 
 - `npm.cmd audit --audit-level=moderate`
 - `npm.cmd audit --json`
+- `npm.cmd run audit:node` for the Node CI gate
 - `npm.cmd ls <package>`
-- `npm run dotnet:audit`
+- `npm.cmd run dotnet:audit` for readable NuGet triage output
+- `npm.cmd run dotnet:audit:ci` for the NuGet CI gate, including transitive
+  dependencies at moderate-or-higher severity
 - prefer patched transitive lockfile updates when the existing semver range
   allows them
 - prefer scoped direct dependency upgrades when the patched version is outside

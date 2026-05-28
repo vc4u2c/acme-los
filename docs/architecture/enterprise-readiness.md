@@ -126,7 +126,9 @@ Already enterprise-shaped:
 - runtime identity is separate from deployment identity
 - docs cover local development, release, Azure lifecycle, monitoring, Okta,
   analytics, HTTP testing, and architecture
-- `.NET` vulnerability audit path exists through `npm run dotnet:audit`
+- CI gates npm and transitive NuGet dependency vulnerabilities at
+  moderate-or-higher severity; readable NuGet triage remains available through
+  `npm run dotnet:audit`
 - e2e strategy now includes Reqnroll/Gherkin BFF acceptance coverage and
   Playwright browser coverage
 

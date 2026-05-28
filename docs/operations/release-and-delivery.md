@@ -6,6 +6,9 @@ This repo uses Nx Release plus GitHub Actions for CI/CD.
 
 - `.github/workflows/ci.yml`
   - runs on pull requests to `main` and pushes to `main`
+  - fails on moderate-or-higher npm or NuGet vulnerability findings
+  - enables the BFF NuGet audit policy from `apps/bff-api/Directory.Build.props`
+    only for the CI audit command
   - validates project tags, lint, and tests
   - on `main` pushes, also performs app release work and creates the deployable
     artifact
@@ -228,6 +231,8 @@ Current baseline:
 
 ```powershell
 npx.cmd prettier --check .
+npm.cmd run audit:node
+npm.cmd run dotnet:audit:ci
 npx.cmd nx run-many -t lint test --all --outputStyle=stream
 npx.cmd nx run web-app:build --skip-nx-cache
 npx.cmd nx run mobile-app-e2e:e2e --outputStyle=stream

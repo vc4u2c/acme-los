@@ -44,8 +44,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Restore .NET dependencies
-        run: dotnet restore apps/bff-api/Acme.Los.Bff.sln
+      - name: Audit Node dependencies
+        run: npm run audit:node
+
+      - name: Audit and restore .NET dependencies
+        run: npm run dotnet:audit:ci
 
       - name: Set Nx SHAs
         uses: nrwl/nx-set-shas@v4
