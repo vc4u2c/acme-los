@@ -44,17 +44,20 @@ public sealed class BffAuthFlowService : IAuthFlowService
   private readonly IAuthTransactionStore _transactionStore;
   private readonly IAuthSessionService _authSessionService;
   private readonly IHttpClientFactory _httpClientFactory;
+  private readonly IOktaSigningKeyProvider _oktaSigningKeyProvider;
   private readonly IHostEnvironment _environment;
 
   public BffAuthFlowService(
     IAuthTransactionStore transactionStore,
     IAuthSessionService authSessionService,
     IHttpClientFactory httpClientFactory,
+    IOktaSigningKeyProvider oktaSigningKeyProvider,
     IHostEnvironment environment)
   {
     _transactionStore = transactionStore;
     _authSessionService = authSessionService;
     _httpClientFactory = httpClientFactory;
+    _oktaSigningKeyProvider = oktaSigningKeyProvider;
     _environment = environment;
   }
 
@@ -279,7 +282,8 @@ public sealed class BffAuthFlowService : IAuthFlowService
     string expectedNonce,
     CancellationToken cancellationToken)
   {
-    var tokenIssuer = TryReadIssuerFromIdToken(idToken);
+    var unvalidatedToken = TryReadIdToken(idToken);
+    var tokenIssuer = unvalidatedToken?.Issuer;
 
     if (string.IsNullOrWhiteSpace(tokenIssuer)
       || !OktaIssuerPolicy.IsAllowedIssuer(options.Issuer, tokenIssuer))
@@ -288,10 +292,10 @@ public sealed class BffAuthFlowService : IAuthFlowService
         "The Okta id token issuer does not match this app.");
     }
 
-    var keysJson = await _httpClientFactory.CreateClient().GetStringAsync(
-      BuildIssuerEndpoint(tokenIssuer, "keys"),
+    var signingKeys = await _oktaSigningKeyProvider.GetSigningKeysAsync(
+      tokenIssuer,
+      unvalidatedToken?.Kid,
       cancellationToken);
-    var keySet = new JsonWebKeySet(keysJson);
     var handler = new JsonWebTokenHandler();
     var result = await handler.ValidateTokenAsync(
       idToken,
@@ -310,7 +314,7 @@ public sealed class BffAuthFlowService : IAuthFlowService
           OktaIssuerPolicy.NormalizeIssuer(options.Issuer),
           OktaIssuerPolicy.NormalizeIssuer(tokenIssuer),
         ],
-        IssuerSigningKeys = keySet.GetSigningKeys(),
+        IssuerSigningKeys = signingKeys,
       });
 
     if (!result.IsValid || result.ClaimsIdentity is null)
@@ -433,9 +437,14 @@ public sealed class BffAuthFlowService : IAuthFlowService
 
   private static string? TryReadIssuerFromIdToken(string idToken)
   {
+    return TryReadIdToken(idToken)?.Issuer;
+  }
+
+  private static JsonWebToken? TryReadIdToken(string idToken)
+  {
     try
     {
-      return new JsonWebTokenHandler().ReadJsonWebToken(idToken).Issuer;
+      return new JsonWebTokenHandler().ReadJsonWebToken(idToken);
     }
     catch (ArgumentException)
     {
