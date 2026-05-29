@@ -1100,6 +1100,53 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       "https://evil.example.test/oauth2/default"));
   }
 
+  [Fact]
+  public async Task OktaSigningKeyProvider_ReusesCachedKeysForKnownKid()
+  {
+    using var handler = new SequencedJwksHandler(CreateJwks("key-1"));
+    using var httpClient = new HttpClient(handler);
+    var provider = new OktaSigningKeyProvider(
+      new StaticHttpClientFactory(httpClient));
+
+    var firstKeys = await provider.GetSigningKeysAsync(
+      "https://dev-123456.okta.com/oauth2/default",
+      "key-1",
+      CancellationToken.None);
+    var secondKeys = await provider.GetSigningKeysAsync(
+      "https://dev-123456.okta.com/oauth2/default",
+      "key-1",
+      CancellationToken.None);
+
+    Assert.Contains(firstKeys, key => key.KeyId == "key-1");
+    Assert.Contains(secondKeys, key => key.KeyId == "key-1");
+    Assert.Equal(1, handler.RequestCount);
+    Assert.Equal("/oauth2/default/v1/keys", Assert.Single(handler.RequestUris).AbsolutePath);
+  }
+
+  [Fact]
+  public async Task OktaSigningKeyProvider_RefreshesCacheWhenKidIsUnknown()
+  {
+    using var handler = new SequencedJwksHandler(
+      CreateJwks("key-1"),
+      CreateJwks("key-2"));
+    using var httpClient = new HttpClient(handler);
+    var provider = new OktaSigningKeyProvider(
+      new StaticHttpClientFactory(httpClient));
+
+    var firstKeys = await provider.GetSigningKeysAsync(
+      "https://dev-123456.okta.com/oauth2/default",
+      "key-1",
+      CancellationToken.None);
+    var refreshedKeys = await provider.GetSigningKeysAsync(
+      "https://dev-123456.okta.com/oauth2/default",
+      "key-2",
+      CancellationToken.None);
+
+    Assert.Contains(firstKeys, key => key.KeyId == "key-1");
+    Assert.Contains(refreshedKeys, key => key.KeyId == "key-2");
+    Assert.Equal(2, handler.RequestCount);
+  }
+
   private static string CreateSignedSessionCookie(string sessionId)
   {
     return CreateSignedCookie(new { sessionId });
@@ -1124,6 +1171,29 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       ToBase64Url(Encoding.UTF8.GetBytes("""{"alg":"none"}""")),
       ToBase64Url(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload))),
       "signature");
+  }
+
+  private static string CreateJwks(string keyId)
+  {
+    using var rsa = RSA.Create(2048);
+    var parameters = rsa.ExportParameters(false);
+
+    return JsonSerializer.Serialize(
+      new
+      {
+        keys = new[]
+        {
+          new
+          {
+            kty = "RSA",
+            use = "sig",
+            kid = keyId,
+            alg = "RS256",
+            n = ToBase64Url(parameters.Modulus!),
+            e = ToBase64Url(parameters.Exponent!),
+          },
+        },
+      });
   }
 
   private static string ToBase64Url(byte[] value)
@@ -1157,6 +1227,56 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       {
         Environment.SetEnvironmentVariable(name, value);
       }
+    }
+  }
+
+  private sealed class StaticHttpClientFactory : IHttpClientFactory
+  {
+    private readonly HttpClient _httpClient;
+
+    internal StaticHttpClientFactory(HttpClient httpClient)
+    {
+      _httpClient = httpClient;
+    }
+
+    public HttpClient CreateClient(string name)
+    {
+      return _httpClient;
+    }
+  }
+
+  private sealed class SequencedJwksHandler : HttpMessageHandler
+  {
+    private readonly Queue<string> _responses;
+    private string? _lastResponse;
+
+    internal SequencedJwksHandler(params string[] responses)
+    {
+      _responses = new Queue<string>(responses);
+    }
+
+    internal int RequestCount { get; private set; }
+
+    internal List<Uri> RequestUris { get; } = [];
+
+    protected override Task<HttpResponseMessage> SendAsync(
+      HttpRequestMessage request,
+      CancellationToken cancellationToken)
+    {
+      RequestCount++;
+      RequestUris.Add(request.RequestUri ?? new Uri("https://invalid.test/"));
+
+      var response = _responses.Count > 0
+        ? _responses.Dequeue()
+        : _lastResponse ?? """{"keys":[]}""";
+
+      _lastResponse = response;
+
+      return Task.FromResult(
+        new HttpResponseMessage(HttpStatusCode.OK)
+        {
+          Content = new StringContent(response, Encoding.UTF8, "application/json"),
+        });
     }
   }
 

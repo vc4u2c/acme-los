@@ -46,6 +46,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddHttpClient<IBffServiceTokenValidator, EntraBffServiceTokenValidator>();
 builder.Services.AddSingleton<ICsrfTokenService, CsrfTokenService>();
 builder.Services.AddSingleton<ISecurityInspectorService, SecurityInspectorService>();
+builder.Services.AddSingleton<IOktaSigningKeyProvider, OktaSigningKeyProvider>();
 builder.Services.AddSingleton(stateStoreOptions);
 builder.Services.AddSingleton(bffServiceAuthenticationOptions);
 
