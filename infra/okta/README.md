@@ -23,13 +23,14 @@ Do not commit:
 
 ## The Working Scripts
 
-There are three practical Okta commands in this repo because they do different jobs.
+There are several practical Okta commands in this repo because they do different jobs.
 
 ## Which Command Should I Use?
 
 Use this quick rule:
 
 - want to generate local app config only -> `npm run okta:render -- <env>`
+- want to review policy hierarchy/scenarios before changing Okta -> `npm run okta:policy-plan -- <env>`
 - want to create or update the dev Okta org -> `npm run okta:bootstrap -- <env>`
 - want to remove the Okta apps for a clean-room retest -> `npm run okta:cleanup -- <env>`
 - want to deactivate non-allowlisted Okta users -> `npm run okta:prune-users -- <env> --dry-run`
@@ -59,6 +60,27 @@ Outputs:
 - `tmp/okta/<env>.okta-hosted-branding.json`
 - `tmp/okta/<env>.okta-hosted-pages.json`
 - `tmp/okta/<env>.okta-applications.json`
+
+### `npm run okta:policy-plan -- <env>`
+
+Script:
+
+- `tools/scripts/okta/policy-plan.mjs`
+
+Purpose:
+
+- reads `infra/okta/policy-scenarios.json`
+- resolves the environment customer group and ACME app labels
+- renders the Okta policy hierarchy, scenario matrix, scopes, automation status,
+  and manual checks
+- validates that customer policy is not scoped to Okta `Everyone`
+
+It does **not** call Okta.
+
+Outputs:
+
+- `tmp/okta/<env>.policy-plan.json`
+- `tmp/okta/<env>.policy-plan.md`
 
 ### `npm run okta:bootstrap -- <env>`
 

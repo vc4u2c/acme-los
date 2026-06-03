@@ -6,6 +6,7 @@ import {
   buildHostedErrorPageContent,
   buildHostedSignInPageContent,
 } from './hosted-sign-in-page.mjs';
+import { buildOktaPolicyPlan, printOktaPolicyPlan } from './policy-plan.mjs';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDirectory, '..', '..', '..');
@@ -842,81 +843,6 @@ function getCatchAllRule(rules) {
   );
 }
 
-// Keep Okta policy payloads named by intent so bootstrap output and code review
-// make the admin-plane scope obvious.
-function buildOktaPolicyPlan({
-  authorizationServerPolicyName,
-  authorizationServerRuleName,
-  profileEnrollmentPolicyName,
-  mfaEnrollmentPolicyName,
-  sessionPolicyName,
-  accessPolicyName,
-  customerGroupName,
-  webAppLabel,
-  mobileAppLabel,
-}) {
-  return [
-    {
-      type: 'OAUTH_AUTHORIZATION_POLICY',
-      name: authorizationServerPolicyName,
-      scope: `${webAppLabel}, ${mobileAppLabel}`,
-      configures: [
-        'custom authorization server access for ACME apps',
-        `token rule '${authorizationServerRuleName}' scoped to ${customerGroupName}`,
-      ],
-    },
-    {
-      type: 'PROFILE_ENROLLMENT',
-      name: profileEnrollmentPolicyName,
-      scope: customerGroupName,
-      configures: [
-        'self-service registration',
-        `new registrations target ${customerGroupName}`,
-      ],
-    },
-    {
-      type: 'MFA_ENROLL',
-      name: mfaEnrollmentPolicyName,
-      scope: customerGroupName,
-      configures: [
-        'password, email, security-question enrollment',
-        telephonyEnabled
-          ? 'phone enrollment follows the telephony manifest'
-          : 'phone enrollment is disabled until ACS SMS is enabled',
-      ],
-    },
-    {
-      type: 'OKTA_SIGN_ON',
-      name: sessionPolicyName,
-      scope: customerGroupName,
-      configures: [
-        'customer global session lifetime',
-        'remember-device and persistent-cookie behavior',
-      ],
-    },
-    {
-      type: 'ACCESS_POLICY',
-      name: accessPolicyName,
-      scope: `${webAppLabel}, ${mobileAppLabel}`,
-      configures: [
-        'password-first app sign-in',
-        hostedExperience.adaptiveMfaOnSignIn
-          ? 'high-risk adaptive 2FA rule plus standard access rule'
-          : 'standard access rule',
-      ],
-    },
-  ];
-}
-
-function printOktaPolicyPlan(policyPlan) {
-  console.log('- Okta policies configured:');
-  for (const policy of policyPlan) {
-    console.log(`  - ${policy.type}: ${policy.name}`);
-    console.log(`    Scope: ${policy.scope}`);
-    console.log(`    Configures: ${policy.configures.join('; ')}`);
-  }
-}
-
 function buildAuthorizationServerPolicyPayload({
   policyName,
   clientIds,
@@ -1550,31 +1476,53 @@ const accountSecurityPolicyIntent = {
   },
   oktaHostedAccountManagement: [
     {
+      action: 'forgot_email',
+      requiredProofs: [
+        'alternate_possession_factor_otp',
+        'security_question_challenge',
+      ],
+      postCondition: 'fresh_acme_sign_in',
+      backendSync:
+        'Treat the recovered Okta email claim as the source of truth only after a fresh ACME sign-in.',
+    },
+    {
       action: 'change_email',
-      requiredProofs: ['security_question', 'phone_number:sms'],
+      requiredProofs: ['other_factor_otp', 'security_question_challenge'],
+      postCondition: 'sign_out_then_fresh_acme_sign_in',
       backendSync:
         'After a fresh ACME sign-in, sync the backend email from the current Okta email claim when the Okta subject is unchanged.',
     },
     {
-      action: 'change_phone_or_sms_factor',
-      requiredProofs: ['security_question', 'okta_email'],
-      backendSync:
-        'Sync verified phone metadata only when Okta exposes it through a profile claim, Management API lookup, or event hook.',
-    },
-    {
-      action: 'forgot_password_or_change_password',
-      requiredProofs: [
-        'possession_factor',
-        'security_question_when_configured',
-      ],
+      action: 'forgot_password',
+      requiredProofs: ['security_question_challenge', 'okta_email_otp'],
+      postCondition: 'sign_out_then_fresh_acme_sign_in_with_new_password',
       backendSync:
         'Do not sync or store password material. Log only non-sensitive password-change metadata if an Okta event hook is enabled.',
     },
     {
-      action: 'forgot_email_or_lost_email_access',
-      requiredProofs: ['phone_number:sms', 'security_question'],
+      action: 'change_password',
+      requiredProofs: [
+        'current_password',
+        'factor_otp',
+        'security_question_challenge',
+      ],
+      postCondition: 'sign_out_then_fresh_acme_sign_in_with_new_password',
       backendSync:
-        'Treat the recovered Okta email claim as the source of truth after the user completes a fresh ACME sign-in.',
+        'Do not sync or store password material. Log only non-sensitive password-change metadata if an Okta event hook is enabled.',
+    },
+    {
+      action: 'forgot_phone_or_sms_factor',
+      requiredProofs: ['okta_email_otp', 'security_question_challenge'],
+      postCondition: 'fresh_acme_sign_in_before_phone_replacement',
+      backendSync:
+        'Sync verified phone metadata only when Okta exposes it through a profile claim, Management API lookup, or event hook.',
+    },
+    {
+      action: 'change_phone_or_sms_factor',
+      requiredProofs: ['okta_email_otp', 'security_question_challenge'],
+      postCondition: 'sign_out_then_fresh_acme_sign_in',
+      backendSync:
+        'Sync verified phone metadata only when Okta exposes it through a profile claim, Management API lookup, or event hook.',
     },
   ],
   oktaOnlySecrets: [
@@ -1783,6 +1731,9 @@ const expectedTrustedOrigins = allowedWebBaseUrls.map((origin) => {
 });
 
 const oktaPolicyPlan = buildOktaPolicyPlan({
+  environmentName,
+  hostedExperience,
+  telephonyEnabled,
   authorizationServerPolicyName,
   authorizationServerRuleName,
   profileEnrollmentPolicyName,

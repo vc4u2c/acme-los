@@ -19,9 +19,15 @@ systems are the source of truth for customer and lending records.
 
 ## Source-Controlled Policy Intent
 
-`tools/scripts/okta/bootstrap-okta.mjs` emits an
-`accountSecurityPolicyIntent` block during dry-run and live bootstrap. That
-block is the source-supported policy contract.
+`infra/okta/policy-scenarios.json` is the source-supported policy hierarchy and
+scenario contract. Render it with:
+
+```powershell
+npm run okta:policy-plan -- dev
+```
+
+`tools/scripts/okta/bootstrap-okta.mjs` also emits the resolved `policyPlan` and
+`accountSecurityPolicyIntent` during dry-run and live bootstrap.
 
 The intended registration enrollment is:
 
@@ -31,16 +37,21 @@ The intended registration enrollment is:
 - phone/SMS: optional until ACS toll-free verification is approved, then
   optional or required by environment rollout
 
-The intended sensitive-change rules are:
+The intended sensitive-change and recovery scenarios are:
 
-- Change email: require security question plus phone/SMS, then require a fresh
-  ACME sign-in.
-- Change phone/SMS: require security question plus email, then require a fresh
-  ACME sign-in.
-- Forgot password or change password: require a possession factor and the
-  configured recovery checks; never sync password material.
-- Forgot email or lost email access: use phone/SMS plus security question, then
-  sync the recovered email after a fresh ACME sign-in.
+- Forgot email: require an alternate possession-factor OTP plus the Okta
+  security-question challenge/hint, then require a fresh ACME sign-in.
+- Change email: require an other-factor OTP plus the Okta security-question
+  challenge/hint before sign-off, then require sign-in with the new email.
+- Forgot password: require the Okta security-question challenge/hint plus email
+  OTP before reset, then sign out and require sign-in with the new password.
+- Change password: require current password, factor OTP, and the Okta
+  security-question challenge/hint before reset, then sign out and require a
+  fresh ACME sign-in.
+- Forgot phone: require email OTP plus the Okta security-question challenge/hint,
+  then require a fresh ACME sign-in before phone replacement.
+- Change phone/SMS: require email OTP plus the Okta security-question
+  challenge/hint before sign-off, then require a fresh ACME sign-in.
 
 ## Backend Sync
 
@@ -145,9 +156,10 @@ management scope required for the specific profile attribute.
 The Okta bootstrap should keep ACME customer authentication policy scoped to the
 environment customer group (`acme-los-customers-<env>`), not to Okta `Everyone`.
 New self-service registrations should land in that customer group through the
-profile-enrollment rule; admin users should not be added to it.
-Run `npm run okta:bootstrap -- <env> --dry-run` first and review the emitted
-`policyPlan` before applying live tenant changes.
+profile-enrollment rule; admin users should not be added to it. Run
+`npm run okta:policy-plan -- <env>` first, then run
+`npm run okta:bootstrap -- <env> --dry-run` and review the emitted `policyPlan`
+before applying live tenant changes.
 
 After running `npm run okta:bootstrap -- <env>`, confirm in Okta Admin Console:
 
@@ -159,8 +171,11 @@ After running `npm run okta:bootstrap -- <env>`, confirm in Okta Admin Console:
    question only for the `acme-los-customers-<env>` customer group.
 5. Confirm phone/SMS enrollment matches the ACS rollout state.
 6. Go to the Okta account-management policy.
-7. Confirm email changes require security question plus phone/SMS.
-8. Confirm phone/SMS changes require security question plus email.
+7. Confirm forgot email, change email, forgot password, change password, forgot
+   phone, and change phone match the rendered `policyPlan` scenarios.
+8. Confirm recovery/change flows require the expected OTP proof plus the Okta
+   security-question challenge/hint and force sign-off/fresh sign-in where the
+   scenario requires it.
 9. Confirm password and security-question changes do not send secret material to
    ACME systems.
 10. Confirm `customerId` remains an app-owned custom profile attribute and is
