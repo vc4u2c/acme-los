@@ -315,8 +315,9 @@ until Azure marks toll-free sender `+18772244103` as verified.
 ## Okta Customer ID Sample Write-Back
 
 The internal BFF runtime supports an opt-in sample `customerId` write-back for
-the application `personal-info` step. It is disabled in `dev` by default through
-`oktaCustomerIdWriteback.mode = disabled`.
+the application `personal-info` step. For the current `dev` rollout,
+`oktaCustomerIdWriteback.mode = sample`; deployments require the matching Okta
+service-app private key in `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM`.
 
 To prove the Okta claim round trip with the production security shape, create an
 Okta API Service app, grant it `okta.users.manage`, set

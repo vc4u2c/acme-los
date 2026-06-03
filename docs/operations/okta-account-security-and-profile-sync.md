@@ -111,7 +111,7 @@ Pre-deployment checklist for the sample bridge:
 6. Set `oktaCustomerIdWriteback.mode` to `sample` only after the service app,
    scope grant, client id, key id, and private key are ready.
 
-This path is disabled by default. To enable it for `dev`, set:
+For the current `dev` rollout, set:
 
 ```json
 "oktaCustomerIdWriteback": {
@@ -126,7 +126,7 @@ in `infra/azure/config/platform.json`, then deploy with the private key in the
 shell:
 
 ```powershell
-$env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM = Get-Content -LiteralPath 'C:\Secured\okta-management-private-key.pem' -Raw
+$env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM = Get-Content -LiteralPath 'C:\Secured\acme bff management.pem' -Raw
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev
 ```
 
