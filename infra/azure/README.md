@@ -309,6 +309,8 @@ npm run azure:sms-mfa:number -- acquire --environment dev --confirm-purchase
 US/Canada toll-free verification is still an Azure portal application. Follow
 [Okta SMS MFA with Azure Communication Services](../../docs/operations/okta-sms-mfa-with-acs.md)
 for the staged activation sequence and the current `dev` sender number.
+For `dev`, keep `smsMfa.enabled = false` and `okta.telephony.enabled = false`
+until Azure marks toll-free sender `+18772244103` as verified.
 
 ## Okta Customer ID Sample Write-Back
 
@@ -321,7 +323,8 @@ Okta API Service app, grant it `okta.users.manage`, set
 `oktaCustomerIdWriteback.mode` to `sample`, and provide the service-app
 `clientId`, optional `privateKeyId`, and `scopes` in
 `infra/azure/config/platform.json`. Set
-`ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` in the deploy shell and redeploy the web
+`ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` from the private key file in the deploy
+shell and redeploy the web
 environment. The deployment stores the private key in Key Vault as
 `sec-acme-los-okta-management-private-key` and injects it into the internal BFF
 ACA only while sample mode is enabled. The BFF reads Okta first and will not

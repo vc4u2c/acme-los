@@ -56,6 +56,15 @@ that timeline.
 Use a paid Azure subscription with an eligible billing address. Trial
 subscriptions and Azure free credits cannot purchase phone numbers.
 
+Pre-deployment checkpoint:
+
+- `dev` already has purchased toll-free sender `+18772244103`.
+- Keep `infra/azure/config/platform.json` at `smsMfa.enabled = false`.
+- Keep `infra/okta/environments/dev.json` at `okta.telephony.enabled = false`.
+- Keep `registrationRequiresPhoneVerification = false`.
+- Submit the toll-free verification application now, but do not enable the
+  Okta phone factor or web hook secret until Azure shows the number as verified.
+
 ## Dev Activation
 
 ### 1. Deploy ACS While SMS MFA Stays Disabled

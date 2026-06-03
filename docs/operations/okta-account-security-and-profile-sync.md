@@ -97,6 +97,17 @@ Before enabling this path, create an Okta API Service app, register a signing
 key, and grant the app the `okta.users.manage` scope for the org authorization
 server.
 
+Pre-deployment checklist for the sample bridge:
+
+1. Create the Okta API Service app in the same Okta org that backs the target
+   environment.
+2. Register the service-app public key and keep the private key outside the
+   repo, such as under `C:\Secured`.
+3. Grant only `okta.users.manage` on the service app's Okta API Scopes tab.
+4. Record the service-app `clientId` and signing key id (`kid`).
+5. Set `oktaCustomerIdWriteback.mode` to `sample` only after the service app,
+   scope grant, client id, key id, and private key are ready.
+
 This path is disabled by default. To enable it for `dev`, set:
 
 ```json
@@ -112,11 +123,7 @@ in `infra/azure/config/platform.json`, then deploy with the private key in the
 shell:
 
 ```powershell
-$env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM = @"
------BEGIN PRIVATE KEY-----
-...
------END PRIVATE KEY-----
-"@
+$env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM = Get-Content -LiteralPath 'C:\Secured\okta-management-private-key.pem' -Raw
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev
 ```
 
