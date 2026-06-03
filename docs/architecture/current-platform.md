@@ -61,6 +61,9 @@ What is still bridge-state rather than final:
 - the web-server layer still owns temporary customer and application state instead of a long-term backend service
 - Redis Entra runtime auth is now the Azure path, with the connection URL path retained only for local Docker Redis
 - Front Door, WAF, and private ACA ingress are still later phases
+- ACS-backed Okta SMS MFA is source-supported and `dev` has purchased sender
+  `+18772244103`, but SMS remains intentionally disabled until Microsoft
+  approves toll-free verification
 
 ## Current Runtime Diagram
 
@@ -76,6 +79,7 @@ flowchart LR
   web --> kv[Key Vault<br/>private endpoint]
   bff --> kv
   web --> ai[Application Insights<br/>Log Analytics]
+  web -. Optional Okta SMS webhook .-> acs[Azure Communication Services<br/>SMS]
   bff --> ai
   id[Shared user-assigned<br/>managed identity] -. ACR pull, Key Vault, Redis Entra .-> web
   id -. ACR pull, Key Vault, Redis Entra .-> bff
@@ -101,7 +105,11 @@ calling client id or object id before `/bff/*` routes run.
 
 ### MFA Model
 
-- registration requires password plus email enrollment
+- registration requires password, email enrollment, and security-question
+  enrollment
+- SMS enrollment through ACS is staged and disabled by default; when enabled,
+  the repo-owned Okta telephony hook uses the public Next webhook and managed
+  identity without logging phone numbers or OTP codes
 - standard sign-in is password-first
 - adaptive sign-in can step up to 2FA on high-risk access
 - funding route access always starts a fresh application-owned step-up check:

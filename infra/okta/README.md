@@ -32,6 +32,8 @@ Use this quick rule:
 - want to generate local app config only -> `npm run okta:render -- <env>`
 - want to create or update the dev Okta org -> `npm run okta:bootstrap -- <env>`
 - want to remove the Okta apps for a clean-room retest -> `npm run okta:cleanup -- <env>`
+- want to deactivate non-allowlisted Okta users -> `npm run okta:prune-users -- <env> --dry-run`
+- want to permanently delete exact Okta users -> `npm run okta:delete-users -- <env> --login <login> --dry-run`
 
 If you are unsure, use `okta:bootstrap`.
 
@@ -83,6 +85,9 @@ It currently handles:
 - customer-brand hosted logo and favicon upload
 - customer-brand hosted sign-in and error page content from the repo template
 - email authenticator activation/update
+- optional ACS-backed telephony inline-hook creation, update, activation, and
+  rollback
+- optional phone authenticator SMS activation with voice disabled
 - customer group
 - MFA enrollment policy
 - global session policy
@@ -106,7 +111,11 @@ Live dev org state last verified from the Admin API:
   - `leadId`
   - `customerId`
 - email, password, and Okta Verify authenticators are active
-- phone authenticator is still inactive
+- security-question enrollment is required by the ACME LOS authenticator policy
+- phone authenticator remains inactive until the purchased ACS sender number
+  `+18772244103` is toll-free verified and enabled in the manifest
+- the repo-managed telephony inline hook is intentionally absent while
+  `okta.telephony.enabled` is `false`
 
 ## Recommended Dev Flow
 
@@ -148,6 +157,65 @@ npm run okta:bootstrap -- dev
 
 `okta:cleanup` deletes the web and mobile apps by default, clears the client IDs from the dev manifest, removes stale bootstrap outputs, and rerenders local env files so the repo stays honest.
 
+### `npm run okta:prune-users -- <env>`
+
+Script:
+
+- `tools/scripts/okta/prune-okta-users.mjs`
+
+Purpose:
+
+- lists Okta users in an environment
+- keeps only exact logins configured in `okta.userPrune.keepLogins`
+- prepares a dry-run report by default
+- deactivates non-allowlisted users only when `okta.userPrune.enabled` is
+  `true` and `--confirm-deactivate` is passed
+
+It does not permanently delete users. Okta documents user deletion as
+irrecoverable, so this repo uses deactivation as the source-supported prune
+operation.
+
+Dry-run first:
+
+```powershell
+$env:OKTA_API_TOKEN='<ssws token>'
+npm run okta:prune-users -- dev --dry-run
+```
+
+After verifying `tmp/okta/dev.user-prune.outputs.json`:
+
+```powershell
+npm run okta:prune-users -- dev --confirm-deactivate
+```
+
+### `npm run okta:delete-users -- <env>`
+
+Script:
+
+- `tools/scripts/okta/delete-okta-users.mjs`
+
+Purpose:
+
+- targets only exact login/email values passed with `--login`
+- prepares a dry-run report by default
+- deactivates each target, waits for `DEPROVISIONED`, then permanently deletes
+  only when `--confirm-delete` is passed
+- refuses admin-role users unless `--include-admins` is passed
+- refuses the API-token owner unless `--allow-token-owner` is passed
+
+Dry-run first:
+
+```powershell
+$env:OKTA_API_TOKEN='<ssws token>'
+npm run okta:delete-users -- dev --login user@example.com --dry-run
+```
+
+After verifying `tmp/okta/dev.user-delete.outputs.json`:
+
+```powershell
+npm run okta:delete-users -- dev --login user@example.com --confirm-delete
+```
+
 ## What Is Good About This Design
 
 These parts are solid:
@@ -168,7 +236,12 @@ Some things are still manual or limited by the Okta plan/API surface.
 
 Current limitations:
 
-- phone verification is deferred until telephony is set up
+- phone verification is deferred until the source-supported ACS telephony path
+  is activated; follow
+  [Okta SMS MFA with Azure Communication Services](../../docs/operations/okta-sms-mfa-with-acs.md)
+- customer account-security policy intent, backend profile sync, and the manual
+  account-management policy checks are documented in
+  [Okta account security and profile sync](../../docs/operations/okta-account-security-and-profile-sync.md)
 - the pre-auth "remember user" checkbox still needs one admin-console verification
 - route-specific funding step-up still belongs in application runtime logic
 - custom-domain linking is still a manual tenant step because DNS ownership and certificate validation happen outside the repo bootstrap
@@ -196,7 +269,10 @@ That means:
 
 Current auth shape in this repo:
 
-- registration always requires password plus email enrollment because the MFA enrollment policy requires both authenticators
+- registration requires password, email, and security-question enrollment because
+  the MFA enrollment policy requires those authenticators
+- Okta `sub` is the immutable ACME user key; email is mutable metadata synced to
+  backend profile storage after a fresh Okta session
 - standard sign-in is password-first
 - adaptive sign-in, when the high-risk rule is supported and triggered, steps up to 2FA with password required as the first factor
 - the funding step is still enforced in application runtime with `acr_values`;

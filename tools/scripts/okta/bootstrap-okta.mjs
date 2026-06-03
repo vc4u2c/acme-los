@@ -479,10 +479,44 @@ async function listAuthenticators() {
   return oktaRequest('GET', '/api/v1/authenticators');
 }
 
+async function createAuthenticator(payload) {
+  return oktaRequest('POST', '/api/v1/authenticators', payload, {
+    activate: 'true',
+  });
+}
+
 async function activateAuthenticator(authenticatorId) {
   return oktaRequest(
     'POST',
     `/api/v1/authenticators/${authenticatorId}/lifecycle/activate`,
+  );
+}
+
+async function deactivateAuthenticator(authenticatorId) {
+  return oktaRequest(
+    'POST',
+    `/api/v1/authenticators/${authenticatorId}/lifecycle/deactivate`,
+  );
+}
+
+async function listAuthenticatorMethods(authenticatorId) {
+  return oktaRequest(
+    'GET',
+    `/api/v1/authenticators/${authenticatorId}/methods`,
+  );
+}
+
+async function activateAuthenticatorMethod(authenticatorId, methodType) {
+  return oktaRequest(
+    'POST',
+    `/api/v1/authenticators/${authenticatorId}/methods/${methodType}/lifecycle/activate`,
+  );
+}
+
+async function deactivateAuthenticatorMethod(authenticatorId, methodType) {
+  return oktaRequest(
+    'POST',
+    `/api/v1/authenticators/${authenticatorId}/methods/${methodType}/lifecycle/deactivate`,
   );
 }
 
@@ -492,6 +526,124 @@ async function updateAuthenticator(authenticatorId, payload) {
     `/api/v1/authenticators/${authenticatorId}`,
     payload,
   );
+}
+
+async function ensureAuthenticator({
+  authenticators,
+  key,
+  name,
+  type,
+  allowedFor = 'any',
+}) {
+  let authenticator =
+    authenticators.find((candidate) => candidate.key === key) ?? null;
+
+  if (!authenticator) {
+    authenticator = await createAuthenticator({
+      key,
+      name,
+      type,
+    });
+  } else if (
+    authenticator.status !== 'ACTIVE' &&
+    authenticator._links?.activate?.href
+  ) {
+    authenticator = await activateAuthenticator(authenticator.id);
+  }
+
+  return updateAuthenticator(authenticator.id, {
+    key: authenticator.key,
+    name: authenticator.name,
+    settings: {
+      ...(authenticator.settings ?? {}),
+      allowedFor,
+    },
+  });
+}
+
+function buildAuthenticatorEnrollment({ key, required }) {
+  return {
+    key,
+    enroll: {
+      self: required ? 'REQUIRED' : 'OPTIONAL',
+    },
+  };
+}
+
+async function listInlineHooks(type) {
+  return oktaRequest('GET', '/api/v1/inlineHooks', undefined, {
+    type,
+  });
+}
+
+async function createInlineHook(payload) {
+  return oktaRequest('POST', '/api/v1/inlineHooks', payload);
+}
+
+async function updateInlineHook(inlineHookId, payload) {
+  return oktaRequest('PUT', `/api/v1/inlineHooks/${inlineHookId}`, payload);
+}
+
+async function activateInlineHook(inlineHookId) {
+  return oktaRequest(
+    'POST',
+    `/api/v1/inlineHooks/${inlineHookId}/lifecycle/activate`,
+  );
+}
+
+async function deactivateInlineHook(inlineHookId) {
+  return oktaRequest(
+    'POST',
+    `/api/v1/inlineHooks/${inlineHookId}/lifecycle/deactivate`,
+  );
+}
+
+async function ensureTelephonyInlineHook(expected) {
+  const hooks = await listInlineHooks('com.okta.telephony.provider');
+  const existingHook =
+    hooks.find((hook) => hook.name === expected.name) ?? null;
+  const conflictingActiveHook =
+    hooks.find(
+      (hook) => hook.status === 'ACTIVE' && hook.id !== existingHook?.id,
+    ) ?? null;
+
+  if (conflictingActiveHook) {
+    throw new Error(
+      `Okta org already has active telephony inline hook "${conflictingActiveHook.name}". An org can have only one active telephony inline hook.`,
+    );
+  }
+
+  const result = existingHook
+    ? {
+        mode: 'updated',
+        hook: await updateInlineHook(existingHook.id, expected.payload),
+      }
+    : {
+        mode: 'created',
+        hook: await createInlineHook(expected.payload),
+      };
+
+  if (result.hook.status !== 'ACTIVE') {
+    result.hook = await activateInlineHook(result.hook.id);
+  }
+
+  return result;
+}
+
+async function disableManagedTelephonyInlineHook(expectedName) {
+  const hooks = await listInlineHooks('com.okta.telephony.provider');
+  const existingHook = hooks.find((hook) => hook.name === expectedName) ?? null;
+
+  if (!existingHook) {
+    return { mode: 'not-found' };
+  }
+
+  if (existingHook.status !== 'ACTIVE') {
+    return { mode: 'disabled', id: existingHook.id };
+  }
+
+  const hook = await deactivateInlineHook(existingHook.id);
+  return { mode: 'disabled', id: hook.id };
 }
 
 async function findGroupByName(name) {
@@ -943,6 +1095,19 @@ const helpUrl = toAbsoluteUrl(
   requiredString(brandProfile.helpPath, 'brand.helpPath'),
 );
 const hostedExperience = environment.okta?.hostedExperience ?? {};
+const telephony = environment.okta?.telephony ?? {};
+const userPrune = environment.okta?.userPrune ?? {};
+const telephonyEnabled = telephony.enabled === true;
+const telephonyHookPath =
+  optionalString(telephony.hookPath) ?? '/api/hooks/okta/telephony';
+const telephonyHookUri = toAbsoluteUrl(deployedWebBaseUrl, telephonyHookPath);
+const telephonyHookAuthorization =
+  telephonyEnabled && !dryRun
+    ? requiredString(
+        process.env.ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION,
+        'ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION',
+      )
+    : '';
 const fundingStepUpMethod =
   optionalString(hostedExperience.fundingStepUpMethod) ?? 'email';
 const fundingStepUpRequiresPassword =
@@ -955,6 +1120,83 @@ const requiresEmailAuthenticator = Boolean(
   hostedExperience.adaptiveMfaOnSignIn ||
   hostedExperience.fundingRouteStepUp,
 );
+const requiresSecurityQuestionAuthenticator = Boolean(
+  hostedExperience.registrationRequiresSecurityQuestion,
+);
+const requiresPhoneAuthenticator = Boolean(
+  telephonyEnabled && hostedExperience.registrationRequiresPhoneVerification,
+);
+
+if (fundingStepUpMethod === 'sms' && !telephonyEnabled) {
+  throw new Error(
+    'Set okta.telephony.enabled before using SMS as the funding step-up method.',
+  );
+}
+
+const accountSecurityPolicyIntent = {
+  identityKeys: {
+    immutableOktaUserIdClaim: 'sub',
+    mutableContactClaims: ['email'],
+    backendBusinessClaims: ['customer_id', 'lead_id'],
+  },
+  registration: {
+    requiredAuthenticators: [
+      'okta_password',
+      ...(requiresEmailAuthenticator ? ['okta_email'] : []),
+      ...(requiresSecurityQuestionAuthenticator ? ['security_question'] : []),
+      ...(requiresPhoneAuthenticator ? ['phone_number'] : []),
+    ],
+    optionalAuthenticators: [
+      ...(!requiresEmailAuthenticator ? ['okta_email'] : []),
+      ...(telephonyEnabled && !requiresPhoneAuthenticator
+        ? ['phone_number']
+        : []),
+    ],
+  },
+  oktaHostedAccountManagement: [
+    {
+      action: 'change_email',
+      requiredProofs: ['security_question', 'phone_number:sms'],
+      backendSync:
+        'After a fresh ACME sign-in, sync the backend email from the current Okta email claim when the Okta subject is unchanged.',
+    },
+    {
+      action: 'change_phone_or_sms_factor',
+      requiredProofs: ['security_question', 'okta_email'],
+      backendSync:
+        'Sync verified phone metadata only when Okta exposes it through a profile claim, Management API lookup, or event hook.',
+    },
+    {
+      action: 'forgot_password_or_change_password',
+      requiredProofs: [
+        'possession_factor',
+        'security_question_when_configured',
+      ],
+      backendSync:
+        'Do not sync or store password material. Log only non-sensitive password-change metadata if an Okta event hook is enabled.',
+    },
+    {
+      action: 'forgot_email_or_lost_email_access',
+      requiredProofs: ['phone_number:sms', 'security_question'],
+      backendSync:
+        'Treat the recovered Okta email claim as the source of truth after the user completes a fresh ACME sign-in.',
+    },
+  ],
+  oktaOnlySecrets: [
+    'password',
+    'security_question_answer',
+    'security_question_hint',
+    'otp_codes',
+  ],
+  userPrune: {
+    enabled: userPrune.enabled === true,
+    action: optionalString(userPrune.action) ?? 'deactivate',
+    keepLogins: optionalStringArray(userPrune.keepLogins),
+    keepProfileContains: optionalStringArray(userPrune.keepProfileContains),
+    destructiveGuard:
+      'Use npm run okta:prune-users -- <env> --dry-run first, then --confirm-deactivate after reviewing the exact retained and candidate users.',
+  },
+};
 
 const hostedBranding = {
   DefaultBrandName: requiredString(
@@ -1020,6 +1262,7 @@ const profileEnrollmentPolicyName = `ACME LOS Registration (${environment.enviro
 const mfaEnrollmentPolicyName = `ACME LOS Authenticator Enrollment (${environment.environment})`;
 const sessionPolicyName = `ACME LOS Global Session (${environment.environment})`;
 const accessPolicyName = `ACME LOS App Access (${environment.environment})`;
+const telephonyInlineHookName = `ACME LOS ACS SMS (${environment.environment})`;
 const authorizationServerPolicyName = `ACME LOS Default Authorization (${environment.environment})`;
 const authorizationServerRuleName = 'ACME LOS Default Tokens';
 const defaultBrandName = requiredString(
@@ -1031,6 +1274,28 @@ const customerBrandName = requiredString(
   'brand.customerBrandName',
 );
 const defaultBrandThemeProfile = brandProfile.defaultBrandTheme ?? {};
+const expectedTelephonyInlineHook = {
+  name: telephonyInlineHookName,
+  uri: telephonyHookUri,
+  payload: {
+    name: telephonyInlineHookName,
+    type: 'com.okta.telephony.provider',
+    version: '1.0.0',
+    channel: {
+      type: 'HTTP',
+      version: '1.0.0',
+      config: {
+        uri: telephonyHookUri,
+        method: 'POST',
+        authScheme: {
+          type: 'HEADER',
+          key: 'Authorization',
+          value: telephonyHookAuthorization,
+        },
+      },
+    },
+  },
+};
 
 const expectedWebApp = {
   label: `ACME LOS Web (${environment.environment})`,
@@ -1152,6 +1417,30 @@ if (dryRun) {
       mfaEnrollmentPolicyName,
       sessionPolicyName,
       accessPolicyName,
+    },
+    accountSecurityPolicyIntent,
+    telephony: {
+      enabled: telephonyEnabled,
+      hookName: expectedTelephonyInlineHook.name,
+      hookUri: expectedTelephonyInlineHook.uri,
+      authScheme: telephonyEnabled ? 'HEADER Authorization' : 'disabled',
+      phoneAuthenticatorEnrollment: telephonyEnabled
+        ? requiresPhoneAuthenticator
+          ? 'REQUIRED'
+          : 'OPTIONAL'
+        : 'disabled',
+    },
+    authenticatorEnrollment: {
+      password: 'REQUIRED',
+      email: requiresEmailAuthenticator ? 'REQUIRED' : 'OPTIONAL',
+      securityQuestion: requiresSecurityQuestionAuthenticator
+        ? 'REQUIRED'
+        : 'OPTIONAL',
+      phone: telephonyEnabled
+        ? requiresPhoneAuthenticator
+          ? 'REQUIRED'
+          : 'OPTIONAL'
+        : 'disabled',
     },
     customProfileAttributes: ['leadId', 'customerId'],
     authorizationServerClaims: [
@@ -1432,35 +1721,100 @@ if (hasActiveCustomDomain) {
 }
 
 const authenticators = await listAuthenticators();
-const emailAuthenticator =
-  authenticators.find((authenticator) => authenticator.key === 'okta_email') ??
-  null;
-if (!emailAuthenticator) {
-  throw new Error('Unable to find the Okta email authenticator.');
-}
-
-if (
-  emailAuthenticator.status !== 'ACTIVE' &&
-  emailAuthenticator._links?.activate?.href
-) {
-  await activateAuthenticator(emailAuthenticator.id);
-}
-
-const updatedEmailAuthenticator = await updateAuthenticator(
-  emailAuthenticator.id,
-  {
-    key: emailAuthenticator.key,
-    name: emailAuthenticator.name,
-    settings: {
-      ...(emailAuthenticator.settings ?? {}),
-      allowedFor: 'any',
-    },
-  },
-);
+const updatedEmailAuthenticator = await ensureAuthenticator({
+  authenticators,
+  key: 'okta_email',
+  name: 'Email',
+  type: 'email',
+});
 results.emailAuthenticator = {
   id: updatedEmailAuthenticator.id,
   allowedFor: updatedEmailAuthenticator.settings?.allowedFor ?? 'unknown',
 };
+
+const updatedSecurityQuestionAuthenticator = await ensureAuthenticator({
+  authenticators,
+  key: 'security_question',
+  name: 'Security Question',
+  type: 'security_question',
+});
+results.securityQuestionAuthenticator = {
+  id: updatedSecurityQuestionAuthenticator.id,
+  allowedFor:
+    updatedSecurityQuestionAuthenticator.settings?.allowedFor ?? 'unknown',
+  enrollment: requiresSecurityQuestionAuthenticator ? 'REQUIRED' : 'OPTIONAL',
+};
+
+if (telephonyEnabled) {
+  const telephonyInlineHookResult = await ensureTelephonyInlineHook(
+    expectedTelephonyInlineHook,
+  );
+  results.telephonyInlineHook = {
+    mode: telephonyInlineHookResult.mode,
+    id: telephonyInlineHookResult.hook.id,
+    uri: telephonyHookUri,
+  };
+
+  const updatedPhoneAuthenticator = await ensureAuthenticator({
+    authenticators,
+    key: 'phone_number',
+    name: 'Phone',
+    type: 'phone',
+  });
+  const phoneAuthenticatorMethods = await listAuthenticatorMethods(
+    updatedPhoneAuthenticator.id,
+  );
+  const smsMethod =
+    phoneAuthenticatorMethods.find((method) => method.type === 'sms') ?? null;
+  const voiceMethod =
+    phoneAuthenticatorMethods.find((method) => method.type === 'voice') ?? null;
+
+  if (!smsMethod) {
+    throw new Error('Unable to find the Okta phone SMS authenticator method.');
+  }
+
+  if (smsMethod.status !== 'ACTIVE') {
+    await activateAuthenticatorMethod(updatedPhoneAuthenticator.id, 'sms');
+  }
+
+  if (voiceMethod?.status === 'ACTIVE') {
+    await deactivateAuthenticatorMethod(updatedPhoneAuthenticator.id, 'voice');
+  }
+
+  results.phoneAuthenticator = {
+    id: updatedPhoneAuthenticator.id,
+    allowedFor: updatedPhoneAuthenticator.settings?.allowedFor ?? 'unknown',
+    sms: 'ACTIVE',
+    voice: 'INACTIVE',
+  };
+  warnings.push(
+    'SMS MFA is enabled as a possession factor and recovery option. Keep stronger phishing-resistant authenticators available for sensitive production actions.',
+  );
+} else {
+  results.telephonyInlineHook = await disableManagedTelephonyInlineHook(
+    expectedTelephonyInlineHook.name,
+  );
+  const phoneAuthenticator =
+    authenticators.find(
+      (authenticator) => authenticator.key === 'phone_number',
+    ) ?? null;
+
+  if (
+    results.telephonyInlineHook.id &&
+    phoneAuthenticator?.status === 'ACTIVE'
+  ) {
+    await deactivateAuthenticator(phoneAuthenticator.id);
+    results.phoneAuthenticator = {
+      mode: 'disabled',
+      id: phoneAuthenticator.id,
+    };
+  } else {
+    results.phoneAuthenticator = {
+      mode: phoneAuthenticator?.status ?? 'not-found',
+      id: phoneAuthenticator?.id,
+    };
+  }
+}
 
 const everyoneGroup = await findGroupByName('Everyone');
 if (!everyoneGroup) {
@@ -1669,6 +2023,9 @@ results.profileEnrollmentRule = {
 warnings.push(
   'Profile enrollment stays on the Okta-managed catch-all rule in this org because the rule API blocks automated replacement. Keep self-service registration enabled there, and use app assignment plus access policy wiring to let newly registered customers reach the app.',
 );
+warnings.push(
+  'Account-management policy intent is source-controlled in the bootstrap output. Confirm in Okta Admin Console that email changes require security question plus SMS/phone, phone/SMS changes require security question plus email, and password/security-question changes never sync secret material to ACME.',
+);
 
 const mfaPolicyResult = await ensurePolicy(
   'MFA_ENROLL',
@@ -1688,18 +2045,26 @@ const mfaPolicyResult = await ensurePolicy(
     settings: {
       type: 'AUTHENTICATORS',
       authenticators: [
-        {
+        buildAuthenticatorEnrollment({
           key: 'okta_email',
-          enroll: {
-            self: requiresEmailAuthenticator ? 'REQUIRED' : 'OPTIONAL',
-          },
-        },
-        {
+          required: requiresEmailAuthenticator,
+        }),
+        buildAuthenticatorEnrollment({
           key: 'okta_password',
-          enroll: {
-            self: 'REQUIRED',
-          },
-        },
+          required: true,
+        }),
+        buildAuthenticatorEnrollment({
+          key: 'security_question',
+          required: requiresSecurityQuestionAuthenticator,
+        }),
+        ...(telephonyEnabled
+          ? [
+              buildAuthenticatorEnrollment({
+                key: 'phone_number',
+                required: requiresPhoneAuthenticator,
+              }),
+            ]
+          : []),
       ],
     },
   }),
@@ -1962,6 +2327,10 @@ writeJsonFile(bootstrapOutputsPath, {
   mfaEnrollmentPolicyId: results.mfaEnrollmentPolicy.id,
   sessionPolicyId: results.sessionPolicy.id,
   accessPolicyId: results.accessPolicy.id,
+  accountSecurityPolicyIntent,
+  securityQuestionAuthenticator: results.securityQuestionAuthenticator,
+  telephonyInlineHook: results.telephonyInlineHook,
+  phoneAuthenticator: results.phoneAuthenticator,
   fundingStepUpPolicyIntent: results.fundingStepUpPolicyIntent,
   warnings,
 });
@@ -2001,6 +2370,13 @@ console.log(
   `- Authorization server rule: ${results.authorizationServerRule.id}`,
 );
 console.log(`- Access policy: ${results.accessPolicy.id}`);
+console.log(
+  `- Security question authenticator: ${results.securityQuestionAuthenticator.enrollment}`,
+);
+console.log(`- Telephony inline hook: ${results.telephonyInlineHook.mode}`);
+console.log(
+  `- Phone authenticator: ${results.phoneAuthenticator.id ? `sms=${results.phoneAuthenticator.sms}, voice=${results.phoneAuthenticator.voice}` : results.phoneAuthenticator.mode}`,
+);
 if (warnings.length > 0) {
   console.log('- Warnings:');
   for (const warning of warnings) {

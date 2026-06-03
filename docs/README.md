@@ -31,7 +31,8 @@ Insights/Log Analytics, GitHub Actions CI/CD, Nx Release versioning, Husky
 commit guardrails, shadcn/Radix/Tailwind UI primitives, and TanStack Query,
 Form, and Table workflows. It now also has a repo-owned GA4/GTM analytics admin
 plane, web runtime analytics wiring, optional managed-identity service auth
-between Next and the BFF, and a documented HTTP API testing path.
+between Next and the BFF, Okta account-security/profile-sync runbooks, a
+staged ACS-backed SMS MFA path, and a documented HTTP API testing path.
 
 ## Suggested Read Order
 
@@ -71,6 +72,8 @@ path:
 - [Azure governance and lifecycle](./operations/azure-governance-and-lifecycle.md)
 - [Azure bootstrap and teardown](./operations/azure-bootstrap-and-teardown.md)
 - [Azure monitoring and workbooks](./operations/azure-monitoring-and-workbooks.md)
+- [Okta SMS MFA with Azure Communication Services](./operations/okta-sms-mfa-with-acs.md)
+- [Okta account security and profile sync](./operations/okta-account-security-and-profile-sync.md)
 - [Repeated workflows and skill map](./operations/repeated-workflows-and-skill-map.md)
 - [GitHub and Azure environments](./operations/github-azure-environments.md)
 - [Pipeline portability](./operations/pipeline-portability.md)

@@ -42,9 +42,11 @@ export { getServerWebAuthConfig } from './lib/config';
 export { assertValidCsrf, issueCsrfToken, writeCsrfToken } from './lib/csrf';
 export {
   clearCustomerProfile,
+  readAndSyncCustomerProfileIdentity,
   readCustomerProfile,
   writeCustomerProfile,
 } from './lib/customer-profile';
+export type { CustomerProfileIdentitySyncResult } from './lib/customer-profile';
 export {
   getServerWebAuthSessionRequirementStatus,
   getServerWebAuthSession,

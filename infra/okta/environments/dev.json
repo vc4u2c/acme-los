@@ -5,10 +5,21 @@
     "webClientId": "0oa13cmyyzp5XlWAv698",
     "mobileClientId": "0oa114pxwpwIRfEnb698",
     "fundingStepUpAcrValues": "urn:okta:loa:2fa:any",
+    "telephony": {
+      "enabled": false,
+      "hookPath": "/api/hooks/okta/telephony"
+    },
+    "userPrune": {
+      "enabled": false,
+      "action": "deactivate",
+      "keepLogins": [],
+      "keepProfileContains": ["vinod", "gopi", "sasha"]
+    },
     "hostedExperience": {
       "rememberUser": true,
       "keepMeSignedIn": true,
       "registrationRequiresEmailVerification": true,
+      "registrationRequiresSecurityQuestion": true,
       "registrationRequiresPhoneVerification": false,
       "adaptiveMfaOnSignIn": true,
       "fundingRouteStepUp": true,

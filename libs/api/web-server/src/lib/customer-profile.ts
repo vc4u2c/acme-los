@@ -22,6 +22,11 @@ type StoredCustomerProfile = {
   profile: CustomerProfile;
 };
 
+export type CustomerProfileIdentitySyncResult = {
+  profile: CustomerProfile;
+  emailChangedFromSession: boolean;
+};
+
 function getCustomerProfileKey(session: WebAuthSession): string | null {
   return session.user?.id ?? null;
 }
@@ -38,14 +43,52 @@ export async function readCustomerProfile(
     : null;
 
   const email =
-    storedProfile?.profile.email ||
     session.user?.email ||
+    storedProfile?.profile.email ||
     emptyCustomerProfile.email;
 
   return {
     ...emptyCustomerProfile,
     ...storedProfile?.profile,
     email,
+  };
+}
+
+export async function readAndSyncCustomerProfileIdentity(
+  session: WebAuthSession,
+): Promise<CustomerProfileIdentitySyncResult> {
+  const customerProfileKey = getCustomerProfileKey(session);
+  const storedProfile = customerProfileKey
+    ? await readStateValue<StoredCustomerProfile>(
+        CUSTOMER_PROFILE_NAMESPACE,
+        customerProfileKey,
+      )
+    : null;
+  const sessionEmail = session.user?.email?.trim() ?? '';
+  const storedEmail = storedProfile?.profile.email?.trim() ?? '';
+  const email = sessionEmail || storedEmail || emptyCustomerProfile.email;
+  const profile = {
+    ...emptyCustomerProfile,
+    ...storedProfile?.profile,
+    email,
+  };
+  const emailChangedFromSession = Boolean(
+    sessionEmail &&
+    storedEmail &&
+    storedEmail.toLowerCase() !== sessionEmail.toLowerCase(),
+  );
+
+  if (
+    customerProfileKey &&
+    sessionEmail &&
+    storedEmail.toLowerCase() !== sessionEmail.toLowerCase()
+  ) {
+    await writeCustomerProfile(session, profile);
+  }
+
+  return {
+    profile,
+    emailChangedFromSession,
   };
 }
 

@@ -848,6 +848,15 @@ $runtimeMaxReplicas = if ($null -ne $runtimeMaxReplicaConfiguration) {
 } else {
   1
 }
+$smsMfaConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'smsMfa'
+$smsMfaEnabled = ConvertTo-Boolean (
+  Get-OptionalPropertyValue -InputObject $smsMfaConfiguration -Name 'enabled'
+)
+$smsMfaEnabledEnvValue = if ($smsMfaEnabled) { 'true' } else { 'false' }
+$smsSenderPhoneNumber = Get-StringOrDefault -Value (
+  Get-OptionalPropertyValue -InputObject $smsMfaConfiguration -Name 'senderPhoneNumber'
+)
+$oktaTelephonyHookAuthorizationSecretValue = Get-OptionalString $env:ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION
 $bffRuntimeConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'bffRuntime'
 $bffRuntimeMinReplicaConfiguration = Get-OptionalPropertyValue -InputObject $bffRuntimeConfiguration -Name 'minReplicas'
 $bffRuntimeMaxReplicaConfiguration = Get-OptionalPropertyValue -InputObject $bffRuntimeConfiguration -Name 'maxReplicas'
@@ -868,6 +877,7 @@ $compiledParameterFile = New-CompiledParameterFile -SourceParameterFile $Paramet
 Ensure-RegisteredResourceProviders -SubscriptionId $resolvedSubscriptionId -Namespaces @(
   'Microsoft.App',
   'Microsoft.Cache',
+  'Microsoft.Communication',
   'Microsoft.ContainerRegistry',
   'Microsoft.Insights',
   'Microsoft.KeyVault',
@@ -1053,6 +1063,8 @@ $userAssignedIdentityClientId = Get-StringOutputValue -Outputs $outputs -Name 'u
 $userAssignedIdentityPrincipalId = Get-StringOutputValue -Outputs $outputs -Name 'userAssignedIdentityPrincipalId'
 $keyVaultName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultName'
 $keyVaultUri = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultUri'
+$communicationServicesName = Get-StringOutputValue -Outputs $outputs -Name 'communicationServicesName'
+$communicationServicesEndpoint = Get-StringOutputValue -Outputs $outputs -Name 'communicationServicesEndpoint'
 $redisDatabaseId = Get-StringOutputValue -Outputs $outputs -Name 'redisDatabaseId'
 $redisHostName = Get-StringOutputValue -Outputs $outputs -Name 'redisHostName'
 $redisPort = Get-IntegerOutputValue -Outputs $outputs -Name 'redisPort'
@@ -1067,6 +1079,24 @@ if (-not $userAssignedIdentityClientId) {
 
 if (-not $userAssignedIdentityPrincipalId) {
   throw 'User-assigned identity principal id was not returned from the workload deployment.'
+}
+
+if (-not $communicationServicesEndpoint) {
+  throw 'Azure Communication Services endpoint was not returned from the workload deployment.'
+}
+
+if ($smsMfaEnabled) {
+  if ($runtimeMinReplicas -lt 1) {
+    throw "Environment '$EnvironmentName' enables smsMfa but runtime.minReplicas is less than 1. Keep at least one warm web replica because Okta telephony hooks have a short response window."
+  }
+
+  if ($smsSenderPhoneNumber -notmatch '^\+[1-9]\d{7,14}$') {
+    throw "Environment '$EnvironmentName' enables smsMfa but does not declare a valid E.164 senderPhoneNumber."
+  }
+
+  if (-not $oktaTelephonyHookAuthorizationSecretValue) {
+    throw "Environment '$EnvironmentName' enables smsMfa. Set ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION before deploying."
+  }
 }
 
 $managedEnvironmentDefaultDomain = Invoke-AzTsv -Arguments @(
@@ -1374,6 +1404,9 @@ $runtimeDeploymentArguments = @(
   '--parameters', "analyticsConsentDefaultAdUserData=$analyticsConsentDefaultAdUserData",
   '--parameters', "analyticsConsentDefaultAdPersonalization=$analyticsConsentDefaultAdPersonalization",
   '--parameters', "ga4MeasurementProtocolSecretName=$ga4MeasurementProtocolSecretName",
+  '--parameters', "smsMfaEnabled=$smsMfaEnabledEnvValue",
+  '--parameters', "communicationServicesEndpoint=$communicationServicesEndpoint",
+  '--parameters', "smsSenderPhoneNumber=$smsSenderPhoneNumber",
   '--parameters', "sessionSecretValue=$webSessionSecretValue",
   '--parameters', "applicationInsightsConnectionString=$platformApplicationInsightsConnectionString",
   '--parameters', "logAnalyticsWorkspaceId=$platformLogAnalyticsWorkspaceId",
@@ -1383,6 +1416,13 @@ $runtimeDeploymentArguments = @(
   '--parameters', "maxReplicas=$runtimeMaxReplicas",
   '--output', 'json'
 )
+
+if ($smsMfaEnabled) {
+  $runtimeDeploymentArguments += @(
+    '--parameters',
+    "oktaTelephonyHookAuthorizationSecretValue=$oktaTelephonyHookAuthorizationSecretValue"
+  )
+}
 
 $runtimeDeploymentArguments += @('--parameters', "stateStoreMode=$resolvedStateStoreMode")
 
@@ -1545,6 +1585,10 @@ Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyCont
   keyVaultName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultName'
   keyVaultPrivateEndpointName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultPrivateEndpointName'
   keyVaultPrivateEndpointNetworkInterfaceName = Get-StringOutputValue -Outputs $outputs -Name 'keyVaultPrivateEndpointNetworkInterfaceName'
+  communicationServicesName = $communicationServicesName
+  communicationServicesEndpoint = $communicationServicesEndpoint
+  smsMfaEnabled = $smsMfaEnabled
+  smsSenderPhoneNumber = $smsSenderPhoneNumber
   applicationInsightsName = $platformApplicationInsightsName
   applicationInsightsId = $platformApplicationInsightsId
   logAnalyticsWorkspaceName = $platformLogAnalyticsWorkspaceName

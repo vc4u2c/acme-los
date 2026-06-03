@@ -26,6 +26,13 @@ param analyticsConsentDefaultAdStorage string = 'denied'
 param analyticsConsentDefaultAdUserData string = 'denied'
 param analyticsConsentDefaultAdPersonalization string = 'denied'
 param ga4MeasurementProtocolSecretName string = 'sec-acme-los-ga4-measurement-secret'
+param smsMfaEnabled bool = false
+param communicationServicesEndpoint string = ''
+param smsSenderPhoneNumber string = ''
+param oktaTelephonyHookAuthorizationSecretName string = 'sec-acme-los-okta-telephony-hook-authorization'
+@secure()
+param oktaTelephonyHookAuthorizationSecretKeyVaultUrl string = ''
+param azureManagedIdentityClientId string = ''
 @allowed([
   'file'
   'redis'
@@ -91,9 +98,29 @@ var redisEntraEnvironmentVariables = stateStoreMode == 'redis'
         name: 'ACME_REDIS_MANAGED_IDENTITY_CLIENT_ID'
         value: redisManagedIdentityClientId
       }
+    ]
+  : []
+var azureManagedIdentityEnvironmentVariables = !empty(azureManagedIdentityClientId)
+  ? [
       {
         name: 'AZURE_CLIENT_ID'
-        value: redisManagedIdentityClientId
+        value: azureManagedIdentityClientId
+      }
+    ]
+  : []
+var smsMfaEnvironmentVariables = smsMfaEnabled
+  ? [
+      {
+        name: 'ACME_ACS_ENDPOINT'
+        value: communicationServicesEndpoint
+      }
+      {
+        name: 'ACME_ACS_SMS_SENDER_PHONE_NUMBER'
+        value: smsSenderPhoneNumber
+      }
+      {
+        name: 'ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION'
+        secretRef: oktaTelephonyHookAuthorizationSecretName
       }
     ]
   : []
@@ -310,6 +337,8 @@ var environmentVariables = concat(
   ],
   redisBaseEnvironmentVariables,
   redisEntraEnvironmentVariables,
+  azureManagedIdentityEnvironmentVariables,
+  smsMfaEnvironmentVariables,
   bffBaseEnvironmentVariables,
   bffTrustedProxyEnvironmentVariables,
   bffServiceAuthEnvironmentVariables
@@ -331,7 +360,16 @@ var bffSecrets = !empty(bffTrustedProxySecretKeyVaultUrl)
       }
     ]
   : []
-var secrets = concat(sessionSecrets, bffSecrets)
+var smsMfaSecrets = !empty(oktaTelephonyHookAuthorizationSecretKeyVaultUrl)
+  ? [
+      {
+        name: oktaTelephonyHookAuthorizationSecretName
+        keyVaultUrl: oktaTelephonyHookAuthorizationSecretKeyVaultUrl
+        identity: userAssignedIdentityResourceId
+      }
+    ]
+  : []
+var secrets = concat(sessionSecrets, bffSecrets, smsMfaSecrets)
 
 resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: name

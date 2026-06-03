@@ -143,6 +143,11 @@ function buildAuthUserFromClaims(
   claims: Record<string, unknown>,
   fallbackLeadId?: string,
 ): WebAuthSessionUser | null {
+  const subject = typeof claims.sub === 'string' ? claims.sub.trim() : '';
+  if (!subject) {
+    return null;
+  }
+
   const email = typeof claims.email === 'string' ? claims.email : undefined;
   const claimedName = typeof claims.name === 'string' ? claims.name.trim() : '';
   const [derivedFirstName, ...derivedLastNameParts] = claimedName
@@ -174,11 +179,8 @@ function buildAuthUserFromClaims(
     [firstName, lastName].filter(Boolean).join(' ') ||
     email ||
     'Customer';
-  const id =
-    (typeof claims.sub === 'string' && claims.sub) || email || 'okta-user';
-
   return {
-    id,
+    id: subject,
     email,
     displayName,
     firstName,
@@ -197,7 +199,7 @@ function buildAuthenticatedSession(
 ): WebAuthSession {
   const user = buildAuthUserFromClaims(claims, fallbackLeadId);
   if (!user) {
-    return buildUnauthenticatedSession();
+    throw new Error('The Okta ID token is missing the required subject claim.');
   }
 
   return {

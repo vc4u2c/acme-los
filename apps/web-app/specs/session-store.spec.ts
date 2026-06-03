@@ -311,6 +311,41 @@ describe('web auth session store idle expiry', () => {
     );
   });
 
+  it('rejects refreshed Okta tokens that do not include an immutable subject', async () => {
+    const currentEpochSeconds = Math.floor(Date.now() / 1000);
+
+    process.env.ACME_WEB_SESSION_IDLE_TIMEOUT_SECONDS = '120';
+    process.env.ACME_WEB_SESSION_WARNING_SECONDS = '30';
+
+    const storedSession = await createStoredWebAuthSession({
+      session: TEST_SESSION,
+      tokens: {
+        idToken: 'old-id-token',
+        refreshToken: 'old-refresh-token',
+      },
+      expiresAt: currentEpochSeconds + 30,
+    });
+    const refreshOktaTokenSet = jest.fn().mockResolvedValue({
+      id_token: 'new-id-token',
+      refresh_token: 'new-refresh-token',
+      expires_in: 3600,
+    });
+    const verifyOktaIdToken = jest.fn().mockResolvedValue({
+      exp: currentEpochSeconds + 3600,
+      email: 'ada@example.test',
+      amr: ['pwd'],
+    });
+
+    await expect(
+      touchWebAuthSession(createSessionRequest(storedSession.sessionId), {
+        refreshOktaTokenSet,
+        verifyOktaIdToken,
+      }),
+    ).rejects.toThrow(
+      'The Okta ID token is missing the required subject claim.',
+    );
+  });
+
   it('retires the previous server auth session when callback writes a replacement session', async () => {
     const currentEpochSeconds = Math.floor(Date.now() / 1000);
 

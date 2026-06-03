@@ -371,9 +371,13 @@ public sealed class BffAuthFlowService : IAuthFlowService
           : email ?? "Customer";
     var id =
       TryReadStringClaim(claims, "sub")
-      ?? TryReadStringClaim(claims, ClaimTypes.NameIdentifier)
-      ?? email
-      ?? "okta-user";
+      ?? TryReadStringClaim(claims, ClaimTypes.NameIdentifier);
+
+    if (string.IsNullOrWhiteSpace(id))
+    {
+      throw new InvalidOperationException(
+        "The Okta ID token is missing the required subject claim.");
+    }
 
     return new WebAuthSession(
       "okta",

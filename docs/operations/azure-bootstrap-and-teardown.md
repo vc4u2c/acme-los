@@ -7,6 +7,7 @@ Related docs:
 - [Azure platform plan](./azure-platform-plan.md)
 - [Azure governance and lifecycle](./azure-governance-and-lifecycle.md)
 - [Azure monitoring and workbooks](./azure-monitoring-and-workbooks.md)
+- [Okta SMS MFA with ACS](./okta-sms-mfa-with-acs.md)
 - [GitHub and Azure environments](./github-azure-environments.md)
 - [Azure infrastructure scaffold](../../infra/azure/README.md)
 
@@ -254,6 +255,7 @@ Current infrastructure scope:
 - user-assigned managed identity
 - Key Vault
 - Azure Managed Redis
+- Azure Communication Services with local key authentication disabled
 - Key Vault private endpoint
 - Key Vault private-endpoint NIC
 - Azure Managed Redis private endpoint
@@ -262,7 +264,8 @@ Current infrastructure scope:
 Current runtime secret wiring:
 
 - the container app reads the web session secret through a Key Vault secret reference
-- the container app uses managed identity for Key Vault access, ACR pulls, and Redis token acquisition
+- the container app uses managed identity for Key Vault access, ACR pulls,
+  Redis token acquisition, and optional ACS SMS delivery
 - Azure Redis access-key authentication is disabled; no Azure Redis URL secret is created
 - the container app stays public for now so the workload can be validated before
   Front Door is introduced

@@ -758,6 +758,55 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public async Task GetBffCustomerProfile_WhenOktaEmailChanges_SynchronizesStoredProfile()
+  {
+    using var client = _factory.CreateClient();
+    var csrfToken =
+      await client.GetFromJsonAsync<IssueCsrfTokenResponse>("/bff/security/csrf");
+    using var updateRequest = new HttpRequestMessage(
+      HttpMethod.Put,
+      "/bff/customer/profile");
+
+    updateRequest.Headers.Add("x-csrf-token", csrfToken!.CsrfToken);
+    updateRequest.Headers.Add("x-acme-authenticated-user-id", "user-email-sync");
+    updateRequest.Headers.Add(
+      "x-acme-authenticated-user-email",
+      "old@example.com");
+    updateRequest.Content = JsonContent.Create(
+      new UpdateCustomerProfileRequest(
+        new CustomerProfile(
+          "",
+          "312-555-0100",
+          "123 Main Street",
+          "",
+          "Chicago",
+          "IL",
+          "60601")));
+
+    using var updateResponse = await client.SendAsync(updateRequest);
+
+    Assert.Equal(HttpStatusCode.OK, updateResponse.StatusCode);
+
+    using var readRequest = new HttpRequestMessage(
+      HttpMethod.Get,
+      "/bff/customer/profile");
+
+    readRequest.Headers.Add("x-acme-authenticated-user-id", "user-email-sync");
+    readRequest.Headers.Add(
+      "x-acme-authenticated-user-email",
+      "new@example.com");
+
+    using var readResponse = await client.SendAsync(readRequest);
+    var reloaded =
+      await readResponse.Content.ReadFromJsonAsync<GetCustomerProfileResponse>();
+
+    Assert.Equal(HttpStatusCode.OK, readResponse.StatusCode);
+    Assert.NotNull(reloaded);
+    Assert.Equal("new@example.com", reloaded!.Profile.Email);
+    Assert.Equal("312-555-0100", reloaded.Profile.Phone);
+  }
+
+  [Fact]
   public async Task GetBffApplicationStep_WithTrustedIdentityAndNoState_ReturnsNullStepState()
   {
     using var client = _factory.CreateClient();

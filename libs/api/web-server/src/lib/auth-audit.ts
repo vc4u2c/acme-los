@@ -14,6 +14,7 @@ type AuthAuditEvent =
   | 'auth.session.touch'
   | 'auth.session.clear'
   | 'auth.logout'
+  | 'customer.profile.email_changed'
   | 'security.inspector';
 
 export function logAuthAuditEvent(

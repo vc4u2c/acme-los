@@ -21,6 +21,9 @@ Current proven state:
 - the persistent platform network foundation is deployed
 - `dev` is deployed to `Azure Container Apps` in `sub-acme-nonprod-online`
 - `Key Vault` and `Azure Managed Redis` are private-only
+- the repo has a staged, source-supported ACS SMS MFA path for Okta; `dev`
+  has purchased toll-free sender `+18772244103`, but SMS remains disabled until
+  Microsoft approves toll-free verification
 - subnet-level NSGs are now part of the workload network posture
 - `dev` enables Entra managed-identity service auth between Next and the
   internal BFF through source-owned Bicep
@@ -41,7 +44,8 @@ What is here now:
 - `bicep/main.workload.sub.bicep`
   - subscription-scope workload resource-group scaffold
 - `bicep/main.web.rg.bicep`
-  - first web workload resource-group entrypoint
+  - first web workload resource-group entrypoint, including the environment ACS
+    resource and web managed-identity RBAC
 - `bicep/main.web.runtime.rg.bicep`
   - container app runtime revision entrypoint
 - `bicep/main.entra.service-auth.rg.bicep`
@@ -99,6 +103,7 @@ Scripts:
 - [configure-web-custom-domain.ps1](../../tools/scripts/azure/configure-web-custom-domain.ps1)
 - [set-web-environment-state.ps1](../../tools/scripts/azure/set-web-environment-state.ps1)
 - [teardown-web-environment.ps1](../../tools/scripts/azure/teardown-web-environment.ps1)
+- [manage-acs-sms-number.mjs](../../tools/scripts/azure/manage-acs-sms-number.mjs)
 
 The script reads:
 
@@ -286,6 +291,24 @@ script grants `Application.ReadWrite.All` and `AppRoleAssignment.ReadWrite.All`
 to only the environment deployment identities whose platform config enables
 `bffRuntime.serviceAuth.mode = entra`, so the CD identity can run this Graph
 Bicep entrypoint without a portal-only permission fix.
+
+## Okta SMS MFA Through ACS
+
+The workload stack provisions one ACS resource per environment and disables ACS
+local key authentication. The public Next ACA can send SMS with its existing
+user-assigned managed identity after SMS MFA is explicitly enabled.
+
+Phone-number purchase uses the guarded ACS Phone Numbers SDK command because
+phone numbers are acquired through the ACS data-plane workflow, not ARM/Bicep:
+
+```powershell
+npm run azure:sms-mfa:number -- list --environment dev
+npm run azure:sms-mfa:number -- acquire --environment dev --confirm-purchase
+```
+
+US/Canada toll-free verification is still an Azure portal application. Follow
+[Okta SMS MFA with Azure Communication Services](../../docs/operations/okta-sms-mfa-with-acs.md)
+for the staged activation sequence and the current `dev` sender number.
 
 If the runtime image changes and you want to force a new image build instead of
 reusing an existing tag, pass `-ImageTag` explicitly:
