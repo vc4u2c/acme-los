@@ -104,8 +104,11 @@ Pre-deployment checklist for the sample bridge:
 2. Register the service-app public key and keep the private key outside the
    repo, such as under `C:\Secured`.
 3. Grant only `okta.users.manage` on the service app's Okta API Scopes tab.
-4. Record the service-app `clientId` and signing key id (`kid`).
-5. Set `oktaCustomerIdWriteback.mode` to `sample` only after the service app,
+4. If the org requires admin roles for service apps, assign the narrowest
+   admin role/resource set that can manage the app-owned `customerId` profile
+   attribute for the target users.
+5. Record the service-app `clientId` and signing key id (`kid`).
+6. Set `oktaCustomerIdWriteback.mode` to `sample` only after the service app,
    scope grant, client id, key id, and private key are ready.
 
 This path is disabled by default. To enable it for `dev`, set:
