@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import {
   assertValidCsrf,
+  logAuthAuditEvent,
+  readAndSyncCustomerProfileIdentity,
   requireAuthenticatedWebSession,
-  readCustomerProfile,
   writeCustomerProfile,
 } from '@acme-los/api/web-server';
 import { maybeProxyToBff } from '../../_lib/bff-route-proxy';
@@ -36,8 +37,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return proxiedResponse;
     }
 
+    const syncResult = await readAndSyncCustomerProfileIdentity(session);
+
+    if (syncResult.emailChangedFromSession) {
+      logAuthAuditEvent(request, {
+        event: 'customer.profile.email_changed',
+        outcome: 'success',
+        session,
+        message:
+          'Synchronized customer profile email from the authenticated Okta session.',
+      });
+    }
+
     return NextResponse.json({
-      profile: await readCustomerProfile(session),
+      profile: syncResult.profile,
     });
   } catch (error) {
     const message =
@@ -70,7 +83,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       .parse(await request.json());
     const profile = {
       ...payload.profile,
-      email: payload.profile.email || session.user?.email || '',
+      email: session.user?.email || payload.profile.email || '',
     };
     const response = NextResponse.json({ profile });
 

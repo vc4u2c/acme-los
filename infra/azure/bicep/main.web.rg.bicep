@@ -47,6 +47,7 @@ var resolvedRedisDatabaseName = 'default'
 var resolvedContainerAppEnvironmentName = toLower('cae-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedContainerAppEnvironmentInfrastructureResourceGroupName = toLower('rg-${organizationShortName}-${workloadShortName}-cae-infra-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedContainerAppName = toLower('ca-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedCommunicationServicesName = toLower('acs-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedUserAssignedIdentityName = toLower('id-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedVirtualNetworkName = toLower('vnet-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedAppSubnetName = toLower('snet-${organizationShortName}-${workloadShortName}-app-${environmentName}-${regionShortName}-${instanceNumber}')
@@ -75,6 +76,10 @@ var resolvedManagedRedisDiagnosticSettingsName = toLower('diag-${organizationSho
 var keyVaultSecretsUserRoleDefinitionId = subscriptionResourceId(
   'Microsoft.Authorization/roleDefinitions',
   '4633458b-17de-408a-b874-0445c86b69e6'
+)
+var contributorRoleDefinitionId = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions',
+  'b24988ac-6180-42a0-ab88-20f7382dd24c'
 )
 
 resource keyVaultPrivateDnsZone 'Microsoft.Network/privateDnsZones@2024-06-01' existing = {
@@ -153,6 +158,31 @@ module userAssignedIdentity './modules/web/user-assigned-identity.bicep' = {
     location: location
     tags: tags.outputs.tags
   }
+}
+
+module communicationServices './modules/communication/communication-services.bicep' = {
+  name: 'acs-${environmentName}'
+  params: {
+    name: resolvedCommunicationServicesName
+    tags: tags.outputs.tags
+  }
+}
+
+resource communicationServicesResource 'Microsoft.Communication/communicationServices@2025-09-01' existing = {
+  name: resolvedCommunicationServicesName
+}
+
+resource communicationServicesContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(communicationServicesResource.id, resolvedUserAssignedIdentityName, 'communication-services-contributor')
+  scope: communicationServicesResource
+  properties: {
+    principalId: userAssignedIdentity.outputs.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: contributorRoleDefinitionId
+  }
+  dependsOn: [
+    communicationServices
+  ]
 }
 
 resource keyVaultSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
@@ -340,6 +370,9 @@ output keyVaultId string = keyVault.outputs.id
 output keyVaultUri string = keyVault.outputs.vaultUri
 output keyVaultPrivateEndpointName string = keyVaultPrivateEndpoint.outputs.name
 output keyVaultPrivateEndpointNetworkInterfaceName string = resolvedKeyVaultPrivateEndpointNetworkInterfaceName
+output communicationServicesName string = communicationServices.outputs.name
+output communicationServicesId string = communicationServices.outputs.id
+output communicationServicesEndpoint string = communicationServices.outputs.endpoint
 output logAnalyticsWorkspaceName string = platformLogAnalyticsWorkspace.name
 output logAnalyticsWorkspaceId string = platformLogAnalyticsWorkspace.id
 output containerRegistryName string = containerRegistryName

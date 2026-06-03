@@ -26,6 +26,8 @@ Current strengths:
 - project-prefixed GitHub release artifacts for web, mobile, and BFF API
 - hosted Okta sign-in, registration, server-side PKCE, id-token validation,
   opaque HTTP-only sessions, logout, and funding step-up MFA
+- Okta-hosted account-security actions for login email, phone/SMS, password,
+  and security question, with backend email sync after a fresh Okta session
 - BFF-owned CSRF issuance in BFF mode, with Next preserving the stable browser
   `/api/security/csrf` contract
 - dev-only security inspector support for both Next-owned and BFF-owned
@@ -41,6 +43,8 @@ Current strengths:
 - source-owned Next-to-BFF service-auth hardening path using Entra
   managed-identity bearer tokens, layered with internal BFF ingress and trusted
   proxy-secret validation
+- staged ACS-backed Okta SMS MFA path with purchased dev toll-free sender
+  `+18772244103`, disabled until Microsoft toll-free verification is approved
 
 Still intentionally not final:
 
@@ -317,6 +321,8 @@ Most useful follow-on docs:
 - [Azure monitoring and workbooks](./docs/operations/azure-monitoring-and-workbooks.md)
 - [GitHub and Azure environments](./docs/operations/github-azure-environments.md)
 - [Pipeline portability](./docs/operations/pipeline-portability.md)
+- [Okta SMS MFA with Azure Communication Services](./docs/operations/okta-sms-mfa-with-acs.md)
+- [Okta account security and profile sync](./docs/operations/okta-account-security-and-profile-sync.md)
 - [Azure infrastructure scaffold](./infra/azure/README.md)
 - [Azure naming standard](./docs/reference/azure-resource-naming-standard.md)
 - [VS Code setup](./docs/reference/vscode-setup.md)

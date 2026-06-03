@@ -22,7 +22,7 @@ If you want the fastest path to running the repo, start at:
 | Auth                  | Okta hosted sign-in/registration, server-side PKCE, id-token validation, opaque sessions, funding step-up MFA                                |
 | Security              | HTTP-only cookies, CSRF double-submit protection, trusted Next-to-BFF proxy secret, optional Entra service auth, CSP, rate limits/audit logs |
 | State                 | Redis-backed server state in hardened local/Azure paths, local file fallback for Next, BFF in-memory fallback for scaffolding                |
-| Azure                 | ACA, Key Vault, Azure Managed Redis, private endpoints, private DNS, NSGs, managed identity, environment-driven scale, budgets, pause/resume |
+| Azure                 | ACA, Key Vault, Azure Managed Redis, ACS SMS, private endpoints, private DNS, NSGs, managed identity, environment-driven scale, budgets      |
 | Observability         | Application Insights, Log Analytics, workbook, alerts, structured JSON logs, `traceparent`, correlation IDs                                  |
 | Analytics             | Repo-owned GA4/GTM manifests, runtime tag loader, data layer page-view events, consent defaults, Measurement Protocol guidance               |
 | CI/CD                 | GitHub Actions CI/CD, environment wrappers, teardown workflows, project-prefixed release/deploy artifacts                                    |

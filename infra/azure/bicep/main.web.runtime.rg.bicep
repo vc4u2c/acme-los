@@ -48,6 +48,12 @@ param analyticsConsentDefaultAdStorage string = 'denied'
 param analyticsConsentDefaultAdUserData string = 'denied'
 param analyticsConsentDefaultAdPersonalization string = 'denied'
 param ga4MeasurementProtocolSecretName string = 'sec-acme-los-ga4-measurement-secret'
+param smsMfaEnabled bool = false
+param communicationServicesEndpoint string = ''
+param smsSenderPhoneNumber string = ''
+param oktaTelephonyHookAuthorizationSecretName string = 'sec-acme-los-okta-telephony-hook-authorization'
+@secure()
+param oktaTelephonyHookAuthorizationSecretValue string = ''
 param containerRegistryLoginServer string
 param containerImage string
 param bffContainerImage string = ''
@@ -135,6 +141,14 @@ resource bffTrustedProxySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = 
   }
 }
 
+resource oktaTelephonyHookAuthorizationSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (smsMfaEnabled) {
+  parent: keyVaultResource
+  name: oktaTelephonyHookAuthorizationSecretName
+  properties: {
+    value: oktaTelephonyHookAuthorizationSecretValue
+  }
+}
+
 module tags './modules/foundation/tags.bicep' = {
   name: 'runtime-tags-${environmentName}'
   params: {
@@ -185,6 +199,14 @@ module containerApp './modules/web/container-app.bicep' = {
     analyticsConsentDefaultAdUserData: analyticsConsentDefaultAdUserData
     analyticsConsentDefaultAdPersonalization: analyticsConsentDefaultAdPersonalization
     ga4MeasurementProtocolSecretName: ga4MeasurementProtocolSecretName
+    smsMfaEnabled: smsMfaEnabled
+    communicationServicesEndpoint: communicationServicesEndpoint
+    smsSenderPhoneNumber: smsSenderPhoneNumber
+    oktaTelephonyHookAuthorizationSecretName: oktaTelephonyHookAuthorizationSecretName
+    oktaTelephonyHookAuthorizationSecretKeyVaultUrl: smsMfaEnabled
+      ? '${keyVaultUri}secrets/${oktaTelephonyHookAuthorizationSecretName}'
+      : ''
+    azureManagedIdentityClientId: userAssignedIdentityClientId
     stateStoreMode: stateStoreMode
     redisKeyPrefix: redisKeyPrefix
     redisHostName: redisHostName
@@ -211,6 +233,7 @@ module containerApp './modules/web/container-app.bicep' = {
   dependsOn: [
     sessionSecret
     bffTrustedProxySecret
+    oktaTelephonyHookAuthorizationSecret
   ]
 }
 

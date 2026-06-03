@@ -51,10 +51,14 @@ public sealed class CustomerProfileHandler
     new("", "", "", "", "", "", "");
 
   private readonly ICustomerProfileStore _store;
+  private readonly ILogger<CustomerProfileHandler> _logger;
 
-  public CustomerProfileHandler(ICustomerProfileStore store)
+  public CustomerProfileHandler(
+    ICustomerProfileStore store,
+    ILogger<CustomerProfileHandler> logger)
   {
     _store = store;
+    _logger = logger;
   }
 
   public async Task<GetCustomerProfileResponse> Handle(
@@ -62,12 +66,33 @@ public sealed class CustomerProfileHandler
     CancellationToken cancellationToken)
   {
     var storedProfile = await _store.ReadAsync(query.UserId, cancellationToken);
-    var email = !string.IsNullOrWhiteSpace(storedProfile?.Email)
-      ? storedProfile.Email
-      : query.UserEmail ?? string.Empty;
+    var authenticatedEmail = query.UserEmail?.Trim() ?? string.Empty;
+    var storedEmail = storedProfile?.Email?.Trim() ?? string.Empty;
+    var email = !string.IsNullOrWhiteSpace(authenticatedEmail)
+      ? authenticatedEmail
+      : storedEmail;
     var profile = storedProfile is null
       ? EmptyProfile with { Email = email }
       : storedProfile with { Email = email };
+    var synchronizedFromOkta =
+      !string.IsNullOrWhiteSpace(authenticatedEmail)
+      && !string.Equals(
+        storedEmail,
+        authenticatedEmail,
+        StringComparison.OrdinalIgnoreCase);
+
+    if (storedProfile is not null && synchronizedFromOkta)
+    {
+      await _store.WriteAsync(query.UserId, profile, cancellationToken);
+
+      if (!string.IsNullOrWhiteSpace(storedEmail))
+      {
+        _logger.LogInformation(
+          "Synchronized customer profile email from the authenticated Okta session. Event={Event} UserId={UserId}",
+          "customer.profile.email_changed",
+          query.UserId);
+      }
+    }
 
     return new GetCustomerProfileResponse(profile);
   }
@@ -78,9 +103,9 @@ public sealed class CustomerProfileHandler
   {
     var profile = command.Profile with
     {
-      Email = !string.IsNullOrWhiteSpace(command.Profile.Email)
-        ? command.Profile.Email
-        : command.UserEmail ?? string.Empty,
+      Email = !string.IsNullOrWhiteSpace(command.UserEmail)
+        ? command.UserEmail
+        : command.Profile.Email,
     };
 
     await _store.WriteAsync(command.UserId, profile, cancellationToken);

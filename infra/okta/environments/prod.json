@@ -5,10 +5,20 @@
     "webClientId": "replace-with-prod-web-client-id",
     "mobileClientId": "replace-with-prod-mobile-client-id",
     "fundingStepUpAcrValues": "urn:okta:loa:2fa:any",
+    "telephony": {
+      "enabled": false,
+      "hookPath": "/api/hooks/okta/telephony"
+    },
+    "userPrune": {
+      "enabled": false,
+      "action": "deactivate",
+      "keepLogins": []
+    },
     "hostedExperience": {
       "rememberUser": true,
       "keepMeSignedIn": true,
       "registrationRequiresEmailVerification": true,
+      "registrationRequiresSecurityQuestion": true,
       "registrationRequiresPhoneVerification": false,
       "adaptiveMfaOnSignIn": true,
       "fundingRouteStepUp": true,

@@ -42,6 +42,10 @@
         "minReplicas": 2,
         "maxReplicas": 2
       },
+      "smsMfa": {
+        "enabled": false,
+        "senderPhoneNumber": "+18772244103"
+      },
       "bffRuntime": {
         "serviceAuth": {
           "mode": "entra"
