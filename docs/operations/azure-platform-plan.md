@@ -98,7 +98,8 @@ Current confirmed state from the local CLI setup:
   - main CI completion deploys `dev`
   - reusable wrappers exist for `qa`, `stg`, and `prod`
   - chained promotion beyond `dev` is still pending
-- GitHub CLI is authenticated
+- GitHub CLI authentication is operator-local; reauthenticate before running
+  `gh`-based release, PR, or workflow commands from a workstation
 - GitHub deployment environments already exist:
   - `dev`
   - `qa`

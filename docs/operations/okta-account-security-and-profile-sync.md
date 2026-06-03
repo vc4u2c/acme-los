@@ -65,6 +65,69 @@ verified phone number:
 Until one is enabled, ACME can show and save an application servicing phone
 number, but it must not claim that value is the verified Okta SMS factor.
 
+No inbound Okta Event Hook is currently enabled for email, phone, password, or
+security-question changes. The implemented email sync happens after a fresh ACME
+session; passwords, OTPs, and security-question material never sync.
+
+## Application Customer ID Write-Back
+
+The application flow has a source-supported, opt-in sample bridge for proving
+Okta profile claim round trips before the real customer system exists.
+
+When the user saves the `personal-info` step and the current Okta session does
+not already include `customerId`, the Next facade validates the browser session
+and forwards trusted identity to the internal BFF. The BFF can then:
+
+1. validate CSRF and the trusted Next-to-BFF boundary
+2. obtain an Okta Management API access token with an OAuth service app using
+   private-key JWT client authentication
+3. read the current Okta user profile through the Okta Users API
+4. preserve an existing `profile.customerId` if Okta already has one
+5. otherwise write a deterministic demo value shaped like
+   `sample-customer-<hash>` to `profile.customerId`
+   through the Okta Users API partial-update operation
+6. save the application-step summary with that effective customer id
+
+The browser never receives Okta management credentials. The public Next ACA does
+not receive Okta management credentials either; the private key is exposed only
+to the internal BFF ACA as a Key Vault secret reference while sample mode is
+enabled.
+
+Before enabling this path, create an Okta API Service app, register a signing
+key, and grant the app the `okta.users.manage` scope for the org authorization
+server.
+
+This path is disabled by default. To enable it for `dev`, set:
+
+```json
+"oktaCustomerIdWriteback": {
+  "mode": "sample",
+  "clientId": "<okta service app client id>",
+  "privateKeyId": "<okta service app signing key id>",
+  "scopes": "okta.users.manage"
+}
+```
+
+in `infra/azure/config/platform.json`, then deploy with the private key in the
+shell:
+
+```powershell
+$env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM = @"
+-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----
+"@
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev
+```
+
+The deploy stores the private key in Key Vault as
+`sec-acme-los-okta-management-private-key` and injects it into the BFF ACA as
+`ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` only while
+`oktaCustomerIdWriteback.mode` is `sample`. Keep this sample bridge out of
+higher environments until the real customer-id issuer is finalized; the final
+production security shape remains BFF-owned OAuth with the least Okta
+management scope required for the specific profile attribute.
+
 ## Manual Okta Admin Checks
 
 After running `npm run okta:bootstrap -- <env>`, confirm in Okta Admin Console:
@@ -81,6 +144,8 @@ After running `npm run okta:bootstrap -- <env>`, confirm in Okta Admin Console:
 8. Confirm phone/SMS changes require security question plus email.
 9. Confirm password and security-question changes do not send secret material to
    ACME systems.
+10. Confirm `customerId` remains an app-owned custom profile attribute and is
+    not editable by end users.
 
 ## User Prune Allowlist
 
@@ -153,3 +218,6 @@ metadata without collecting secrets or OTPs in the app.
 - [Authenticators Administration API](https://developer.okta.com/docs/reference/api/authenticators-admin/)
 - [Okta My Settings](https://help.okta.com/eu/en-us/content/topics/end-user/end-user-settings-v2.htm)
 - [Okta Event Hooks](https://developer.okta.com/docs/concepts/event-hooks/)
+- [OAuth for Okta service apps](https://developer.okta.com/docs/guides/implement-oauth-for-okta-serviceapp/main/)
+- [OAuth scopes for Okta Management APIs](https://developer.okta.com/docs/guides/implement-oauth-for-okta/main/)
+- [Okta Users API](https://developer.okta.com/docs/api/openapi/okta-management/management/tag/User/)

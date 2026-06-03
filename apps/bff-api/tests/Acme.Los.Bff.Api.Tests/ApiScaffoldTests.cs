@@ -6,12 +6,15 @@ using System.Text.Json;
 using Acme.Los.Bff.Api.Contracts;
 using Acme.Los.Bff.Api.Common;
 using Acme.Los.Bff.Api.Infrastructure.Auth;
+using Acme.Los.Bff.Api.Infrastructure.Okta;
 using Acme.Los.Bff.Api.Infrastructure.State;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Acme.Los.Bff.Api.Tests;
 
@@ -869,6 +872,51 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public async Task PutBffApplicationStep_WithOktaIdentityAndNoCustomerId_UsesBffWritebackCustomerId()
+  {
+    var writebackService = new CapturingCustomerIdWritebackService(
+      "sample-customer-123456789abc");
+    using var factory = _factory.WithWebHostBuilder(builder =>
+      builder.ConfigureServices(services =>
+      {
+        services.RemoveAll<IOktaCustomerIdWritebackService>();
+        services.AddSingleton<IOktaCustomerIdWritebackService>(writebackService);
+      }));
+    using var client = factory.CreateClient();
+    var csrfToken =
+      await client.GetFromJsonAsync<IssueCsrfTokenResponse>("/bff/security/csrf");
+    using var request = new HttpRequestMessage(
+      HttpMethod.Put,
+      "/bff/application/steps/personal-info");
+
+    request.Headers.Add("x-csrf-token", csrfToken!.CsrfToken);
+    request.Headers.Add("x-acme-auth-provider", "okta");
+    request.Headers.Add("x-acme-authenticated-user-id", "application-user-004");
+    request.Content = JsonContent.Create(
+      new SaveApplicationStepRequest(
+        new Dictionary<string, JsonElement>
+        {
+          ["firstName"] = JsonSerializer.SerializeToElement("Ada"),
+        }));
+
+    using var response = await client.SendAsync(request);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var payload =
+      await response.Content.ReadFromJsonAsync<SaveApplicationStepResponse>();
+
+    Assert.NotNull(payload);
+    Assert.Equal(
+      "sample-customer-123456789abc",
+      payload!.StepState.Summary.CustomerId);
+    Assert.Equal("okta", writebackService.Provider);
+    Assert.Equal("application-user-004", writebackService.UserId);
+    Assert.Null(writebackService.CurrentCustomerId);
+    Assert.Equal("personal-info", writebackService.Step);
+  }
+
+  [Fact]
   public async Task PostBffApplicationSubmit_WithTrustedIdentityAndCsrf_SubmitsAndClearsState()
   {
     using var client = _factory.CreateClient();
@@ -1126,6 +1174,147 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public void OktaCustomerIdWritebackOptions_WhenEnabled_RequiresManageScope()
+  {
+    var exception = Assert.Throws<InvalidOperationException>(() =>
+      OktaCustomerIdWritebackOptions.FromConfiguration(
+        new ConfigurationBuilder()
+          .AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+              ["ACME_OKTA_CUSTOMER_ID_WRITEBACK_MODE"] = "sample",
+              ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+              ["ACME_OKTA_MANAGEMENT_CLIENT_ID"] = "service-client-id",
+              ["ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM"] = CreatePrivateKeyPem(),
+              ["ACME_OKTA_MANAGEMENT_SCOPES"] = "okta.users.read",
+            })
+          .Build()));
+
+    Assert.Contains("okta.users.manage", exception.Message);
+  }
+
+  [Fact]
+  public async Task OktaManagementTokenClient_RequestsScopedServiceTokenWithPrivateKeyJwt()
+  {
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.OK)
+      {
+        Content = JsonContent.Create(new
+        {
+          access_token = "management-access-token",
+          token_type = "Bearer",
+          expires_in = 3600,
+        }),
+      });
+    using var httpClient = new HttpClient(handler);
+    var options = new OktaCustomerIdWritebackOptions(
+      OktaCustomerIdWritebackMode.Sample,
+      "https://dev-123456.okta.com/oauth2/default",
+      "service-client-id",
+      CreatePrivateKeyPem(),
+      "key-1",
+      ["okta.users.manage"]);
+    var tokenClient = new OktaManagementTokenClient(
+      new StaticHttpClientFactory(httpClient),
+      options);
+
+    var accessToken = await tokenClient.GetAccessTokenAsync(CancellationToken.None);
+
+    Assert.Equal("management-access-token", accessToken);
+    var request = Assert.Single(handler.Requests);
+    Assert.Equal(HttpMethod.Post, request.Method);
+    Assert.Equal("/oauth2/v1/token", request.RequestUri?.AbsolutePath);
+    var body = await request.Content!.ReadAsStringAsync();
+    var form = QueryHelpers.ParseQuery(body);
+
+    Assert.Equal("client_credentials", form["grant_type"].ToString());
+    Assert.Equal("okta.users.manage", form["scope"].ToString());
+    Assert.Equal(
+      "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
+      form["client_assertion_type"].ToString());
+    Assert.False(string.IsNullOrWhiteSpace(form["client_assertion"].ToString()));
+  }
+
+  [Fact]
+  public async Task OktaCustomerIdWritebackService_PreservesExistingOktaCustomerId()
+  {
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.OK)
+      {
+        Content = JsonContent.Create(new
+        {
+          profile = new
+          {
+            customerId = "customer-existing-okta",
+          },
+        }),
+      });
+    using var httpClient = new HttpClient(handler);
+    var service = CreateOktaCustomerIdWritebackService(httpClient);
+
+    var result = await service.EnsureCustomerIdAsync(
+      "okta",
+      "00u-application-user-001",
+      currentCustomerId: null,
+      "personal-info",
+      CancellationToken.None);
+
+    Assert.False(result.Written);
+    Assert.Equal("customer-existing-okta", result.CustomerId);
+    var request = Assert.Single(handler.Requests);
+    Assert.Equal(HttpMethod.Get, request.Method);
+    Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
+    Assert.Equal("management-access-token", request.Headers.Authorization?.Parameter);
+  }
+
+  [Fact]
+  public async Task OktaCustomerIdWritebackService_WritesSampleCustomerIdWithBearerToken()
+  {
+    using var handler = new CapturingHttpMessageHandler(
+      request => request.Method == HttpMethod.Get
+        ? new HttpResponseMessage(HttpStatusCode.OK)
+        {
+          Content = JsonContent.Create(new
+          {
+            profile = new { },
+          }),
+        }
+        : new HttpResponseMessage(HttpStatusCode.OK)
+        {
+          Content = JsonContent.Create(new
+          {
+            profile = new { },
+          }),
+        });
+    using var httpClient = new HttpClient(handler);
+    var service = CreateOktaCustomerIdWritebackService(httpClient);
+    var expectedCustomerId =
+      OktaCustomerIdWritebackService.BuildSampleCustomerId(
+        "00u-application-user-001");
+
+    var result = await service.EnsureCustomerIdAsync(
+      "okta",
+      "00u-application-user-001",
+      currentCustomerId: null,
+      "personal-info",
+      CancellationToken.None);
+
+    Assert.True(result.Written);
+    Assert.Equal(expectedCustomerId, result.CustomerId);
+    Assert.Equal(2, handler.Requests.Count);
+    Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+    Assert.Equal(HttpMethod.Post, handler.Requests[1].Method);
+    Assert.Equal("Bearer", handler.Requests[1].Headers.Authorization?.Scheme);
+
+    var body = await handler.Requests[1].Content!.ReadAsStringAsync();
+    using var json = JsonDocument.Parse(body);
+
+    Assert.Equal(
+      expectedCustomerId,
+      json.RootElement.GetProperty("profile").GetProperty("customerId").GetString());
+  }
+
+  [Fact]
   public void OktaIssuerPolicy_AcceptsKnownOktaIssuerBehindCustomDomain()
   {
     Assert.True(OktaIssuerPolicy.IsAllowedIssuer(
@@ -1194,6 +1383,29 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Contains(firstKeys, key => key.KeyId == "key-1");
     Assert.Contains(refreshedKeys, key => key.KeyId == "key-2");
     Assert.Equal(2, handler.RequestCount);
+  }
+
+  private static string CreatePrivateKeyPem()
+  {
+    using var rsa = RSA.Create(2048);
+
+    return PemEncoding.WriteString("PRIVATE KEY", rsa.ExportPkcs8PrivateKey());
+  }
+
+  private static OktaCustomerIdWritebackService CreateOktaCustomerIdWritebackService(
+    HttpClient httpClient)
+  {
+    return new OktaCustomerIdWritebackService(
+      new StaticHttpClientFactory(httpClient),
+      NullLogger<OktaCustomerIdWritebackService>.Instance,
+      new StaticOktaManagementTokenClient("management-access-token"),
+      new OktaCustomerIdWritebackOptions(
+        OktaCustomerIdWritebackMode.Sample,
+        "https://dev-123456.okta.com/oauth2/default",
+        "service-client-id",
+        CreatePrivateKeyPem(),
+        "key-1",
+        ["okta.users.manage"]));
   }
 
   private static string CreateSignedSessionCookie(string sessionId)
@@ -1291,6 +1503,107 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     public HttpClient CreateClient(string name)
     {
       return _httpClient;
+    }
+  }
+
+  private sealed class StaticOktaManagementTokenClient
+    : IOktaManagementTokenClient
+  {
+    private readonly string _accessToken;
+
+    internal StaticOktaManagementTokenClient(string accessToken)
+    {
+      _accessToken = accessToken;
+    }
+
+    public Task<string> GetAccessTokenAsync(CancellationToken cancellationToken)
+    {
+      return Task.FromResult(_accessToken);
+    }
+  }
+
+  private sealed class CapturingCustomerIdWritebackService
+    : IOktaCustomerIdWritebackService
+  {
+    private readonly string _customerId;
+
+    internal CapturingCustomerIdWritebackService(string customerId)
+    {
+      _customerId = customerId;
+    }
+
+    internal string? Provider { get; private set; }
+    internal string? UserId { get; private set; }
+    internal string? CurrentCustomerId { get; private set; }
+    internal string? Step { get; private set; }
+
+    public Task<OktaCustomerIdWritebackResult> EnsureCustomerIdAsync(
+      string? provider,
+      string userId,
+      string? currentCustomerId,
+      string step,
+      CancellationToken cancellationToken)
+    {
+      Provider = provider;
+      UserId = userId;
+      CurrentCustomerId = currentCustomerId;
+      Step = step;
+
+      return Task.FromResult(
+        new OktaCustomerIdWritebackResult(
+          _customerId,
+          Written: true,
+          Source: "test",
+          SkippedReason: null));
+    }
+  }
+
+  private sealed class CapturingHttpMessageHandler : HttpMessageHandler
+  {
+    private readonly Func<HttpRequestMessage, HttpResponseMessage> _responseFactory;
+
+    internal CapturingHttpMessageHandler(
+      Func<HttpRequestMessage, HttpResponseMessage> responseFactory)
+    {
+      _responseFactory = responseFactory;
+    }
+
+    internal List<HttpRequestMessage> Requests { get; } = [];
+
+    protected override async Task<HttpResponseMessage> SendAsync(
+      HttpRequestMessage request,
+      CancellationToken cancellationToken)
+    {
+      var capturedRequest = await CloneRequestAsync(request, cancellationToken);
+
+      Requests.Add(capturedRequest);
+
+      return _responseFactory(capturedRequest);
+    }
+
+    private static async Task<HttpRequestMessage> CloneRequestAsync(
+      HttpRequestMessage request,
+      CancellationToken cancellationToken)
+    {
+      var clone = new HttpRequestMessage(request.Method, request.RequestUri);
+
+      foreach (var header in request.Headers)
+      {
+        clone.Headers.TryAddWithoutValidation(header.Key, header.Value);
+      }
+
+      if (request.Content is not null)
+      {
+        var content = await request.Content.ReadAsStringAsync(cancellationToken);
+        clone.Content = new StringContent(content, Encoding.UTF8);
+
+        foreach (var header in request.Content.Headers)
+        {
+          clone.Content.Headers.TryAddWithoutValidation(header.Key, header.Value);
+        }
+      }
+
+      return clone;
     }
   }
 

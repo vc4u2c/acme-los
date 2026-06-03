@@ -310,6 +310,23 @@ US/Canada toll-free verification is still an Azure portal application. Follow
 [Okta SMS MFA with Azure Communication Services](../../docs/operations/okta-sms-mfa-with-acs.md)
 for the staged activation sequence and the current `dev` sender number.
 
+## Okta Customer ID Sample Write-Back
+
+The internal BFF runtime supports an opt-in sample `customerId` write-back for
+the application `personal-info` step. It is disabled in `dev` by default through
+`oktaCustomerIdWriteback.mode = disabled`.
+
+To prove the Okta claim round trip with the production security shape, create an
+Okta API Service app, grant it `okta.users.manage`, set
+`oktaCustomerIdWriteback.mode` to `sample`, and provide the service-app
+`clientId`, optional `privateKeyId`, and `scopes` in
+`infra/azure/config/platform.json`. Set
+`ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` in the deploy shell and redeploy the web
+environment. The deployment stores the private key in Key Vault as
+`sec-acme-los-okta-management-private-key` and injects it into the internal BFF
+ACA only while sample mode is enabled. The BFF reads Okta first and will not
+overwrite an existing `profile.customerId`.
+
 If the runtime image changes and you want to force a new image build instead of
 reusing an existing tag, pass `-ImageTag` explicitly:
 

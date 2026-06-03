@@ -17,6 +17,18 @@ param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
 param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
 @allowed([
+  ''
+  'disabled'
+  'sample'
+])
+param oktaCustomerIdWritebackMode string = ''
+param oktaManagementClientId string = ''
+param oktaManagementPrivateKeySecretName string = 'sec-acme-los-okta-management-private-key'
+@secure()
+param oktaManagementPrivateKeySecretKeyVaultUrl string = ''
+param oktaManagementPrivateKeyId string = ''
+param oktaManagementScopes string = 'okta.users.manage'
+@allowed([
   'file'
   'redis'
 ])
@@ -104,6 +116,31 @@ var serviceAuthEnvironmentVariables = toLower(serviceAuthMode) == 'entra'
       {
         name: 'ACME_BFF_SERVICE_AUTH_ALLOWED_OBJECT_IDS'
         value: serviceAuthAllowedObjectIds
+      }
+    ]
+  : []
+var oktaCustomerIdWritebackEnabled = toLower(oktaCustomerIdWritebackMode) == 'sample'
+var oktaCustomerIdWritebackEnvironmentVariables = oktaCustomerIdWritebackEnabled
+  ? [
+      {
+        name: 'ACME_OKTA_CUSTOMER_ID_WRITEBACK_MODE'
+        value: 'sample'
+      }
+      {
+        name: 'ACME_OKTA_MANAGEMENT_CLIENT_ID'
+        value: oktaManagementClientId
+      }
+      {
+        name: 'ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM'
+        secretRef: oktaManagementPrivateKeySecretName
+      }
+      {
+        name: 'ACME_OKTA_MANAGEMENT_PRIVATE_KEY_ID'
+        value: oktaManagementPrivateKeyId
+      }
+      {
+        name: 'ACME_OKTA_MANAGEMENT_SCOPES'
+        value: oktaManagementScopes
       }
     ]
   : []
@@ -196,7 +233,33 @@ var environmentVariables = concat(
   ],
   redisBaseEnvironmentVariables,
   redisEntraEnvironmentVariables,
-  serviceAuthEnvironmentVariables
+  serviceAuthEnvironmentVariables,
+  oktaCustomerIdWritebackEnvironmentVariables
+)
+
+var oktaCustomerIdWritebackSecrets = !empty(oktaManagementPrivateKeySecretKeyVaultUrl)
+  ? [
+      {
+        name: oktaManagementPrivateKeySecretName
+        keyVaultUrl: oktaManagementPrivateKeySecretKeyVaultUrl
+        identity: userAssignedIdentityResourceId
+      }
+    ]
+  : []
+var secrets = concat(
+  [
+    {
+      name: sessionSecretName
+      keyVaultUrl: sessionSecretKeyVaultUrl
+      identity: userAssignedIdentityResourceId
+    }
+    {
+      name: trustedProxySecretName
+      keyVaultUrl: trustedProxySecretKeyVaultUrl
+      identity: userAssignedIdentityResourceId
+    }
+  ],
+  oktaCustomerIdWritebackSecrets
 )
 
 resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
@@ -226,18 +289,7 @@ resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
           identity: userAssignedIdentityResourceId
         }
       ]
-      secrets: [
-        {
-          name: sessionSecretName
-          keyVaultUrl: sessionSecretKeyVaultUrl
-          identity: userAssignedIdentityResourceId
-        }
-        {
-          name: trustedProxySecretName
-          keyVaultUrl: trustedProxySecretKeyVaultUrl
-          identity: userAssignedIdentityResourceId
-        }
-      ]
+      secrets: secrets
     }
     template: {
       containers: [

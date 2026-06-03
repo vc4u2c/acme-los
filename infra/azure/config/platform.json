@@ -46,6 +46,9 @@
         "enabled": false,
         "senderPhoneNumber": "+18772244103"
       },
+      "oktaCustomerIdWriteback": {
+        "mode": "disabled"
+      },
       "bffRuntime": {
         "serviceAuth": {
           "mode": "entra"
