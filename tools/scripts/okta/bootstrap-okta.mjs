@@ -709,6 +709,39 @@ async function assignGroupToApplication(appId, groupId) {
   return oktaRequest('PUT', `/api/v1/apps/${appId}/groups/${groupId}`, {});
 }
 
+async function unassignGroupFromApplication(appId, groupId) {
+  const url = new URL(
+    `/api/v1/apps/${appId}/groups/${groupId}`,
+    oktaApiBaseUrl,
+  );
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Accept: 'application/json',
+      Authorization: `SSWS ${token}`,
+    },
+  });
+
+  if (response.status === 404) {
+    return { mode: 'not-assigned', groupId };
+  }
+
+  if (!response.ok) {
+    let details = '';
+    try {
+      details = JSON.stringify(await response.json());
+    } catch {
+      details = await response.text();
+    }
+
+    throw new Error(
+      `Okta DELETE ${url.pathname} failed with ${response.status}: ${details}`,
+    );
+  }
+
+  return { mode: 'removed', groupId };
+}
+
 async function getDefaultUserSchema() {
   return oktaRequest('GET', '/api/v1/meta/schemas/user/default');
 }
@@ -807,6 +840,368 @@ function getCatchAllRule(rules) {
     rules[0] ??
     null
   );
+}
+
+// Keep Okta policy payloads named by intent so bootstrap output and code review
+// make the admin-plane scope obvious.
+function buildOktaPolicyPlan({
+  authorizationServerPolicyName,
+  authorizationServerRuleName,
+  profileEnrollmentPolicyName,
+  mfaEnrollmentPolicyName,
+  sessionPolicyName,
+  accessPolicyName,
+  customerGroupName,
+  webAppLabel,
+  mobileAppLabel,
+}) {
+  return [
+    {
+      type: 'OAUTH_AUTHORIZATION_POLICY',
+      name: authorizationServerPolicyName,
+      scope: `${webAppLabel}, ${mobileAppLabel}`,
+      configures: [
+        'custom authorization server access for ACME apps',
+        `token rule '${authorizationServerRuleName}' scoped to ${customerGroupName}`,
+      ],
+    },
+    {
+      type: 'PROFILE_ENROLLMENT',
+      name: profileEnrollmentPolicyName,
+      scope: customerGroupName,
+      configures: [
+        'self-service registration',
+        `new registrations target ${customerGroupName}`,
+      ],
+    },
+    {
+      type: 'MFA_ENROLL',
+      name: mfaEnrollmentPolicyName,
+      scope: customerGroupName,
+      configures: [
+        'password, email, security-question enrollment',
+        telephonyEnabled
+          ? 'phone enrollment follows the telephony manifest'
+          : 'phone enrollment is disabled until ACS SMS is enabled',
+      ],
+    },
+    {
+      type: 'OKTA_SIGN_ON',
+      name: sessionPolicyName,
+      scope: customerGroupName,
+      configures: [
+        'customer global session lifetime',
+        'remember-device and persistent-cookie behavior',
+      ],
+    },
+    {
+      type: 'ACCESS_POLICY',
+      name: accessPolicyName,
+      scope: `${webAppLabel}, ${mobileAppLabel}`,
+      configures: [
+        'password-first app sign-in',
+        hostedExperience.adaptiveMfaOnSignIn
+          ? 'high-risk adaptive 2FA rule plus standard access rule'
+          : 'standard access rule',
+      ],
+    },
+  ];
+}
+
+function printOktaPolicyPlan(policyPlan) {
+  console.log('- Okta policies configured:');
+  for (const policy of policyPlan) {
+    console.log(`  - ${policy.type}: ${policy.name}`);
+    console.log(`    Scope: ${policy.scope}`);
+    console.log(`    Configures: ${policy.configures.join('; ')}`);
+  }
+}
+
+function buildAuthorizationServerPolicyPayload({
+  policyName,
+  clientIds,
+  environmentName,
+}) {
+  return {
+    type: 'OAUTH_AUTHORIZATION_POLICY',
+    status: 'ACTIVE',
+    name: policyName,
+    description: `Authorization server policy for ACME LOS web and mobile apps (${environmentName}).`,
+    priority: 1,
+    conditions: {
+      clients: {
+        include: clientIds,
+      },
+    },
+  };
+}
+
+function buildAuthorizationServerRulePayload({
+  existingRule,
+  ruleName,
+  groupId,
+}) {
+  return {
+    type: 'RESOURCE_ACCESS',
+    status: 'ACTIVE',
+    name: existingRule?.name ?? ruleName,
+    priority: 1,
+    conditions: {
+      people: {
+        groups: {
+          include: [groupId],
+        },
+      },
+      grantTypes: {
+        include: ['authorization_code'],
+      },
+      scopes: {
+        include: ['openid', 'profile', 'email', 'offline_access'],
+      },
+    },
+    actions: {
+      token: {
+        accessTokenLifetimeMinutes: 60,
+        refreshTokenLifetimeMinutes: 10080,
+        refreshTokenWindowMinutes: 10080,
+      },
+    },
+  };
+}
+
+function buildProfileEnrollmentPolicyPayload({
+  existingPolicy,
+  policyName,
+  environmentName,
+}) {
+  return {
+    type: 'PROFILE_ENROLLMENT',
+    status: 'ACTIVE',
+    name: policyName,
+    description: `Hosted registration policy for ACME LOS (${environmentName}).`,
+    conditions: existingPolicy?.conditions ?? null,
+  };
+}
+
+function buildProfileEnrollmentRulePayload(existingRule, customerGroupId) {
+  const profileEnrollment = existingRule?.actions?.profileEnrollment ?? {};
+
+  return {
+    type: 'PROFILE_ENROLLMENT',
+    name: existingRule?.name ?? 'Catch-all Rule',
+    status: 'ACTIVE',
+    ...(typeof existingRule?.priority === 'number'
+      ? { priority: existingRule.priority }
+      : {}),
+    conditions: existingRule?.conditions ?? null,
+    actions: {
+      ...(existingRule?.actions ?? {}),
+      profileEnrollment: {
+        ...profileEnrollment,
+        access: profileEnrollment.access ?? 'ALLOW',
+        activationRequirements: {
+          ...(profileEnrollment.activationRequirements ?? {}),
+          emailVerification: Boolean(
+            hostedExperience.registrationRequiresEmailVerification,
+          ),
+        },
+        targetGroupIds: [customerGroupId],
+        unknownUserAction: profileEnrollment.unknownUserAction ?? 'REGISTER',
+      },
+    },
+  };
+}
+
+function buildMfaEnrollmentPolicyPayload({
+  policyName,
+  environmentName,
+  customerGroupId,
+}) {
+  return {
+    type: 'MFA_ENROLL',
+    status: 'ACTIVE',
+    name: policyName,
+    description: `Authenticator enrollment policy for ACME LOS customers (${environmentName}).`,
+    conditions: {
+      people: {
+        groups: {
+          include: [customerGroupId],
+        },
+      },
+    },
+    settings: {
+      type: 'AUTHENTICATORS',
+      authenticators: [
+        buildAuthenticatorEnrollment({
+          key: 'okta_email',
+          required: requiresEmailAuthenticator,
+        }),
+        buildAuthenticatorEnrollment({
+          key: 'okta_password',
+          required: true,
+        }),
+        buildAuthenticatorEnrollment({
+          key: 'security_question',
+          required: requiresSecurityQuestionAuthenticator,
+        }),
+        ...(telephonyEnabled
+          ? [
+              buildAuthenticatorEnrollment({
+                key: 'phone_number',
+                required: requiresPhoneAuthenticator,
+              }),
+            ]
+          : []),
+      ],
+    },
+  };
+}
+
+function buildMfaEnrollmentRulePayload(existingRule) {
+  return {
+    type: 'MFA_ENROLL',
+    name: existingRule?.name ?? 'ACME LOS Enrollment',
+    status: 'ACTIVE',
+    ...(existingRule
+      ? {}
+      : {
+          conditions: {
+            people: {
+              users: {
+                exclude: [],
+              },
+            },
+            network: {
+              connection: 'ANYWHERE',
+            },
+          },
+        }),
+    actions: {
+      enroll: {
+        self: 'CHALLENGE',
+      },
+    },
+  };
+}
+
+function buildSessionPolicyPayload({
+  policyName,
+  environmentName,
+  customerGroupId,
+}) {
+  return {
+    type: 'OKTA_SIGN_ON',
+    status: 'ACTIVE',
+    name: policyName,
+    description: `Global session policy for ACME LOS customers (${environmentName}).`,
+    conditions: {
+      people: {
+        groups: {
+          include: [customerGroupId],
+        },
+      },
+    },
+  };
+}
+
+function buildSessionRulePayload(existingRule) {
+  return {
+    type: 'SIGN_ON',
+    name: existingRule?.name ?? 'ACME LOS Customer Session',
+    status: 'ACTIVE',
+    ...(existingRule
+      ? {}
+      : {
+          conditions: {
+            people: {
+              users: {
+                exclude: [],
+              },
+            },
+            network: {
+              connection: 'ANYWHERE',
+            },
+            authContext: {
+              authType: 'ANY',
+            },
+          },
+        }),
+    actions: {
+      signon: {
+        access: 'ALLOW',
+        requireFactor: false,
+        primaryFactor: 'PASSWORD_IDP_ANY_FACTOR',
+        rememberDeviceByDefault: Boolean(hostedExperience.rememberUser),
+        session: {
+          usePersistentCookie: Boolean(hostedExperience.keepMeSignedIn),
+          maxSessionIdleMinutes: 120,
+          maxSessionLifetimeMinutes: 10080,
+        },
+      },
+    },
+  };
+}
+
+function buildAccessPolicyPayload({ policyName, environmentName }) {
+  return {
+    type: 'ACCESS_POLICY',
+    status: 'ACTIVE',
+    name: policyName,
+    description: `App sign-in policy for ACME LOS web and mobile apps (${environmentName}).`,
+    conditions: null,
+  };
+}
+
+function buildHighRiskAccessRulePayload(existingRule) {
+  return {
+    ...(existingRule?.id ? { id: existingRule.id } : {}),
+    type: 'ACCESS_POLICY',
+    name: existingRule?.name ?? 'ACME LOS High-risk Access',
+    status: 'ACTIVE',
+    priority: 1,
+    conditions: {
+      riskScore: {
+        level: 'HIGH',
+      },
+    },
+    actions: {
+      appSignOn: {
+        access: 'ALLOW',
+        verificationMethod: buildPasswordFirstVerificationMethod('2FA', 'PT2H'),
+        keepMeSignedIn: {
+          postAuth: 'NOT_ALLOWED',
+        },
+      },
+    },
+  };
+}
+
+function buildStandardAccessRulePayload(existingRule) {
+  return {
+    ...(existingRule?.id ? { id: existingRule.id } : {}),
+    type: 'ACCESS_POLICY',
+    name: existingRule?.name ?? 'ACME LOS Standard Access',
+    status: 'ACTIVE',
+    priority: hostedExperience.adaptiveMfaOnSignIn ? 2 : 1,
+    conditions: null,
+    actions: {
+      appSignOn: {
+        access: 'ALLOW',
+        verificationMethod: buildPasswordFirstVerificationMethod(
+          '1FA',
+          'PT12H',
+        ),
+        keepMeSignedIn: hostedExperience.keepMeSignedIn
+          ? {
+              postAuth: 'ALLOWED',
+              postAuthPromptFrequency: 'PT168H',
+            }
+          : {
+              postAuth: 'NOT_ALLOWED',
+            },
+      },
+    },
+  };
 }
 
 async function ensurePolicy(type, name, payloadBuilder) {
@@ -1387,6 +1782,18 @@ const expectedTrustedOrigins = allowedWebBaseUrls.map((origin) => {
   };
 });
 
+const oktaPolicyPlan = buildOktaPolicyPlan({
+  authorizationServerPolicyName,
+  authorizationServerRuleName,
+  profileEnrollmentPolicyName,
+  mfaEnrollmentPolicyName,
+  sessionPolicyName,
+  accessPolicyName,
+  customerGroupName,
+  webAppLabel: expectedWebApp.label,
+  mobileAppLabel: expectedMobileApp.label,
+});
+
 if (dryRun) {
   writeJsonFile(bootstrapOutputsPath, {
     environment: environmentName,
@@ -1418,6 +1825,7 @@ if (dryRun) {
       sessionPolicyName,
       accessPolicyName,
     },
+    policyPlan: oktaPolicyPlan,
     accountSecurityPolicyIntent,
     telephony: {
       enabled: telephonyEnabled,
@@ -1459,6 +1867,7 @@ if (dryRun) {
   console.log(
     `- Preview file: ${path.relative(repoRoot, bootstrapOutputsPath)}`,
   );
+  printOktaPolicyPlan(oktaPolicyPlan);
   process.exit(0);
 }
 
@@ -1817,12 +2226,7 @@ if (telephonyEnabled) {
 }
 
 const everyoneGroup = await findGroupByName('Everyone');
-if (!everyoneGroup) {
-  throw new Error(
-    'Unable to resolve the Okta Everyone group for policy wiring.',
-  );
-}
-const everyoneGroupId = everyoneGroup.id;
+const everyoneGroupId = everyoneGroup?.id ?? null;
 
 let customerGroup = await findGroupByName(customerGroupName);
 if (!customerGroup) {
@@ -1834,25 +2238,20 @@ if (!customerGroup) {
 } else {
   results.customerGroup = { mode: 'existing', id: customerGroup.id };
 }
+const customerGroupId = customerGroup.id;
 
 const authorizationServerPolicyResult = await ensureAuthorizationServerPolicy(
   authorizationServerId,
   authorizationServerPolicyName,
-  () => ({
-    type: 'OAUTH_AUTHORIZATION_POLICY',
-    status: 'ACTIVE',
-    name: authorizationServerPolicyName,
-    description: `Authorization server policy for ACME LOS web and mobile apps (${environment.environment}).`,
-    priority: 1,
-    conditions: {
-      clients: {
-        include: [
-          results[expectedWebApp.label].clientId,
-          results[expectedMobileApp.label].clientId,
-        ],
-      },
-    },
-  }),
+  () =>
+    buildAuthorizationServerPolicyPayload({
+      policyName: authorizationServerPolicyName,
+      environmentName: environment.environment,
+      clientIds: [
+        results[expectedWebApp.label].clientId,
+        results[expectedMobileApp.label].clientId,
+      ],
+    }),
 );
 results.authorizationServerPolicy = {
   mode: authorizationServerPolicyResult.mode,
@@ -1863,32 +2262,12 @@ const authorizationServerRuleResult = await ensureAuthorizationServerRule(
   authorizationServerId,
   authorizationServerPolicyResult.policy.id,
   authorizationServerRuleName,
-  (existingRule) => ({
-    type: 'RESOURCE_ACCESS',
-    status: 'ACTIVE',
-    name: existingRule?.name ?? authorizationServerRuleName,
-    priority: 1,
-    conditions: {
-      people: {
-        groups: {
-          include: [everyoneGroupId],
-        },
-      },
-      grantTypes: {
-        include: ['authorization_code'],
-      },
-      scopes: {
-        include: ['openid', 'profile', 'email', 'offline_access'],
-      },
-    },
-    actions: {
-      token: {
-        accessTokenLifetimeMinutes: 60,
-        refreshTokenLifetimeMinutes: 10080,
-        refreshTokenWindowMinutes: 10080,
-      },
-    },
-  }),
+  (existingRule) =>
+    buildAuthorizationServerRulePayload({
+      existingRule,
+      ruleName: authorizationServerRuleName,
+      groupId: customerGroupId,
+    }),
 );
 results.authorizationServerRule = {
   mode: authorizationServerRuleResult.mode,
@@ -1998,13 +2377,12 @@ results.customerIdAccessClaim = {
 const profileEnrollmentPolicyResult = await ensurePolicy(
   'PROFILE_ENROLLMENT',
   profileEnrollmentPolicyName,
-  (existingPolicy) => ({
-    type: 'PROFILE_ENROLLMENT',
-    status: 'ACTIVE',
-    name: profileEnrollmentPolicyName,
-    description: `Hosted registration policy for ACME LOS (${environment.environment}).`,
-    conditions: existingPolicy?.conditions ?? null,
-  }),
+  (existingPolicy) =>
+    buildProfileEnrollmentPolicyPayload({
+      existingPolicy,
+      policyName: profileEnrollmentPolicyName,
+      environmentName: environment.environment,
+    }),
 );
 
 results.profileEnrollmentPolicy = {
@@ -2016,13 +2394,28 @@ const profileEnrollmentRules = await listPolicyRules(
   profileEnrollmentPolicyResult.policy.id,
 );
 const profileEnrollmentRule = getCatchAllRule(profileEnrollmentRules);
-results.profileEnrollmentRule = {
-  mode: profileEnrollmentRule ? 'existing' : 'unmanaged',
-  id: profileEnrollmentRule?.id ?? null,
-};
-warnings.push(
-  'Profile enrollment stays on the Okta-managed catch-all rule in this org because the rule API blocks automated replacement. Keep self-service registration enabled there, and use app assignment plus access policy wiring to let newly registered customers reach the app.',
-);
+if (!profileEnrollmentRule) {
+  throw new Error(
+    `Unable to find a profile enrollment rule for ${profileEnrollmentPolicyName}. Registration cannot be safely scoped to ${customerGroupName}.`,
+  );
+}
+
+try {
+  const updatedProfileEnrollmentRule = await updatePolicyRule(
+    profileEnrollmentPolicyResult.policy.id,
+    profileEnrollmentRule.id,
+    buildProfileEnrollmentRulePayload(profileEnrollmentRule, customerGroupId),
+  );
+  results.profileEnrollmentRule = {
+    mode: 'updated',
+    id: updatedProfileEnrollmentRule.id,
+    targetGroupIds: [customerGroupId],
+  };
+} catch (error) {
+  throw new Error(
+    `Unable to scope ${profileEnrollmentPolicyName} registration to ${customerGroupName}. Update the profile enrollment rule target group manually, then rerun bootstrap. ${error instanceof Error ? error.message : error}`,
+  );
+}
 warnings.push(
   'Account-management policy intent is source-controlled in the bootstrap output. Confirm in Okta Admin Console that email changes require security question plus SMS/phone, phone/SMS changes require security question plus email, and password/security-question changes never sync secret material to ACME.',
 );
@@ -2030,44 +2423,12 @@ warnings.push(
 const mfaPolicyResult = await ensurePolicy(
   'MFA_ENROLL',
   mfaEnrollmentPolicyName,
-  () => ({
-    type: 'MFA_ENROLL',
-    status: 'ACTIVE',
-    name: mfaEnrollmentPolicyName,
-    description: `Authenticator enrollment policy for ACME LOS customers (${environment.environment}).`,
-    conditions: {
-      people: {
-        groups: {
-          include: [everyoneGroupId],
-        },
-      },
-    },
-    settings: {
-      type: 'AUTHENTICATORS',
-      authenticators: [
-        buildAuthenticatorEnrollment({
-          key: 'okta_email',
-          required: requiresEmailAuthenticator,
-        }),
-        buildAuthenticatorEnrollment({
-          key: 'okta_password',
-          required: true,
-        }),
-        buildAuthenticatorEnrollment({
-          key: 'security_question',
-          required: requiresSecurityQuestionAuthenticator,
-        }),
-        ...(telephonyEnabled
-          ? [
-              buildAuthenticatorEnrollment({
-                key: 'phone_number',
-                required: requiresPhoneAuthenticator,
-              }),
-            ]
-          : []),
-      ],
-    },
-  }),
+  () =>
+    buildMfaEnrollmentPolicyPayload({
+      policyName: mfaEnrollmentPolicyName,
+      environmentName: environment.environment,
+      customerGroupId,
+    }),
 );
 results.mfaEnrollmentPolicy = {
   mode: mfaPolicyResult.mode,
@@ -2077,30 +2438,7 @@ results.mfaEnrollmentPolicy = {
 const mfaRuleResult = await ensureRule(
   mfaPolicyResult.policy.id,
   'ACME LOS Enrollment',
-  (existingRule) => ({
-    type: 'MFA_ENROLL',
-    name: existingRule?.name ?? 'ACME LOS Enrollment',
-    status: 'ACTIVE',
-    ...(existingRule
-      ? {}
-      : {
-          conditions: {
-            people: {
-              users: {
-                exclude: [],
-              },
-            },
-            network: {
-              connection: 'ANYWHERE',
-            },
-          },
-        }),
-    actions: {
-      enroll: {
-        self: 'CHALLENGE',
-      },
-    },
-  }),
+  buildMfaEnrollmentRulePayload,
 );
 results.mfaEnrollmentRule = {
   mode: mfaRuleResult.mode,
@@ -2110,19 +2448,12 @@ results.mfaEnrollmentRule = {
 const sessionPolicyResult = await ensurePolicy(
   'OKTA_SIGN_ON',
   sessionPolicyName,
-  () => ({
-    type: 'OKTA_SIGN_ON',
-    status: 'ACTIVE',
-    name: sessionPolicyName,
-    description: `Global session policy for ACME LOS customers (${environment.environment}).`,
-    conditions: {
-      people: {
-        groups: {
-          include: [everyoneGroupId],
-        },
-      },
-    },
-  }),
+  () =>
+    buildSessionPolicyPayload({
+      policyName: sessionPolicyName,
+      environmentName: environment.environment,
+      customerGroupId,
+    }),
 );
 results.sessionPolicy = {
   mode: sessionPolicyResult.mode,
@@ -2132,41 +2463,7 @@ results.sessionPolicy = {
 const sessionRuleResult = await ensureRule(
   sessionPolicyResult.policy.id,
   'ACME LOS Customer Session',
-  (existingRule) => ({
-    type: 'SIGN_ON',
-    name: existingRule?.name ?? 'ACME LOS Customer Session',
-    status: 'ACTIVE',
-    ...(existingRule
-      ? {}
-      : {
-          conditions: {
-            people: {
-              users: {
-                exclude: [],
-              },
-            },
-            network: {
-              connection: 'ANYWHERE',
-            },
-            authContext: {
-              authType: 'ANY',
-            },
-          },
-        }),
-    actions: {
-      signon: {
-        access: 'ALLOW',
-        requireFactor: false,
-        primaryFactor: 'PASSWORD_IDP_ANY_FACTOR',
-        rememberDeviceByDefault: Boolean(hostedExperience.rememberUser),
-        session: {
-          usePersistentCookie: Boolean(hostedExperience.keepMeSignedIn),
-          maxSessionIdleMinutes: 120,
-          maxSessionLifetimeMinutes: 10080,
-        },
-      },
-    },
-  }),
+  buildSessionRulePayload,
 );
 results.sessionRule = {
   mode: sessionRuleResult.mode,
@@ -2176,13 +2473,11 @@ results.sessionRule = {
 const accessPolicyResult = await ensurePolicy(
   'ACCESS_POLICY',
   accessPolicyName,
-  () => ({
-    type: 'ACCESS_POLICY',
-    status: 'ACTIVE',
-    name: accessPolicyName,
-    description: `App sign-in policy for ACME LOS web and mobile apps (${environment.environment}).`,
-    conditions: null,
-  }),
+  () =>
+    buildAccessPolicyPayload({
+      policyName: accessPolicyName,
+      environmentName: environment.environment,
+    }),
 );
 results.accessPolicy = {
   mode: accessPolicyResult.mode,
@@ -2198,30 +2493,7 @@ if (hostedExperience.adaptiveMfaOnSignIn) {
     const adaptiveRuleResult = await ensureRule(
       accessPolicyResult.policy.id,
       'ACME LOS High-risk Access',
-      (existingRule) => ({
-        ...(existingRule?.id ? { id: existingRule.id } : {}),
-        type: 'ACCESS_POLICY',
-        name: existingRule?.name ?? 'ACME LOS High-risk Access',
-        status: 'ACTIVE',
-        priority: 1,
-        conditions: {
-          riskScore: {
-            level: 'HIGH',
-          },
-        },
-        actions: {
-          appSignOn: {
-            access: 'ALLOW',
-            verificationMethod: buildPasswordFirstVerificationMethod(
-              '2FA',
-              'PT2H',
-            ),
-            keepMeSignedIn: {
-              postAuth: 'NOT_ALLOWED',
-            },
-          },
-        },
-      }),
+      buildHighRiskAccessRulePayload,
     );
     results.highRiskAccessRule = {
       mode: adaptiveRuleResult.mode,
@@ -2237,31 +2509,7 @@ if (hostedExperience.adaptiveMfaOnSignIn) {
 const standardAccessRuleResult = await ensureRule(
   accessPolicyResult.policy.id,
   'ACME LOS Standard Access',
-  (existingRule) => ({
-    ...(existingRule?.id ? { id: existingRule.id } : {}),
-    type: 'ACCESS_POLICY',
-    name: existingRule?.name ?? 'ACME LOS Standard Access',
-    status: 'ACTIVE',
-    priority: hostedExperience.adaptiveMfaOnSignIn ? 2 : 1,
-    conditions: null,
-    actions: {
-      appSignOn: {
-        access: 'ALLOW',
-        verificationMethod: buildPasswordFirstVerificationMethod(
-          '1FA',
-          'PT12H',
-        ),
-        keepMeSignedIn: hostedExperience.keepMeSignedIn
-          ? {
-              postAuth: 'ALLOWED',
-              postAuthPromptFrequency: 'PT168H',
-            }
-          : {
-              postAuth: 'NOT_ALLOWED',
-            },
-      },
-    },
-  }),
+  buildStandardAccessRulePayload,
 );
 results.standardAccessRule = {
   mode: standardAccessRuleResult.mode,
@@ -2277,9 +2525,12 @@ for (const appResult of [
     appResult.id,
     profileEnrollmentPolicyResult.policy.id,
   );
-  await assignGroupToApplication(appResult.id, everyoneGroupId);
+  await assignGroupToApplication(appResult.id, customerGroupId);
+  if (everyoneGroupId && everyoneGroupId !== customerGroupId) {
+    await unassignGroupFromApplication(appResult.id, everyoneGroupId);
+  }
 }
-results.applicationAssignmentGroupId = everyoneGroupId;
+results.applicationAssignmentGroupId = customerGroupId;
 
 if (hostedExperience.rememberUser) {
   warnings.push(
@@ -2327,6 +2578,7 @@ writeJsonFile(bootstrapOutputsPath, {
   mfaEnrollmentPolicyId: results.mfaEnrollmentPolicy.id,
   sessionPolicyId: results.sessionPolicy.id,
   accessPolicyId: results.accessPolicy.id,
+  policyPlan: oktaPolicyPlan,
   accountSecurityPolicyIntent,
   securityQuestionAuthenticator: results.securityQuestionAuthenticator,
   telephonyInlineHook: results.telephonyInlineHook,
@@ -2370,6 +2622,7 @@ console.log(
   `- Authorization server rule: ${results.authorizationServerRule.id}`,
 );
 console.log(`- Access policy: ${results.accessPolicy.id}`);
+printOktaPolicyPlan(oktaPolicyPlan);
 console.log(
   `- Security question authenticator: ${results.securityQuestionAuthenticator.enrollment}`,
 );

@@ -89,14 +89,18 @@ It currently handles:
   rollback
 - optional phone authenticator SMS activation with voice disabled
 - customer group
-- MFA enrollment policy
-- global session policy
+- profile-enrollment registration target group
+- customer-group-scoped MFA enrollment policy
+- customer-group-scoped global session policy
 - app access policy
 - password-first standard sign-in policy wiring
 - adaptive high-risk 2FA policy wiring when the org supports Okta risk-based conditions
-- policy assignment to the created apps
+- policy and customer-group assignment to the created apps
 
-It also writes resolved IDs and client IDs back into the local generated files, and it updates the environment manifest when app client IDs are created.
+It also prints and writes a `policyPlan` summary that names each Okta policy,
+its scope, and what it configures. Resolved IDs and client IDs are written back
+into the local generated files, and the environment manifest is updated when app
+client IDs are created.
 
 Live dev org state last verified from the Admin API:
 
@@ -112,6 +116,7 @@ Live dev org state last verified from the Admin API:
   - `customerId`
 - email, password, and Okta Verify authenticators are active
 - security-question enrollment is required by the ACME LOS authenticator policy
+  for the `acme-los-customers-dev` customer group
 - phone authenticator remains inactive until the purchased ACS sender number
   `+18772244103` is toll-free verified and enabled in the manifest
 - the repo-managed telephony inline hook is intentionally absent while
@@ -245,7 +250,10 @@ Current limitations:
 - the pre-auth "remember user" checkbox still needs one admin-console verification
 - route-specific funding step-up still belongs in application runtime logic
 - custom-domain linking is still a manual tenant step because DNS ownership and certificate validation happen outside the repo bootstrap
-- profile-enrollment stays on the Okta system default rule because the rule API rejected automated replacement for the default/catch-all rule
+- profile-enrollment uses the Okta-managed catch-all rule, but bootstrap now
+  updates that rule to target the ACME LOS customer group; if Okta rejects that
+  update, bootstrap fails closed instead of broadening customer enrollment to
+  admins through `Everyone`
 
 That means:
 
@@ -259,7 +267,9 @@ That means:
   the cookie is scoped to `avanai.net` so theme follows the redirect round trip
 - auth session, state, CSRF, and token cookies remain host-scoped and are never
   shared with the Okta hostname
-- registration is working against the system default profile-enrollment rule, not a fully custom rule
+- registration is working against the system default profile-enrollment rule,
+  with bootstrap-managed target-group assignment to
+  `acme-los-customers-<env>`
 - the current dev org already has the custom domain linked manually:
   - `auth.avanai.net`
 - the `dev` manifest prepares `https://apply-dev.avanai.net` as an allowed
@@ -269,8 +279,9 @@ That means:
 
 Current auth shape in this repo:
 
-- registration requires password, email, and security-question enrollment because
-  the MFA enrollment policy requires those authenticators
+- registration requires password, email, and security-question enrollment for
+  users in the ACME LOS customer group because the MFA enrollment policy
+  requires those authenticators for that group
 - Okta `sub` is the immutable ACME user key; email is mutable metadata synced to
   backend profile storage after a fresh Okta session
 - standard sign-in is password-first

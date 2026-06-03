@@ -3,6 +3,8 @@
 This runbook describes the customer account-security model for Okta-hosted
 email, phone, password, and security-question changes.
 
+Okta Integrator Admin org: <https://integrator-9373984.okta.com/>
+
 ## Security Model
 
 Okta is the source of truth for identity and authentication. ACME backend
@@ -140,6 +142,13 @@ management scope required for the specific profile attribute.
 
 ## Manual Okta Admin Checks
 
+The Okta bootstrap should keep ACME customer authentication policy scoped to the
+environment customer group (`acme-los-customers-<env>`), not to Okta `Everyone`.
+New self-service registrations should land in that customer group through the
+profile-enrollment rule; admin users should not be added to it.
+Run `npm run okta:bootstrap -- <env> --dry-run` first and review the emitted
+`policyPlan` before applying live tenant changes.
+
 After running `npm run okta:bootstrap -- <env>`, confirm in Okta Admin Console:
 
 1. Go to `Security` > `Authenticators` > `Setup`.
@@ -147,7 +156,7 @@ After running `npm run okta:bootstrap -- <env>`, confirm in Okta Admin Console:
    recovery if the environment requires both.
 3. Go to `Security` > `Authenticators` > `Enrollment`.
 4. Confirm the ACME LOS enrollment policy requires password, email, and security
-   question.
+   question only for the `acme-los-customers-<env>` customer group.
 5. Confirm phone/SMS enrollment matches the ACS rollout state.
 6. Go to the Okta account-management policy.
 7. Confirm email changes require security question plus phone/SMS.
@@ -156,6 +165,8 @@ After running `npm run okta:bootstrap -- <env>`, confirm in Okta Admin Console:
    ACME systems.
 10. Confirm `customerId` remains an app-owned custom profile attribute and is
     not editable by end users.
+11. Confirm admin users are not in the ACME LOS customer group unless they are
+    intentionally being used as customer test accounts.
 
 ## User Prune Allowlist
 
