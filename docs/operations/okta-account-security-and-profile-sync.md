@@ -124,7 +124,13 @@ Pre-deployment checklist for the sample bridge:
 6. Set `oktaCustomerIdWriteback.mode` to `sample` only after the service app,
    scope grant, client id, key id, and private key are ready.
 
-For the current `dev` rollout, set:
+Current `main` keeps the `dev` sample bridge disabled until the GitHub
+environment secret has a real PEM value. Keep the service app identifiers in
+source control because they are not secret, but only set `mode` to `sample`
+after `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` is populated in the GitHub `dev`
+environment.
+
+Ready-to-enable `dev` shape:
 
 ```json
 "oktaCustomerIdWriteback": {
@@ -135,13 +141,17 @@ For the current `dev` rollout, set:
 }
 ```
 
-in `infra/azure/config/platform.json`, then deploy with the private key in the
-shell:
+in `infra/azure/config/platform.json`, then set the private key in the deploy
+environment before deploying locally:
 
 ```powershell
 $env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM = Get-Content -LiteralPath 'C:\Secured\acme bff management.pem' -Raw
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev
 ```
+
+For GitHub CD, set the same value as a `dev` environment secret named
+`ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM`. The CD workflow only consumes the
+secret; it does not run the GitHub environment bootstrap script during deploy.
 
 The deploy stores the private key in Key Vault as
 `sec-acme-los-okta-management-private-key` and injects it into the BFF ACA as
