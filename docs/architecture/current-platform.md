@@ -114,10 +114,11 @@ calling client id or object id before `/bff/*` routes run.
 - adaptive sign-in can step up to 2FA on high-risk access
 - funding route access always starts a fresh application-owned step-up check:
   the Okta authorize request carries the configured `acr_values` without
-  forcing `prompt=login` or `max_age=0`; each funding page entry consumes the
-  latest funding step-up marker, while funding save/submit APIs can use that
-  marker during the bounded 10-minute funding API window created by the latest
-  Okta callback
+  forcing `prompt=login` or `max_age=0`, so an active password session proceeds
+  to email/SMS OTP instead of asking for the password again; each funding page
+  entry consumes the latest funding step-up marker, while funding save/submit
+  APIs can use that marker during the bounded 10-minute funding API window
+  created by the latest Okta callback
 
 ## Current API Boundary
 

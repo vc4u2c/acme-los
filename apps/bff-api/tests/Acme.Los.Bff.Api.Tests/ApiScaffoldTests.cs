@@ -917,6 +917,84 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public async Task PutBffApplicationStep_WithOktaWriteback_UpdatesAuthSessionCustomerId()
+  {
+    const string expectedCustomerId = "sample-customer-123456789abc";
+    const string userId = "application-user-005";
+    var writebackService = new CapturingCustomerIdWritebackService(
+      expectedCustomerId);
+    using var factory = _factory.WithWebHostBuilder(builder =>
+      builder.ConfigureServices(services =>
+      {
+        services.RemoveAll<IOktaCustomerIdWritebackService>();
+        services.AddSingleton<IOktaCustomerIdWritebackService>(writebackService);
+      }));
+    using var client = factory.CreateClient();
+    var expiresAt = (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
+    using var syncResponse = await client.PostAsJsonAsync(
+      "/bff/auth/session",
+      new SyncWebAuthSessionRequest(
+        "id-token-application-user-005",
+        Session: new WebAuthSession(
+          "okta",
+          "authenticated",
+          true,
+          "aal1",
+          new WebAuthSessionUser(
+            userId,
+            "Application User",
+            "application-user-005@example.com")),
+        ExpiresAt: expiresAt,
+        ServerTokens: new WebAuthSessionTokenSet(
+          "id-token-application-user-005")));
+
+    Assert.Equal(HttpStatusCode.OK, syncResponse.StatusCode);
+
+    var sessionId = Assert.Single(
+      syncResponse.Headers.GetValues("x-acme-auth-session-id"));
+    var sessionCookie = CreateSignedSessionCookie(sessionId);
+    var csrfToken =
+      await client.GetFromJsonAsync<IssueCsrfTokenResponse>("/bff/security/csrf");
+    using var saveRequest = new HttpRequestMessage(
+      HttpMethod.Put,
+      "/bff/application/steps/personal-info");
+
+    saveRequest.Headers.Add("x-csrf-token", csrfToken!.CsrfToken);
+    saveRequest.Headers.Add("x-acme-auth-provider", "okta");
+    saveRequest.Headers.Add("x-acme-authenticated-user-id", userId);
+    saveRequest.Headers.Add(
+      "Cookie",
+      $"acme-los.auth-session={sessionCookie}");
+    saveRequest.Content = JsonContent.Create(
+      new SaveApplicationStepRequest(
+        new Dictionary<string, JsonElement>
+        {
+          ["firstName"] = JsonSerializer.SerializeToElement("Ada"),
+        }));
+
+    using var saveResponse = await client.SendAsync(saveRequest);
+
+    Assert.Equal(HttpStatusCode.OK, saveResponse.StatusCode);
+
+    using var readSessionRequest = new HttpRequestMessage(
+      HttpMethod.Get,
+      "/bff/auth/session");
+
+    readSessionRequest.Headers.Add(
+      "Cookie",
+      $"acme-los.auth-session={sessionCookie}");
+
+    using var readSessionResponse = await client.SendAsync(readSessionRequest);
+    var readSessionPayload =
+      await readSessionResponse.Content.ReadFromJsonAsync<GetWebAuthSessionResponse>();
+
+    Assert.Equal(HttpStatusCode.OK, readSessionResponse.StatusCode);
+    Assert.Equal(
+      expectedCustomerId,
+      readSessionPayload!.Session.User?.CustomerId);
+  }
+
+  [Fact]
   public async Task PostBffApplicationSubmit_WithTrustedIdentityAndCsrf_SubmitsAndClearsState()
   {
     using var client = _factory.CreateClient();
@@ -1026,7 +1104,8 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal("code", query["response_type"].ToString());
     Assert.Equal("S256", query["code_challenge_method"].ToString());
     Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
-    Assert.Equal("login", query["prompt"].ToString());
+    Assert.False(query.ContainsKey("prompt"));
+    Assert.False(query.ContainsKey("max_age"));
   }
 
   [Fact]

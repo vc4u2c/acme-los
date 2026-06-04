@@ -113,19 +113,24 @@ It currently handles:
 - optional phone authenticator SMS activation with voice disabled
 - customer group
 - profile-enrollment registration target group and required profile fields
-  (`firstName`, `lastName`, `email`, `state`)
+  (`firstName`, `lastName`, `email`, `state`); if Okta marks the rule
+  conditions read-only, bootstrap records a manual-required warning and
+  continues with the app, session, and account-policy updates
 - customer-group-scoped MFA enrollment policy
-- customer-group-scoped global session policy
+- customer-group-scoped global session policy with a 60-day maximum lifetime
+  and 120-minute idle timeout
 - app access policy
 - password-first standard sign-in policy wiring
-- adaptive high-risk 2FA policy wiring when the org supports Okta risk-based conditions
+- adaptive high-risk/new-device 2FA policy wiring when the org supports Okta
+  risk-based conditions
 - Okta account-management policy rules for password, email, and phone/SMS
   lifecycle scenarios
 - policy and customer-group assignment to the created apps
 
 It also prints and writes a `policyPlan` summary that names each Okta policy,
 its scope, and what it configures. It also prints and writes the resolved
-account-management policy rule payloads for the six customer account scenarios.
+`sessionAndAdaptivePolicyIntent` plus the account-management policy rule
+payloads for the six customer account scenarios.
 Resolved IDs and client IDs are written back into the local generated files, and
 the environment manifest is updated when app client IDs are created.
 
@@ -284,6 +289,10 @@ Current limitations:
 - customer account-security policy intent, backend profile sync, and the manual
   account-management policy checks are documented in
   [Okta account security and profile sync](../../docs/operations/okta-account-security-and-profile-sync.md)
+- device assurance, device signal collection, and deeper device-risk controls
+  are Okta org features; bootstrap scopes their consumption through ACME app
+  policy where Okta allows it and the runbook documents what cannot be
+  app-scoped directly
 - the pre-auth "remember user" checkbox still needs one admin-console verification
 - route-specific funding step-up still belongs in application runtime logic
 - custom-domain linking is still a manual tenant step because DNS ownership and certificate validation happen outside the repo bootstrap
@@ -325,11 +334,16 @@ Current auth shape in this repo:
   security-question enrollment as follow-up hosted steps
 - Okta `sub` is the immutable ACME user key; email is mutable metadata synced to
   backend profile storage after a fresh Okta session
+- customer global session policy has a 60-day maximum lifetime and a
+  120-minute idle timeout for the ACME LOS customer group
 - standard sign-in is password-first
-- adaptive sign-in, when the high-risk rule is supported and triggered, steps up to 2FA with password required as the first factor
+- adaptive sign-in, when the high-risk/new-device rule is supported and
+  triggered, steps up to 2FA with password required as the first factor; it
+  does not use security-question challenge/hint during sign-in
 - the funding step is still enforced in application runtime with `acr_values`;
-  the request no longer forces `prompt=login` or `max_age=0`, so Okta can use
-  the existing password session and present the configured email step-up factor
+  the request does not force `prompt=login` or `max_age=0`, so Okta can use
+  the existing password session and present the configured email/SMS OTP
+  step-up factor without asking for the password again
 - an existing `aal2` web session does not by itself unlock funding; the current
   server-side session needs the latest funding step-up marker, funding page
   entry consumes that marker, and funding APIs can use it during the bounded

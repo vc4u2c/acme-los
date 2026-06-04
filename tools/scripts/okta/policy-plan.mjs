@@ -14,6 +14,10 @@ function optionalBoolean(value) {
   return value === true;
 }
 
+function optionalPositiveInteger(value) {
+  return Number.isInteger(value) && value > 0 ? value : undefined;
+}
+
 function readJsonFile(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
@@ -61,6 +65,8 @@ function resolveScope(scopeKind, variables) {
       return `${variables.webAppLabel}, ${variables.mobileAppLabel}; customer group ${variables.customerGroupName}`;
     case 'bffAndBackend':
       return 'ACME BFF and backend services';
+    case 'orgFeature':
+      return 'Okta org feature; scoped only where a customer group or app policy can consume it';
     default:
       return scopeKind;
   }
@@ -147,11 +153,15 @@ export function resolveOktaPolicyPlan({
   });
   const runtimeVariables = {
     ...variables,
+    sessionLifetimeDays:
+      optionalPositiveInteger(
+        hostedExperience.customerSessionMaxLifetimeDays,
+      ) ?? 60,
     phoneEnrollmentState: telephonyEnabled
       ? 'phone enrollment follows the ACS SMS rollout state'
       : 'phone enrollment is disabled until ACS SMS is enabled',
     adaptiveMfaState: optionalBoolean(hostedExperience.adaptiveMfaOnSignIn)
-      ? 'high-risk adaptive 2FA rule plus standard access rule'
+      ? 'high-risk adaptive 2FA rule using Okta risk score HIGH plus standard access rule'
       : 'standard access rule',
   };
 

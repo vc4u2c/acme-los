@@ -2,6 +2,15 @@
 
 import * as React from 'react';
 import Link from 'next/link';
+import {
+  CircleHelp,
+  ExternalLink,
+  KeyRound,
+  Mail,
+  Phone,
+  RefreshCw,
+  type LucideIcon,
+} from 'lucide-react';
 import { createWebApiClient } from '@acme-los/api/web-client';
 import {
   getCurrentOktaTokenClaims,
@@ -37,28 +46,40 @@ const emptyCustomerProfile: CustomerProfileFormState = {
 
 const navigationItems: { href: string; label: string }[] = [];
 
-const oktaAccountSecurityActions = [
+const oktaAccountSecurityActions: Array<{
+  label: string;
+  description: string;
+  cta: string;
+  icon: LucideIcon;
+}> = [
   {
-    label: 'Manage login email',
+    label: 'Update login email',
     description:
-      'Okta verifies another enrolled factor before the sign-in email changes.',
+      'Use another enrolled verification method before changing your sign-in email.',
+    cta: 'Update email',
+    icon: Mail,
   },
   {
-    label: 'Manage phone / SMS',
+    label: 'Change verification phone',
     description:
-      'Use Okta security methods to replace or recover your SMS factor.',
+      'Review or replace your text-message phone when it is enrolled.',
+    cta: 'Change phone',
+    icon: Phone,
   },
   {
     label: 'Change password',
     description:
-      'Password changes stay inside the Okta-hosted account experience.',
+      'Confirm your current password and a verification method first.',
+    cta: 'Change password',
+    icon: KeyRound,
   },
   {
-    label: 'Update security question',
-    description:
-      'Used as an extra recovery check alongside a possession factor.',
+    label: 'Update recovery question',
+    description: 'Keep the recovery challenge current for account recovery.',
+    cta: 'Update question',
+    icon: CircleHelp,
   },
-] as const;
+];
 
 function getOktaAccountSettingsUrl(): string | null {
   try {
@@ -173,7 +194,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
         });
         setStatusMessage(
           options.showSuccessMessage
-            ? 'Account status refreshed from the current Okta session.'
+            ? 'Account status refreshed from the current verified session.'
             : null,
         );
       } catch (error) {
@@ -299,9 +320,9 @@ export function CustomerProfileDashboard(): React.ReactElement {
                 Keep your contact details current.
               </CardTitle>
               <CardDescription className="max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base sm:leading-8">
-                Your verified identity comes from Okta. Contact details and
-                address updates live here so the application and support team
-                have the latest reachability information.
+                Your verified identity comes from the secure sign-in provider.
+                Contact details and address updates live here so the application
+                and support team have the latest reachability information.
               </CardDescription>
             </CardHeader>
             <CardContent className="min-w-0 p-5 sm:p-6 lg:p-8">
@@ -348,7 +369,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
                       htmlFor="customer-email"
                       className="text-sm font-medium text-[var(--foreground)]"
                     >
-                      Okta sign-in email
+                      Sign-in email
                     </label>
                     <Input
                       id="customer-email"
@@ -357,8 +378,9 @@ export function CustomerProfileDashboard(): React.ReactElement {
                       className="border-[var(--border)] bg-[var(--surface-strong)] text-[var(--muted-foreground)]"
                     />
                     <p className="text-xs leading-5 text-[var(--muted-foreground)]">
-                      Change the login email in Okta, then refresh your secure
-                      session here so ACME can sync the verified value.
+                      Change the login email in the secure account center, then
+                      refresh your session here so ACME can sync the verified
+                      value.
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -377,8 +399,8 @@ export function CustomerProfileDashboard(): React.ReactElement {
                       className="border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]"
                     />
                     <p className="text-xs leading-5 text-[var(--muted-foreground)]">
-                      SMS sign-in factors are managed in Okta; this phone is for
-                      application servicing.
+                      Sign-in text-message factors are handled in the secure
+                      account center; this phone is for application servicing.
                     </p>
                   </div>
                 </div>
@@ -474,8 +496,8 @@ export function CustomerProfileDashboard(): React.ReactElement {
                   </AlertTitle>
                   <AlertDescription className="text-[var(--muted-foreground)]">
                     Name fields are locked to your verified customer identity.
-                    The sign-in email is synced from Okta after a fresh secure
-                    session. Application phone and address details save here for
+                    The sign-in email is synced after a fresh secure session.
+                    Application phone and address details save here for
                     servicing workflows.
                   </AlertDescription>
                   {statusMessage ? (
@@ -518,51 +540,73 @@ export function CustomerProfileDashboard(): React.ReactElement {
                   Account security
                 </p>
                 <CardTitle className="font-display text-[1.8rem] leading-tight text-[var(--foreground)] sm:text-3xl">
-                  Manage sign-in in Okta.
+                  Secure sign-in settings.
                 </CardTitle>
                 <CardDescription className="text-sm leading-6 text-[var(--muted-foreground)] sm:text-base sm:leading-7">
                   Passwords, recovery questions, and verification factors stay
-                  in Okta. ACME syncs only verified contact metadata after a
-                  fresh session.
+                  in the hosted account center. ACME syncs only verified contact
+                  metadata after a fresh session.
                 </CardDescription>
               </CardHeader>
               <CardContent className="min-w-0 space-y-4 px-5 pb-5 sm:px-6 sm:pb-6">
-                <div className="space-y-3">
-                  {oktaAccountSecurityActions.map((action) => (
-                    <div
-                      key={action.label}
-                      className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3"
-                    >
-                      <p className="text-sm font-semibold text-[var(--foreground)]">
-                        {action.label}
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
-                        {action.description}
-                      </p>
-                    </div>
-                  ))}
+                <div className="grid gap-3">
+                  {oktaAccountSecurityActions.map((action) => {
+                    const Icon = action.icon;
+
+                    return (
+                      <div
+                        key={action.label}
+                        className="grid gap-3 rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-4 sm:grid-cols-[1fr_auto] sm:items-center"
+                      >
+                        <div className="flex min-w-0 items-start gap-3">
+                          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--brand)]">
+                            <Icon
+                              className="h-[18px] w-[18px]"
+                              aria-hidden="true"
+                              strokeWidth={2}
+                            />
+                          </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-[var(--foreground)]">
+                              {action.label}
+                            </p>
+                            <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
+                              {action.description}
+                            </p>
+                          </div>
+                        </div>
+                        {oktaAccountSettingsUrl ? (
+                          <Button
+                            asChild
+                            variant="outline"
+                            size="sm"
+                            className="w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-4 text-[var(--foreground)] hover:bg-[var(--surface-accent)] sm:w-auto"
+                          >
+                            <a
+                              href={oktaAccountSettingsUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              <span>{action.cta}</span>
+                              <ExternalLink
+                                className="h-4 w-4"
+                                aria-hidden="true"
+                              />
+                            </a>
+                          </Button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
 
                 <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-4">
-                  {oktaAccountSettingsUrl ? (
-                    <Button
-                      asChild
-                      className="w-full rounded-full bg-[var(--brand)] px-6 text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)] hover:bg-[var(--brand-strong)]"
-                    >
-                      <a
-                        href={oktaAccountSettingsUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open Okta account settings
-                      </a>
-                    </Button>
-                  ) : (
+                  {!oktaAccountSettingsUrl ? (
                     <div className="rounded-[1.25rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--muted-foreground)]">
-                      Okta account settings are available after the hosted auth
+                      Account settings are available after the hosted sign-in
                       environment is configured.
                     </div>
-                  )}
+                  ) : null}
 
                   <Button
                     type="button"
@@ -570,6 +614,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
                     className="w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-6 text-[var(--foreground)] hover:bg-[var(--surface-accent)]"
                     onClick={refreshSecureSession}
                   >
+                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
                     Refresh secure session
                   </Button>
                 </div>
@@ -590,14 +635,14 @@ export function CustomerProfileDashboard(): React.ReactElement {
               </CardHeader>
               <CardContent className="min-w-0 space-y-3 px-5 pb-5 sm:px-6 sm:pb-6">
                 <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--foreground)]">
-                  Email MFA is enabled for sign-in.
+                  Email verification is enabled for sign-in.
                 </div>
                 <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--foreground)]">
                   Funding still requires step-up verification.
                 </div>
                 <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--foreground)]">
-                  Customer identity details come from Okta and remain read-only
-                  here.
+                  Customer identity details come from verified sign-in and
+                  remain read-only here.
                 </div>
                 {user?.leadId || user?.customerId ? (
                   <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3">
