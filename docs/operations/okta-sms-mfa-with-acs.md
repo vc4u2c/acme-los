@@ -65,6 +65,56 @@ Pre-deployment checkpoint:
 - Submit the toll-free verification application now, but do not enable the
   Okta phone factor or web hook secret until Azure shows the number as verified.
 
+## Twilio Trial Reality Check
+
+Twilio can be useful for a narrow dev experiment, but it is not a dependable
+replacement for ACS toll-free verification when the demo needs SMS to land on a
+real US mobile phone.
+
+Trial constraints to account for:
+
+- Trial accounts can send SMS only to verified recipient phone numbers.
+- The phone number used during Twilio signup is automatically verified, but each
+  additional recipient must be verified with Twilio first.
+- Twilio limits trial accounts to a small set of verified recipients and a daily
+  message cap.
+- For US/Canada toll-free senders, toll-free verification is still required for
+  real mobile delivery.
+- For US 10DLC/local senders, A2P 10DLC registration is required and requires a
+  paid Twilio account.
+- Trial accounts can use Twilio's Virtual Phone for a simulated SMS demo even
+  when real mobile delivery is blocked.
+
+Use this decision rule:
+
+- If the demo only needs real authentication, keep Okta phone/SMS off and use
+  email OTP plus security question.
+- If the demo needs to show the phone-factor UI, use a dev-only mock telephony
+  mode or Twilio Virtual Phone.
+- If the demo must send to a real personal phone, try Twilio trial only after
+  verifying that phone as a Twilio recipient, and expect it to be blocked if the
+  assigned sender still needs toll-free verification or 10DLC registration.
+
+Twilio trial smoke check:
+
+1. Sign up for a Twilio trial account.
+2. Verify the email address and personal phone number requested by Twilio.
+3. In Twilio Console, choose the SMS Messaging trial or start building with
+   Programmable Messaging.
+4. Get the single trial phone number Twilio offers for the account.
+5. Confirm the phone number type and SMS capability in Active Numbers.
+6. Confirm the intended recipient phone is listed under Verified Caller IDs. The
+   signup phone is usually verified automatically; add any other test phone
+   explicitly.
+7. Use Twilio's Try SMS flow first. Send only to the verified test phone or the
+   Twilio Virtual Phone.
+8. Record any error that mentions toll-free verification, A2P 10DLC, trial
+   restrictions, template restrictions, or verified-recipient restrictions.
+9. Do not wire Twilio into the Okta telephony hook unless the trial can deliver
+   a programmable SMS to the intended test path. Okta OTP delivery needs dynamic
+   message content, so a trial that only permits predefined templates is not
+   enough for the real hook.
+
 ## Dev Activation
 
 ### 1. Deploy ACS While SMS MFA Stays Disabled
@@ -254,3 +304,6 @@ final. Releasing a phone number is a billing and recovery-sensitive action.
 - [ACS toll-free verification](https://learn.microsoft.com/en-us/azure/communication-services/concepts/sms/toll-free-verification-guidelines)
 - [ACS SMS FAQ](https://learn.microsoft.com/en-us/azure/communication-services/concepts/sms/sms-faq)
 - [ACS Microsoft Entra authentication](https://learn.microsoft.com/en-us/azure/communication-services/quickstarts/identity/service-principal)
+- [Twilio trial account](https://www.twilio.com/docs/usage/trials)
+- [Twilio free trial limitations](https://help.twilio.com/hc/en-us/articles/360036052753-Twilio-Free-Trial-Limitations)
+- [Twilio trial toll-free restrictions](https://help.twilio.com/articles/11853148778523-Trial-Limits-and-US-Toll-Free-Number-Restrictions)
