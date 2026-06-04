@@ -1,11 +1,13 @@
 namespace Acme.Los.Bff.Api.Common;
 
 internal sealed record BffTrustedIdentity(
+  string? Provider,
   string UserId,
   string? UserEmail,
   string? CustomerId,
   string? LeadId)
 {
+  private const string ProviderHeaderName = "x-acme-auth-provider";
   private const string UserIdHeaderName = "x-acme-authenticated-user-id";
   private const string UserEmailHeaderName = "x-acme-authenticated-user-email";
   private const string CustomerIdHeaderName = "x-acme-authenticated-customer-id";
@@ -26,6 +28,7 @@ internal sealed record BffTrustedIdentity(
     }
 
     return new BffTrustedIdentity(
+      BffTrustedProxyBoundary.ReadOptionalHeader(request, ProviderHeaderName),
       userId,
       BffTrustedProxyBoundary.ReadOptionalHeader(request, UserEmailHeaderName),
       BffTrustedProxyBoundary.ReadOptionalHeader(request, CustomerIdHeaderName),

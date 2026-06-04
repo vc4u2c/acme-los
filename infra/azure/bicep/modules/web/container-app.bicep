@@ -369,7 +369,11 @@ var smsMfaSecrets = !empty(oktaTelephonyHookAuthorizationSecretKeyVaultUrl)
       }
     ]
   : []
-var secrets = concat(sessionSecrets, bffSecrets, smsMfaSecrets)
+var secrets = concat(
+  sessionSecrets,
+  bffSecrets,
+  smsMfaSecrets
+)
 
 resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {
   name: name

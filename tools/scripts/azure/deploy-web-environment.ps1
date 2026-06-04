@@ -857,6 +857,20 @@ $smsSenderPhoneNumber = Get-StringOrDefault -Value (
   Get-OptionalPropertyValue -InputObject $smsMfaConfiguration -Name 'senderPhoneNumber'
 )
 $oktaTelephonyHookAuthorizationSecretValue = Get-OptionalString $env:ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION
+$oktaCustomerIdWritebackConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'oktaCustomerIdWriteback'
+$oktaCustomerIdWritebackMode = Get-StringOrDefault -Value (
+  Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'mode'
+) -DefaultValue 'disabled'
+$oktaManagementClientId = Get-StringOrDefault -Value (
+  Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'clientId'
+) -DefaultValue (Get-StringOrDefault -Value $env:ACME_OKTA_MANAGEMENT_CLIENT_ID)
+$oktaManagementPrivateKeyId = Get-StringOrDefault -Value (
+  Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'privateKeyId'
+) -DefaultValue (Get-StringOrDefault -Value $env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_ID)
+$oktaManagementScopes = Get-StringOrDefault -Value (
+  Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'scopes'
+) -DefaultValue 'okta.users.manage'
+$oktaManagementPrivateKeySecretValue = Get-OptionalString $env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM
 $bffRuntimeConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'bffRuntime'
 $bffRuntimeMinReplicaConfiguration = Get-OptionalPropertyValue -InputObject $bffRuntimeConfiguration -Name 'minReplicas'
 $bffRuntimeMaxReplicaConfiguration = Get-OptionalPropertyValue -InputObject $bffRuntimeConfiguration -Name 'maxReplicas'
@@ -1096,6 +1110,28 @@ if ($smsMfaEnabled) {
 
   if (-not $oktaTelephonyHookAuthorizationSecretValue) {
     throw "Environment '$EnvironmentName' enables smsMfa. Set ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION before deploying."
+  }
+}
+
+if ($oktaCustomerIdWritebackMode -notin @('disabled', 'sample')) {
+  throw "Environment '$EnvironmentName' has unsupported oktaCustomerIdWriteback.mode '$oktaCustomerIdWritebackMode'. Use 'disabled' or 'sample'."
+}
+
+if ($oktaCustomerIdWritebackMode -eq 'sample') {
+  if (-not $resolvedBffDeploymentEnabled) {
+    throw "Environment '$EnvironmentName' enables sample Okta customer id write-back, which requires BFF deployment."
+  }
+
+  if (-not $oktaManagementClientId) {
+    throw "Environment '$EnvironmentName' enables sample Okta customer id write-back. Set oktaCustomerIdWriteback.clientId or ACME_OKTA_MANAGEMENT_CLIENT_ID before deploying."
+  }
+
+  if (-not $oktaManagementPrivateKeySecretValue) {
+    throw "Environment '$EnvironmentName' enables sample Okta customer id write-back. Set ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM before deploying."
+  }
+
+  if ($oktaManagementScopes -notmatch '(^|[\s,;])okta\.users\.manage($|[\s,;])') {
+    throw "Environment '$EnvironmentName' enables sample Okta customer id write-back. oktaCustomerIdWriteback.scopes must include okta.users.manage."
   }
 }
 
@@ -1407,6 +1443,10 @@ $runtimeDeploymentArguments = @(
   '--parameters', "smsMfaEnabled=$smsMfaEnabledEnvValue",
   '--parameters', "communicationServicesEndpoint=$communicationServicesEndpoint",
   '--parameters', "smsSenderPhoneNumber=$smsSenderPhoneNumber",
+  '--parameters', "oktaCustomerIdWritebackMode=$oktaCustomerIdWritebackMode",
+  '--parameters', "oktaManagementClientId=$oktaManagementClientId",
+  '--parameters', "oktaManagementPrivateKeyId=$oktaManagementPrivateKeyId",
+  '--parameters', "oktaManagementScopes=$oktaManagementScopes",
   '--parameters', "sessionSecretValue=$webSessionSecretValue",
   '--parameters', "applicationInsightsConnectionString=$platformApplicationInsightsConnectionString",
   '--parameters', "logAnalyticsWorkspaceId=$platformLogAnalyticsWorkspaceId",
@@ -1421,6 +1461,13 @@ if ($smsMfaEnabled) {
   $runtimeDeploymentArguments += @(
     '--parameters',
     "oktaTelephonyHookAuthorizationSecretValue=$oktaTelephonyHookAuthorizationSecretValue"
+  )
+}
+
+if ($oktaCustomerIdWritebackMode -eq 'sample') {
+  $runtimeDeploymentArguments += @(
+    '--parameters',
+    "oktaManagementPrivateKeySecretValue=$oktaManagementPrivateKeySecretValue"
   )
 }
 

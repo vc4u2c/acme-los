@@ -198,6 +198,9 @@ Recommended examples:
 - `EXPO_TOKEN`
 - `APPLE_APP_STORE_CONNECT_*`
 - `GOOGLE_PLAY_SERVICE_ACCOUNT_JSON`
+- `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` for environments where
+  `oktaCustomerIdWriteback.mode` is temporarily enabled for the BFF sample
+  customer-id bridge
 - any short-lived bootstrap-only admin token that cannot yet be removed
 
 What should _not_ live in GitHub secrets long term:

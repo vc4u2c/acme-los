@@ -3,6 +3,8 @@
 This runbook describes the customer account-security model for Okta-hosted
 email, phone, password, and security-question changes.
 
+Okta Integrator Admin org: <https://integrator-9373984.okta.com/>
+
 ## Security Model
 
 Okta is the source of truth for identity and authentication. ACME backend
@@ -17,9 +19,15 @@ systems are the source of truth for customer and lending records.
 
 ## Source-Controlled Policy Intent
 
-`tools/scripts/okta/bootstrap-okta.mjs` emits an
-`accountSecurityPolicyIntent` block during dry-run and live bootstrap. That
-block is the source-supported policy contract.
+`infra/okta/policy-scenarios.json` is the source-supported policy hierarchy and
+scenario contract. Render it with:
+
+```powershell
+npm run okta:policy-plan -- dev
+```
+
+`tools/scripts/okta/bootstrap-okta.mjs` also emits the resolved `policyPlan` and
+`accountSecurityPolicyIntent` during dry-run and live bootstrap.
 
 The intended registration enrollment is:
 
@@ -29,16 +37,21 @@ The intended registration enrollment is:
 - phone/SMS: optional until ACS toll-free verification is approved, then
   optional or required by environment rollout
 
-The intended sensitive-change rules are:
+The intended sensitive-change and recovery scenarios are:
 
-- Change email: require security question plus phone/SMS, then require a fresh
-  ACME sign-in.
-- Change phone/SMS: require security question plus email, then require a fresh
-  ACME sign-in.
-- Forgot password or change password: require a possession factor and the
-  configured recovery checks; never sync password material.
-- Forgot email or lost email access: use phone/SMS plus security question, then
-  sync the recovered email after a fresh ACME sign-in.
+- Forgot email: require an alternate possession-factor OTP plus the Okta
+  security-question challenge/hint, then require a fresh ACME sign-in.
+- Change email: require an other-factor OTP plus the Okta security-question
+  challenge/hint before sign-off, then require sign-in with the new email.
+- Forgot password: require the Okta security-question challenge/hint plus email
+  OTP before reset, then sign out and require sign-in with the new password.
+- Change password: require current password, factor OTP, and the Okta
+  security-question challenge/hint before reset, then sign out and require a
+  fresh ACME sign-in.
+- Forgot phone: require email OTP plus the Okta security-question challenge/hint,
+  then require a fresh ACME sign-in before phone replacement.
+- Change phone/SMS: require email OTP plus the Okta security-question
+  challenge/hint before sign-off, then require a fresh ACME sign-in.
 
 ## Backend Sync
 
@@ -65,7 +78,88 @@ verified phone number:
 Until one is enabled, ACME can show and save an application servicing phone
 number, but it must not claim that value is the verified Okta SMS factor.
 
+No inbound Okta Event Hook is currently enabled for email, phone, password, or
+security-question changes. The implemented email sync happens after a fresh ACME
+session; passwords, OTPs, and security-question material never sync.
+
+## Application Customer ID Write-Back
+
+The application flow has a source-supported, opt-in sample bridge for proving
+Okta profile claim round trips before the real customer system exists.
+
+When the user saves the `personal-info` step and the current Okta session does
+not already include `customerId`, the Next facade validates the browser session
+and forwards trusted identity to the internal BFF. The BFF can then:
+
+1. validate CSRF and the trusted Next-to-BFF boundary
+2. obtain an Okta Management API access token with an OAuth service app using
+   private-key JWT client authentication
+3. read the current Okta user profile through the Okta Users API
+4. preserve an existing `profile.customerId` if Okta already has one
+5. otherwise write a deterministic demo value shaped like
+   `sample-customer-<hash>` to `profile.customerId`
+   through the Okta Users API partial-update operation
+6. save the application-step summary with that effective customer id
+
+The browser never receives Okta management credentials. The public Next ACA does
+not receive Okta management credentials either; the private key is exposed only
+to the internal BFF ACA as a Key Vault secret reference while sample mode is
+enabled.
+
+Before enabling this path, create an Okta API Service app, register a signing
+key, and grant the app the `okta.users.manage` scope for the org authorization
+server.
+
+Pre-deployment checklist for the sample bridge:
+
+1. Create the Okta API Service app in the same Okta org that backs the target
+   environment.
+2. Register the service-app public key and keep the private key outside the
+   repo, such as under `C:\Secured`.
+3. Grant only `okta.users.manage` on the service app's Okta API Scopes tab.
+4. If the org requires admin roles for service apps, assign the narrowest
+   admin role/resource set that can manage the app-owned `customerId` profile
+   attribute for the target users.
+5. Record the service-app `clientId` and signing key id (`kid`).
+6. Set `oktaCustomerIdWriteback.mode` to `sample` only after the service app,
+   scope grant, client id, key id, and private key are ready.
+
+For the current `dev` rollout, set:
+
+```json
+"oktaCustomerIdWriteback": {
+  "mode": "sample",
+  "clientId": "<okta service app client id>",
+  "privateKeyId": "<okta service app signing key id>",
+  "scopes": "okta.users.manage"
+}
+```
+
+in `infra/azure/config/platform.json`, then deploy with the private key in the
+shell:
+
+```powershell
+$env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM = Get-Content -LiteralPath 'C:\Secured\acme bff management.pem' -Raw
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev
+```
+
+The deploy stores the private key in Key Vault as
+`sec-acme-los-okta-management-private-key` and injects it into the BFF ACA as
+`ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` only while
+`oktaCustomerIdWriteback.mode` is `sample`. Keep this sample bridge out of
+higher environments until the real customer-id issuer is finalized; the final
+production security shape remains BFF-owned OAuth with the least Okta
+management scope required for the specific profile attribute.
+
 ## Manual Okta Admin Checks
+
+The Okta bootstrap should keep ACME customer authentication policy scoped to the
+environment customer group (`acme-los-customers-<env>`), not to Okta `Everyone`.
+New self-service registrations should land in that customer group through the
+profile-enrollment rule; admin users should not be added to it. Run
+`npm run okta:policy-plan -- <env>` first, then run
+`npm run okta:bootstrap -- <env> --dry-run` and review the emitted `policyPlan`
+before applying live tenant changes.
 
 After running `npm run okta:bootstrap -- <env>`, confirm in Okta Admin Console:
 
@@ -74,13 +168,20 @@ After running `npm run okta:bootstrap -- <env>`, confirm in Okta Admin Console:
    recovery if the environment requires both.
 3. Go to `Security` > `Authenticators` > `Enrollment`.
 4. Confirm the ACME LOS enrollment policy requires password, email, and security
-   question.
+   question only for the `acme-los-customers-<env>` customer group.
 5. Confirm phone/SMS enrollment matches the ACS rollout state.
 6. Go to the Okta account-management policy.
-7. Confirm email changes require security question plus phone/SMS.
-8. Confirm phone/SMS changes require security question plus email.
+7. Confirm forgot email, change email, forgot password, change password, forgot
+   phone, and change phone match the rendered `policyPlan` scenarios.
+8. Confirm recovery/change flows require the expected OTP proof plus the Okta
+   security-question challenge/hint and force sign-off/fresh sign-in where the
+   scenario requires it.
 9. Confirm password and security-question changes do not send secret material to
    ACME systems.
+10. Confirm `customerId` remains an app-owned custom profile attribute and is
+    not editable by end users.
+11. Confirm admin users are not in the ACME LOS customer group unless they are
+    intentionally being used as customer test accounts.
 
 ## User Prune Allowlist
 
@@ -153,3 +254,6 @@ metadata without collecting secrets or OTPs in the app.
 - [Authenticators Administration API](https://developer.okta.com/docs/reference/api/authenticators-admin/)
 - [Okta My Settings](https://help.okta.com/eu/en-us/content/topics/end-user/end-user-settings-v2.htm)
 - [Okta Event Hooks](https://developer.okta.com/docs/concepts/event-hooks/)
+- [OAuth for Okta service apps](https://developer.okta.com/docs/guides/implement-oauth-for-okta-serviceapp/main/)
+- [OAuth scopes for Okta Management APIs](https://developer.okta.com/docs/guides/implement-oauth-for-okta/main/)
+- [Okta Users API](https://developer.okta.com/docs/api/openapi/okta-management/management/tag/User/)

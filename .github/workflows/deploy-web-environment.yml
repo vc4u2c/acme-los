@@ -143,6 +143,8 @@ jobs:
 
       - name: Provision Azure web infrastructure and deploy container app
         shell: pwsh
+        env:
+          ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM: ${{ secrets.ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM }}
         run: |
           $webImageRepository = '${{ vars.AZURE_WEB_IMAGE_REPOSITORY }}'
           if ([string]::IsNullOrWhiteSpace($webImageRepository)) {

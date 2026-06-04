@@ -6,6 +6,7 @@ using Acme.Los.Bff.Api.Features.Platform;
 using Acme.Los.Bff.Api.Features.Security;
 using Acme.Los.Bff.Api.Common;
 using Acme.Los.Bff.Api.Infrastructure.Auth;
+using Acme.Los.Bff.Api.Infrastructure.Okta;
 using Acme.Los.Bff.Api.Infrastructure.Security;
 using Acme.Los.Bff.Api.Infrastructure.State;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -20,6 +21,8 @@ var builder = WebApplication.CreateBuilder(args);
 var stateStoreOptions = BffStateStoreOptions.FromConfiguration(builder.Configuration);
 var bffServiceAuthenticationOptions =
   BffServiceAuthenticationOptions.FromEnvironment();
+var oktaCustomerIdWritebackOptions =
+  OktaCustomerIdWritebackOptions.FromConfiguration(builder.Configuration);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddJsonConsole(options =>
@@ -49,6 +52,11 @@ builder.Services.AddSingleton<ISecurityInspectorService, SecurityInspectorServic
 builder.Services.AddSingleton<IOktaSigningKeyProvider, OktaSigningKeyProvider>();
 builder.Services.AddSingleton(stateStoreOptions);
 builder.Services.AddSingleton(bffServiceAuthenticationOptions);
+builder.Services.AddSingleton(oktaCustomerIdWritebackOptions);
+builder.Services.AddSingleton<IOktaManagementTokenClient, OktaManagementTokenClient>();
+builder.Services.AddSingleton<
+  IOktaCustomerIdWritebackService,
+  OktaCustomerIdWritebackService>();
 
 if (stateStoreOptions.UsesRedis)
 {

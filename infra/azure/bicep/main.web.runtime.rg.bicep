@@ -54,6 +54,18 @@ param smsSenderPhoneNumber string = ''
 param oktaTelephonyHookAuthorizationSecretName string = 'sec-acme-los-okta-telephony-hook-authorization'
 @secure()
 param oktaTelephonyHookAuthorizationSecretValue string = ''
+@allowed([
+  ''
+  'disabled'
+  'sample'
+])
+param oktaCustomerIdWritebackMode string = ''
+param oktaManagementClientId string = ''
+param oktaManagementPrivateKeySecretName string = 'sec-acme-los-okta-management-private-key'
+@secure()
+param oktaManagementPrivateKeySecretValue string = ''
+param oktaManagementPrivateKeyId string = ''
+param oktaManagementScopes string = 'okta.users.manage'
 param containerRegistryLoginServer string
 param containerImage string
 param bffContainerImage string = ''
@@ -101,6 +113,7 @@ param sessionWarningSeconds int = environmentName == 'dev' ? 30 : 120
 var resolvedContainerAppName = toLower('ca-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var deployBff = !empty(bffContainerImage)
 var resolvedBffContainerAppName = toLower('ca-${organizationShortName}-${workloadShortName}-bff-${environmentName}-${regionShortName}-${instanceNumber}')
+var oktaCustomerIdWritebackEnabled = toLower(oktaCustomerIdWritebackMode) == 'sample'
 var redisKeyPrefix = '${organizationShortName}-${workloadShortName}:web:${environmentName}'
 var bffRedisKeyPrefix = '${organizationShortName}-${workloadShortName}:bff:${environmentName}'
 var resolvedContainerAppDiagnosticSettingsName = toLower('diag-${organizationShortName}-${workloadShortName}-ca-${environmentName}-${regionShortName}-${instanceNumber}')
@@ -146,6 +159,14 @@ resource oktaTelephonyHookAuthorizationSecret 'Microsoft.KeyVault/vaults/secrets
   name: oktaTelephonyHookAuthorizationSecretName
   properties: {
     value: oktaTelephonyHookAuthorizationSecretValue
+  }
+}
+
+resource oktaManagementPrivateKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (oktaCustomerIdWritebackEnabled) {
+  parent: keyVaultResource
+  name: oktaManagementPrivateKeySecretName
+  properties: {
+    value: oktaManagementPrivateKeySecretValue
   }
 }
 
@@ -258,6 +279,14 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     oktaRedirectUri: oktaRedirectUri
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
     oktaFundingAcrValues: oktaFundingAcrValues
+    oktaCustomerIdWritebackMode: oktaCustomerIdWritebackMode
+    oktaManagementClientId: oktaManagementClientId
+    oktaManagementPrivateKeySecretName: oktaManagementPrivateKeySecretName
+    oktaManagementPrivateKeySecretKeyVaultUrl: oktaCustomerIdWritebackEnabled
+      ? '${keyVaultUri}secrets/${oktaManagementPrivateKeySecretName}'
+      : ''
+    oktaManagementPrivateKeyId: oktaManagementPrivateKeyId
+    oktaManagementScopes: oktaManagementScopes
     stateStoreMode: stateStoreMode
     redisKeyPrefix: bffRedisKeyPrefix
     redisHostName: redisHostName
@@ -282,6 +311,7 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
   dependsOn: [
     sessionSecret
     bffTrustedProxySecret
+    oktaManagementPrivateKeySecret
   ]
 }
 

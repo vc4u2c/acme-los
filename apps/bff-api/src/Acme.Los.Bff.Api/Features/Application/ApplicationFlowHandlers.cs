@@ -1,16 +1,19 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 using Acme.Los.Bff.Api.Contracts;
+using Acme.Los.Bff.Api.Infrastructure.Okta;
 
 namespace Acme.Los.Bff.Api.Features.Application;
 
 public sealed record GetApplicationStepQuery(
+  string? Provider,
   string UserId,
   string? CustomerId,
   string? LeadId,
   string Step);
 
 public sealed record SaveApplicationStepCommand(
+  string? Provider,
   string UserId,
   string? CustomerId,
   string? LeadId,
@@ -94,10 +97,14 @@ public sealed class ApplicationFlowHandler
     new(OrderedSteps, StringComparer.Ordinal);
 
   private readonly IApplicationFlowStore _store;
+  private readonly IOktaCustomerIdWritebackService _customerIdWritebackService;
 
-  public ApplicationFlowHandler(IApplicationFlowStore store)
+  public ApplicationFlowHandler(
+    IApplicationFlowStore store,
+    IOktaCustomerIdWritebackService customerIdWritebackService)
   {
     _store = store;
+    _customerIdWritebackService = customerIdWritebackService;
   }
 
   public static bool IsSupportedStep(string step)
@@ -119,9 +126,17 @@ public sealed class ApplicationFlowHandler
     SaveApplicationStepCommand command,
     CancellationToken cancellationToken)
   {
+    var customerIdWriteback =
+      await _customerIdWritebackService.EnsureCustomerIdAsync(
+        command.Provider,
+        command.UserId,
+        command.CustomerId,
+        command.Step,
+        cancellationToken);
+    var effectiveCustomerId = customerIdWriteback.CustomerId ?? command.CustomerId;
     var nextState = await UpsertStateAsync(
       command.UserId,
-      command.CustomerId,
+      effectiveCustomerId,
       command.LeadId,
       command.Step,
       command.Payload,
