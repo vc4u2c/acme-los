@@ -12,7 +12,7 @@ param(
   [string]$ProdSubscriptionId,
   [switch]$IncludeMainBranchSubject,
   [switch]$SyncOktaManagementPrivateKeySecret,
-  [string]$OktaManagementPrivateKeyPemPath = 'C:\secured\acme bff management.pem',
+  [string]$OktaManagementPrivateKeyPemPath,
   [string[]]$OktaManagementPrivateKeySecretEnvironments = @('dev')
 )
 
@@ -90,7 +90,7 @@ function Resolve-GitHubContext {
   return @{
     Owner = $resolvedOwner
     RepositoryName = $resolvedRepositoryName
-    RepositoryUrl = "https://github.com/$resolvedOwner/$resolvedRepositoryName"
+    RepositoryUrl = "$resolvedOwner/$resolvedRepositoryName"
   }
 }
 
@@ -382,6 +382,17 @@ function Ensure-GitHubEnvironment {
   }
 }
 
+function Assert-NativeCommandSucceeded {
+  param(
+    [string]$CommandName,
+    [string]$Action
+  )
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "$CommandName failed while trying to $Action. Exit code: $LASTEXITCODE."
+  }
+}
+
 function Set-GitHubRepositoryVariable {
   param(
     [string]$RepositoryUrl,
@@ -390,7 +401,9 @@ function Set-GitHubRepositoryVariable {
   )
 
   if ($PSCmdlet.ShouldProcess("Repository variable '$Name'", 'Set')) {
-    gh variable set $Name --body $Value --repo $RepositoryUrl | Out-Null
+    $variableValue = if ($null -eq $Value) { '' } else { $Value }
+    $variableValue | gh variable set $Name --repo $RepositoryUrl | Out-Null
+    Assert-NativeCommandSucceeded -CommandName 'gh variable set' -Action "set repository variable '$Name'"
   }
 }
 
@@ -403,7 +416,9 @@ function Set-GitHubEnvironmentVariable {
   )
 
   if ($PSCmdlet.ShouldProcess("Environment variable '$EnvironmentName/$Name'", 'Set')) {
-    gh variable set $Name --body $Value --env $EnvironmentName --repo $RepositoryUrl | Out-Null
+    $variableValue = if ($null -eq $Value) { '' } else { $Value }
+    $variableValue | gh variable set $Name --env $EnvironmentName --repo $RepositoryUrl | Out-Null
+    Assert-NativeCommandSucceeded -CommandName 'gh variable set' -Action "set environment variable '$EnvironmentName/$Name'"
   }
 }
 
@@ -427,7 +442,8 @@ function Set-GitHubEnvironmentSecretFromFile {
   }
 
   if ($PSCmdlet.ShouldProcess("Environment secret '$EnvironmentName/$Name'", 'Set from local file')) {
-    gh secret set $Name --repo $RepositoryUrl --env $EnvironmentName --body-file $secretFile.FullName | Out-Null
+    Get-Content -LiteralPath $secretFile.FullName -Raw | gh secret set $Name --repo $RepositoryUrl --env $EnvironmentName | Out-Null
+    Assert-NativeCommandSucceeded -CommandName 'gh secret set' -Action "set environment secret '$EnvironmentName/$Name'"
   }
 }
 
@@ -438,10 +454,6 @@ function Resolve-OktaManagementPrivateKeyPemFile {
   $item = Get-Item -LiteralPath $resolvedPath.ProviderPath -ErrorAction Stop
 
   if (-not $item.PSIsContainer) {
-    if ($item.Extension -ne '.pem') {
-      throw "Okta management private key path '$($item.FullName)' must be a .pem file."
-    }
-
     return $item
   }
 
@@ -461,7 +473,7 @@ function Resolve-OktaManagementPrivateKeyPemFile {
   return $pemFiles[0]
 }
 
-function Ensure-EntraApplication {
+function Find-EntraApplication {
   param([string]$DisplayName)
 
   $existingApps = ConvertTo-ObjectArray (az ad app list --display-name $DisplayName --output json | ConvertFrom-Json)
@@ -475,6 +487,18 @@ function Ensure-EntraApplication {
 
   if ($existing.Count -gt 0 -and $existing[0]) {
     return $existing[0]
+  }
+
+  return $null
+}
+
+function Ensure-EntraApplication {
+  param([string]$DisplayName)
+
+  $existing = Find-EntraApplication -DisplayName $DisplayName
+
+  if ($existing) {
+    return $existing
   }
 
   if (-not $PSCmdlet.ShouldProcess("Entra application '$DisplayName'", 'Create')) {
@@ -755,8 +779,7 @@ function Get-EnvironmentVariables {
   $environmentConfiguration = Get-EnvironmentConfiguration -Configuration $Configuration -EnvironmentName $EnvironmentName
   $imagesSubscriptionRole = Get-ImagesSubscriptionRole -Configuration $Configuration -EnvironmentName $EnvironmentName
 
-  return [ordered]@{
-    AZURE_CLIENT_ID = $AzureClientId
+  $variables = [ordered]@{
     AZURE_SUBSCRIPTION_ID = Get-EnvironmentSubscriptionId -Configuration $Configuration -AzureContext $AzureContext -EnvironmentName $EnvironmentName
     AZURE_ENVIRONMENT_NAME = $EnvironmentName
     APP_ENVIRONMENT_NAME = $environmentConfiguration.appEnvironmentName
@@ -783,6 +806,12 @@ function Get-EnvironmentVariables {
     AZURE_BICEP_PARAMETER_FILE = "infra/azure/bicep/$EnvironmentName.bicepparam"
     AZURE_WEB_DEPLOY_TEMPLATE = 'infra/azure/bicep/main.web.rg.bicep'
   }
+
+  if (-not [string]::IsNullOrWhiteSpace($AzureClientId)) {
+    $variables.Insert(0, 'AZURE_CLIENT_ID', $AzureClientId)
+  }
+
+  return $variables
 }
 
 function Write-PlanSummary {
@@ -848,6 +877,10 @@ if ($SyncOktaManagementPrivateKeySecret.IsPresent) {
     throw "Unknown Okta management private key secret environment(s): $($unknownSecretEnvironments -join ', '). Valid values: $($environmentNames -join ', ')."
   }
 
+  if ([string]::IsNullOrWhiteSpace($OktaManagementPrivateKeyPemPath)) {
+    throw 'Pass -OktaManagementPrivateKeyPemPath with the exact local Okta management private key file path when SyncOktaManagementPrivateKeySecret is set.'
+  }
+
   $oktaManagementPrivateKeyPemFile = Resolve-OktaManagementPrivateKeyPemFile -Path $OktaManagementPrivateKeyPemPath
 }
 
@@ -905,9 +938,9 @@ foreach ($environmentName in $environmentNames) {
   Ensure-GitHubEnvironment -Owner $gitHubContext.Owner -RepositoryName $gitHubContext.RepositoryName -EnvironmentName $environmentName
 
   $appId = ''
+  $displayName = "gha-$($configuration.projectName)-$environmentName"
 
   if ($Mode -in @('bootstrap-platform', 'bootstrap-automation')) {
-    $displayName = "gha-$($configuration.projectName)-$environmentName"
     $application = Ensure-EntraApplication -DisplayName $displayName
 
     if ($application) {
@@ -930,6 +963,11 @@ foreach ($environmentName in $environmentNames) {
       Ensure-RoleAssignment -PrincipalAppId $application.appId -RoleName 'User Access Administrator' -Scope $targetSubscriptionScope
       Ensure-RoleAssignment -PrincipalAppId $application.appId -RoleName 'Contributor' -Scope $platformNetworkScope
       Ensure-RoleAssignment -PrincipalAppId $application.appId -RoleName 'Contributor' -Scope $platformMonitorScope
+      $appId = $application.appId
+    }
+  } elseif ($Mode -eq 'sync-environments') {
+    $application = Find-EntraApplication -DisplayName $displayName
+    if ($application) {
       $appId = $application.appId
     }
   }

@@ -204,15 +204,15 @@ Recommended examples:
 - any short-lived bootstrap-only admin token that cannot yet be removed
 
 The Azure/GitHub environment setup script can set the Okta management PEM as an
-environment secret without printing the value. It uses `gh secret set
---body-file`, so the PEM stays in the local file and does not appear in command
-arguments:
+environment secret without printing the value. It streams the PEM to
+`gh secret set` through stdin, so the PEM does not appear in command arguments:
 
 ```powershell
+$oktaManagementPrivateKeyPath = 'C:\secure\acme bff management.pem'
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/setup-github-azure-environments.ps1 `
   -Mode sync-environments `
   -SyncOktaManagementPrivateKeySecret `
-  -OktaManagementPrivateKeyPemPath 'C:\secured\acme bff management.pem' `
+  -OktaManagementPrivateKeyPemPath $oktaManagementPrivateKeyPath `
   -OktaManagementPrivateKeySecretEnvironments dev
 ```
 
