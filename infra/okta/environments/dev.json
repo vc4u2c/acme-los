@@ -18,6 +18,7 @@
     "hostedExperience": {
       "rememberUser": true,
       "keepMeSignedIn": true,
+      "customerSessionMaxLifetimeDays": 60,
       "registrationRequiresEmailVerification": true,
       "registrationRequiresSecurityQuestion": true,
       "registrationRequiresPhoneVerification": false,

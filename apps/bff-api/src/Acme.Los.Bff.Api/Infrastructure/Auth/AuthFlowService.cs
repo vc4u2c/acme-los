@@ -115,8 +115,6 @@ public sealed class BffAuthFlowService : IAuthFlowService
     if (minimumAssuranceLevel == "aal2")
     {
       authorizeQuery["acr_values"] = options.FundingAcrValues;
-      authorizeQuery["prompt"] = "login";
-      authorizeQuery["max_age"] = "0";
     }
 
     return new StartAuthFlowResponse(

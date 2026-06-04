@@ -7,7 +7,9 @@
     "principles": [
       "Customer authentication policy is scoped to the ACME LOS customer group, not Okta Everyone.",
       "App access policy is assigned only to ACME LOS web and mobile apps.",
+      "Org authenticator activation, Okta risk scoring, device assurance, and device signal collection are Okta org features; ACME scopes their use through customer-group and app rules where Okta allows it.",
       "Password material, security-question answers, and OTPs stay in Okta.",
+      "Security-question challenge/hint is reserved for recovery and sensitive account-management changes, not routine or adaptive app sign-in.",
       "Backend profile sync happens only after a fresh ACME session."
     ]
   },
@@ -18,6 +20,13 @@
       "scopeKind": "org",
       "managedBy": "okta:bootstrap",
       "purpose": "Activate or disable the Okta authenticators the customer policies can reference."
+    },
+    {
+      "id": "device-risk-signals",
+      "label": "Device And Risk Signals",
+      "scopeKind": "orgFeature",
+      "managedBy": "manual-okta-org-feature-plus-okta:bootstrap-consumption",
+      "purpose": "Provides Okta risk, anomalous-device, device assurance, and device signal-collection inputs that app sign-in rules can consume when the org supports them."
     },
     {
       "id": "customer-group",
@@ -45,7 +54,7 @@
       "label": "Global Session",
       "scopeKind": "customerGroup",
       "managedBy": "okta:bootstrap",
-      "purpose": "Controls customer Okta session lifetime and remember-device behavior."
+      "purpose": "Controls customer Okta session lifetime, idle timeout, and remember-device behavior."
     },
     {
       "id": "app-sign-in",
@@ -129,7 +138,7 @@
       "automationStatus": "automated",
       "managedBy": "okta:bootstrap",
       "configures": [
-        "customer global session lifetime",
+        "{sessionLifetimeDays}-day customer global session lifetime with 120-minute idle timeout",
         "remember-device and persistent-cookie behavior"
       ],
       "scenarioIds": [
@@ -144,7 +153,11 @@
       "scopeKind": "apps",
       "automationStatus": "automated",
       "managedBy": "okta:bootstrap",
-      "configures": ["password-first app sign-in", "{adaptiveMfaState}"],
+      "configures": [
+        "password-first app sign-in",
+        "{adaptiveMfaState}",
+        "no security-question challenge during app sign-in"
+      ],
       "scenarioIds": ["standard-sign-in", "high-risk-sign-in"]
     },
     {
@@ -212,7 +225,7 @@
       "automationStatus": "automated",
       "flow": [
         "Customer signs in through ACME LOS web or mobile OIDC app.",
-        "Global session policy applies to {customerGroupName}.",
+        "Global session policy applies to {customerGroupName} with a {sessionLifetimeDays}-day maximum session lifetime.",
         "App access policy enforces password-first standard access.",
         "Authorization server issues ACME claims for the scoped customer app session."
       ],
@@ -223,16 +236,19 @@
     },
     {
       "id": "high-risk-sign-in",
-      "title": "High-Risk Sign-In",
+      "title": "High-Risk And New-Device Sign-In",
       "scopeKind": "apps",
       "automationStatus": "automated-when-okta-risk-rule-supported",
       "flow": [
-        "Okta evaluates the app sign-in risk rule.",
-        "High-risk access requires password-first 2FA.",
+        "Okta evaluates the ACME web/mobile app sign-in risk rule.",
+        "New user, new-device, and anomalous-device signals can contribute to Okta sign-in risk when the org supports those signals.",
+        "High-risk access requires password-first 2FA without requiring a security-question challenge/hint during sign-in.",
         "Standard access remains lower priority."
       ],
       "securityNotes": [
-        "Bootstrap logs a warning if the Okta org does not accept the adaptive risk rule."
+        "The ACCESS_POLICY is assigned only to ACME LOS web and mobile apps.",
+        "Bootstrap logs a warning if the Okta org does not accept the adaptive risk rule.",
+        "Device assurance and device signal collection are Okta org features; when required, verify the org feature and the app-rule consumption manually."
       ]
     },
     {
@@ -378,10 +394,12 @@
         "Customer saves ACME personal information.",
         "Next validates the browser session and forwards trusted identity to the internal BFF.",
         "BFF uses Okta Management OAuth service-app credentials to patch a sample customerId when missing.",
-        "Future sign-in receives the customerId claim from Okta."
+        "BFF updates the current ACME Redis auth-session metadata with the effective customerId when the session does not already have one.",
+        "Future token refresh or sign-in receives the customerId claim from Okta."
       ],
       "securityNotes": [
         "Okta management private key is BFF-only through Key Vault or environment secret.",
+        "ACME updates only derived session metadata; it never mutates the signed Okta JWT stored with the session.",
         "This sample bridge is dev-only until the real customer-id issuer exists."
       ]
     }
@@ -403,6 +421,21 @@
       "scopeKind": "customerGroup"
     },
     {
+      "id": "global-session-60-days",
+      "title": "Customer global session policy has a 60-day maximum lifetime and 120-minute idle timeout",
+      "scopeKind": "customerGroup"
+    },
+    {
+      "id": "adaptive-sign-in-app-scope",
+      "title": "Adaptive high-risk/new-device sign-in is assigned only to ACME web and mobile apps and does not require security-question answer at sign-in",
+      "scopeKind": "apps"
+    },
+    {
+      "id": "org-feature-boundaries",
+      "title": "Org-level authenticator, risk, device assurance, and device signal features are explicitly documented when they cannot be app-scoped",
+      "scopeKind": "orgFeature"
+    },
+    {
       "id": "email-phone-account-management",
       "title": "Email and phone account-management changes require the expected proofs",
       "scopeKind": "customerGroup"
@@ -420,6 +453,18 @@
     {
       "label": "Password authenticator recovery options",
       "url": "https://help.okta.com/oie/en-us/content/topics/identity-engine/authenticators/configure-password.htm"
+    },
+    {
+      "label": "App sign-in policy rules",
+      "url": "https://help.okta.com/oie/en-us/content/topics/identity-engine/policies/add-app-sign-on-policy-rule.htm"
+    },
+    {
+      "label": "Risk scoring",
+      "url": "https://help.okta.com/oie/en-us/content/topics/security/security_risk_scoring.htm"
+    },
+    {
+      "label": "Device signal collection policies",
+      "url": "https://developer.okta.com/docs/guides/device-signal-collection-policies/main/"
     }
   ]
 }

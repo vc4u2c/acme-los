@@ -201,7 +201,9 @@ to show the full platform surface, not just the visible web pages.
 
 - funding route requires stronger assurance than ordinary application steps
 - funding access starts a fresh Okta authorize request with MFA-oriented
-  `acr_values`, without forcing `prompt=login` or `max_age=0`
+  `acr_values`, without forcing `prompt=login` or `max_age=0`; an active
+  password session should proceed to email/SMS OTP instead of asking for the
+  password again
 - each funding page entry consumes the latest funding step-up marker
 - funding save/submit APIs can use the bounded 10-minute funding API window
   after callback
@@ -696,7 +698,7 @@ What to prove:
   `/account/sign-in?returnTo=%2Fapply%2Ffunding&aal=aal2`
 - the funding sign-in start asks Okta for stronger assurance with
   `acr_values`, while allowing an existing password session to proceed to the
-  configured email step-up factor
+  configured email/SMS OTP step-up factor without password replay
 - an existing `aal2` session is not enough by itself; each funding page entry
   consumes the funding step-up marker written by the latest Okta callback
 - after the Okta challenge completes, funding save/submit APIs can use that

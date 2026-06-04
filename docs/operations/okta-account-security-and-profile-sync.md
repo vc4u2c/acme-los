@@ -28,8 +28,9 @@ scenario contract. Render it with:
 npm run okta:policy-plan -- dev
 ```
 
-`tools/scripts/okta/bootstrap-okta.mjs` also emits the resolved `policyPlan` and
-`accountSecurityPolicyIntent` during dry-run and live bootstrap.
+`tools/scripts/okta/bootstrap-okta.mjs` also emits the resolved `policyPlan`,
+`sessionAndAdaptivePolicyIntent`, and `accountSecurityPolicyIntent` during
+dry-run and live bootstrap.
 
 The intended Okta-hosted registration profile enrollment captures these required
 fields:
@@ -46,6 +47,22 @@ The intended authenticator enrollment is:
 - security question: required
 - phone/SMS: optional until ACS toll-free verification is approved, then
   optional or required by environment rollout
+
+The intended session and adaptive sign-in posture is:
+
+- Customer global session policy: scoped to `acme-los-customers-<env>`, 60-day
+  maximum session lifetime, 120-minute idle timeout, and keep-me-signed-in
+  behavior from the environment manifest.
+- App sign-in policy: assigned only to ACME LOS web and mobile OIDC apps.
+- Standard app sign-in: password-first.
+- High-risk or new-device sign-in: Okta risk score `HIGH` requires
+  password-first 2FA, with keep-me-signed-in disabled for that event.
+- Security question is not required during app sign-in. It is reserved for
+  recovery and sensitive account-management changes.
+- Device assurance and device signal collection are Okta org features. When
+  the org supports them, ACME scopes their use through the app sign-in policy;
+  if the org cannot support or accept those rules, the limitation must be
+  recorded explicitly instead of broadening customer policy.
 
 The intended sensitive-change and recovery scenarios are:
 
@@ -111,12 +128,19 @@ and forwards trusted identity to the internal BFF. The BFF can then:
 5. otherwise write a deterministic demo value shaped like
    `sample-customer-<hash>` to `profile.customerId`
    through the Okta Users API partial-update operation
-6. save the application-step summary with that effective customer id
+6. update the current ACME auth-session metadata in Redis with that effective
+   customer id when the session does not already have one
+7. save the application-step summary with that effective customer id
 
 The browser never receives Okta management credentials. The public Next ACA does
 not receive Okta management credentials either; the private key is exposed only
 to the internal BFF ACA as a Key Vault secret reference while sample mode is
 enabled.
+
+This Redis metadata update does not modify the signed Okta ID or access token.
+The current application flow and BFF trusted-session headers can use the
+effective `customerId` immediately; the raw Okta token claim appears after Okta
+mints a new token through refresh or fresh sign-in.
 
 Before enabling this path, create an Okta API Service app, register a signing
 key, and grant the app the `okta.users.manage` scope for the org authorization
@@ -193,6 +217,25 @@ profile-enrollment rule; admin users should not be added to it. Run
 `npm run okta:bootstrap -- <env> --dry-run` and review the emitted `policyPlan`
 before applying live tenant changes.
 
+Some Okta orgs return a read-only error when bootstrap tries to update the
+profile-enrollment rule target-group condition. In that case bootstrap records a
+`manual-required` warning and continues with app, session, and account-management
+policy updates. Treat that warning as a deployment gate: verify the registration
+rule targets only `acme-los-customers-<env>` before relying on self-service
+registration.
+
+Scoping expectations:
+
+| Surface                                                                                                        | Intended scope                | Notes                                                                                                                                                               |
+| -------------------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Profile enrollment                                                                                             | `acme-los-customers-<env>`    | Bootstrap updates the Okta-managed registration rule to target the customer group and fails closed if that cannot be done.                                          |
+| Authenticator enrollment                                                                                       | `acme-los-customers-<env>`    | Password, email, security question, and phone/SMS enrollment are customer-policy scoped.                                                                            |
+| Global session policy                                                                                          | `acme-los-customers-<env>`    | Bootstrap sets the 60-day maximum session lifetime and 120-minute idle timeout.                                                                                     |
+| App sign-in policy                                                                                             | ACME web and mobile apps      | Bootstrap assigns the policy to the ACME OIDC apps and removes the app assignment from `Everyone` where possible.                                                   |
+| Account-management lifecycle rules                                                                             | `acme-los-customers-<env>`    | Bootstrap manages password, email, and phone/SMS lifecycle rules through the public Policy API.                                                                     |
+| Authorization server policy/rules                                                                              | ACME apps plus customer group | Token policy rules stay scoped to the app clients and customer group.                                                                                               |
+| Authenticator activation, risk scoring, device assurance, device signal collection, hosted brand/custom domain | Okta org feature              | These cannot always be app-scoped directly. The repo scopes consumption through customer/app policies where Okta allows it, and documents any org-level dependency. |
+
 Okta-hosted registration is one hosted flow, but Okta Identity Engine may still
 render profile enrollment, password setup, email OTP, security-question
 enrollment, and phone enrollment as separate hosted steps. The repo-managed
@@ -223,19 +266,33 @@ After running the bootstrap, confirm in Okta Admin Console:
    question only for the `acme-los-customers-<env>` customer group.
 5. Confirm the profile-enrollment form requires first name, last name, email,
    and state for new registrations.
-6. Confirm phone/SMS enrollment matches the ACS rollout state.
-7. Go to the Okta account-management policy.
-8. Confirm the three ACME LOS lifecycle rules exist, are scoped to the ACME
+6. Confirm the profile-enrollment registration rule targets only the
+   `acme-los-customers-<env>` customer group, especially if bootstrap printed a
+   `manual-required` profile-enrollment warning.
+7. Confirm phone/SMS enrollment matches the ACS rollout state.
+8. Go to the Okta account-management policy.
+9. Confirm the three ACME LOS lifecycle rules exist, are scoped to the ACME
    customer group, and match the rendered `policyPlan` scenarios.
-9. Confirm recovery/change flows require the expected OTP proof plus the Okta
-   security-question challenge/hint and force sign-off/fresh sign-in where the
-   scenario requires it.
-10. Confirm password and security-question changes do not send secret material to
+10. Confirm recovery/change flows require the expected OTP proof plus the Okta
+    security-question challenge/hint and force sign-off/fresh sign-in where the
+    scenario requires it.
+11. Confirm password and security-question changes do not send secret material to
     ACME systems.
-11. Confirm `customerId` remains an app-owned custom profile attribute and is
+12. Confirm `customerId` remains an app-owned custom profile attribute and is
     not editable by end users.
-12. Confirm admin users are not in the ACME LOS customer group unless they are
+13. Confirm admin users are not in the ACME LOS customer group unless they are
     intentionally being used as customer test accounts.
+14. Go to `Security` > `Global Session Policy` and confirm the ACME LOS
+    customer policy is scoped to `acme-los-customers-<env>`, has a 60-day
+    maximum session lifetime, and has a 120-minute idle timeout.
+15. Go to `Security` > `Authentication Policies` > `App sign-in` and confirm
+    the ACME LOS app policy is assigned only to the ACME web and mobile apps.
+16. Confirm the high-risk/new-device app rule requires password-first 2FA and
+    does not require the security-question answer during sign-in.
+17. If device assurance, device signal collection, Identity Threat Protection,
+    or another device-risk feature is enabled in the org, confirm whether it is
+    org-level only or consumed by the ACME app policy. Record any part that
+    cannot be app-scoped.
 
 ## User Prune Allowlist
 
@@ -291,15 +348,15 @@ allowlist pruning.
 
 ## Dashboard UX
 
-The ACME customer dashboard links users to Okta-hosted account settings for:
+The ACME customer dashboard links users to the hosted account center for:
 
 - login email
 - phone/SMS factor
 - password
 - security question
 
-After the user completes an Okta-hosted change, they return to the dashboard and
-refresh their secure session. The fresh Okta session lets ACME sync confirmed
+After the user completes a hosted account change, they return to the dashboard
+and refresh their secure session. The fresh session lets ACME sync confirmed
 metadata without collecting secrets or OTPs in the app.
 
 ## Official References
@@ -307,6 +364,9 @@ metadata without collecting secrets or OTPs in the app.
 - [Configure the security question authenticator](https://help.okta.com/oie/en-us/Content/Topics/identity-engine/authenticators/configure-security-question.htm)
 - [Authenticators Administration API](https://developer.okta.com/docs/reference/api/authenticators-admin/)
 - [Okta My Settings](https://help.okta.com/eu/en-us/content/topics/end-user/end-user-settings-v2.htm)
+- [App sign-in policy rules](https://help.okta.com/oie/en-us/content/topics/identity-engine/policies/add-app-sign-on-policy-rule.htm)
+- [Risk scoring](https://help.okta.com/oie/en-us/content/topics/security/security_risk_scoring.htm)
+- [Device signal collection policies](https://developer.okta.com/docs/guides/device-signal-collection-policies/main/)
 - [Okta Event Hooks](https://developer.okta.com/docs/concepts/event-hooks/)
 - [OAuth for Okta service apps](https://developer.okta.com/docs/guides/implement-oauth-for-okta-serviceapp/main/)
 - [OAuth scopes for Okta Management APIs](https://developer.okta.com/docs/guides/implement-oauth-for-okta/main/)

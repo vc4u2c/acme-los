@@ -1,5 +1,6 @@
 using Acme.Los.Bff.Api.Common;
 using Acme.Los.Bff.Api.Contracts;
+using Acme.Los.Bff.Api.Infrastructure.Auth;
 using Acme.Los.Bff.Api.Infrastructure.Security;
 using Wolverine;
 
@@ -59,6 +60,7 @@ public static class ApplicationEndpoints
           HttpRequest request,
           SaveApplicationStepRequest? payload,
           ICsrfTokenService csrfTokenService,
+          IAuthSessionService authSessionService,
           IMessageBus bus,
           CancellationToken cancellationToken) =>
         {
@@ -105,6 +107,17 @@ public static class ApplicationEndpoints
               step,
               payload.Payload),
             cancellationToken);
+          var effectiveCustomerId = response.StepState.Summary.CustomerId;
+
+          if (!string.IsNullOrWhiteSpace(effectiveCustomerId)
+            && string.IsNullOrWhiteSpace(identity.CustomerId))
+          {
+            await authSessionService.TryUpdateSessionCustomerIdAsync(
+              request,
+              identity.UserId,
+              effectiveCustomerId,
+              cancellationToken);
+          }
 
           return Results.Ok(response);
         })

@@ -75,6 +75,15 @@ const issuer = requiredString(environment.okta?.issuer, 'okta.issuer');
 const oktaApiBaseUrl = new URL('/', issuer).toString().replace(/\/$/, '');
 const warnings = [];
 
+function isReadOnlyConditionsError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return (
+    message.includes('E0000077') ||
+    (message.includes('conditions') && message.includes('read-only'))
+  );
+}
+
 function requiredString(value, fieldName) {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new Error(`Expected "${fieldName}" to be a non-empty string.`);
@@ -100,6 +109,14 @@ function optionalStringArray(values) {
   return values
     .map((value) => optionalString(value))
     .filter((value) => typeof value === 'string');
+}
+
+function optionalPositiveInteger(value) {
+  if (!Number.isInteger(value) || value <= 0) {
+    return undefined;
+  }
+
+  return value;
 }
 
 function getUniqueValues(values) {
@@ -1163,7 +1180,7 @@ function buildSessionRulePayload(existingRule) {
         session: {
           usePersistentCookie: Boolean(hostedExperience.keepMeSignedIn),
           maxSessionIdleMinutes: 120,
-          maxSessionLifetimeMinutes: 10080,
+          maxSessionLifetimeMinutes: customerSessionMaxLifetimeMinutes,
         },
       },
     },
@@ -1632,6 +1649,11 @@ const hostedExperience = environment.okta?.hostedExperience ?? {};
 const telephony = environment.okta?.telephony ?? {};
 const userPrune = environment.okta?.userPrune ?? {};
 const telephonyEnabled = telephony.enabled === true;
+const customerSessionMaxLifetimeDays =
+  optionalPositiveInteger(hostedExperience.customerSessionMaxLifetimeDays) ??
+  60;
+const customerSessionMaxLifetimeMinutes =
+  customerSessionMaxLifetimeDays * 24 * 60;
 const telephonyHookPath =
   optionalString(telephony.hookPath) ?? '/api/hooks/okta/telephony';
 const telephonyHookUri = toAbsoluteUrl(deployedWebBaseUrl, telephonyHookPath);
@@ -1970,6 +1992,30 @@ const expectedAccountManagementPolicyRules =
     customerGroupName,
     telephonyEnabled,
   });
+const sessionAndAdaptivePolicyIntent = {
+  session: {
+    policyName: sessionPolicyName,
+    scope: customerGroupName,
+    maxSessionIdleMinutes: 120,
+    maxSessionLifetimeDays: customerSessionMaxLifetimeDays,
+    maxSessionLifetimeMinutes: customerSessionMaxLifetimeMinutes,
+    keepMeSignedIn: Boolean(hostedExperience.keepMeSignedIn),
+    rememberDeviceByDefault: Boolean(hostedExperience.rememberUser),
+  },
+  appSignIn: {
+    policyName: accessPolicyName,
+    scope: [expectedWebApp.label, expectedMobileApp.label],
+    standardRule:
+      'Password-first app sign-in. Keep-me-signed-in is allowed only when the environment manifest enables it.',
+    highRiskRule: hostedExperience.adaptiveMfaOnSignIn
+      ? 'Okta risk score HIGH requires password-first 2FA with keep-me-signed-in disabled for that authentication event.'
+      : 'Disabled by hostedExperience.adaptiveMfaOnSignIn=false.',
+    signInSecurityQuestion:
+      'Security-question challenge/hint is not required during app sign-in; it is reserved for recovery and sensitive account-management changes.',
+    deviceRiskBoundary:
+      'New-device and anomalous-device signals are Okta risk inputs when the org supports them. Device assurance and device signal collection are org-level Okta features and are not currently provisioned by this bootstrap.',
+  },
+};
 
 if (dryRun) {
   writeJsonFile(bootstrapOutputsPath, {
@@ -2007,6 +2053,7 @@ if (dryRun) {
       expectedAccountManagementPolicyRules,
     ),
     accountSecurityPolicyIntent,
+    sessionAndAdaptivePolicyIntent,
     telephony: {
       enabled: telephonyEnabled,
       hookName: expectedTelephonyInlineHook.name,
@@ -2605,9 +2652,23 @@ try {
     targetGroupIds: [customerGroupId],
   };
 } catch (error) {
-  throw new Error(
-    `Unable to scope ${profileEnrollmentPolicyName} registration to ${customerGroupName}. Update the profile enrollment rule target group manually, then rerun bootstrap. ${error instanceof Error ? error.message : error}`,
-  );
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (isReadOnlyConditionsError(error)) {
+    warnings.push(
+      `Okta rejected automatic profile-enrollment target-group scoping for ${profileEnrollmentPolicyName} because the rule conditions are read-only in this org. Verify the rule targets ${customerGroupName} (${customerGroupId}) manually before relying on self-service registration. Continuing with app, session, and account-policy updates.`,
+    );
+    results.profileEnrollmentRule = {
+      mode: 'manual-required',
+      id: profileEnrollmentRule.id,
+      targetGroupIds: [customerGroupId],
+      reason: 'okta-read-only-rule-conditions',
+    };
+  } else {
+    throw new Error(
+      `Unable to scope ${profileEnrollmentPolicyName} registration to ${customerGroupName}. Update the profile enrollment rule target group manually, then rerun bootstrap. ${message}`,
+    );
+  }
 }
 
 const accountManagementPolicyRules =
@@ -2772,7 +2833,7 @@ if (hostedExperience.rememberUser) {
 
 if (hostedExperience.fundingRouteStepUp) {
   warnings.push(
-    `Funding step-up remains enforced in application code through acr_values on the guarded funding step. The runtime request no longer forces prompt=login/max_age=0, so an existing password session can satisfy the password portion while Okta presents the configured ${fundingStepUpMethod} step-up factor. Verify this behavior once after publishing the hosted page and policy changes.`,
+    `Funding step-up remains enforced in application code through acr_values on the guarded funding step. The runtime request does not force prompt=login/max_age=0, so an existing password session can proceed directly to the configured ${fundingStepUpMethod} OTP step-up factor. Verify this behavior once after publishing the hosted page and policy changes.`,
   );
 }
 
@@ -2814,6 +2875,7 @@ writeJsonFile(bootstrapOutputsPath, {
   accountManagementPolicy: results.accountManagementPolicy,
   accountManagementPolicyRules: results.accountManagementPolicyRules,
   accountSecurityPolicyIntent,
+  sessionAndAdaptivePolicyIntent,
   securityQuestionAuthenticator: results.securityQuestionAuthenticator,
   telephonyInlineHook: results.telephonyInlineHook,
   phoneAuthenticator: results.phoneAuthenticator,

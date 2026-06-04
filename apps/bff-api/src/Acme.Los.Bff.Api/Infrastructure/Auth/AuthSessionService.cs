@@ -27,6 +27,12 @@ public interface IAuthSessionService
     HttpRequest request,
     CancellationToken cancellationToken);
 
+  ValueTask<bool> TryUpdateSessionCustomerIdAsync(
+    HttpRequest request,
+    string userId,
+    string customerId,
+    CancellationToken cancellationToken);
+
   ValueTask<RequireWebAuthSessionResponse> RequireSessionAsync(
     HttpRequest request,
     RequireWebAuthSessionRequest requirement,
@@ -186,6 +192,58 @@ public sealed class BffAuthSessionService : IAuthSessionService
         touchedSession.Session,
         true,
         BuildTiming(touchedSession)));
+  }
+
+  public async ValueTask<bool> TryUpdateSessionCustomerIdAsync(
+    HttpRequest request,
+    string userId,
+    string customerId,
+    CancellationToken cancellationToken)
+  {
+    if (string.IsNullOrWhiteSpace(userId)
+      || string.IsNullOrWhiteSpace(customerId))
+    {
+      return false;
+    }
+
+    var sessionId = TryReadSessionId(request);
+
+    if (string.IsNullOrWhiteSpace(sessionId))
+    {
+      return false;
+    }
+
+    var storedSession = await _store.ReadActiveAsync(sessionId, cancellationToken);
+    var sessionUser = storedSession?.Session.User;
+
+    if (storedSession is null
+      || sessionUser is null
+      || !storedSession.Session.IsAuthenticated
+      || !string.Equals(sessionUser.Id, userId, StringComparison.Ordinal))
+    {
+      return false;
+    }
+
+    if (!string.IsNullOrWhiteSpace(sessionUser.CustomerId))
+    {
+      return true;
+    }
+
+    var nextSession = storedSession.Session with
+    {
+      User = sessionUser with
+      {
+        CustomerId = customerId.Trim(),
+      },
+    };
+    var nextStoredSession = storedSession with
+    {
+      Session = nextSession,
+    };
+
+    await _store.WriteAsync(nextStoredSession, cancellationToken);
+
+    return true;
   }
 
   public async ValueTask<RequireWebAuthSessionResponse> RequireSessionAsync(
