@@ -151,8 +151,8 @@
       "type": "OKTA_ACCOUNT_MANAGEMENT",
       "nameTemplate": "Okta Account Management ({env})",
       "scopeKind": "customerGroup",
-      "automationStatus": "manual-check",
-      "managedBy": "okta-admin-console-until-api-payload-finalized",
+      "automationStatus": "automated-public-policy-api",
+      "managedBy": "okta:bootstrap",
       "configures": [
         "forgot email, forgot phone, forgot password, and account unlock recovery requirements",
         "security-question challenge/hint plus the expected OTP proof",
@@ -170,8 +170,8 @@
       "type": "OKTA_ACCOUNT_MANAGEMENT",
       "nameTemplate": "Okta Account Management ({env})",
       "scopeKind": "customerGroup",
-      "automationStatus": "manual-check",
-      "managedBy": "okta-admin-console-until-api-payload-finalized",
+      "automationStatus": "automated-public-policy-api",
+      "managedBy": "okta:bootstrap",
       "configures": [
         "change email requires other-factor OTP plus security-question challenge/hint",
         "change password requires current password plus factor proof and security-question challenge/hint",
@@ -237,7 +237,7 @@
       "id": "forgot-email",
       "title": "Forgot Email",
       "scopeKind": "customerGroup",
-      "automationStatus": "manual-check",
+      "automationStatus": "automated-public-policy-api",
       "flow": [
         "Customer chooses forgot email or lost email access from Okta-hosted recovery.",
         "Okta verifies an alternate possession factor OTP such as phone/SMS when enabled.",
@@ -259,7 +259,7 @@
       "id": "forgot-password-security-question-email-otp",
       "title": "Forgot Password: Security Question + Email OTP",
       "scopeKind": "customerGroup",
-      "automationStatus": "manual-check",
+      "automationStatus": "automated-public-policy-api",
       "flow": [
         "Customer chooses forgot password from the Okta hosted sign-in page.",
         "Okta account management or password recovery policy verifies the enrolled security-question challenge/hint.",
@@ -271,7 +271,7 @@
       "securityNotes": [
         "ACME never receives the old password, new password, security-question answer, or email OTP.",
         "This scenario must be scoped to {customerGroupName}; admin users are out of scope.",
-        "Until the Account Management API payload is finalized in bootstrap, confirm this in Okta Admin Console."
+        "Bootstrap manages the Okta account-management policy rule through the public Policy API."
       ],
       "oktaSurfaces": [
         "Security > Authenticators > Password > Rules > Recovery authenticators",
@@ -282,7 +282,7 @@
       "id": "change-email",
       "title": "Change Email",
       "scopeKind": "customerGroup",
-      "automationStatus": "manual-check",
+      "automationStatus": "automated-public-policy-api",
       "flow": [
         "Customer changes email in Okta-hosted account management.",
         "Before the change is accepted, Okta requires other-factor OTP proof where available, not the email address being changed.",
@@ -300,7 +300,7 @@
       "id": "change-password",
       "title": "Change Password",
       "scopeKind": "customerGroup",
-      "automationStatus": "manual-check",
+      "automationStatus": "automated-public-policy-api",
       "flow": [
         "Customer starts change password from Okta-hosted account management while signed in.",
         "Okta verifies the current password.",
@@ -318,7 +318,7 @@
       "id": "forgot-phone",
       "title": "Forgot Phone",
       "scopeKind": "customerGroup",
-      "automationStatus": "manual-check",
+      "automationStatus": "automated-public-policy-api",
       "flow": [
         "Customer reports lost phone or unavailable SMS factor through Okta-hosted recovery.",
         "Okta verifies email OTP before allowing recovery to continue.",
@@ -335,7 +335,7 @@
       "id": "change-phone",
       "title": "Change Phone/SMS",
       "scopeKind": "customerGroup",
-      "automationStatus": "manual-check-until-acs-approved",
+      "automationStatus": "automated-public-policy-api-until-acs-approved",
       "flow": [
         "Customer changes phone/SMS factor in Okta-hosted account management.",
         "Okta requires email OTP before the phone/SMS factor is changed.",
@@ -353,7 +353,7 @@
       "id": "fresh-sign-in-after-sensitive-change",
       "title": "Fresh ACME Sign-In After Sensitive Change",
       "scopeKind": "customerGroup",
-      "automationStatus": "manual-check",
+      "automationStatus": "application-code-after-okta-policy",
       "flow": [
         "Sensitive Okta account-management action completes.",
         "Existing ACME session is treated as stale for synced profile state.",

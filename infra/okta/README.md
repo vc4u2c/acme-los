@@ -91,7 +91,8 @@ Script:
 Purpose:
 
 - calls the live Okta Admin APIs
-- uses a local `OKTA_API_TOKEN`
+- uses `OKTA_MANAGEMENT_ACCESS_TOKEN` when provided, with `OKTA_API_TOKEN` as a
+  local dev fallback
 - bootstraps the dev org from the git-tracked config
 
 This is the **current practical write path**.
@@ -117,12 +118,15 @@ It currently handles:
 - app access policy
 - password-first standard sign-in policy wiring
 - adaptive high-risk 2FA policy wiring when the org supports Okta risk-based conditions
+- Okta account-management policy rules for password, email, and phone/SMS
+  lifecycle scenarios
 - policy and customer-group assignment to the created apps
 
 It also prints and writes a `policyPlan` summary that names each Okta policy,
-its scope, and what it configures. Resolved IDs and client IDs are written back
-into the local generated files, and the environment manifest is updated when app
-client IDs are created.
+its scope, and what it configures. It also prints and writes the resolved
+account-management policy rule payloads for the six customer account scenarios.
+Resolved IDs and client IDs are written back into the local generated files, and
+the environment manifest is updated when app client IDs are created.
 
 Live dev org state last verified from the Admin API:
 
@@ -139,6 +143,10 @@ Live dev org state last verified from the Admin API:
 - email, password, and Okta Verify authenticators are active
 - security-question enrollment is required by the ACME LOS authenticator policy
   for the `acme-los-customers-dev` customer group
+- account-management lifecycle rules are repo-managed by bootstrap:
+  - `ACME LOS Password Lifecycle (dev)`
+  - `ACME LOS Email Lifecycle (dev)`
+  - `ACME LOS Phone Lifecycle (dev)`
 - phone authenticator remains inactive until the purchased ACS sender number
   `+18772244103` is toll-free verified and enabled in the manifest
 - the repo-managed telephony inline hook is intentionally absent while
@@ -155,9 +163,12 @@ For local development, use this flow:
 npm run okta:render -- dev
 ```
 
-3. Set a local Okta admin token:
+3. Set local Okta management credentials. Prefer a scoped OAuth management
+   access token for bootstrap; use an SSWS token only as a local dev fallback:
 
 ```powershell
+$env:OKTA_MANAGEMENT_ACCESS_TOKEN='<scoped okta management access token>'
+# or
 $env:OKTA_API_TOKEN='<ssws token>'
 ```
 
@@ -320,17 +331,21 @@ Current auth shape in this repo:
 
 Short version:
 
-- use an **SSWS token** for local dev bootstrap right now
+- prefer `OKTA_MANAGEMENT_ACCESS_TOKEN` for `okta:bootstrap`
+- use `OKTA_API_TOKEN` as the local dev fallback and for cleanup/prune scripts
 
 Why:
 
-- the token path works today
-- using the token only for admin bootstrap is acceptable
+- Okta recommends scoped OAuth 2.0 management access tokens over broad API
+  tokens for Management APIs
+- the bootstrap code now accepts a bearer token and falls back to SSWS only when
+  no bearer token is provided
 - using the token for runtime auth would be wrong, and we are **not** doing that
 
 So the current recommendation is:
 
-- local/dev bootstrap: `OKTA_API_TOKEN`
+- local/dev bootstrap: `OKTA_MANAGEMENT_ACCESS_TOKEN`
+- cleanup and guarded dev-user pruning: `OKTA_API_TOKEN`
 
 `okta:bootstrap` updates an existing OIDC application in place when redirect
 or logout URI configuration changes. Do not delete and recreate a live web

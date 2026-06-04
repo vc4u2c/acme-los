@@ -3,6 +3,12 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
+  buildAccountManagementPolicyRuleDefinitions,
+  findAccountManagementPolicy,
+  printAccountManagementPolicyRules,
+  summarizeAccountManagementPolicyRules,
+} from './account-management-policy.mjs';
+import {
   buildHostedErrorPageContent,
   buildHostedSignInPageContent,
 } from './hosted-sign-in-page.mjs';
@@ -47,14 +53,24 @@ if (!fs.existsSync(environmentPath)) {
   process.exit(1);
 }
 
-if (!dryRun && !process.env.OKTA_API_TOKEN?.trim()) {
-  console.error('Set OKTA_API_TOKEN before running the Okta bootstrap script.');
+const oktaManagementAccessToken =
+  process.env.OKTA_MANAGEMENT_ACCESS_TOKEN?.trim();
+const oktaApiToken = process.env.OKTA_API_TOKEN?.trim();
+
+if (!dryRun && !oktaManagementAccessToken && !oktaApiToken) {
+  console.error(
+    'Set OKTA_MANAGEMENT_ACCESS_TOKEN or OKTA_API_TOKEN before running the Okta bootstrap script.',
+  );
   process.exit(1);
 }
 
 const environment = JSON.parse(fs.readFileSync(environmentPath, 'utf8'));
 const brandProfile = JSON.parse(fs.readFileSync(brandProfilePath, 'utf8'));
-const token = process.env.OKTA_API_TOKEN?.trim();
+const oktaAuthorizationHeader = oktaManagementAccessToken
+  ? `Bearer ${oktaManagementAccessToken}`
+  : oktaApiToken
+    ? `SSWS ${oktaApiToken}`
+    : '';
 const issuer = requiredString(environment.okta?.issuer, 'okta.issuer');
 const oktaApiBaseUrl = new URL('/', issuer).toString().replace(/\/$/, '');
 const warnings = [];
@@ -236,7 +252,7 @@ async function oktaRequest(method, pathname, body, query = undefined) {
     method,
     headers: {
       Accept: 'application/json',
-      Authorization: `SSWS ${token}`,
+      Authorization: oktaAuthorizationHeader,
       ...(body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
@@ -719,7 +735,7 @@ async function unassignGroupFromApplication(appId, groupId) {
     method: 'DELETE',
     headers: {
       Accept: 'application/json',
-      Authorization: `SSWS ${token}`,
+      Authorization: oktaAuthorizationHeader,
     },
   });
 
@@ -1744,6 +1760,13 @@ const oktaPolicyPlan = buildOktaPolicyPlan({
   webAppLabel: expectedWebApp.label,
   mobileAppLabel: expectedMobileApp.label,
 });
+const expectedAccountManagementPolicyRules =
+  buildAccountManagementPolicyRuleDefinitions({
+    environmentName,
+    customerGroupId: `<resolved group id for ${customerGroupName}>`,
+    customerGroupName,
+    telephonyEnabled,
+  });
 
 if (dryRun) {
   writeJsonFile(bootstrapOutputsPath, {
@@ -1777,6 +1800,9 @@ if (dryRun) {
       accessPolicyName,
     },
     policyPlan: oktaPolicyPlan,
+    accountManagementPolicyRules: summarizeAccountManagementPolicyRules(
+      expectedAccountManagementPolicyRules,
+    ),
     accountSecurityPolicyIntent,
     telephony: {
       enabled: telephonyEnabled,
@@ -1819,6 +1845,7 @@ if (dryRun) {
     `- Preview file: ${path.relative(repoRoot, bootstrapOutputsPath)}`,
   );
   printOktaPolicyPlan(oktaPolicyPlan);
+  printAccountManagementPolicyRules(expectedAccountManagementPolicyRules);
   process.exit(0);
 }
 
@@ -2367,9 +2394,48 @@ try {
     `Unable to scope ${profileEnrollmentPolicyName} registration to ${customerGroupName}. Update the profile enrollment rule target group manually, then rerun bootstrap. ${error instanceof Error ? error.message : error}`,
   );
 }
-warnings.push(
-  'Account-management policy intent is source-controlled in the bootstrap output. Confirm in Okta Admin Console that email changes require security question plus SMS/phone, phone/SMS changes require security question plus email, and password/security-question changes never sync secret material to ACME.',
-);
+
+const accountManagementPolicyRules =
+  buildAccountManagementPolicyRuleDefinitions({
+    environmentName,
+    customerGroupId,
+    customerGroupName,
+    telephonyEnabled,
+  });
+const accessPolicies = await listPolicies('ACCESS_POLICY');
+const accountManagementPolicy = findAccountManagementPolicy(accessPolicies);
+results.accountManagementPolicy = accountManagementPolicy
+  ? {
+      mode: 'existing',
+      id: accountManagementPolicy.id,
+      name: accountManagementPolicy.name,
+    }
+  : {
+      mode: 'not-found',
+      resourceType: 'END_USER_ACCOUNT_MANAGEMENT',
+    };
+results.accountManagementPolicyRules = [];
+
+if (!accountManagementPolicy) {
+  throw new Error(
+    'Okta account-management policy was not found in ACCESS_POLICY results with resourceType END_USER_ACCOUNT_MANAGEMENT. Confirm Identity Engine account-management policy is enabled before relying on email, phone, or password lifecycle automation.',
+  );
+}
+
+for (const ruleDefinition of accountManagementPolicyRules) {
+  const ruleResult = await ensureRule(
+    accountManagementPolicy.id,
+    ruleDefinition.name,
+    ruleDefinition.payload,
+  );
+  results.accountManagementPolicyRules.push({
+    mode: ruleResult.mode,
+    id: ruleResult.rule.id,
+    name: ruleDefinition.name,
+    scenarioIds: ruleDefinition.scenarioIds,
+    expectedProofs: ruleDefinition.expectedProofs,
+  });
+}
 
 const mfaPolicyResult = await ensurePolicy(
   'MFA_ENROLL',
@@ -2530,6 +2596,8 @@ writeJsonFile(bootstrapOutputsPath, {
   sessionPolicyId: results.sessionPolicy.id,
   accessPolicyId: results.accessPolicy.id,
   policyPlan: oktaPolicyPlan,
+  accountManagementPolicy: results.accountManagementPolicy,
+  accountManagementPolicyRules: results.accountManagementPolicyRules,
   accountSecurityPolicyIntent,
   securityQuestionAuthenticator: results.securityQuestionAuthenticator,
   telephonyInlineHook: results.telephonyInlineHook,
@@ -2574,6 +2642,7 @@ console.log(
 );
 console.log(`- Access policy: ${results.accessPolicy.id}`);
 printOktaPolicyPlan(oktaPolicyPlan);
+printAccountManagementPolicyRules(accountManagementPolicyRules);
 console.log(
   `- Security question authenticator: ${results.securityQuestionAuthenticator.enrollment}`,
 );

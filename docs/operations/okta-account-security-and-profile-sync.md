@@ -161,7 +161,7 @@ higher environments until the real customer-id issuer is finalized; the final
 production security shape remains BFF-owned OAuth with the least Okta
 management scope required for the specific profile attribute.
 
-## Manual Okta Admin Checks
+## Okta Policy Automation And Checks
 
 The Okta bootstrap should keep ACME customer authentication policy scoped to the
 environment customer group (`acme-los-customers-<env>`), not to Okta `Everyone`.
@@ -171,7 +171,20 @@ profile-enrollment rule; admin users should not be added to it. Run
 `npm run okta:bootstrap -- <env> --dry-run` and review the emitted `policyPlan`
 before applying live tenant changes.
 
-After running `npm run okta:bootstrap -- <env>`, confirm in Okta Admin Console:
+`npm run okta:bootstrap -- <env>` manages three Okta account-management policy
+rules through the public Policy API:
+
+- `ACME LOS Password Lifecycle (<env>)`: forgot password and change password.
+- `ACME LOS Email Lifecycle (<env>)`: forgot email and change email.
+- `ACME LOS Phone Lifecycle (<env>)`: forgot phone and change phone; harmless
+  while phone/SMS remains disabled.
+
+For a scoped Okta automation token, prefer `OKTA_MANAGEMENT_ACCESS_TOKEN` with
+the Okta management scopes required by the bootstrap, including
+`okta.policies.manage`. `OKTA_API_TOKEN` remains a local fallback for dev
+bootstrap work.
+
+After running the bootstrap, confirm in Okta Admin Console:
 
 1. Go to `Security` > `Authenticators` > `Setup`.
 2. Confirm `Security Question` is active and configured for authentication and
@@ -181,8 +194,8 @@ After running `npm run okta:bootstrap -- <env>`, confirm in Okta Admin Console:
    question only for the `acme-los-customers-<env>` customer group.
 5. Confirm phone/SMS enrollment matches the ACS rollout state.
 6. Go to the Okta account-management policy.
-7. Confirm forgot email, change email, forgot password, change password, forgot
-   phone, and change phone match the rendered `policyPlan` scenarios.
+7. Confirm the three ACME LOS lifecycle rules exist, are scoped to the ACME
+   customer group, and match the rendered `policyPlan` scenarios.
 8. Confirm recovery/change flows require the expected OTP proof plus the Okta
    security-question challenge/hint and force sign-off/fresh sign-in where the
    scenario requires it.
