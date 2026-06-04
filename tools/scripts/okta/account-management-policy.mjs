@@ -132,13 +132,13 @@ export function buildAccountManagementPolicyRuleDefinitions({
       priority: 2,
       scenarioIds: ['forgot-email', 'change-email'],
       expectedProofs: [
-        'other_possession_factor_otp',
+        'phone_or_other_non_email_possession_factor_otp',
         'security_question_challenge',
       ],
       expectedPossessionFactors,
       notes: [
-        'Okta owns email authenticator changes; ACME syncs the mutable email claim only after a fresh sign-in.',
-        'Forgot-email remains limited by the possession factors enabled in the Okta org.',
+        'Email recovery/change must use an opposite-channel possession proof, not the email address being recovered or changed.',
+        'Okta owns email authenticator changes; ACME syncs the mutable email claim only after the customer signs in fresh with the recovered or new email.',
       ],
       payload: (existingRule) =>
         buildRulePayload({
@@ -155,13 +155,14 @@ export function buildAccountManagementPolicyRuleDefinitions({
       id: 'phone-lifecycle',
       name: `ACME LOS Phone Lifecycle (${environmentName})`,
       priority: 3,
-      scenarioIds: ['forgot-phone', 'change-phone'],
+      scenarioIds: ['lost-phone-replace-factor', 'change-phone'],
       expectedProofs: ['okta_email_otp', 'security_question_challenge'],
       expectedPossessionFactors: ['okta_email'],
       notes: [
         telephonyEnabled
           ? 'Phone/SMS account-management rule is active because telephony is enabled.'
           : 'Phone/SMS account-management rule is prepared, but the phone authenticator remains inactive until ACS SMS is approved.',
+        'Phone/SMS replacement uses email OTP because the unavailable phone factor cannot prove its own replacement.',
         'ACME syncs verified phone metadata only from a trusted Okta claim, Management API lookup, or event hook after fresh sign-in.',
       ],
       payload: (existingRule) =>

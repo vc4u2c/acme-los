@@ -112,7 +112,8 @@ It currently handles:
   rollback
 - optional phone authenticator SMS activation with voice disabled
 - customer group
-- profile-enrollment registration target group
+- profile-enrollment registration target group and required profile fields
+  (`firstName`, `lastName`, `email`, `state`)
 - customer-group-scoped MFA enrollment policy
 - customer-group-scoped global session policy
 - app access policy
@@ -137,9 +138,12 @@ Live dev org state last verified from the Admin API:
 - customer brand custom sign-in page exists
 - customer brand custom error page exists
 - `lead_id` and `customer_id` claims exist for both ID and access tokens
-- custom profile attributes exist:
+- managed user profile attributes exist:
   - `leadId`
   - `customerId`
+  - `state` for Okta-hosted registration state capture; if the Okta org already
+    has the default base `state` attribute, bootstrap reuses it instead of
+    creating a conflicting custom attribute
 - email, password, and Okta Verify authenticators are active
 - security-question enrollment is required by the ACME LOS authenticator policy
   for the `acme-los-customers-dev` customer group
@@ -302,7 +306,8 @@ That means:
   shared with the Okta hostname
 - registration is working against the system default profile-enrollment rule,
   with bootstrap-managed target-group assignment to
-  `acme-los-customers-<env>`
+  `acme-los-customers-<env>` and required profile fields for first name, last
+  name, email, and state
 - the current dev org already has the custom domain linked manually:
   - `auth.avanai.net`
 - the `dev` manifest prepares `https://apply-dev.avanai.net` as an allowed
@@ -315,6 +320,9 @@ Current auth shape in this repo:
 - registration requires password, email, and security-question enrollment for
   users in the ACME LOS customer group because the MFA enrollment policy
   requires those authenticators for that group
+- Okta-hosted registration captures first name, last name, email, and state in
+  profile enrollment; Okta may still render password, email OTP, and
+  security-question enrollment as follow-up hosted steps
 - Okta `sub` is the immutable ACME user key; email is mutable metadata synced to
   backend profile storage after a fresh Okta session
 - standard sign-in is password-first

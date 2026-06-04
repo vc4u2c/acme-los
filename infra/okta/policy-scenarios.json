@@ -100,6 +100,7 @@
       "managedBy": "okta:bootstrap",
       "configures": [
         "self-service registration",
+        "required hosted profile fields: first name, last name, email, and US state",
         "new registrations target {customerGroupName}"
       ],
       "scenarioIds": ["new-customer-registration"]
@@ -154,14 +155,14 @@
       "automationStatus": "automated-public-policy-api",
       "managedBy": "okta:bootstrap",
       "configures": [
-        "forgot email, forgot phone, forgot password, and account unlock recovery requirements",
+        "forgot email, lost phone/SMS factor, forgot password, and account unlock recovery requirements",
         "security-question challenge/hint plus the expected OTP proof",
         "fresh ACME sign-in after recovery"
       ],
       "scenarioIds": [
         "forgot-email",
         "forgot-password-security-question-email-otp",
-        "forgot-phone",
+        "lost-phone-replace-factor",
         "fresh-sign-in-after-sensitive-change"
       ]
     },
@@ -173,7 +174,7 @@
       "automationStatus": "automated-public-policy-api",
       "managedBy": "okta:bootstrap",
       "configures": [
-        "change email requires other-factor OTP plus security-question challenge/hint",
+        "change email requires phone/SMS or another non-email possession OTP plus security-question challenge/hint",
         "change password requires current password plus factor proof and security-question challenge/hint",
         "change phone requires email OTP plus security-question challenge/hint",
         "fresh ACME sign-in after sensitive change"
@@ -194,13 +195,14 @@
       "automationStatus": "automated",
       "flow": [
         "Customer starts Okta hosted registration from ACME app.",
-        "Profile enrollment registers the user and targets {customerGroupName}.",
-        "Authenticator enrollment requires password, email, and security question.",
+        "Profile enrollment captures first name, last name, email, and US state, then targets {customerGroupName}.",
+        "Authenticator enrollment requires password, email, and security question in the same Okta-hosted registration flow.",
         "Phone remains disabled until ACS SMS is approved and enabled."
       ],
       "securityNotes": [
         "Admin users should not be members of {customerGroupName}.",
-        "Registration policy must not be scoped to Okta Everyone."
+        "Registration policy must not be scoped to Okta Everyone.",
+        "Password, repeat-password validation, security-question answer, and OTP material stay in Okta."
       ]
     },
     {
@@ -240,9 +242,9 @@
       "automationStatus": "automated-public-policy-api",
       "flow": [
         "Customer chooses forgot email or lost email access from Okta-hosted recovery.",
-        "Okta verifies an alternate possession factor OTP such as phone/SMS when enabled.",
+        "Okta verifies an opposite-channel possession factor OTP such as phone/SMS when enabled, not the email being recovered.",
         "Okta verifies the enrolled security-question challenge/hint.",
-        "Customer recovers the sign-in identifier or regains account access.",
+        "Okta shows the recovered sign-in email after proof succeeds, preferably masked until final confirmation.",
         "Customer must establish a fresh ACME sign-in before ACME syncs any profile data."
       ],
       "securityNotes": [
@@ -285,7 +287,7 @@
       "automationStatus": "automated-public-policy-api",
       "flow": [
         "Customer changes email in Okta-hosted account management.",
-        "Before the change is accepted, Okta requires other-factor OTP proof where available, not the email address being changed.",
+        "Before the change is accepted, Okta requires phone/SMS or another non-email possession OTP proof, not the email address being changed.",
         "Okta verifies the enrolled security-question challenge/hint.",
         "Okta signs the customer out or ACME treats the existing session as stale.",
         "Customer signs in again with the new email.",
@@ -315,20 +317,23 @@
       ]
     },
     {
-      "id": "forgot-phone",
-      "title": "Forgot Phone",
+      "id": "lost-phone-replace-factor",
+      "title": "Lost Phone: Replace SMS Factor",
       "scopeKind": "customerGroup",
       "automationStatus": "automated-public-policy-api",
       "flow": [
-        "Customer reports lost phone or unavailable SMS factor through Okta-hosted recovery.",
+        "Customer reports a lost phone or unavailable SMS factor; email remains the sign-in identifier.",
         "Okta verifies email OTP before allowing recovery to continue.",
         "Okta verifies the enrolled security-question challenge/hint.",
-        "Customer signs in fresh and replaces the phone/SMS factor from account management.",
+        "Okta allows the customer to replace the phone/SMS factor after proof succeeds.",
+        "Okta may show only a masked prior phone hint when useful; do not reveal the full prior phone number.",
+        "Customer signs in fresh after phone/SMS factor replacement.",
         "ACME treats verified phone as Okta-owned until a trusted claim, Management API lookup, or event hook is enabled."
       ],
       "securityNotes": [
         "This scenario is not live until Okta phone/SMS is enabled or another non-phone possession factor is configured.",
-        "Do not use the unavailable phone factor as its own recovery proof."
+        "Do not use the unavailable phone factor as its own recovery proof.",
+        "Phone is not the ACME sign-in identifier; this is factor replacement, not sign-in identifier recovery."
       ]
     },
     {
@@ -390,6 +395,11 @@
     {
       "id": "forgot-password-recovery-policy",
       "title": "Forgot password requires security question plus email OTP and fresh sign-in",
+      "scopeKind": "customerGroup"
+    },
+    {
+      "id": "registration-profile-fields",
+      "title": "Hosted registration requires first name, last name, email, and state",
       "scopeKind": "customerGroup"
     },
     {

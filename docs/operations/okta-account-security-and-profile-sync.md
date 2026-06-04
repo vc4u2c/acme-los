@@ -12,6 +12,8 @@ systems are the source of truth for customer and lending records.
 
 - Okta `sub` is the immutable user key.
 - Email is mutable contact and login metadata.
+- `state` is user-provided registration profile metadata and is not minted into
+  tokens unless a future backend contract explicitly needs it.
 - `customerId` and `leadId` are backend business identifiers written to Okta
   only by trusted server-side automation.
 - Passwords, OTPs, security-question answers, and security-question hints never
@@ -29,7 +31,15 @@ npm run okta:policy-plan -- dev
 `tools/scripts/okta/bootstrap-okta.mjs` also emits the resolved `policyPlan` and
 `accountSecurityPolicyIntent` during dry-run and live bootstrap.
 
-The intended registration enrollment is:
+The intended Okta-hosted registration profile enrollment captures these required
+fields:
+
+- first name
+- last name
+- email
+- state: US state code captured on the Okta user profile
+
+The intended authenticator enrollment is:
 
 - password: required
 - email: required
@@ -39,17 +49,19 @@ The intended registration enrollment is:
 
 The intended sensitive-change and recovery scenarios are:
 
-- Forgot email: require an alternate possession-factor OTP plus the Okta
-  security-question challenge/hint, then require a fresh ACME sign-in.
-- Change email: require an other-factor OTP plus the Okta security-question
-  challenge/hint before sign-off, then require sign-in with the new email.
+- Forgot email: require phone/SMS or another non-email possession-factor OTP
+  plus the Okta security-question challenge/hint, then show the recovered
+  sign-in email and require a fresh ACME sign-in.
+- Change email: require phone/SMS or another non-email possession-factor OTP
+  plus the Okta security-question challenge/hint before sign-off, then require
+  sign-in with the new email.
 - Forgot password: require the Okta security-question challenge/hint plus email
   OTP before reset, then sign out and require sign-in with the new password.
 - Change password: require current password, factor OTP, and the Okta
   security-question challenge/hint before reset, then sign out and require a
   fresh ACME sign-in.
-- Forgot phone: require email OTP plus the Okta security-question challenge/hint,
-  then require a fresh ACME sign-in before phone replacement.
+- Lost phone/SMS factor: require email OTP plus the Okta security-question
+  challenge/hint, then allow phone replacement and require a fresh ACME sign-in.
 - Change phone/SMS: require email OTP plus the Okta security-question
   challenge/hint before sign-off, then require a fresh ACME sign-in.
 
@@ -178,13 +190,20 @@ profile-enrollment rule; admin users should not be added to it. Run
 `npm run okta:bootstrap -- <env> --dry-run` and review the emitted `policyPlan`
 before applying live tenant changes.
 
+Okta-hosted registration is one hosted flow, but Okta Identity Engine may still
+render profile enrollment, password setup, email OTP, security-question
+enrollment, and phone enrollment as separate hosted steps. The repo-managed
+profile-enrollment rule captures first name, last name, email, and `state`; the
+authenticator-enrollment policy controls password, email verification, security
+question, and phone/SMS rollout.
+
 `npm run okta:bootstrap -- <env>` manages three Okta account-management policy
 rules through the public Policy API:
 
 - `ACME LOS Password Lifecycle (<env>)`: forgot password and change password.
 - `ACME LOS Email Lifecycle (<env>)`: forgot email and change email.
-- `ACME LOS Phone Lifecycle (<env>)`: forgot phone and change phone; harmless
-  while phone/SMS remains disabled.
+- `ACME LOS Phone Lifecycle (<env>)`: lost phone/SMS factor replacement and
+  change phone; harmless while phone/SMS remains disabled.
 
 For a scoped Okta automation token, prefer `OKTA_MANAGEMENT_ACCESS_TOKEN` with
 the Okta management scopes required by the bootstrap, including
@@ -199,18 +218,20 @@ After running the bootstrap, confirm in Okta Admin Console:
 3. Go to `Security` > `Authenticators` > `Enrollment`.
 4. Confirm the ACME LOS enrollment policy requires password, email, and security
    question only for the `acme-los-customers-<env>` customer group.
-5. Confirm phone/SMS enrollment matches the ACS rollout state.
-6. Go to the Okta account-management policy.
-7. Confirm the three ACME LOS lifecycle rules exist, are scoped to the ACME
+5. Confirm the profile-enrollment form requires first name, last name, email,
+   and state for new registrations.
+6. Confirm phone/SMS enrollment matches the ACS rollout state.
+7. Go to the Okta account-management policy.
+8. Confirm the three ACME LOS lifecycle rules exist, are scoped to the ACME
    customer group, and match the rendered `policyPlan` scenarios.
-8. Confirm recovery/change flows require the expected OTP proof plus the Okta
+9. Confirm recovery/change flows require the expected OTP proof plus the Okta
    security-question challenge/hint and force sign-off/fresh sign-in where the
    scenario requires it.
-9. Confirm password and security-question changes do not send secret material to
-   ACME systems.
-10. Confirm `customerId` remains an app-owned custom profile attribute and is
+10. Confirm password and security-question changes do not send secret material to
+    ACME systems.
+11. Confirm `customerId` remains an app-owned custom profile attribute and is
     not editable by end users.
-11. Confirm admin users are not in the ACME LOS customer group unless they are
+12. Confirm admin users are not in the ACME LOS customer group unless they are
     intentionally being used as customer test accounts.
 
 ## User Prune Allowlist
