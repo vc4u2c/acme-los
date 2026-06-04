@@ -203,6 +203,19 @@ Recommended examples:
   customer-id bridge
 - any short-lived bootstrap-only admin token that cannot yet be removed
 
+The Azure/GitHub environment setup script can set the Okta management PEM as an
+environment secret without printing the value. It uses `gh secret set
+--body-file`, so the PEM stays in the local file and does not appear in command
+arguments:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/setup-github-azure-environments.ps1 `
+  -Mode sync-environments `
+  -SyncOktaManagementPrivateKeySecret `
+  -OktaManagementPrivateKeyPemPath 'C:\Secured' `
+  -OktaManagementPrivateKeySecretEnvironments dev
+```
+
 What should _not_ live in GitHub secrets long term:
 
 - application runtime secrets for the web app
@@ -334,7 +347,8 @@ What it does **not** do today:
 - create management groups
 - create subscriptions
 - create workload resource groups
-- populate GitHub environment secrets
+- populate GitHub environment secrets, except for the opt-in Okta management PEM
+  bridge described above
 - create runtime application secrets in Key Vault
 
 That is intentional. Governance bootstrap is a separate concern and now has its

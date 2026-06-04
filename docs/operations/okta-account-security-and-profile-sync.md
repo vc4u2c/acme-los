@@ -152,6 +152,15 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/az
 For GitHub CD, set the same value as a `dev` environment secret named
 `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM`. The CD workflow only consumes the
 secret; it does not run the GitHub environment bootstrap script during deploy.
+Use the environment setup script to sync it from the local secured PEM file:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/setup-github-azure-environments.ps1 `
+  -Mode sync-environments `
+  -SyncOktaManagementPrivateKeySecret `
+  -OktaManagementPrivateKeyPemPath 'C:\Secured' `
+  -OktaManagementPrivateKeySecretEnvironments dev
+```
 
 The deploy stores the private key in Key Vault as
 `sec-acme-los-okta-management-private-key` and injects it into the BFF ACA as

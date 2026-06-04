@@ -10,7 +10,10 @@ param(
   [string]$PlatformSubscriptionId,
   [string]$NonProdSubscriptionId,
   [string]$ProdSubscriptionId,
-  [switch]$IncludeMainBranchSubject
+  [switch]$IncludeMainBranchSubject,
+  [switch]$SyncOktaManagementPrivateKeySecret,
+  [string]$OktaManagementPrivateKeyPemPath = 'C:\Secured',
+  [string[]]$OktaManagementPrivateKeySecretEnvironments = @('dev')
 )
 
 Set-StrictMode -Version Latest
@@ -404,6 +407,60 @@ function Set-GitHubEnvironmentVariable {
   }
 }
 
+function Set-GitHubEnvironmentSecretFromFile {
+  param(
+    [string]$RepositoryUrl,
+    [string]$EnvironmentName,
+    [string]$Name,
+    [string]$Path
+  )
+
+  $resolvedPath = Resolve-Path -LiteralPath $Path -ErrorAction Stop
+  $secretFile = Get-Item -LiteralPath $resolvedPath.ProviderPath -ErrorAction Stop
+
+  if ($secretFile.PSIsContainer) {
+    throw "GitHub environment secret '$EnvironmentName/$Name' source path must be a file, not a directory."
+  }
+
+  if ($secretFile.Length -le 0) {
+    throw "GitHub environment secret '$EnvironmentName/$Name' source file is empty."
+  }
+
+  if ($PSCmdlet.ShouldProcess("Environment secret '$EnvironmentName/$Name'", 'Set from local file')) {
+    gh secret set $Name --repo $RepositoryUrl --env $EnvironmentName --body-file $secretFile.FullName | Out-Null
+  }
+}
+
+function Resolve-OktaManagementPrivateKeyPemFile {
+  param([string]$Path)
+
+  $resolvedPath = Resolve-Path -LiteralPath $Path -ErrorAction Stop
+  $item = Get-Item -LiteralPath $resolvedPath.ProviderPath -ErrorAction Stop
+
+  if (-not $item.PSIsContainer) {
+    if ($item.Extension -ne '.pem') {
+      throw "Okta management private key path '$($item.FullName)' must be a .pem file."
+    }
+
+    return $item
+  }
+
+  $pemFiles = @(
+    Get-ChildItem -LiteralPath $item.FullName -File -Filter '*.pem' |
+      Sort-Object -Property Name
+  )
+
+  if ($pemFiles.Count -eq 0) {
+    throw "Okta management private key directory '$($item.FullName)' does not contain a .pem file."
+  }
+
+  if ($pemFiles.Count -gt 1) {
+    throw "Okta management private key directory '$($item.FullName)' contains multiple .pem files: $($pemFiles.Name -join ', '). Pass -OktaManagementPrivateKeyPemPath with the exact file."
+  }
+
+  return $pemFiles[0]
+}
+
 function Ensure-EntraApplication {
   param([string]$DisplayName)
 
@@ -767,6 +824,32 @@ $configuration = Get-JsonFile -Path $ConfigurationPath
 $gitHubContext = Resolve-GitHubContext -Owner $GitHubOrganizationName -RepositoryName $GitHubRepositoryName
 $azureContext = Resolve-AzureContext -Configuration $configuration -TenantId $AzureTenantId -PlatformSubscription $PlatformSubscriptionId -NonProdSubscription $NonProdSubscriptionId -ProdSubscription $ProdSubscriptionId
 $environmentNames = Get-EnvironmentNames -Configuration $configuration
+$oktaManagementPrivateKeySecretName = 'ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM'
+$oktaManagementPrivateKeySecretTargetEnvironments = @()
+$oktaManagementPrivateKeyPemFile = $null
+
+if ($SyncOktaManagementPrivateKeySecret.IsPresent) {
+  $oktaManagementPrivateKeySecretTargetEnvironments = @(
+    $OktaManagementPrivateKeySecretEnvironments |
+      ForEach-Object { if ($_) { $_.Trim() } } |
+      Where-Object { $_ }
+  )
+
+  if ($oktaManagementPrivateKeySecretTargetEnvironments.Count -eq 0) {
+    throw 'At least one environment must be provided when SyncOktaManagementPrivateKeySecret is set.'
+  }
+
+  $unknownSecretEnvironments = @(
+    $oktaManagementPrivateKeySecretTargetEnvironments |
+      Where-Object { $environmentNames -notcontains $_ }
+  )
+
+  if ($unknownSecretEnvironments.Count -gt 0) {
+    throw "Unknown Okta management private key secret environment(s): $($unknownSecretEnvironments -join ', '). Valid values: $($environmentNames -join ', ')."
+  }
+
+  $oktaManagementPrivateKeyPemFile = Resolve-OktaManagementPrivateKeyPemFile -Path $OktaManagementPrivateKeyPemPath
+}
 
 if ($Mode -in @('bootstrap-platform', 'bootstrap-automation')) {
   $platformNetworkResourceGroupName = Get-PlatformNetworkResourceGroupName -Configuration $configuration
@@ -782,6 +865,12 @@ if ($Mode -in @('bootstrap-platform', 'bootstrap-automation')) {
 }
 
 Write-PlanSummary -Configuration $configuration -AzureContext $azureContext -GitHubContext $gitHubContext
+
+if ($SyncOktaManagementPrivateKeySecret.IsPresent) {
+  Write-Host "Okta management private key secret sync: $($oktaManagementPrivateKeySecretTargetEnvironments -join ', ')"
+  Write-Host "Okta management private key secret name: $oktaManagementPrivateKeySecretName"
+  Write-Host "Okta management private key source file: $($oktaManagementPrivateKeyPemFile.FullName)"
+}
 
 if ($Mode -eq 'show-plan') {
   return
@@ -849,6 +938,10 @@ foreach ($environmentName in $environmentNames) {
 
   foreach ($pair in $environmentVariables.GetEnumerator()) {
     Set-GitHubEnvironmentVariable -RepositoryUrl $gitHubContext.RepositoryUrl -EnvironmentName $environmentName -Name $pair.Key -Value $pair.Value
+  }
+
+  if ($SyncOktaManagementPrivateKeySecret.IsPresent -and $oktaManagementPrivateKeySecretTargetEnvironments -contains $environmentName) {
+    Set-GitHubEnvironmentSecretFromFile -RepositoryUrl $gitHubContext.RepositoryUrl -EnvironmentName $environmentName -Name $oktaManagementPrivateKeySecretName -Path $oktaManagementPrivateKeyPemFile.FullName
   }
 }
 
