@@ -3,6 +3,12 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
+  buildAccountManagementPolicyRuleDefinitions,
+  findAccountManagementPolicy,
+  printAccountManagementPolicyRules,
+  summarizeAccountManagementPolicyRules,
+} from './account-management-policy.mjs';
+import {
   buildHostedErrorPageContent,
   buildHostedSignInPageContent,
 } from './hosted-sign-in-page.mjs';
@@ -47,14 +53,24 @@ if (!fs.existsSync(environmentPath)) {
   process.exit(1);
 }
 
-if (!dryRun && !process.env.OKTA_API_TOKEN?.trim()) {
-  console.error('Set OKTA_API_TOKEN before running the Okta bootstrap script.');
+const oktaManagementAccessToken =
+  process.env.OKTA_MANAGEMENT_ACCESS_TOKEN?.trim();
+const oktaApiToken = process.env.OKTA_API_TOKEN?.trim();
+
+if (!dryRun && !oktaManagementAccessToken && !oktaApiToken) {
+  console.error(
+    'Set OKTA_MANAGEMENT_ACCESS_TOKEN or OKTA_API_TOKEN before running the Okta bootstrap script.',
+  );
   process.exit(1);
 }
 
 const environment = JSON.parse(fs.readFileSync(environmentPath, 'utf8'));
 const brandProfile = JSON.parse(fs.readFileSync(brandProfilePath, 'utf8'));
-const token = process.env.OKTA_API_TOKEN?.trim();
+const oktaAuthorizationHeader = oktaManagementAccessToken
+  ? `Bearer ${oktaManagementAccessToken}`
+  : oktaApiToken
+    ? `SSWS ${oktaApiToken}`
+    : '';
 const issuer = requiredString(environment.okta?.issuer, 'okta.issuer');
 const oktaApiBaseUrl = new URL('/', issuer).toString().replace(/\/$/, '');
 const warnings = [];
@@ -169,6 +185,66 @@ function arraysEqualAsSets(left, right) {
   return leftSorted.every((value, index) => value === rightSorted[index]);
 }
 
+const registrationProfileAttributes = [
+  { name: 'firstName', label: 'First name', required: true },
+  { name: 'lastName', label: 'Last name', required: true },
+  { name: 'email', label: 'Email', required: true },
+  { name: 'state', label: 'State', required: true },
+];
+
+const usStateOptions = [
+  ['AL', 'Alabama'],
+  ['AK', 'Alaska'],
+  ['AZ', 'Arizona'],
+  ['AR', 'Arkansas'],
+  ['CA', 'California'],
+  ['CO', 'Colorado'],
+  ['CT', 'Connecticut'],
+  ['DE', 'Delaware'],
+  ['FL', 'Florida'],
+  ['GA', 'Georgia'],
+  ['HI', 'Hawaii'],
+  ['ID', 'Idaho'],
+  ['IL', 'Illinois'],
+  ['IN', 'Indiana'],
+  ['IA', 'Iowa'],
+  ['KS', 'Kansas'],
+  ['KY', 'Kentucky'],
+  ['LA', 'Louisiana'],
+  ['ME', 'Maine'],
+  ['MD', 'Maryland'],
+  ['MA', 'Massachusetts'],
+  ['MI', 'Michigan'],
+  ['MN', 'Minnesota'],
+  ['MS', 'Mississippi'],
+  ['MO', 'Missouri'],
+  ['MT', 'Montana'],
+  ['NE', 'Nebraska'],
+  ['NV', 'Nevada'],
+  ['NH', 'New Hampshire'],
+  ['NJ', 'New Jersey'],
+  ['NM', 'New Mexico'],
+  ['NY', 'New York'],
+  ['NC', 'North Carolina'],
+  ['ND', 'North Dakota'],
+  ['OH', 'Ohio'],
+  ['OK', 'Oklahoma'],
+  ['OR', 'Oregon'],
+  ['PA', 'Pennsylvania'],
+  ['RI', 'Rhode Island'],
+  ['SC', 'South Carolina'],
+  ['SD', 'South Dakota'],
+  ['TN', 'Tennessee'],
+  ['TX', 'Texas'],
+  ['UT', 'Utah'],
+  ['VT', 'Vermont'],
+  ['VA', 'Virginia'],
+  ['WA', 'Washington'],
+  ['WV', 'West Virginia'],
+  ['WI', 'Wisconsin'],
+  ['WY', 'Wyoming'],
+].map(([value, label]) => ({ value, label }));
+
 function writeJsonFile(targetPath, value) {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.writeFileSync(targetPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
@@ -236,7 +312,7 @@ async function oktaRequest(method, pathname, body, query = undefined) {
     method,
     headers: {
       Accept: 'application/json',
-      Authorization: `SSWS ${token}`,
+      Authorization: oktaAuthorizationHeader,
       ...(body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body ? (isFormData ? body : JSON.stringify(body)) : undefined,
@@ -719,7 +795,7 @@ async function unassignGroupFromApplication(appId, groupId) {
     method: 'DELETE',
     headers: {
       Accept: 'application/json',
-      Authorization: `SSWS ${token}`,
+      Authorization: oktaAuthorizationHeader,
     },
   });
 
@@ -909,6 +985,29 @@ function buildProfileEnrollmentPolicyPayload({
   };
 }
 
+function buildRegistrationProfileAttributes(existingAttributes = []) {
+  const currentAttributes = Array.isArray(existingAttributes)
+    ? existingAttributes
+    : [];
+  const managedNames = new Set(
+    registrationProfileAttributes.map((attribute) => attribute.name),
+  );
+  const existingByName = new Map(
+    currentAttributes
+      .filter((attribute) => typeof attribute?.name === 'string')
+      .map((attribute) => [attribute.name, attribute]),
+  );
+  const managedAttributes = registrationProfileAttributes.map((attribute) => ({
+    ...(existingByName.get(attribute.name) ?? {}),
+    ...attribute,
+  }));
+  const unmanagedAttributes = currentAttributes.filter(
+    (attribute) => !managedNames.has(attribute?.name),
+  );
+
+  return [...managedAttributes, ...unmanagedAttributes];
+}
+
 function buildProfileEnrollmentRulePayload(existingRule, customerGroupId) {
   const profileEnrollment = existingRule?.actions?.profileEnrollment ?? {};
 
@@ -931,6 +1030,9 @@ function buildProfileEnrollmentRulePayload(existingRule, customerGroupId) {
             hostedExperience.registrationRequiresEmailVerification,
           ),
         },
+        profileAttributes: buildRegistrationProfileAttributes(
+          profileEnrollment.profileAttributes,
+        ),
         targetGroupIds: [customerGroupId],
         unknownUserAction: profileEnrollment.unknownUserAction ?? 'REGISTER',
       },
@@ -1233,30 +1335,47 @@ async function ensureUserProfileAttributes(attributeDefinitions) {
   const currentSchema = await getDefaultUserSchema();
   const currentProperties =
     currentSchema?.definitions?.custom?.properties ?? {};
+  const currentBaseProperties =
+    currentSchema?.definitions?.base?.properties ?? {};
   const nextProperties = { ...currentProperties };
+  const basePropertyUpdates = {};
   const changedAttributes = [];
+  const changedBaseAttributes = [];
+  const existingBaseAttributes = [];
 
   for (const [key, definition] of Object.entries(attributeDefinitions)) {
+    const existingBaseDefinition = currentBaseProperties[key];
+    if (existingBaseDefinition && definition.useBaseWhenPresent !== false) {
+      existingBaseAttributes.push(key);
+
+      if (
+        definition.selfPermission &&
+        !profileAttributeHasSelfPermission(
+          existingBaseDefinition,
+          definition.selfPermission,
+        )
+      ) {
+        basePropertyUpdates[key] = {
+          ...existingBaseDefinition,
+          permissions: buildSelfProfileAttributePermissions(
+            definition.selfPermission,
+          ),
+        };
+        changedBaseAttributes.push(key);
+      }
+
+      if (definition.enumValues) {
+        warnings.push(
+          `Okta base profile attribute "${key}" already exists, so bootstrap will not create a conflicting custom enum. Verify the hosted registration field accepts the supported US state values.`,
+        );
+      }
+
+      continue;
+    }
+
     const existingDefinition = currentProperties[key];
-    const expectedDefinition = {
-      title: definition.title,
-      description: definition.description,
-      type: 'string',
-      required: false,
-      minLength: 1,
-      maxLength: 255,
-      permissions: [
-        {
-          principal: 'SELF',
-          action: 'READ_ONLY',
-        },
-      ],
-      master: {
-        type: 'PROFILE_MASTER',
-      },
-      scope: 'NONE',
-      mutability: 'READ_WRITE',
-    };
+    const expectedDefinition =
+      buildExpectedProfileAttributeDefinition(definition);
 
     nextProperties[key] = expectedDefinition;
 
@@ -1265,29 +1384,104 @@ async function ensureUserProfileAttributes(attributeDefinitions) {
     }
   }
 
-  if (changedAttributes.length === 0) {
+  if (changedAttributes.length === 0 && changedBaseAttributes.length === 0) {
     return {
       mode: 'existing',
       schema: currentSchema,
       changedAttributes: [],
+      changedBaseAttributes: [],
+      existingBaseAttributes,
+    };
+  }
+
+  const schemaDefinitions = {};
+
+  if (changedAttributes.length > 0) {
+    schemaDefinitions.custom = {
+      id: '#custom',
+      type: 'object',
+      properties: nextProperties,
+    };
+  }
+
+  if (changedBaseAttributes.length > 0) {
+    schemaDefinitions.base = {
+      id: '#base',
+      type: 'object',
+      properties: basePropertyUpdates,
     };
   }
 
   const updatedSchema = await updateDefaultUserSchema({
-    definitions: {
-      custom: {
-        id: '#custom',
-        type: 'object',
-        properties: nextProperties,
-      },
-    },
+    definitions: schemaDefinitions,
   });
 
   return {
     mode: 'updated',
     schema: updatedSchema,
     changedAttributes,
+    changedBaseAttributes,
+    existingBaseAttributes,
   };
+}
+
+function buildSelfProfileAttributePermissions(action) {
+  return [
+    {
+      principal: 'SELF',
+      action,
+    },
+  ];
+}
+
+function buildExpectedProfileAttributeDefinition(definition) {
+  const enumValues = Array.isArray(definition.enumValues)
+    ? definition.enumValues
+    : [];
+
+  return {
+    title: definition.title,
+    description: definition.description,
+    type: definition.type ?? 'string',
+    required: Boolean(definition.required),
+    minLength: definition.minLength ?? 1,
+    maxLength: definition.maxLength ?? 255,
+    permissions: buildSelfProfileAttributePermissions(
+      definition.selfPermission ?? 'READ_ONLY',
+    ),
+    master: {
+      type: 'PROFILE_MASTER',
+    },
+    scope: definition.scope ?? 'NONE',
+    mutability: definition.mutability ?? 'READ_WRITE',
+    ...(enumValues.length > 0
+      ? {
+          enum: enumValues.map((option) => option.value),
+          oneOf: enumValues.map((option) => ({
+            const: option.value,
+            title: option.label,
+          })),
+        }
+      : {}),
+  };
+}
+
+function profileAttributeHasSelfPermission(definition, expectedAction) {
+  const permissions = definition?.permissions;
+
+  if (Array.isArray(permissions)) {
+    return permissions.some(
+      (permission) =>
+        permission?.principal === 'SELF' &&
+        permission?.action === expectedAction,
+    );
+  }
+
+  if (permissions && typeof permissions === 'object') {
+    return permissions.SELF === expectedAction;
+  }
+
+  return false;
 }
 
 async function ensureAuthorizationServerClaim(
@@ -1350,30 +1544,49 @@ function buildPasswordFirstVerificationMethod(factorMode, reauthenticateIn) {
 }
 
 function profileAttributeMatches(existingDefinition, expectedDefinition) {
-  const existingPermissions = Array.isArray(existingDefinition?.permissions)
-    ? existingDefinition.permissions.map((permission) => ({
-        principal: permission?.principal,
-        action: permission?.action,
-      }))
-    : [];
-  const expectedPermissions = Array.isArray(expectedDefinition?.permissions)
-    ? expectedDefinition.permissions.map((permission) => ({
-        principal: permission?.principal,
-        action: permission?.action,
-      }))
-    : [];
+  const existingPermissions =
+    normalizeProfileAttributePermissions(existingDefinition);
+  const expectedPermissions =
+    normalizeProfileAttributePermissions(expectedDefinition);
 
   return (
     existingDefinition?.title === expectedDefinition.title &&
     existingDefinition?.description === expectedDefinition.description &&
     existingDefinition?.type === expectedDefinition.type &&
+    Boolean(existingDefinition?.required) ===
+      Boolean(expectedDefinition.required) &&
     existingDefinition?.minLength === expectedDefinition.minLength &&
     existingDefinition?.maxLength === expectedDefinition.maxLength &&
     existingDefinition?.scope === expectedDefinition.scope &&
     existingDefinition?.mutability === expectedDefinition.mutability &&
     existingDefinition?.master?.type === expectedDefinition.master?.type &&
-    JSON.stringify(existingPermissions) === JSON.stringify(expectedPermissions)
+    JSON.stringify(existingPermissions) ===
+      JSON.stringify(expectedPermissions) &&
+    JSON.stringify(existingDefinition?.enum ?? []) ===
+      JSON.stringify(expectedDefinition.enum ?? []) &&
+    JSON.stringify(existingDefinition?.oneOf ?? []) ===
+      JSON.stringify(expectedDefinition.oneOf ?? [])
   );
+}
+
+function normalizeProfileAttributePermissions(definition) {
+  const permissions = definition?.permissions;
+
+  if (Array.isArray(permissions)) {
+    return permissions.map((permission) => ({
+      principal: permission?.principal,
+      action: permission?.action,
+    }));
+  }
+
+  if (permissions && typeof permissions === 'object') {
+    return Object.entries(permissions).map(([principal, action]) => ({
+      principal,
+      action,
+    }));
+  }
+
+  return [];
 }
 
 function authorizationServerClaimMatches(existingClaim, expectedClaim) {
@@ -1461,6 +1674,9 @@ const accountSecurityPolicyIntent = {
     backendBusinessClaims: ['customer_id', 'lead_id'],
   },
   registration: {
+    hostedProfileAttributes: registrationProfileAttributes,
+    hostedFlowShape:
+      'Okta-hosted registration collects profile fields in the profile-enrollment step; password, email verification, security question, and phone authenticator enrollment may still be hosted follow-up steps depending on Okta org features.',
     requiredAuthenticators: [
       'okta_password',
       ...(requiresEmailAuthenticator ? ['okta_email'] : []),
@@ -1478,7 +1694,7 @@ const accountSecurityPolicyIntent = {
     {
       action: 'forgot_email',
       requiredProofs: [
-        'alternate_possession_factor_otp',
+        'phone_or_other_non_email_possession_factor_otp',
         'security_question_challenge',
       ],
       postCondition: 'fresh_acme_sign_in',
@@ -1487,7 +1703,10 @@ const accountSecurityPolicyIntent = {
     },
     {
       action: 'change_email',
-      requiredProofs: ['other_factor_otp', 'security_question_challenge'],
+      requiredProofs: [
+        'phone_or_other_non_email_possession_factor_otp',
+        'security_question_challenge',
+      ],
       postCondition: 'sign_out_then_fresh_acme_sign_in',
       backendSync:
         'After a fresh ACME sign-in, sync the backend email from the current Okta email claim when the Okta subject is unchanged.',
@@ -1511,7 +1730,7 @@ const accountSecurityPolicyIntent = {
         'Do not sync or store password material. Log only non-sensitive password-change metadata if an Okta event hook is enabled.',
     },
     {
-      action: 'forgot_phone_or_sms_factor',
+      action: 'lost_phone_or_sms_factor_replacement',
       requiredProofs: ['okta_email_otp', 'security_question_challenge'],
       postCondition: 'fresh_acme_sign_in_before_phone_replacement',
       backendSync:
@@ -1744,6 +1963,13 @@ const oktaPolicyPlan = buildOktaPolicyPlan({
   webAppLabel: expectedWebApp.label,
   mobileAppLabel: expectedMobileApp.label,
 });
+const expectedAccountManagementPolicyRules =
+  buildAccountManagementPolicyRuleDefinitions({
+    environmentName,
+    customerGroupId: `<resolved group id for ${customerGroupName}>`,
+    customerGroupName,
+    telephonyEnabled,
+  });
 
 if (dryRun) {
   writeJsonFile(bootstrapOutputsPath, {
@@ -1777,6 +2003,9 @@ if (dryRun) {
       accessPolicyName,
     },
     policyPlan: oktaPolicyPlan,
+    accountManagementPolicyRules: summarizeAccountManagementPolicyRules(
+      expectedAccountManagementPolicyRules,
+    ),
     accountSecurityPolicyIntent,
     telephony: {
       enabled: telephonyEnabled,
@@ -1801,6 +2030,8 @@ if (dryRun) {
           : 'OPTIONAL'
         : 'disabled',
     },
+    registrationProfileAttributes,
+    managedUserProfileAttributes: ['leadId', 'customerId', 'state'],
     customProfileAttributes: ['leadId', 'customerId'],
     authorizationServerClaims: [
       { name: 'lead_id', claimType: 'IDENTITY', value: 'user.leadId' },
@@ -1819,6 +2050,7 @@ if (dryRun) {
     `- Preview file: ${path.relative(repoRoot, bootstrapOutputsPath)}`,
   );
   printOktaPolicyPlan(oktaPolicyPlan);
+  printAccountManagementPolicyRules(expectedAccountManagementPolicyRules);
   process.exit(0);
 }
 
@@ -2235,10 +2467,20 @@ const customProfileAttributesResult = await ensureUserProfileAttributes({
     description:
       'ACME customer identifier used for portal and servicing lookups.',
   },
+  state: {
+    title: 'State',
+    description: 'Customer US state captured during Okta-hosted registration.',
+    minLength: 2,
+    maxLength: 2,
+    selfPermission: 'READ_WRITE',
+    enumValues: usStateOptions,
+  },
 });
 results.customProfileAttributes = {
   mode: customProfileAttributesResult.mode,
   changedAttributes: customProfileAttributesResult.changedAttributes,
+  changedBaseAttributes: customProfileAttributesResult.changedBaseAttributes,
+  existingBaseAttributes: customProfileAttributesResult.existingBaseAttributes,
 };
 
 const leadIdClaimResult = await ensureAuthorizationServerClaim(
@@ -2367,9 +2609,48 @@ try {
     `Unable to scope ${profileEnrollmentPolicyName} registration to ${customerGroupName}. Update the profile enrollment rule target group manually, then rerun bootstrap. ${error instanceof Error ? error.message : error}`,
   );
 }
-warnings.push(
-  'Account-management policy intent is source-controlled in the bootstrap output. Confirm in Okta Admin Console that email changes require security question plus SMS/phone, phone/SMS changes require security question plus email, and password/security-question changes never sync secret material to ACME.',
-);
+
+const accountManagementPolicyRules =
+  buildAccountManagementPolicyRuleDefinitions({
+    environmentName,
+    customerGroupId,
+    customerGroupName,
+    telephonyEnabled,
+  });
+const accessPolicies = await listPolicies('ACCESS_POLICY');
+const accountManagementPolicy = findAccountManagementPolicy(accessPolicies);
+results.accountManagementPolicy = accountManagementPolicy
+  ? {
+      mode: 'existing',
+      id: accountManagementPolicy.id,
+      name: accountManagementPolicy.name,
+    }
+  : {
+      mode: 'not-found',
+      resourceType: 'END_USER_ACCOUNT_MANAGEMENT',
+    };
+results.accountManagementPolicyRules = [];
+
+if (!accountManagementPolicy) {
+  throw new Error(
+    'Okta account-management policy was not found in ACCESS_POLICY results with resourceType END_USER_ACCOUNT_MANAGEMENT. Confirm Identity Engine account-management policy is enabled before relying on email, phone, or password lifecycle automation.',
+  );
+}
+
+for (const ruleDefinition of accountManagementPolicyRules) {
+  const ruleResult = await ensureRule(
+    accountManagementPolicy.id,
+    ruleDefinition.name,
+    ruleDefinition.payload,
+  );
+  results.accountManagementPolicyRules.push({
+    mode: ruleResult.mode,
+    id: ruleResult.rule.id,
+    name: ruleDefinition.name,
+    scenarioIds: ruleDefinition.scenarioIds,
+    expectedProofs: ruleDefinition.expectedProofs,
+  });
+}
 
 const mfaPolicyResult = await ensurePolicy(
   'MFA_ENROLL',
@@ -2530,6 +2811,8 @@ writeJsonFile(bootstrapOutputsPath, {
   sessionPolicyId: results.sessionPolicy.id,
   accessPolicyId: results.accessPolicy.id,
   policyPlan: oktaPolicyPlan,
+  accountManagementPolicy: results.accountManagementPolicy,
+  accountManagementPolicyRules: results.accountManagementPolicyRules,
   accountSecurityPolicyIntent,
   securityQuestionAuthenticator: results.securityQuestionAuthenticator,
   telephonyInlineHook: results.telephonyInlineHook,
@@ -2555,8 +2838,18 @@ console.log(
   `- Customer brand (${results.customerBrand.mode}): ${results.customerBrand.name}`,
 );
 console.log(
-  `- Custom profile attributes (${results.customProfileAttributes.mode}): leadId, customerId`,
+  `- Managed user profile attributes (${results.customProfileAttributes.mode}): leadId, customerId, state`,
 );
+if (results.customProfileAttributes.changedBaseAttributes.length > 0) {
+  console.log(
+    `  - Updated base profile attribute permissions: ${results.customProfileAttributes.changedBaseAttributes.join(', ')}`,
+  );
+}
+if (results.customProfileAttributes.existingBaseAttributes.length > 0) {
+  console.log(
+    `  - Existing Okta base profile attributes reused: ${results.customProfileAttributes.existingBaseAttributes.join(', ')}`,
+  );
+}
 console.log(
   `- ID token claims: lead_id=${results.leadIdClaim.id}, customer_id=${results.customerIdClaim.id}`,
 );
@@ -2574,6 +2867,7 @@ console.log(
 );
 console.log(`- Access policy: ${results.accessPolicy.id}`);
 printOktaPolicyPlan(oktaPolicyPlan);
+printAccountManagementPolicyRules(accountManagementPolicyRules);
 console.log(
   `- Security question authenticator: ${results.securityQuestionAuthenticator.enrollment}`,
 );

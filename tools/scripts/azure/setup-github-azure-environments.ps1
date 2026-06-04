@@ -10,7 +10,10 @@ param(
   [string]$PlatformSubscriptionId,
   [string]$NonProdSubscriptionId,
   [string]$ProdSubscriptionId,
-  [switch]$IncludeMainBranchSubject
+  [switch]$IncludeMainBranchSubject,
+  [switch]$SyncOktaManagementPrivateKeySecret,
+  [string]$OktaManagementPrivateKeyPemPath,
+  [string[]]$OktaManagementPrivateKeySecretEnvironments = @('dev')
 )
 
 Set-StrictMode -Version Latest
@@ -87,7 +90,7 @@ function Resolve-GitHubContext {
   return @{
     Owner = $resolvedOwner
     RepositoryName = $resolvedRepositoryName
-    RepositoryUrl = "https://github.com/$resolvedOwner/$resolvedRepositoryName"
+    RepositoryUrl = "$resolvedOwner/$resolvedRepositoryName"
   }
 }
 
@@ -379,6 +382,17 @@ function Ensure-GitHubEnvironment {
   }
 }
 
+function Assert-NativeCommandSucceeded {
+  param(
+    [string]$CommandName,
+    [string]$Action
+  )
+
+  if ($LASTEXITCODE -ne 0) {
+    throw "$CommandName failed while trying to $Action. Exit code: $LASTEXITCODE."
+  }
+}
+
 function Set-GitHubRepositoryVariable {
   param(
     [string]$RepositoryUrl,
@@ -387,7 +401,9 @@ function Set-GitHubRepositoryVariable {
   )
 
   if ($PSCmdlet.ShouldProcess("Repository variable '$Name'", 'Set')) {
-    gh variable set $Name --body $Value --repo $RepositoryUrl | Out-Null
+    $variableValue = if ($null -eq $Value) { '' } else { $Value }
+    $variableValue | gh variable set $Name --repo $RepositoryUrl | Out-Null
+    Assert-NativeCommandSucceeded -CommandName 'gh variable set' -Action "set repository variable '$Name'"
   }
 }
 
@@ -400,11 +416,64 @@ function Set-GitHubEnvironmentVariable {
   )
 
   if ($PSCmdlet.ShouldProcess("Environment variable '$EnvironmentName/$Name'", 'Set')) {
-    gh variable set $Name --body $Value --env $EnvironmentName --repo $RepositoryUrl | Out-Null
+    $variableValue = if ($null -eq $Value) { '' } else { $Value }
+    $variableValue | gh variable set $Name --env $EnvironmentName --repo $RepositoryUrl | Out-Null
+    Assert-NativeCommandSucceeded -CommandName 'gh variable set' -Action "set environment variable '$EnvironmentName/$Name'"
   }
 }
 
-function Ensure-EntraApplication {
+function Set-GitHubEnvironmentSecretFromFile {
+  param(
+    [string]$RepositoryUrl,
+    [string]$EnvironmentName,
+    [string]$Name,
+    [string]$Path
+  )
+
+  $resolvedPath = Resolve-Path -LiteralPath $Path -ErrorAction Stop
+  $secretFile = Get-Item -LiteralPath $resolvedPath.ProviderPath -ErrorAction Stop
+
+  if ($secretFile.PSIsContainer) {
+    throw "GitHub environment secret '$EnvironmentName/$Name' source path must be a file, not a directory."
+  }
+
+  if ($secretFile.Length -le 0) {
+    throw "GitHub environment secret '$EnvironmentName/$Name' source file is empty."
+  }
+
+  if ($PSCmdlet.ShouldProcess("Environment secret '$EnvironmentName/$Name'", 'Set from local file')) {
+    Get-Content -LiteralPath $secretFile.FullName -Raw | gh secret set $Name --repo $RepositoryUrl --env $EnvironmentName | Out-Null
+    Assert-NativeCommandSucceeded -CommandName 'gh secret set' -Action "set environment secret '$EnvironmentName/$Name'"
+  }
+}
+
+function Resolve-OktaManagementPrivateKeyPemFile {
+  param([string]$Path)
+
+  $resolvedPath = Resolve-Path -LiteralPath $Path -ErrorAction Stop
+  $item = Get-Item -LiteralPath $resolvedPath.ProviderPath -ErrorAction Stop
+
+  if (-not $item.PSIsContainer) {
+    return $item
+  }
+
+  $pemFiles = @(
+    Get-ChildItem -LiteralPath $item.FullName -File -Filter '*.pem' |
+      Sort-Object -Property Name
+  )
+
+  if ($pemFiles.Count -eq 0) {
+    throw "Okta management private key directory '$($item.FullName)' does not contain a .pem file."
+  }
+
+  if ($pemFiles.Count -gt 1) {
+    throw "Okta management private key directory '$($item.FullName)' contains multiple .pem files: $($pemFiles.Name -join ', '). Pass -OktaManagementPrivateKeyPemPath with the exact file."
+  }
+
+  return $pemFiles[0]
+}
+
+function Find-EntraApplication {
   param([string]$DisplayName)
 
   $existingApps = ConvertTo-ObjectArray (az ad app list --display-name $DisplayName --output json | ConvertFrom-Json)
@@ -418,6 +487,18 @@ function Ensure-EntraApplication {
 
   if ($existing.Count -gt 0 -and $existing[0]) {
     return $existing[0]
+  }
+
+  return $null
+}
+
+function Ensure-EntraApplication {
+  param([string]$DisplayName)
+
+  $existing = Find-EntraApplication -DisplayName $DisplayName
+
+  if ($existing) {
+    return $existing
   }
 
   if (-not $PSCmdlet.ShouldProcess("Entra application '$DisplayName'", 'Create')) {
@@ -698,8 +779,7 @@ function Get-EnvironmentVariables {
   $environmentConfiguration = Get-EnvironmentConfiguration -Configuration $Configuration -EnvironmentName $EnvironmentName
   $imagesSubscriptionRole = Get-ImagesSubscriptionRole -Configuration $Configuration -EnvironmentName $EnvironmentName
 
-  return [ordered]@{
-    AZURE_CLIENT_ID = $AzureClientId
+  $variables = [ordered]@{
     AZURE_SUBSCRIPTION_ID = Get-EnvironmentSubscriptionId -Configuration $Configuration -AzureContext $AzureContext -EnvironmentName $EnvironmentName
     AZURE_ENVIRONMENT_NAME = $EnvironmentName
     APP_ENVIRONMENT_NAME = $environmentConfiguration.appEnvironmentName
@@ -726,6 +806,12 @@ function Get-EnvironmentVariables {
     AZURE_BICEP_PARAMETER_FILE = "infra/azure/bicep/$EnvironmentName.bicepparam"
     AZURE_WEB_DEPLOY_TEMPLATE = 'infra/azure/bicep/main.web.rg.bicep'
   }
+
+  if (-not [string]::IsNullOrWhiteSpace($AzureClientId)) {
+    $variables.Insert(0, 'AZURE_CLIENT_ID', $AzureClientId)
+  }
+
+  return $variables
 }
 
 function Write-PlanSummary {
@@ -767,6 +853,36 @@ $configuration = Get-JsonFile -Path $ConfigurationPath
 $gitHubContext = Resolve-GitHubContext -Owner $GitHubOrganizationName -RepositoryName $GitHubRepositoryName
 $azureContext = Resolve-AzureContext -Configuration $configuration -TenantId $AzureTenantId -PlatformSubscription $PlatformSubscriptionId -NonProdSubscription $NonProdSubscriptionId -ProdSubscription $ProdSubscriptionId
 $environmentNames = Get-EnvironmentNames -Configuration $configuration
+$oktaManagementPrivateKeySecretName = 'ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM'
+$oktaManagementPrivateKeySecretTargetEnvironments = @()
+$oktaManagementPrivateKeyPemFile = $null
+
+if ($SyncOktaManagementPrivateKeySecret.IsPresent) {
+  $oktaManagementPrivateKeySecretTargetEnvironments = @(
+    $OktaManagementPrivateKeySecretEnvironments |
+      ForEach-Object { if ($_) { $_.Trim() } } |
+      Where-Object { $_ }
+  )
+
+  if ($oktaManagementPrivateKeySecretTargetEnvironments.Count -eq 0) {
+    throw 'At least one environment must be provided when SyncOktaManagementPrivateKeySecret is set.'
+  }
+
+  $unknownSecretEnvironments = @(
+    $oktaManagementPrivateKeySecretTargetEnvironments |
+      Where-Object { $environmentNames -notcontains $_ }
+  )
+
+  if ($unknownSecretEnvironments.Count -gt 0) {
+    throw "Unknown Okta management private key secret environment(s): $($unknownSecretEnvironments -join ', '). Valid values: $($environmentNames -join ', ')."
+  }
+
+  if ([string]::IsNullOrWhiteSpace($OktaManagementPrivateKeyPemPath)) {
+    throw 'Pass -OktaManagementPrivateKeyPemPath with the exact local Okta management private key file path when SyncOktaManagementPrivateKeySecret is set.'
+  }
+
+  $oktaManagementPrivateKeyPemFile = Resolve-OktaManagementPrivateKeyPemFile -Path $OktaManagementPrivateKeyPemPath
+}
 
 if ($Mode -in @('bootstrap-platform', 'bootstrap-automation')) {
   $platformNetworkResourceGroupName = Get-PlatformNetworkResourceGroupName -Configuration $configuration
@@ -782,6 +898,12 @@ if ($Mode -in @('bootstrap-platform', 'bootstrap-automation')) {
 }
 
 Write-PlanSummary -Configuration $configuration -AzureContext $azureContext -GitHubContext $gitHubContext
+
+if ($SyncOktaManagementPrivateKeySecret.IsPresent) {
+  Write-Host "Okta management private key secret sync: $($oktaManagementPrivateKeySecretTargetEnvironments -join ', ')"
+  Write-Host "Okta management private key secret name: $oktaManagementPrivateKeySecretName"
+  Write-Host "Okta management private key source file: $($oktaManagementPrivateKeyPemFile.FullName)"
+}
 
 if ($Mode -eq 'show-plan') {
   return
@@ -816,9 +938,9 @@ foreach ($environmentName in $environmentNames) {
   Ensure-GitHubEnvironment -Owner $gitHubContext.Owner -RepositoryName $gitHubContext.RepositoryName -EnvironmentName $environmentName
 
   $appId = ''
+  $displayName = "gha-$($configuration.projectName)-$environmentName"
 
   if ($Mode -in @('bootstrap-platform', 'bootstrap-automation')) {
-    $displayName = "gha-$($configuration.projectName)-$environmentName"
     $application = Ensure-EntraApplication -DisplayName $displayName
 
     if ($application) {
@@ -843,12 +965,21 @@ foreach ($environmentName in $environmentNames) {
       Ensure-RoleAssignment -PrincipalAppId $application.appId -RoleName 'Contributor' -Scope $platformMonitorScope
       $appId = $application.appId
     }
+  } elseif ($Mode -eq 'sync-environments') {
+    $application = Find-EntraApplication -DisplayName $displayName
+    if ($application) {
+      $appId = $application.appId
+    }
   }
 
   $environmentVariables = Get-EnvironmentVariables -Configuration $configuration -AzureContext $azureContext -EnvironmentName $environmentName -AzureClientId $appId
 
   foreach ($pair in $environmentVariables.GetEnumerator()) {
     Set-GitHubEnvironmentVariable -RepositoryUrl $gitHubContext.RepositoryUrl -EnvironmentName $environmentName -Name $pair.Key -Value $pair.Value
+  }
+
+  if ($SyncOktaManagementPrivateKeySecret.IsPresent -and $oktaManagementPrivateKeySecretTargetEnvironments -contains $environmentName) {
+    Set-GitHubEnvironmentSecretFromFile -RepositoryUrl $gitHubContext.RepositoryUrl -EnvironmentName $environmentName -Name $oktaManagementPrivateKeySecretName -Path $oktaManagementPrivateKeyPemFile.FullName
   }
 }
 
