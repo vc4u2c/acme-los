@@ -12,7 +12,7 @@ param(
   [string]$ProdSubscriptionId,
   [switch]$IncludeMainBranchSubject,
   [switch]$SyncOktaManagementPrivateKeySecret,
-  [string]$OktaManagementPrivateKeyPemPath = 'C:\Secured',
+  [string]$OktaManagementPrivateKeyPemPath = 'C:\secured\acme bff management.pem',
   [string[]]$OktaManagementPrivateKeySecretEnvironments = @('dev')
 )
 

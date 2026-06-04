@@ -47,7 +47,7 @@
         "senderPhoneNumber": "+18772244103"
       },
       "oktaCustomerIdWriteback": {
-        "mode": "disabled",
+        "mode": "sample",
         "clientId": "0oa13qfg2seqPW1xO698",
         "privateKeyId": "3bkuLQtLOx5IbP0p1cMlu24FKF3wbv3wrz_vAm0KFQ",
         "scopes": "okta.users.manage"

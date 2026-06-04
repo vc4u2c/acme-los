@@ -212,7 +212,7 @@ arguments:
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/setup-github-azure-environments.ps1 `
   -Mode sync-environments `
   -SyncOktaManagementPrivateKeySecret `
-  -OktaManagementPrivateKeyPemPath 'C:\Secured' `
+  -OktaManagementPrivateKeyPemPath 'C:\secured\acme bff management.pem' `
   -OktaManagementPrivateKeySecretEnvironments dev
 ```
 

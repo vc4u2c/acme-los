@@ -124,13 +124,11 @@ Pre-deployment checklist for the sample bridge:
 6. Set `oktaCustomerIdWriteback.mode` to `sample` only after the service app,
    scope grant, client id, key id, and private key are ready.
 
-Current `main` keeps the `dev` sample bridge disabled until the GitHub
-environment secret has a real PEM value. Keep the service app identifiers in
-source control because they are not secret, but only set `mode` to `sample`
-after `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` is populated in the GitHub `dev`
-environment.
+Current `dev` enables the sample bridge, so the GitHub `dev` environment must
+have a real `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` value before deployment. Keep
+the service app identifiers in source control because they are not secret.
 
-Ready-to-enable `dev` shape:
+Current `dev` shape:
 
 ```json
 "oktaCustomerIdWriteback": {
@@ -145,7 +143,7 @@ in `infra/azure/config/platform.json`, then set the private key in the deploy
 environment before deploying locally:
 
 ```powershell
-$env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM = Get-Content -LiteralPath 'C:\Secured\acme bff management.pem' -Raw
+$env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM = Get-Content -LiteralPath 'C:\secured\acme bff management.pem' -Raw
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev
 ```
 
@@ -158,7 +156,7 @@ Use the environment setup script to sync it from the local secured PEM file:
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/setup-github-azure-environments.ps1 `
   -Mode sync-environments `
   -SyncOktaManagementPrivateKeySecret `
-  -OktaManagementPrivateKeyPemPath 'C:\Secured' `
+  -OktaManagementPrivateKeyPemPath 'C:\secured\acme bff management.pem' `
   -OktaManagementPrivateKeySecretEnvironments dev
 ```
 
