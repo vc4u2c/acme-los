@@ -145,6 +145,7 @@ jobs:
         shell: pwsh
         env:
           ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM: ${{ secrets.ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM }}
+          ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION: ${{ secrets.ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION }}
         run: |
           $webImageRepository = '${{ vars.AZURE_WEB_IMAGE_REPOSITORY }}'
           if ([string]::IsNullOrWhiteSpace($webImageRepository)) {
