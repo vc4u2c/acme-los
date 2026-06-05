@@ -101,6 +101,49 @@ describe('Okta telephony hook route', () => {
     });
   });
 
+  it('returns success without sending SMS when dev mock provider is enabled', async () => {
+    process.env.ACME_OKTA_TELEPHONY_PROVIDER = 'mock';
+    process.env.ACME_ENABLE_MOCK_SMS_OTP = 'true';
+    process.env.APP_ENVIRONMENT_NAME = 'dev';
+
+    const response = await POST(createTelephonyHookRequest());
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(send).not.toHaveBeenCalled();
+    expect(payload).toEqual({
+      commands: [
+        {
+          type: 'com.okta.telephony.action',
+          value: [
+            {
+              provider: 'ACME_MOCK_SMS',
+              status: 'SUCCESSFUL',
+              transactionId: expect.stringMatching(/^mock-evt-\d+$/),
+            },
+          ],
+        },
+      ],
+    });
+  });
+
+  it('refuses mock provider outside local or dev environments', async () => {
+    process.env.ACME_OKTA_TELEPHONY_PROVIDER = 'mock';
+    process.env.ACME_ENABLE_MOCK_SMS_OTP = 'true';
+    process.env.APP_ENVIRONMENT_NAME = 'prod';
+
+    const response = await POST(createTelephonyHookRequest());
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(send).not.toHaveBeenCalled();
+    expect(payload).toEqual({
+      error: {
+        errorSummary: 'Unable to deliver the verification code.',
+      },
+    });
+  });
+
   it('rejects requests without the configured authorization header', async () => {
     const response = await POST(
       createTelephonyHookRequest({ authorization: 'Basic invalid' }),

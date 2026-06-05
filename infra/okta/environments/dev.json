@@ -6,7 +6,7 @@
     "mobileClientId": "0oa114pxwpwIRfEnb698",
     "fundingStepUpAcrValues": "urn:okta:loa:2fa:any",
     "telephony": {
-      "enabled": false,
+      "enabled": true,
       "hookPath": "/api/hooks/okta/telephony"
     },
     "userPrune": {

@@ -41,9 +41,12 @@ const telephonyHookRequestSchema = z.object({
 
 type SmsMfaConfiguration = {
   authorization: string;
-  endpoint: string;
-  managedIdentityClientId: string;
-  senderPhoneNumber: string;
+  provider: 'acs' | 'mock';
+  acs?: {
+    endpoint: string;
+    managedIdentityClientId: string;
+    senderPhoneNumber: string;
+  };
 };
 
 function readRequiredEnvironmentVariable(name: string): string {
@@ -57,6 +60,26 @@ function readRequiredEnvironmentVariable(name: string): string {
 }
 
 function readSmsMfaConfiguration(): SmsMfaConfiguration {
+  const provider = (process.env.ACME_OKTA_TELEPHONY_PROVIDER ?? 'acs')
+    .trim()
+    .toLowerCase();
+  const authorization = readRequiredEnvironmentVariable(
+    'ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION',
+  );
+
+  if (provider === 'mock') {
+    assertMockSmsAllowed();
+
+    return {
+      authorization,
+      provider,
+    };
+  }
+
+  if (provider !== 'acs') {
+    throw new Error('ACME_OKTA_TELEPHONY_PROVIDER must be "acs" or "mock".');
+  }
+
   const endpoint = readRequiredEnvironmentVariable('ACME_ACS_ENDPOINT');
   const senderPhoneNumber = readRequiredEnvironmentVariable(
     'ACME_ACS_SMS_SENDER_PHONE_NUMBER',
@@ -73,13 +96,36 @@ function readSmsMfaConfiguration(): SmsMfaConfiguration {
   }
 
   return {
-    authorization: readRequiredEnvironmentVariable(
-      'ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION',
-    ),
-    endpoint,
-    managedIdentityClientId: readRequiredEnvironmentVariable('AZURE_CLIENT_ID'),
-    senderPhoneNumber,
+    authorization,
+    provider,
+    acs: {
+      endpoint,
+      managedIdentityClientId:
+        readRequiredEnvironmentVariable('AZURE_CLIENT_ID'),
+      senderPhoneNumber,
+    },
   };
+}
+
+function assertMockSmsAllowed(): void {
+  const mockEnabled = process.env.ACME_ENABLE_MOCK_SMS_OTP === 'true';
+  const environmentName = (
+    process.env.APP_ENVIRONMENT_NAME ??
+    process.env.NEXT_PUBLIC_APP_ENVIRONMENT ??
+    process.env.NODE_ENV ??
+    ''
+  )
+    .trim()
+    .toLowerCase();
+  const isDevLikeEnvironment = ['development', 'local', 'dev', 'test'].includes(
+    environmentName,
+  );
+
+  if (!mockEnabled || !isDevLikeEnvironment) {
+    throw new Error(
+      'Mock Okta SMS delivery requires ACME_ENABLE_MOCK_SMS_OTP=true and a local/dev runtime environment.',
+    );
+  }
 }
 
 function valuesMatch(left: string, right: string): boolean {
@@ -92,14 +138,17 @@ function valuesMatch(left: string, right: string): boolean {
   );
 }
 
-function createTelephonyHookSuccessResponse(transactionId: string) {
+function createTelephonyHookSuccessResponse(
+  transactionId: string,
+  provider = 'AZURE_COMMUNICATION_SERVICES',
+) {
   return {
     commands: [
       {
         type: 'com.okta.telephony.action',
         value: [
           {
-            provider: 'AZURE_COMMUNICATION_SERVICES',
+            provider,
             status: 'SUCCESSFUL',
             transactionId,
           },
@@ -107,6 +156,14 @@ function createTelephonyHookSuccessResponse(transactionId: string) {
       },
     ],
   };
+}
+
+function maskPhoneNumber(phoneNumber: string): string {
+  return phoneNumber.replace(/^\+(\d{1,3})\d+(\d{4})$/, '+$1******$2');
+}
+
+function createMockTransactionId(eventId: string): string {
+  return `mock-${eventId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64)}`;
 }
 
 function createTelephonyHookErrorResponse() {
@@ -203,13 +260,46 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       throw new Error('Rejected stale or invalid Okta OTP lifetime.');
     }
 
+    if (configuration.provider === 'mock') {
+      const transactionId = createMockTransactionId(payload.eventId);
+
+      logger.warn('Mock delivered Okta SMS MFA verification code.', {
+        event: 'okta.telephony_hook.mock_sms_delivered',
+        eventId,
+        maskedPhoneNumber: maskPhoneNumber(
+          payload.data.messageProfile.phoneNumber,
+        ),
+        mockOtpCode: payload.data.messageProfile.otpCode,
+        otpExpires: payload.data.messageProfile.otpExpires,
+        route: telephonyHookRoute,
+        transactionId,
+      });
+
+      const response = NextResponse.json(
+        createTelephonyHookSuccessResponse(transactionId, 'ACME_MOCK_SMS'),
+        {
+          status: 200,
+          headers: {
+            'cache-control': 'no-store, max-age=0',
+          },
+        },
+      );
+
+      applyRateLimitHeaders(response, rateLimit);
+      return response;
+    }
+
+    if (!configuration.acs) {
+      throw new Error('ACS telephony configuration was not resolved.');
+    }
+
     const client = new SmsClient(
-      configuration.endpoint,
-      new ManagedIdentityCredential(configuration.managedIdentityClientId),
+      configuration.acs.endpoint,
+      new ManagedIdentityCredential(configuration.acs.managedIdentityClientId),
     );
     const [result] = await client.send(
       {
-        from: configuration.senderPhoneNumber,
+        from: configuration.acs.senderPhoneNumber,
         to: [payload.data.messageProfile.phoneNumber],
         message: `Your ACME verification code is ${payload.data.messageProfile.otpCode}. Msg&data rates may apply. Reply HELP for help or STOP to opt out.`,
       },

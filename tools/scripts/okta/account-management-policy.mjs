@@ -161,7 +161,7 @@ export function buildAccountManagementPolicyRuleDefinitions({
       notes: [
         telephonyEnabled
           ? 'Phone/SMS account-management rule is active because telephony is enabled.'
-          : 'Phone/SMS account-management rule is prepared, but the phone authenticator remains inactive until ACS SMS is approved.',
+          : 'Phone/SMS account-management rule is prepared, but the phone authenticator remains inactive until a real or dev mock SMS provider is enabled.',
         'Phone/SMS replacement uses email OTP because the unavailable phone factor cannot prove its own replacement.',
         'ACME syncs verified phone metadata only from a trusted Okta claim, Management API lookup, or event hook after fresh sign-in.',
       ],

@@ -853,6 +853,13 @@ $smsMfaEnabled = ConvertTo-Boolean (
   Get-OptionalPropertyValue -InputObject $smsMfaConfiguration -Name 'enabled'
 )
 $smsMfaEnabledEnvValue = if ($smsMfaEnabled) { 'true' } else { 'false' }
+$smsMfaProvider = (Get-StringOrDefault -Value (
+    Get-OptionalPropertyValue -InputObject $smsMfaConfiguration -Name 'provider'
+  ) -DefaultValue 'acs').ToLowerInvariant()
+$smsMfaMockOtpEnabled = ConvertTo-Boolean (
+  Get-OptionalPropertyValue -InputObject $smsMfaConfiguration -Name 'enableMockOtp'
+)
+$smsMfaMockOtpEnabledEnvValue = if ($smsMfaMockOtpEnabled) { 'true' } else { 'false' }
 $smsSenderPhoneNumber = Get-StringOrDefault -Value (
   Get-OptionalPropertyValue -InputObject $smsMfaConfiguration -Name 'senderPhoneNumber'
 )
@@ -1104,8 +1111,20 @@ if ($smsMfaEnabled) {
     throw "Environment '$EnvironmentName' enables smsMfa but runtime.minReplicas is less than 1. Keep at least one warm web replica because Okta telephony hooks have a short response window."
   }
 
-  if ($smsSenderPhoneNumber -notmatch '^\+[1-9]\d{7,14}$') {
-    throw "Environment '$EnvironmentName' enables smsMfa but does not declare a valid E.164 senderPhoneNumber."
+  if ($smsMfaProvider -notin @('acs', 'mock')) {
+    throw "Environment '$EnvironmentName' enables smsMfa with unsupported provider '$smsMfaProvider'. Use 'acs' or 'mock'."
+  }
+
+  if ($smsMfaProvider -eq 'mock') {
+    if ($EnvironmentName -ne 'dev') {
+      throw "Environment '$EnvironmentName' enables mock SMS MFA. Mock SMS OTP logging is allowed only in dev."
+    }
+
+    if (-not $smsMfaMockOtpEnabled) {
+      throw "Environment '$EnvironmentName' enables mock SMS MFA. Set smsMfa.enableMockOtp to true to make the dev-only OTP logging explicit."
+    }
+  } elseif ($smsSenderPhoneNumber -notmatch '^\+[1-9]\d{7,14}$') {
+    throw "Environment '$EnvironmentName' enables smsMfa through ACS but does not declare a valid E.164 senderPhoneNumber."
   }
 
   if (-not $oktaTelephonyHookAuthorizationSecretValue) {
@@ -1441,6 +1460,8 @@ $runtimeDeploymentArguments = @(
   '--parameters', "analyticsConsentDefaultAdPersonalization=$analyticsConsentDefaultAdPersonalization",
   '--parameters', "ga4MeasurementProtocolSecretName=$ga4MeasurementProtocolSecretName",
   '--parameters', "smsMfaEnabled=$smsMfaEnabledEnvValue",
+  '--parameters', "smsMfaProvider=$smsMfaProvider",
+  '--parameters', "mockSmsOtpEnabled=$smsMfaMockOtpEnabledEnvValue",
   '--parameters', "communicationServicesEndpoint=$communicationServicesEndpoint",
   '--parameters', "smsSenderPhoneNumber=$smsSenderPhoneNumber",
   '--parameters', "oktaCustomerIdWritebackMode=$oktaCustomerIdWritebackMode",

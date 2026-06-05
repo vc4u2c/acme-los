@@ -43,7 +43,9 @@
         "maxReplicas": 2
       },
       "smsMfa": {
-        "enabled": false,
+        "enabled": true,
+        "provider": "mock",
+        "enableMockOtp": true,
         "senderPhoneNumber": "+18772244103"
       },
       "oktaCustomerIdWriteback": {

@@ -6,7 +6,9 @@ configuration path. Carrier verification remains an operator step.
 
 ## Current State
 
-The source-supported path is staged but disabled by default:
+The source-supported real ACS path is staged until carrier verification is
+approved. `dev` also has a mock provider for demo-only Okta Phone Authenticator
+flows.
 
 - Bicep provisions one ACS resource per workload environment.
 - ACS local key authentication is disabled.
@@ -15,13 +17,13 @@ The source-supported path is staged but disabled by default:
 - `dev` has ACS resource `acs-acme-los-dev-cus-01`.
 - `dev` has purchased toll-free sender `+18772244103`, recorded in
   `infra/azure/config/platform.json`.
-- `dev` keeps `smsMfa.enabled` and `okta.telephony.enabled` set to `false`
-  until Microsoft approves toll-free verification.
+- `dev` can set `smsMfa.provider` to `mock` and `okta.telephony.enabled` to
+  `true` for demo-only OTP logging.
 - `POST /api/hooks/okta/telephony` accepts Okta telephony inline-hook requests,
   validates a shared authorization header and bounded SMS payload, rate-limits
-  requests, and sends OTP messages through ACS.
-- the webhook does not log phone numbers or OTP codes
-- the Okta manifest keeps telephony disabled until the sender number is ready
+  requests, and either sends OTP messages through ACS or logs mock OTPs in dev.
+- the webhook does not log phone numbers or OTP codes in real ACS mode
+- mock mode logs masked phone numbers and OTP codes in dev only
 
 SMS should initially be an optional factor and recovery path. Keep a stronger
 phishing-resistant authenticator available for sensitive production actions.
@@ -56,14 +58,16 @@ that timeline.
 Use a paid Azure subscription with an eligible billing address. Trial
 subscriptions and Azure free credits cannot purchase phone numbers.
 
-Pre-deployment checkpoint:
+Real ACS pre-deployment checkpoint:
 
 - `dev` already has purchased toll-free sender `+18772244103`.
-- Keep `infra/azure/config/platform.json` at `smsMfa.enabled = false`.
-- Keep `infra/okta/environments/dev.json` at `okta.telephony.enabled = false`.
+- Keep `infra/azure/config/platform.json` at `smsMfa.provider = mock` for
+  demo-only phone-factor UI, or set `smsMfa.enabled = false` to disable phone.
+- Keep `infra/okta/environments/dev.json` at `okta.telephony.enabled = false`
+  if phone-factor UI is not needed.
 - Keep `registrationRequiresPhoneVerification = false`.
-- Submit the toll-free verification application now, but do not enable the
-  Okta phone factor or web hook secret until Azure shows the number as verified.
+- Submit the toll-free verification application now, but do not switch the
+  provider to real ACS until Azure shows the number as verified.
 
 ## Twilio Trial Reality Check
 
@@ -114,6 +118,84 @@ Twilio trial smoke check:
    a programmable SMS to the intended test path. Okta OTP delivery needs dynamic
    message content, so a trial that only permits predefined templates is not
    enough for the real hook.
+
+## Dev Mock SMS Demo
+
+Use mock SMS only when a dev demo needs to show the Okta Phone Authenticator UI
+but ACS toll-free verification or Twilio 10DLC/toll-free registration is still
+blocked.
+
+Mock mode does not send an SMS. Okta generates the OTP and sends it to the ACME
+telephony hook. The hook validates the request, writes the OTP to dev web app
+logs, and returns Okta's success contract. The operator copies the OTP from ACME
+logs and enters it on the Okta-hosted page.
+
+Current dev mock shape:
+
+```json
+"smsMfa": {
+  "enabled": true,
+  "provider": "mock",
+  "enableMockOtp": true
+}
+```
+
+and:
+
+```json
+"telephony": {
+  "enabled": true,
+  "hookPath": "/api/hooks/okta/telephony"
+}
+```
+
+Guardrails:
+
+- mock mode is allowed only for `dev`
+- `ACME_ENABLE_MOCK_SMS_OTP=true` must be explicit
+- OTPs are logged only in mock mode
+- phone numbers are masked in logs
+- ACS/Twilio credentials are not needed for mock mode
+
+Before deploying, create or reuse the Okta telephony hook authorization secret:
+
+```powershell
+npm run okta:sms-mfa:new-secret
+$env:ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION='<Basic ...>'
+```
+
+Deploy dev so the web Container App receives the mock provider settings and the
+hook authorization secret:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev
+```
+
+Apply the Okta dev configuration after the deployment is live:
+
+```powershell
+$env:OKTA_API_TOKEN='<ssws token>'
+npm run okta:bootstrap -- dev
+```
+
+Watch mock OTP logs while testing:
+
+```powershell
+npm run azure:okta-mock-sms:watch
+```
+
+Expected watcher output:
+
+```text
+[2026-06-04T19:42:11.000Z] Mock Okta SMS OTP
+phone: +1******1234
+otp: 482913
+expires: 2026-06-04T19:47:11.000Z
+transaction: mock-evt-123
+```
+
+For real SMS, switch `provider` back to `acs`, keep `enableMockOtp` absent or
+`false`, and enable only after the ACS sender number is verified.
 
 ## Dev Activation
 
@@ -274,9 +356,11 @@ exceptional rather than becoming the normal delivery path.
 2. Register or sign in with a test customer.
 3. Enroll the test phone number.
 4. Request an SMS OTP.
-5. Confirm the code arrives and completes the Okta challenge.
-6. Confirm logs contain delivery event IDs and ACS transaction IDs but no
-   phone numbers or OTP codes.
+5. In mock mode, copy the OTP from
+   `tools/scripts/azure/watch-okta-mock-sms-otp.ps1` output and complete the
+   Okta challenge.
+6. In real ACS mode, confirm the code arrives on the phone and logs contain
+   delivery event IDs and ACS transaction IDs but no phone numbers or OTP codes.
 7. Confirm email MFA still works.
 
 ## Rollback

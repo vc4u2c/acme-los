@@ -49,6 +49,12 @@ param analyticsConsentDefaultAdUserData string = 'denied'
 param analyticsConsentDefaultAdPersonalization string = 'denied'
 param ga4MeasurementProtocolSecretName string = 'sec-acme-los-ga4-measurement-secret'
 param smsMfaEnabled bool = false
+@allowed([
+  'acs'
+  'mock'
+])
+param smsMfaProvider string = 'acs'
+param mockSmsOtpEnabled bool = false
 param communicationServicesEndpoint string = ''
 param smsSenderPhoneNumber string = ''
 param oktaTelephonyHookAuthorizationSecretName string = 'sec-acme-los-okta-telephony-hook-authorization'
@@ -221,6 +227,8 @@ module containerApp './modules/web/container-app.bicep' = {
     analyticsConsentDefaultAdPersonalization: analyticsConsentDefaultAdPersonalization
     ga4MeasurementProtocolSecretName: ga4MeasurementProtocolSecretName
     smsMfaEnabled: smsMfaEnabled
+    smsMfaProvider: smsMfaProvider
+    mockSmsOtpEnabled: mockSmsOtpEnabled
     communicationServicesEndpoint: communicationServicesEndpoint
     smsSenderPhoneNumber: smsSenderPhoneNumber
     oktaTelephonyHookAuthorizationSecretName: oktaTelephonyHookAuthorizationSecretName

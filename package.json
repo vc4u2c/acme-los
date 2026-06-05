@@ -31,6 +31,7 @@
     "azure:resume:web": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -Action resume",
     "azure:teardown": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1",
     "azure:sms-mfa:number": "node tools/scripts/azure/manage-acs-sms-number.mjs",
+    "azure:okta-mock-sms:watch": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/watch-okta-mock-sms-otp.ps1",
     "okta:render": "node tools/scripts/okta/render-auth-config.mjs",
     "okta:policy-plan": "node tools/scripts/okta/policy-plan.mjs",
     "okta:bootstrap": "node tools/scripts/okta/bootstrap-okta.mjs",

@@ -22,8 +22,10 @@ Current proven state:
 - `dev` is deployed to `Azure Container Apps` in `sub-acme-nonprod-online`
 - `Key Vault` and `Azure Managed Redis` are private-only
 - the repo has a staged, source-supported ACS SMS MFA path for Okta; `dev`
-  has purchased toll-free sender `+18772244103`, but SMS remains disabled until
-  Microsoft approves toll-free verification
+  has purchased toll-free sender `+18772244103`, while real carrier SMS remains
+  blocked until Microsoft approves toll-free verification
+- `dev` can use the source-owned mock SMS provider to demo Okta Phone
+  Authenticator UI without ACS/Twilio carrier delivery
 - subnet-level NSGs are now part of the workload network posture
 - `dev` enables Entra managed-identity service auth between Next and the
   internal BFF through source-owned Bicep
@@ -309,8 +311,9 @@ npm run azure:sms-mfa:number -- acquire --environment dev --confirm-purchase
 US/Canada toll-free verification is still an Azure portal application. Follow
 [Okta SMS MFA with Azure Communication Services](../../docs/operations/okta-sms-mfa-with-acs.md)
 for the staged activation sequence and the current `dev` sender number.
-For `dev`, keep `smsMfa.enabled = false` and `okta.telephony.enabled = false`
-until Azure marks toll-free sender `+18772244103` as verified.
+For `dev`, `smsMfa.provider = mock` can be used for a demo-only OTP log path.
+For real ACS SMS, switch the provider back to `acs` only after Azure marks
+toll-free sender `+18772244103` as verified.
 
 ## Okta Customer ID Sample Write-Back
 
