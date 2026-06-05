@@ -158,8 +158,8 @@ export function resolveOktaPolicyPlan({
         hostedExperience.customerSessionMaxLifetimeDays,
       ) ?? 60,
     phoneEnrollmentState: telephonyEnabled
-      ? 'phone enrollment follows the ACS SMS rollout state'
-      : 'phone enrollment is disabled until ACS SMS is enabled',
+      ? 'phone enrollment follows the configured SMS provider rollout state'
+      : 'phone enrollment is disabled until a real or dev mock SMS provider is enabled',
     adaptiveMfaState: optionalBoolean(hostedExperience.adaptiveMfaOnSignIn)
       ? 'high-risk adaptive 2FA rule using Okta risk score HIGH plus standard access rule'
       : 'standard access rule',

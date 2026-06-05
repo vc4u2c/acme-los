@@ -210,7 +210,7 @@
         "Customer starts Okta hosted registration from ACME app.",
         "Profile enrollment captures first name, last name, email, and US state, then targets {customerGroupName}.",
         "Authenticator enrollment requires password, email, and security question in the same Okta-hosted registration flow.",
-        "Phone remains disabled until ACS SMS is approved and enabled."
+        "Phone remains optional until a real or dev mock SMS provider is enabled."
       ],
       "securityNotes": [
         "Admin users should not be members of {customerGroupName}.",
@@ -366,7 +366,7 @@
         "ACME treats verified phone as Okta-owned until a trusted profile claim, Management API lookup, or event hook is enabled."
       ],
       "securityNotes": [
-        "Phone/SMS remains disabled until ACS toll-free verification is approved.",
+        "Phone/SMS remains demo-only through the dev mock provider until real carrier SMS is approved.",
         "ACME does not claim an application servicing phone number is the verified Okta SMS factor."
       ]
     },

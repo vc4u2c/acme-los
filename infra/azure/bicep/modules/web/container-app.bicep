@@ -27,6 +27,12 @@ param analyticsConsentDefaultAdUserData string = 'denied'
 param analyticsConsentDefaultAdPersonalization string = 'denied'
 param ga4MeasurementProtocolSecretName string = 'sec-acme-los-ga4-measurement-secret'
 param smsMfaEnabled bool = false
+@allowed([
+  'acs'
+  'mock'
+])
+param smsMfaProvider string = 'acs'
+param mockSmsOtpEnabled bool = false
 param communicationServicesEndpoint string = ''
 param smsSenderPhoneNumber string = ''
 param oktaTelephonyHookAuthorizationSecretName string = 'sec-acme-los-okta-telephony-hook-authorization'
@@ -108,15 +114,11 @@ var azureManagedIdentityEnvironmentVariables = !empty(azureManagedIdentityClient
       }
     ]
   : []
-var smsMfaEnvironmentVariables = smsMfaEnabled
+var smsMfaBaseEnvironmentVariables = smsMfaEnabled
   ? [
       {
-        name: 'ACME_ACS_ENDPOINT'
-        value: communicationServicesEndpoint
-      }
-      {
-        name: 'ACME_ACS_SMS_SENDER_PHONE_NUMBER'
-        value: smsSenderPhoneNumber
+        name: 'ACME_OKTA_TELEPHONY_PROVIDER'
+        value: smsMfaProvider
       }
       {
         name: 'ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION'
@@ -124,6 +126,26 @@ var smsMfaEnvironmentVariables = smsMfaEnabled
       }
     ]
   : []
+var smsMfaProviderEnvironmentVariables = smsMfaEnabled
+  ? smsMfaProvider == 'mock'
+      ? [
+          {
+            name: 'ACME_ENABLE_MOCK_SMS_OTP'
+            value: string(mockSmsOtpEnabled)
+          }
+        ]
+      : [
+          {
+            name: 'ACME_ACS_ENDPOINT'
+            value: communicationServicesEndpoint
+          }
+          {
+            name: 'ACME_ACS_SMS_SENDER_PHONE_NUMBER'
+            value: smsSenderPhoneNumber
+          }
+        ]
+  : []
+var smsMfaEnvironmentVariables = concat(smsMfaBaseEnvironmentVariables, smsMfaProviderEnvironmentVariables)
 var bffBaseEnvironmentVariables = !empty(bffBaseUrl)
   ? [
       {

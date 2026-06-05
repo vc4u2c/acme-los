@@ -156,10 +156,11 @@ Live dev org state last verified from the Admin API:
   - `ACME LOS Password Lifecycle (dev)`
   - `ACME LOS Email Lifecycle (dev)`
   - `ACME LOS Phone Lifecycle (dev)`
-- phone authenticator remains inactive until the purchased ACS sender number
-  `+18772244103` is toll-free verified and enabled in the manifest
-- the repo-managed telephony inline hook is intentionally absent while
-  `okta.telephony.enabled` is `false`
+- phone authenticator can be enabled in `dev` through the repo-managed mock
+  telephony provider for demos; this logs Okta-generated OTPs in dev app logs
+  and does not send real SMS
+- real ACS-backed SMS remains blocked until purchased sender `+18772244103` is
+  toll-free verified and the Azure provider is enabled in the manifest
 
 ## Recommended Dev Flow
 

@@ -45,8 +45,8 @@ The intended authenticator enrollment is:
 - password: required
 - email: required
 - security question: required
-- phone/SMS: optional until ACS toll-free verification is approved, then
-  optional or required by environment rollout
+- phone/SMS: optional when a dev mock or real SMS provider is enabled; required
+  only by explicit environment rollout
 
 The intended session and adaptive sign-in posture is:
 
@@ -249,7 +249,7 @@ rules through the public Policy API:
 - `ACME LOS Password Lifecycle (<env>)`: forgot password and change password.
 - `ACME LOS Email Lifecycle (<env>)`: forgot email and change email.
 - `ACME LOS Phone Lifecycle (<env>)`: lost phone/SMS factor replacement and
-  change phone; harmless while phone/SMS remains disabled.
+  change phone; live in dev only when the mock or real SMS provider is enabled.
 
 For a scoped Okta automation token, prefer `OKTA_MANAGEMENT_ACCESS_TOKEN` with
 the Okta management scopes required by the bootstrap, including

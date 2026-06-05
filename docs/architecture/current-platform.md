@@ -62,8 +62,10 @@ What is still bridge-state rather than final:
 - Redis Entra runtime auth is now the Azure path, with the connection URL path retained only for local Docker Redis
 - Front Door, WAF, and private ACA ingress are still later phases
 - ACS-backed Okta SMS MFA is source-supported and `dev` has purchased sender
-  `+18772244103`, but SMS remains intentionally disabled until Microsoft
-  approves toll-free verification
+  `+18772244103`, but real carrier SMS remains blocked until Microsoft approves
+  toll-free verification
+- `dev` can use a mock Okta telephony provider to demo Phone Authenticator UI by
+  logging Okta-generated OTPs in dev web app logs
 
 ## Current Runtime Diagram
 
@@ -107,9 +109,9 @@ calling client id or object id before `/bff/*` routes run.
 
 - registration requires password, email enrollment, and security-question
   enrollment
-- SMS enrollment through ACS is staged and disabled by default; when enabled,
-  the repo-owned Okta telephony hook uses the public Next webhook and managed
-  identity without logging phone numbers or OTP codes
+- SMS enrollment through ACS is staged until toll-free verification is approved;
+  dev mock mode can enable the Okta phone-factor UI and log masked phone numbers
+  plus OTP codes in dev-only app logs
 - standard sign-in is password-first
 - adaptive sign-in can step up to 2FA on high-risk access
 - funding route access always starts a fresh application-owned step-up check:
