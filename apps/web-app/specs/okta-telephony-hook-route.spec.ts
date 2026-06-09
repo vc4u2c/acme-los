@@ -103,7 +103,7 @@ describe('Okta telephony hook route', () => {
 
   it('returns success without sending SMS when dev mock provider is enabled', async () => {
     process.env.ACME_OKTA_TELEPHONY_PROVIDER = 'mock';
-    process.env.ACME_ENABLE_MOCK_SMS_OTP = 'true';
+    process.env.ACME_ENABLE_MOCK_SMS_OTP = 'True';
     process.env.APP_ENVIRONMENT_NAME = 'dev';
 
     const response = await POST(createTelephonyHookRequest());

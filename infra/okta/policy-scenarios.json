@@ -29,6 +29,13 @@
       "purpose": "Provides Okta risk, anomalous-device, device assurance, and device signal-collection inputs that app sign-in rules can consume when the org supports them."
     },
     {
+      "id": "org-email-login-mapping",
+      "label": "Email As Username",
+      "scopeKind": "org",
+      "managedBy": "manual-okta-admin-plus-okta:bootstrap-intent",
+      "purpose": "Keeps self-service registration simple by mapping the customer's primary email to the Okta login attribute."
+    },
+    {
       "id": "customer-group",
       "label": "Customer Group",
       "scopeKind": "customerGroup",
@@ -101,6 +108,20 @@
       "scenarioIds": ["standard-sign-in", "customer-id-writeback"]
     },
     {
+      "id": "org-email-login-mapping",
+      "type": "OKTA_ORG_SETTING",
+      "nameTemplate": "Map primary email to login attribute ({env})",
+      "scopeKind": "org",
+      "automationStatus": "manual-public-api-not-exposed",
+      "managedBy": "manual-okta-admin-plus-okta:bootstrap-intent",
+      "configures": [
+        "Map primary email to login attribute is {emailLoginMappingState}",
+        "new self-service registration users use email as the Okta login identifier",
+        "existing users are not rewritten automatically unless email changes or login is updated explicitly"
+      ],
+      "scenarioIds": ["new-customer-registration"]
+    },
+    {
       "id": "profile-enrollment-registration",
       "type": "PROFILE_ENROLLMENT",
       "nameTemplate": "ACME LOS Registration ({env})",
@@ -109,7 +130,7 @@
       "managedBy": "okta:bootstrap",
       "configures": [
         "self-service registration",
-        "required hosted profile fields: first name, last name, email, and US state",
+        "required hosted profile fields: email login identifier, first name, last name, profile phone number, and US-state dropdown backed by acmeState",
         "new registrations target {customerGroupName}"
       ],
       "scenarioIds": ["new-customer-registration"]
@@ -161,6 +182,20 @@
       "scenarioIds": ["standard-sign-in", "high-risk-sign-in"]
     },
     {
+      "id": "password-recovery-gate",
+      "type": "PASSWORD",
+      "nameTemplate": "{passwordPolicyName}",
+      "scopeKind": "customerGroup",
+      "automationStatus": "automated",
+      "managedBy": "okta:bootstrap",
+      "configures": [
+        "customer-scoped password policy gate for self-service password reset and account unlock",
+        "email as the primary forgot-password recovery method",
+        "delegates password recovery assurance to Okta Account Management with accessControl=AUTH_POLICY"
+      ],
+      "scenarioIds": ["forgot-password-security-question-email-otp"]
+    },
+    {
       "id": "account-management-recovery",
       "type": "OKTA_ACCOUNT_MANAGEMENT",
       "nameTemplate": "Okta Account Management ({env})",
@@ -208,9 +243,9 @@
       "automationStatus": "automated",
       "flow": [
         "Customer starts Okta hosted registration from ACME app.",
-        "Profile enrollment captures first name, last name, email, and US state, then targets {customerGroupName}.",
-        "Authenticator enrollment requires password, email, and security question in the same Okta-hosted registration flow.",
-        "Phone remains optional until a real or dev mock SMS provider is enabled."
+        "Profile enrollment captures email as the login identifier, first name, last name, profile phone number, and visible State backed by the acmeState US-state dropdown, then targets {customerGroupName}.",
+        "Authenticator enrollment requires password, email, and security question in the same Okta-hosted registration flow; password and repeat-password are Okta-rendered enrollment inputs, not profile fields.",
+        "Phone/SMS authenticator enrollment is optional when telephony is enabled; until the customer verifies that authenticator, profile phone remains contact metadata, not a verified SMS factor."
       ],
       "securityNotes": [
         "Admin users should not be members of {customerGroupName}.",
@@ -417,8 +452,13 @@
     },
     {
       "id": "registration-profile-fields",
-      "title": "Hosted registration requires first name, last name, email, and state",
+      "title": "Hosted registration requires email login identifier, first name, last name, phone number, and acmeState US-state dropdown",
       "scopeKind": "customerGroup"
+    },
+    {
+      "id": "org-email-login-mapping",
+      "title": "Org setting maps primary email to login attribute for self-service registration",
+      "scopeKind": "org"
     },
     {
       "id": "global-session-60-days",

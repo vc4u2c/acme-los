@@ -19,6 +19,7 @@
       "keepMeSignedIn": true,
       "customerSessionMaxLifetimeDays": 60,
       "registrationRequiresEmailVerification": true,
+      "mapPrimaryEmailToLogin": true,
       "registrationRequiresSecurityQuestion": true,
       "registrationRequiresPhoneVerification": false,
       "adaptiveMfaOnSignIn": true,

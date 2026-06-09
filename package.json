@@ -35,6 +35,8 @@
     "okta:render": "node tools/scripts/okta/render-auth-config.mjs",
     "okta:policy-plan": "node tools/scripts/okta/policy-plan.mjs",
     "okta:bootstrap": "node tools/scripts/okta/bootstrap-okta.mjs",
+    "okta:audit-live": "node tools/scripts/okta/audit-live-okta.mjs",
+    "okta:audit-hosted-pages": "node tools/scripts/okta/audit-hosted-page-states.mjs",
     "okta:cleanup": "node tools/scripts/okta/cleanup-okta.mjs",
     "okta:delete-users": "node tools/scripts/okta/delete-okta-users.mjs",
     "okta:prune-users": "node tools/scripts/okta/prune-okta-users.mjs",

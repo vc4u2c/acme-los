@@ -44,7 +44,9 @@ The web app currently uses:
 - server-side callback code exchange
 - one opaque HTTP-only auth session cookie
 - one CSRF cookie for mutating web routes
-- one short-lived auth transaction cookie during the Okta redirect handshake
+- one short-lived auth transaction cookie during the Okta redirect handshake;
+  it is an opaque pointer only, while `state`, `nonce`, `code_verifier`, and
+  route context live in the server-side state store
 - server-side session, customer, and application flow state
 - server-enforced idle expiry for authenticated web sessions
 

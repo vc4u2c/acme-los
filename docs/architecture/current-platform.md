@@ -168,26 +168,29 @@ Current BFF bridge:
 
 ### BFF Toggle Behavior
 
-| Surface                     | `ACME_BFF_PROXY_MODE=next`                                                  | `ACME_BFF_PROXY_MODE=bff`                                                                          |
-| --------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Browser contract            | Browser calls the same Next `/api/*` routes                                 | Browser calls the same Next `/api/*` routes                                                        |
-| Auth start/callback         | Next owns PKCE transaction, Okta token exchange, and session creation       | BFF owns PKCE transaction, Okta token exchange, id-token validation, step-up, and session creation |
-| Session read/touch/logout   | Next reads and mutates the Next-owned server state store                    | Next calls BFF session endpoints and writes/clears the browser-facing opaque cookie                |
-| CSRF                        | Next issues and validates the signed facade CSRF cookie                     | BFF issues the CSRF token; Next relays the cookie and accepts BFF raw tokens during validation     |
-| Customer/application routes | Next implementation serves the current contracts                            | Next enforces browser boundary rules, then proxies to BFF customer/application endpoints           |
-| Security inspector          | Reads the Next-owned server session/token snapshot                          | Reads the BFF-owned server session/token snapshot through trusted BFF diagnostics                  |
-| Browser telemetry           | Next implementation validates and logs browser-origin operational telemetry | Same Next facade route validates and logs browser-origin operational telemetry                     |
-| Diagnostic tracing          | Not proxied                                                                 | Next calls `/bff/diagnostics/trace` for the logging-demo trace propagation check                   |
-| Raw BFF URL                 | Not used by the browser                                                     | Still not used by the browser; only server-to-server or terminal checks                            |
+| Surface                     | `ACME_BFF_PROXY_MODE=next`                                                                                   | `ACME_BFF_PROXY_MODE=bff`                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Browser contract            | Browser calls the same Next `/api/*` routes                                                                  | Browser calls the same Next `/api/*` routes                                                        |
+| Auth start/callback         | Next owns PKCE transaction state in the shared server state store, Okta token exchange, and session creation | BFF owns PKCE transaction, Okta token exchange, id-token validation, step-up, and session creation |
+| Session read/touch/logout   | Next reads and mutates the Next-owned server state store                                                     | Next calls BFF session endpoints and writes/clears the browser-facing opaque cookie                |
+| CSRF                        | Next issues and validates the signed facade CSRF cookie                                                      | BFF issues the CSRF token; Next relays the cookie and accepts BFF raw tokens during validation     |
+| Customer/application routes | Next implementation serves the current contracts                                                             | Next enforces browser boundary rules, then proxies to BFF customer/application endpoints           |
+| Security inspector          | Reads the Next-owned server session/token snapshot                                                           | Reads the BFF-owned server session/token snapshot through trusted BFF diagnostics                  |
+| Browser telemetry           | Next implementation validates and logs browser-origin operational telemetry                                  | Same Next facade route validates and logs browser-origin operational telemetry                     |
+| Diagnostic tracing          | Not proxied                                                                                                  | Next calls `/bff/diagnostics/trace` for the logging-demo trace propagation check                   |
+| Raw BFF URL                 | Not used by the browser                                                                                      | Still not used by the browser; only server-to-server or terminal checks                            |
 
 ## Current Server-State Model
 
 - one opaque auth session cookie identifies the web session
 - one CSRF cookie protects browser mutations
-- one short-lived auth transaction cookie exists only during sign-in
+- one short-lived auth transaction cookie exists only during sign-in; in
+  Next-owned auth it contains only an opaque transaction id plus safe return
+  metadata, while PKCE `state`, `nonce`, `code_verifier`, step-up context, and
+  journey context are stored server-side
 - authenticated sessions carry an absolute expiry plus a server-side idle expiry
 - `libs/api/web-server`
-  - stores auth session data, customer profile data, and application flow state server-side
+  - stores auth transaction data, auth session data, customer profile data, and application flow state server-side
   - enforces idle session expiry in the shared state store
   - uses Redis when `ACME_WEB_STATE_STORE=redis`, `ACME_REDIS_URL`, or `ACME_REDIS_HOST` is configured
   - supports connection-string auth for local Docker Redis

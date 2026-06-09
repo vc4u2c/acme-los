@@ -15,7 +15,7 @@ import {
   AUTH_TRANSACTION_COOKIE_NAME,
 } from './cookies';
 import { getServerWebAuthConfig } from './config';
-import { readWebAuthTransaction } from './okta-auth-flow';
+import { readWebAuthTransactionCookie } from './okta-auth-flow';
 import { readStoredWebAuthSession } from './session-store';
 import { getWebStateStoreMode } from './state-store';
 
@@ -220,7 +220,7 @@ export async function readSecurityInspectorServerSnapshot(
     decodedCookies: {
       authSession: authSessionCookiePayload,
       authTransaction: request.cookies.has(AUTH_TRANSACTION_COOKIE_NAME)
-        ? readWebAuthTransaction(request)
+        ? readWebAuthTransactionCookie(request)
         : null,
     },
     storedSession: buildStoredSessionSnapshot(storedSession),

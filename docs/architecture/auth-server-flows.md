@@ -40,6 +40,9 @@ Current browser-side auth shape:
   - protects mutating web requests
 - short-lived auth transaction cookie
   - only during the Okta redirect handshake
+  - contains an opaque transaction id and safe routing metadata
+  - does not contain the PKCE `code_verifier`, Okta `state`, nonce, or step-up
+    proof context
 
 So the browser has one main logged-in session boundary, and the server resolves the real auth/session data behind it.
 
@@ -107,14 +110,17 @@ sequenceDiagram
   W->>U: Render sign-in launch page
   U->>W: GET /api/auth/start?returnTo=/apply/personal-info
   W->>W: Generate state, nonce, code_verifier, code_challenge
-  W->>U: Set auth transaction cookie
+  W->>S: Store auth transaction with 10-minute TTL
+  W->>U: Set opaque auth transaction cookie
   W->>U: Redirect to Okta authorize endpoint
   U->>O: Hosted sign-in
   O->>U: Redirect back to /auth/callback with code + state
   U->>W: GET /auth/callback?code=...&state=...
   W->>U: Immediate redirect to /api/auth/callback
   U->>W: GET /api/auth/callback?code=...&state=...
-  W->>W: Read and verify auth transaction cookie
+  W->>S: Fetch auth transaction by opaque id
+  W->>W: Verify callback state
+  W->>S: Delete consumed auth transaction
   W->>O: Exchange code for tokens
   O-->>W: id_token, access_token, refresh_token?
   W->>W: Verify nonce and token claims

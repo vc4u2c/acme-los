@@ -3,12 +3,11 @@
 import * as React from 'react';
 import Link from 'next/link';
 import {
+  ArrowRight,
   CircleHelp,
-  ExternalLink,
   KeyRound,
   Mail,
   Phone,
-  RefreshCw,
   type LucideIcon,
 } from 'lucide-react';
 import { createWebApiClient } from '@acme-los/api/web-client';
@@ -50,6 +49,7 @@ const oktaAccountSecurityActions: Array<{
   label: string;
   description: string;
   cta: string;
+  accountSettingsPath: string;
   icon: LucideIcon;
 }> = [
   {
@@ -57,13 +57,15 @@ const oktaAccountSecurityActions: Array<{
     description:
       'Use another enrolled verification method before changing your sign-in email.',
     cta: 'Update email',
+    accountSettingsPath: '/enduser/settings/personal',
     icon: Mail,
   },
   {
-    label: 'Change verification phone',
+    label: 'Manage text-message verification',
     description:
-      'Review or replace your text-message phone when it is enrolled.',
-    cta: 'Change phone',
+      'Enroll, review, or replace your optional SMS verification phone.',
+    cta: 'Manage phone',
+    accountSettingsPath: '/enduser/settings/security',
     icon: Phone,
   },
   {
@@ -71,27 +73,26 @@ const oktaAccountSecurityActions: Array<{
     description:
       'Confirm your current password and a verification method first.',
     cta: 'Change password',
+    accountSettingsPath: '/enduser/settings/security',
     icon: KeyRound,
   },
   {
     label: 'Update recovery question',
     description: 'Keep the recovery challenge current for account recovery.',
     cta: 'Update question',
+    accountSettingsPath: '/enduser/settings/security',
     icon: CircleHelp,
   },
 ];
 
-function getOktaAccountSettingsUrl(): string | null {
+function getOktaAccountSettingsUrl(pathname: string): string | null {
   try {
     const config = getWebAuthConfig();
     if (config.provider !== 'okta' || !config.okta) {
       return null;
     }
 
-    return new URL(
-      '/account-settings/home',
-      new URL(config.okta.issuer).origin,
-    ).toString();
+    return new URL(pathname, new URL(config.okta.issuer).origin).toString();
   } catch {
     return null;
   }
@@ -138,7 +139,7 @@ function getDebugRows(
 }
 
 export function CustomerProfileDashboard(): React.ReactElement {
-  const { session, signIn } = useAuthSession();
+  const { session } = useAuthSession();
   const user = session.user;
   const webApiClient = React.useMemo(() => createWebApiClient(), []);
   const [tokenClaims, setTokenClaims] = React.useState<{
@@ -151,8 +152,12 @@ export function CustomerProfileDashboard(): React.ReactElement {
   const [showTokenDebug, setShowTokenDebug] = React.useState(false);
   const [isProfileLoading, setIsProfileLoading] = React.useState(true);
   const [isSavingProfile, setIsSavingProfile] = React.useState(false);
-  const oktaAccountSettingsUrl = React.useMemo(
-    () => getOktaAccountSettingsUrl(),
+  const oktaAccountSettingsBaseUrl = React.useMemo(
+    () => getOktaAccountSettingsUrl('/enduser/settings'),
+    [],
+  );
+  const oktaAccountSecurityUrl = React.useMemo(
+    () => getOktaAccountSettingsUrl('/enduser/settings/security'),
     [],
   );
   const tokenDebugSupported =
@@ -301,10 +306,6 @@ export function CustomerProfileDashboard(): React.ReactElement {
     [formState, webApiClient],
   );
 
-  const refreshSecureSession = React.useCallback(() => {
-    void signIn({ returnTo: '/account/profile' });
-  }, [signIn]);
-
   return (
     <main className="min-h-screen text-[var(--foreground)]">
       <SiteHeader items={navigationItems} variant="application" />
@@ -399,8 +400,8 @@ export function CustomerProfileDashboard(): React.ReactElement {
                       className="border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]"
                     />
                     <p className="text-xs leading-5 text-[var(--muted-foreground)]">
-                      Sign-in text-message factors are handled in the secure
-                      account center; this phone is for application servicing.
+                      Use account security to manage optional text-message
+                      verification; this phone is for application servicing.
                     </p>
                   </div>
                 </div>
@@ -547,13 +548,57 @@ export function CustomerProfileDashboard(): React.ReactElement {
                   in the hosted account center. ACME syncs only verified contact
                   metadata after a fresh session.
                 </CardDescription>
+                {oktaAccountSecurityUrl ? (
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="mt-2 w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-6 text-[var(--foreground)] hover:bg-[var(--surface-accent)] sm:w-fit"
+                  >
+                    <a href={oktaAccountSecurityUrl}>
+                      <span>Open account security</span>
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </a>
+                  </Button>
+                ) : null}
               </CardHeader>
               <CardContent className="min-w-0 space-y-4 px-5 pb-5 sm:px-6 sm:pb-6">
                 <div className="grid gap-3">
                   {oktaAccountSecurityActions.map((action) => {
                     const Icon = action.icon;
+                    const actionUrl =
+                      getOktaAccountSettingsUrl(action.accountSettingsPath) ??
+                      oktaAccountSettingsBaseUrl;
 
-                    return (
+                    return actionUrl ? (
+                      <a
+                        key={action.label}
+                        href={actionUrl}
+                        className="group grid gap-3 rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-4 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] sm:grid-cols-[1fr_auto] sm:items-center"
+                        aria-label={`${action.cta} in the hosted account center`}
+                      >
+                        <span className="flex min-w-0 items-start gap-3">
+                          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--brand)] transition group-hover:border-[var(--border-strong)]">
+                            <Icon
+                              className="h-[18px] w-[18px]"
+                              aria-hidden="true"
+                              strokeWidth={2}
+                            />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-[var(--foreground)]">
+                              {action.label}
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-[var(--muted-foreground)]">
+                              {action.description}
+                            </span>
+                          </span>
+                        </span>
+                        <span className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-[var(--border-strong)] bg-[var(--surface)] px-4 py-2 text-sm font-semibold text-[var(--foreground)] transition group-hover:bg-[var(--surface)] sm:w-auto">
+                          <span>{action.cta}</span>
+                          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                        </span>
+                      </a>
+                    ) : (
                       <div
                         key={action.label}
                         className="grid gap-3 rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-4 sm:grid-cols-[1fr_auto] sm:items-center"
@@ -575,48 +620,31 @@ export function CustomerProfileDashboard(): React.ReactElement {
                             </p>
                           </div>
                         </div>
-                        {oktaAccountSettingsUrl ? (
-                          <Button
-                            asChild
-                            variant="outline"
-                            size="sm"
-                            className="w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-4 text-[var(--foreground)] hover:bg-[var(--surface-accent)] sm:w-auto"
-                          >
-                            <a
-                              href={oktaAccountSettingsUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                            >
-                              <span>{action.cta}</span>
-                              <ExternalLink
-                                className="h-4 w-4"
-                                aria-hidden="true"
-                              />
-                            </a>
-                          </Button>
-                        ) : null}
                       </div>
                     );
                   })}
                 </div>
 
                 <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-4">
-                  {!oktaAccountSettingsUrl ? (
+                  {!oktaAccountSettingsBaseUrl ? (
                     <div className="rounded-[1.25rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--muted-foreground)]">
                       Account settings are available after the hosted sign-in
                       environment is configured.
                     </div>
                   ) : null}
 
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-6 text-[var(--foreground)] hover:bg-[var(--surface-accent)]"
-                    onClick={refreshSecureSession}
-                  >
-                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                    Refresh secure session
-                  </Button>
+                  {oktaAccountSettingsBaseUrl ? (
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-6 text-[var(--foreground)] hover:bg-[var(--surface-accent)]"
+                    >
+                      <a href={oktaAccountSettingsBaseUrl}>
+                        <span>Open hosted account center</span>
+                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                      </a>
+                    </Button>
+                  ) : null}
                 </div>
               </CardContent>
             </Card>

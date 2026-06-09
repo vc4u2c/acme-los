@@ -126,12 +126,13 @@ var smsMfaBaseEnvironmentVariables = smsMfaEnabled
       }
     ]
   : []
+var mockSmsOtpEnabledEnvironmentValue = mockSmsOtpEnabled ? 'true' : 'false'
 var smsMfaProviderEnvironmentVariables = smsMfaEnabled
   ? smsMfaProvider == 'mock'
       ? [
           {
             name: 'ACME_ENABLE_MOCK_SMS_OTP'
-            value: string(mockSmsOtpEnabled)
+            value: mockSmsOtpEnabledEnvironmentValue
           }
         ]
       : [

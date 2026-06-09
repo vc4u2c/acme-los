@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 
 const mockAuthStorageKey = 'acme-los-auth-mock-session';
 const mockAuthBaseUrl = process.env['BASE_URL'] || 'http://127.0.0.1:4200';
@@ -19,6 +19,33 @@ async function navigate(page: Page, path: string) {
 
     throw error;
   }
+}
+
+async function selectTab(page: Page, name: RegExp) {
+  const tab = page.getByRole('tab', { name });
+
+  await expect(tab).toBeVisible();
+  await expect(async () => {
+    await tab.scrollIntoViewIfNeeded();
+    await tab.click();
+    await expect(tab).toHaveAttribute('aria-selected', 'true', {
+      timeout: 1000,
+    });
+  }).toPass({ timeout: 10000 });
+}
+
+async function saveEditableGridRow(page: Page, editableTable: Locator) {
+  await expect(async () => {
+    const saveRowButton = page.getByRole('button', { name: /^Save row$/i });
+
+    if (await saveRowButton.isVisible().catch(() => false)) {
+      await saveRowButton.click();
+    }
+
+    await expect(
+      editableTable.getByLabel(/Borrower name for GRID-\d{4}/),
+    ).toHaveCount(0, { timeout: 1000 });
+  }).toPass({ timeout: 10000 });
 }
 
 function createMockCustomerUser() {
@@ -116,10 +143,7 @@ test('shows the web home, rendering demos, and showcase route', async ({
     '2 / 45',
   );
   await expect(page.getByText(/2 of 45/i)).toBeVisible();
-  await page.getByRole('tab', { name: /^Collapsible$/i }).click();
-  await expect(
-    page.getByRole('tab', { name: /^Collapsible$/i }),
-  ).toHaveAttribute('aria-selected', 'true');
+  await selectTab(page, /^Collapsible$/i);
   await expect(
     page.getByTestId('showcase-grid-collapsible-table'),
   ).toBeVisible();
@@ -127,10 +151,7 @@ test('shows the web home, rendering demos, and showcase route', async ({
   await expect(page.getByTestId('showcase-grid-page-indicator')).toHaveText(
     '2 / 45',
   );
-  await page.getByRole('tab', { name: /Column filters/i }).click();
-  await expect(
-    page.getByRole('tab', { name: /Column filters/i }),
-  ).toHaveAttribute('aria-selected', 'true');
+  await selectTab(page, /Column filters/i);
   await expect(page.getByTestId('showcase-grid-filter-table')).toBeVisible();
   await expect(page.getByTestId('showcase-grid-pagination')).toBeVisible();
   await page.getByRole('button', { name: /^Open Product filter$/i }).click();
@@ -156,11 +177,7 @@ test('shows the web home, rendering demos, and showcase route', async ({
   await expect(
     filterTable.getByRole('columnheader', { name: /^Officer$/i }),
   ).toHaveCount(0);
-  await page.getByRole('tab', { name: /^Editable$/i }).click();
-  await expect(page.getByRole('tab', { name: /^Editable$/i })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
+  await selectTab(page, /^Editable$/i);
   await expect(page.getByTestId('showcase-grid-table')).toBeVisible();
   await expect(page.getByTestId('showcase-grid-pagination')).toBeVisible();
   await expect(page.getByRole('button', { name: /^Submit$/i })).toBeDisabled();
@@ -179,21 +196,14 @@ test('shows the web home, rendering demos, and showcase route', async ({
 
   await expect(borrowerNameInput).toBeVisible();
   await borrowerNameInput.fill('Acme Edited Borrower');
-  await page.getByRole('button', { name: /^Save row$/i }).click();
+  await saveEditableGridRow(page, editableTable);
   await expect(page.getByTestId('showcase-grid-table')).toContainText('Edited');
   await expect(page.getByRole('button', { name: /^Submit$/i })).toBeEnabled();
-  await page.getByRole('tab', { name: /Web primitives/i }).click();
-  await expect(
-    page.getByRole('tab', { name: /Web primitives/i }),
-  ).toHaveAttribute('aria-selected', 'true');
+  await selectTab(page, /Web primitives/i);
   await expect(
     page.getByRole('heading', { name: /Input \+ Card/i }),
   ).toBeVisible();
-  await page.getByRole('tab', { name: /Data grids/i }).click();
-  await expect(page.getByRole('tab', { name: /Data grids/i })).toHaveAttribute(
-    'aria-selected',
-    'true',
-  );
+  await selectTab(page, /Data grids/i);
   await expect(page.getByTestId('showcase-grid-readonly-table')).toBeVisible();
   await expect(page.getByTestId('showcase-grid-pagination')).toBeVisible();
 
