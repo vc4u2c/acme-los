@@ -22,13 +22,9 @@ type SecurityInspectorServerSnapshot = {
   decodedCookies: {
     authSession: { sessionId: string } | null;
     authTransaction: {
-      state: string;
-      nonce: string;
-      codeVerifier: string;
+      transactionId: string;
       returnTo: string;
       minimumAssuranceLevel: 'aal1' | 'aal2';
-      expectedUserId?: string;
-      leadId?: string;
       expiresAt: number;
     } | null;
   };
@@ -296,9 +292,10 @@ export function SecurityInspectorDashboard(): React.ReactElement {
                     Stronger now: server-side PKCE start, server-side callback
                     exchange, opaque auth session cookie, server-side auth
                     state, server-enforced idle expiry, and tokens off the
-                    browser in the normal flow. In Azure, the shared session and
-                    demo state now sit behind Redis using managed-identity auth,
-                    with the web session secret coming from Key Vault.
+                    browser in the normal flow. In Azure, the shared auth
+                    transaction, session, and demo state now sit behind Redis
+                    using managed-identity auth, with the web session secret
+                    coming from Key Vault.
                   </p>
                   <p>
                     Still temporary: this inspector page itself, the bridge

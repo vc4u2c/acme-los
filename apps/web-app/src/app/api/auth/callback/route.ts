@@ -8,9 +8,11 @@ import {
   completeBffAuthCallback,
   clearReplacedWebAuthSession,
   clearWebAuthTransaction,
+  deleteStoredWebAuthTransaction,
   exchangeOktaAuthorizationCode,
   isBffProxyEnabled,
   logAuthAuditEvent,
+  readWebAuthTransactionCookie,
   readWebAuthTransaction,
   syncWebAuthSession,
   writeWebAuthSession,
@@ -32,7 +34,7 @@ const authCallbackQuerySchema = z.object({
 });
 
 function buildSignInErrorResponse(request: NextRequest, authError: string) {
-  const transaction = readWebAuthTransaction(request);
+  const transaction = readWebAuthTransactionCookie(request);
   const response = NextResponse.redirect(
     buildPublicRequestUrl(
       request,
@@ -75,21 +77,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const query = authCallbackQuerySchema.parse(
       Object.fromEntries(request.nextUrl.searchParams.entries()),
     );
-    const transaction = readWebAuthTransaction(request);
 
     if (query.error || query.error_description) {
+      if (!isBffProxyEnabled()) {
+        await deleteStoredWebAuthTransaction(
+          await readWebAuthTransaction(request),
+        );
+      }
       throw new Error(
         query.error_description ?? query.error ?? 'Sign-in failed.',
       );
     }
 
-    if (!transaction) {
-      throw new Error(
-        'Your secure sign-in session expired. Please start the hosted sign-in flow again.',
-      );
-    }
-
     if (!query.code || !query.state) {
+      if (!isBffProxyEnabled()) {
+        await deleteStoredWebAuthTransaction(
+          await readWebAuthTransaction(request),
+        );
+      }
       throw new Error(
         'The Okta callback did not include the expected code and state.',
       );
@@ -120,11 +125,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return response;
     }
 
+    const transaction = await readWebAuthTransaction(request);
+    if (!transaction) {
+      throw new Error(
+        'Your secure sign-in session expired. Please start the hosted sign-in flow again.',
+      );
+    }
+
     if (query.state !== transaction.state) {
+      await deleteStoredWebAuthTransaction(transaction);
       throw new Error(
         'The Okta callback state did not match this sign-in attempt.',
       );
     }
+
+    await deleteStoredWebAuthTransaction(transaction);
 
     const tokenResponse = await exchangeOktaAuthorizationCode({
       code: query.code,

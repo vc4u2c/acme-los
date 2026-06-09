@@ -79,6 +79,7 @@ function buildDefaultPolicyNames(environmentName) {
     profileEnrollmentPolicyName: `ACME LOS Registration (${environmentName})`,
     mfaEnrollmentPolicyName: `ACME LOS Authenticator Enrollment (${environmentName})`,
     sessionPolicyName: `ACME LOS Global Session (${environmentName})`,
+    passwordPolicyName: `ACME LOS Password Policy (${environmentName})`,
     accessPolicyName: `ACME LOS App Access (${environmentName})`,
   };
 }
@@ -93,6 +94,7 @@ function buildVariables({
   profileEnrollmentPolicyName,
   mfaEnrollmentPolicyName,
   sessionPolicyName,
+  passwordPolicyName,
   accessPolicyName,
 }) {
   const defaultPolicyNames = buildDefaultPolicyNames(environmentName);
@@ -116,6 +118,8 @@ function buildVariables({
       mfaEnrollmentPolicyName ?? defaultPolicyNames.mfaEnrollmentPolicyName,
     sessionPolicyName:
       sessionPolicyName ?? defaultPolicyNames.sessionPolicyName,
+    passwordPolicyName:
+      passwordPolicyName ?? defaultPolicyNames.passwordPolicyName,
     accessPolicyName: accessPolicyName ?? defaultPolicyNames.accessPolicyName,
   };
 }
@@ -136,6 +140,7 @@ export function resolveOktaPolicyPlan({
   profileEnrollmentPolicyName,
   mfaEnrollmentPolicyName,
   sessionPolicyName,
+  passwordPolicyName,
   accessPolicyName,
   manifest = loadOktaPolicyScenarioManifest(),
 }) {
@@ -149,6 +154,7 @@ export function resolveOktaPolicyPlan({
     profileEnrollmentPolicyName,
     mfaEnrollmentPolicyName,
     sessionPolicyName,
+    passwordPolicyName,
     accessPolicyName,
   });
   const runtimeVariables = {
@@ -158,8 +164,14 @@ export function resolveOktaPolicyPlan({
         hostedExperience.customerSessionMaxLifetimeDays,
       ) ?? 60,
     phoneEnrollmentState: telephonyEnabled
-      ? 'phone enrollment follows the configured SMS provider rollout state'
-      : 'phone enrollment is disabled until a real or dev mock SMS provider is enabled',
+      ? optionalBoolean(hostedExperience.registrationRequiresPhoneVerification)
+        ? 'phone/SMS authenticator enrollment is required by explicit environment rollout'
+        : 'phone/SMS authenticator enrollment is optional and uses the configured SMS provider rollout state'
+      : 'phone/SMS authenticator enrollment is excluded from initial hosted registration until a real or dev mock SMS provider is enabled and explicitly rolled out',
+    emailLoginMappingState:
+      optionalBoolean(hostedExperience.mapPrimaryEmailToLogin) === false
+        ? 'disabled'
+        : 'enabled',
     adaptiveMfaState: optionalBoolean(hostedExperience.adaptiveMfaOnSignIn)
       ? 'high-risk adaptive 2FA rule using Okta risk score HIGH plus standard access rule'
       : 'standard access rule',

@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <title>{{orgName}} - {{errorSummary}}</title>
+    <link href="{{themedStylesUrl}}" rel="stylesheet" type="text/css" />
+    <link rel="shortcut icon" href="{{faviconUrl}}" type="image/x-icon" />
+    {{{ErrorPageResources}}}
+    <!-- %%THEME_BOOTSTRAP_SCRIPT%% -->
+    <!-- %%THEME_STYLE_MARKUP%% -->
+    <style nonce="{{nonceValue}}">
+      html,
+      body {
+        min-height: 100%;
+        max-width: 100%;
+        overflow-x: clip;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        color: var(--acme-text);
+        background:
+          radial-gradient(
+            ellipse at top right,
+            var(--acme-hero-glow-top) 0%,
+            transparent 68%
+          ),
+          radial-gradient(
+            ellipse at top left,
+            var(--acme-hero-glow-side) 0%,
+            transparent 72%
+          ),
+          linear-gradient(
+            180deg,
+            var(--acme-background-top) 0%,
+            var(--acme-background) 24%,
+            var(--acme-background) 100%
+          );
+        background-position:
+          top right,
+          top left,
+          top left;
+        background-repeat: no-repeat;
+        background-size:
+          var(--acme-hero-glow-top-size),
+          var(--acme-hero-glow-side-size),
+          100% 100%;
+        font-family: var(--acme-font-body);
+      }
+
+      #login-bg-image-id {
+        display: none !important;
+        background-image: none !important;
+      }
+
+      .acme-brand-header {
+        position: relative;
+        z-index: 1;
+        border-bottom: 1px solid var(--acme-border);
+        background: var(--acme-surface);
+        box-shadow: var(--acme-header-shadow);
+      }
+
+      .acme-brand-header__inner {
+        width: 100%;
+        max-width: 72rem;
+        margin: 0 auto;
+        padding: 0.65rem 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      .acme-brand-header__lockup {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.9rem;
+        min-width: 0;
+      }
+
+      .acme-brand-header__mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 1rem;
+        flex-shrink: 0;
+        background: var(--acme-brand);
+        box-shadow: 0 12px 24px var(--acme-brand-shadow);
+      }
+
+      .acme-brand-header__mark svg {
+        width: 1.16rem;
+        height: 1.16rem;
+        display: block;
+      }
+
+      .acme-brand-header__copy {
+        display: inline-flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+
+      .acme-brand-header__eyebrow {
+        color: var(--acme-muted-text);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+
+      .acme-brand-header__title {
+        color: var(--acme-text);
+        font-family: var(--acme-font-display);
+        font-size: 1.22rem;
+        line-height: 1.05;
+      }
+
+      .acme-theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.15rem;
+        padding: 0.18rem;
+        border: 1px solid var(--acme-border);
+        border-radius: 999px;
+        background: var(--acme-surface-strong);
+        flex-shrink: 0;
+      }
+
+      .acme-theme-toggle__button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.82rem;
+        height: 1.82rem;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--acme-muted-text);
+        cursor: pointer;
+      }
+
+      .acme-theme-toggle__button[aria-pressed='true'] {
+        background: var(--acme-brand);
+        color: var(--acme-brand-contrast);
+      }
+
+      .acme-theme-toggle__button svg {
+        width: 0.92rem;
+        height: 0.92rem;
+        display: block;
+      }
+
+      .acme-error-shell {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 31rem;
+        margin: 0 auto;
+        padding: 1.35rem 1rem 1.15rem;
+      }
+
+      .acme-error-card {
+        background: linear-gradient(
+          180deg,
+          var(--acme-card) 0%,
+          var(--acme-surface) 100%
+        );
+        border: 1px solid var(--acme-border);
+        border-radius: 1.55rem;
+        box-shadow: var(--acme-card-shadow);
+        padding: 1.35rem;
+      }
+
+      .acme-error-eyebrow {
+        margin: 0 0 0.75rem;
+        color: var(--acme-muted-text);
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+      }
+
+      .acme-error-title {
+        margin: 0;
+        color: var(--acme-text);
+        font-size: 1.55rem;
+        line-height: 1.08;
+        font-family: var(--acme-font-display);
+      }
+
+      .acme-error-body {
+        margin: 1rem 0 0;
+        color: var(--acme-muted-text);
+        font-size: 0.92rem;
+        line-height: 1.55;
+      }
+
+      .acme-error-actions {
+        margin-top: 1.5rem;
+      }
+
+      .acme-error-actions a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 2.42rem;
+        padding: 0 1rem;
+        border-radius: 1rem;
+        background: var(--acme-brand);
+        color: var(--acme-brand-contrast);
+        font-weight: 700;
+        text-decoration: none;
+      }
+
+      .acme-error-actions a:focus-visible {
+        outline: 2px solid var(--acme-focus);
+        outline-offset: 3px;
+      }
+
+      .acme-error-accent {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        color: var(--acme-accent);
+        font-size: 0.9rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      .acme-auth-copyright {
+        margin: 0.15rem 0 0;
+        text-align: center;
+        color: var(--acme-muted-text);
+        font-size: 0.82rem;
+        line-height: 1.55;
+      }
+
+      .acme-auth-footer {
+        width: 100%;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--acme-border);
+        text-align: center;
+      }
+
+      .acme-auth-support {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem 0.55rem;
+        color: var(--acme-muted-text);
+        font-size: 0.9rem;
+        line-height: 1.55;
+        text-align: center;
+      }
+
+      .acme-auth-support a {
+        color: var(--acme-link);
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .acme-auth-support a:hover {
+        text-decoration: underline;
+      }
+
+      .acme-auth-support a:focus-visible {
+        outline: 2px solid var(--acme-focus);
+        outline-offset: 3px;
+        border-radius: 0.25rem;
+      }
+
+      .acme-auth-support__divider {
+        color: var(--acme-border-strong);
+      }
+
+      @media (max-width: 640px) {
+        .acme-brand-header__inner {
+          padding: 0.85rem 1rem;
+        }
+
+        .acme-brand-header__title {
+          font-size: 1.3rem;
+        }
+
+        .acme-error-shell {
+          max-width: 100%;
+          padding: 1.45rem 0.95rem 1.15rem;
+        }
+
+        .acme-error-card {
+          padding: 1.35rem;
+        }
+
+        .acme-error-title {
+          font-size: 1.65rem;
+        }
+
+        .acme-auth-support {
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .acme-auth-support__divider {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="login-bg-image-id" class="login-bg-image tb--background"></div>
+    <!-- %%BRAND_HEADER_MARKUP%% -->
+    <main class="acme-error-shell">
+      <section class="acme-error-card">
+        <p class="acme-error-eyebrow">%%PRODUCT_NAME%%</p>
+        <div class="acme-error-accent">Secure access issue</div>
+        <h1 class="acme-error-title">{{errorSummary}}</h1>
+        <p class="acme-error-body">{{{errorDescription}}}</p>
+        <div class="acme-error-actions">
+          <a href="{{buttonHref}}">{{buttonText}}</a>
+        </div>
+      </section>
+      <!-- %%SUPPORT_FOOTER_MARKUP%% -->
+    </main>
+    <!-- %%THEME_CONTROLLER_SCRIPT%% -->
+  </body>
+</html>

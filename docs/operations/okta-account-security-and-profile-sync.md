@@ -12,7 +12,12 @@ systems are the source of truth for customer and lending records.
 
 - Okta `sub` is the immutable user key.
 - Email is mutable contact and login metadata.
-- `state` is user-provided registration profile metadata and is not minted into
+- Registration email is the customer login identifier in the hosted flow.
+- Registration phone is captured as profile/contact metadata; it is not treated
+  as a verified phone/SMS authenticator until the SMS provider path is enabled
+  and verified.
+- The visible `State` registration field is user-provided profile metadata
+  stored in the ACME-owned Okta attribute `acmeState`; it is not minted into
   tokens unless a future backend contract explicitly needs it.
 - `customerId` and `leadId` are backend business identifiers written to Okta
   only by trusted server-side automation.
@@ -35,18 +40,53 @@ dry-run and live bootstrap.
 The intended Okta-hosted registration profile enrollment captures these required
 fields:
 
+- email: used as the login identifier
 - first name
 - last name
-- email
-- state: US state code captured on the Okta user profile
+- phone number: captured on the Okta user profile, not trusted as an SMS factor
+  until phone verification is enabled
+- state: US state code captured on the Okta user profile as `acmeState` and
+  rendered as a dropdown from the source-controlled US state enum
 
-The intended authenticator enrollment is:
+Password is not a profile-enrollment attribute. ACME configures password as
+required Okta password-authenticator enrollment and records the profile
+enrollment rule's password enrollment type when Okta exposes it. Okta owns the
+password field, repeat-password validation, password requirements, and any
+password-policy messaging in the hosted flow.
+
+Dev live state, verified June 5, 2026: bootstrap has created/updated
+`acmeState` with all 50 US state enum values. The profile-enrollment rule and
+UI schema both use `email`, `firstName`, `lastName`, `mobilePhone`, and
+`acmeState`; `acmeState` renders as `select`, the rule targets
+`acme-los-customers-dev`, and the registration enrollment type includes
+`password`. Okta still rejects public Policy API updates to this default rule
+with `E0000077` (`conditions` read-only), so bootstrap treats a matching live
+rule as existing and fails closed if the field list drifts.
+
+Bootstrap records this desired state from
+`okta.hostedExperience.mapPrimaryEmailToLogin`, emits it in
+`accountSecurityPolicyIntent.orgLevelSettings`, and prints it during dry-run and
+live bootstrap. Okta's public Org General Settings API does not expose a safe
+setter for this lifecycle switch, so verify the Admin Console value:
+
+1. In Okta Admin, go to **Security > General**.
+2. Scroll to **Organization**.
+3. Set **Map primary email to login attribute** to **Enabled**.
+4. Save.
+
+This setting makes `profile.login` follow `profile.email` for new
+self-service registration users. It doesn't rewrite existing users by itself;
+for dev, the current ACME customer-group users have already been verified with
+matching `login` and `email` values.
+
+The intended initial hosted-registration authenticator enrollment is:
 
 - password: required
 - email: required
 - security question: required
-- phone/SMS: optional when a dev mock or real SMS provider is enabled; required
-  only by explicit environment rollout
+- phone/SMS: optional when telephony is enabled; the registration phone number
+  remains profile/contact metadata until the customer verifies the Okta
+  phone/SMS authenticator
 
 The intended session and adaptive sign-in posture is:
 
@@ -74,6 +114,10 @@ The intended sensitive-change and recovery scenarios are:
   sign-in with the new email.
 - Forgot password: require the Okta security-question challenge/hint plus email
   OTP before reset, then sign out and require sign-in with the new password.
+  The customer-scoped `ACME LOS Password Policy (<env>)` rule must allow
+  self-service password reset with email as the primary recovery method and
+  `accessControl=AUTH_POLICY`; the Okta Account Management policy then owns the
+  security-question and OTP proof requirements.
 - Change password: require current password, factor OTP, and the Okta
   security-question challenge/hint before reset, then sign out and require a
   fresh ACME sign-in.
@@ -214,22 +258,34 @@ environment customer group (`acme-los-customers-<env>`), not to Okta `Everyone`.
 New self-service registrations should land in that customer group through the
 profile-enrollment rule; admin users should not be added to it. Run
 `npm run okta:policy-plan -- <env>` first, then run
-`npm run okta:bootstrap -- <env> --dry-run` and review the emitted `policyPlan`
-before applying live tenant changes.
+`node tools/scripts/okta/bootstrap-okta.mjs <env> --dry-run` and review the
+emitted `policyPlan` before applying live tenant changes.
+
+After applying live tenant changes, run the read-only live audit:
+
+```powershell
+npm run okta:audit-live -- dev --token-file C:\secure\acme-los-okta-api-token.txt
+```
+
+The audit verifies the ACME customer group, app assignments, registration
+target group, authenticator enrollment, 60-day global session rule, app access
+rules, account-management rules, authorization claims, telephony hook state, and
+recent SMS/inline-hook System Log evidence. It writes
+`tmp/okta/<env>.live-okta-audit.json` with masked user identifiers.
 
 Some Okta orgs return a read-only error when bootstrap tries to update the
 profile-enrollment rule target-group condition. In that case bootstrap records a
-`manual-required` warning and continues with app, session, and account-management
-policy updates. Treat that warning as a deployment gate: verify the registration
-rule targets only `acme-los-customers-<env>` before relying on self-service
-registration.
+`manual-required` result and fails closed with the exact Admin Console action.
+Treat that error as a deployment gate: verify the registration rule targets only
+`acme-los-customers-<env>` before relying on self-service registration. Do not
+assign the ACME app to Okta `Everyone` as a workaround.
 
 Scoping expectations:
 
 | Surface                                                                                                        | Intended scope                | Notes                                                                                                                                                               |
 | -------------------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Profile enrollment                                                                                             | `acme-los-customers-<env>`    | Bootstrap updates the Okta-managed registration rule to target the customer group and fails closed if that cannot be done.                                          |
-| Authenticator enrollment                                                                                       | `acme-los-customers-<env>`    | Password, email, security question, and phone/SMS enrollment are customer-policy scoped.                                                                            |
+| Authenticator enrollment                                                                                       | `acme-los-customers-<env>`    | Password, email, security-question, and optional phone/SMS enrollment are customer-policy scoped when telephony is enabled.                                         |
 | Global session policy                                                                                          | `acme-los-customers-<env>`    | Bootstrap sets the 60-day maximum session lifetime and 120-minute idle timeout.                                                                                     |
 | App sign-in policy                                                                                             | ACME web and mobile apps      | Bootstrap assigns the policy to the ACME OIDC apps and removes the app assignment from `Everyone` where possible.                                                   |
 | Account-management lifecycle rules                                                                             | `acme-los-customers-<env>`    | Bootstrap manages password, email, and phone/SMS lifecycle rules through the public Policy API.                                                                     |
@@ -238,10 +294,50 @@ Scoping expectations:
 
 Okta-hosted registration is one hosted flow, but Okta Identity Engine may still
 render profile enrollment, password setup, email OTP, security-question
-enrollment, and phone enrollment as separate hosted steps. The repo-managed
-profile-enrollment rule captures first name, last name, email, and `state`; the
+enrollment, and optional phone/SMS enrollment as separate hosted steps. The
+repo-managed profile-enrollment rule captures email as the login identifier,
+first name, last name, profile phone number, and a US-state dropdown; the
 authenticator-enrollment policy controls password, email verification, security
-question, and phone/SMS rollout.
+question, and optional phone/SMS enrollment. The app must not treat the profile
+phone value as a verified SMS factor until the Okta phone/SMS authenticator is
+verified. Password and repeat-password are Okta
+authenticator-enrollment inputs, not ACME profile fields.
+
+If bootstrap reports `manual-required` for the profile-enrollment rule, do not
+use a broader admin token or private Admin Console endpoint as a workaround.
+Use Okta Admin to edit the default registration form fields and keep the target
+group scoped to the ACME customer group.
+
+### Hosted Page State Model
+
+ACME uses one Okta-hosted Sign-In Widget shell for customer auth. Registration,
+forgot password, password reset, security question, email/SMS OTP, and factor
+enrollment are Okta Identity Engine remediation states inside that hosted shell,
+not separate ACME-owned pages. This keeps passwords, OTPs, security-question
+answers, and authenticator enrollment inside Okta.
+
+The hosted page template in `tools/scripts/okta/templates` handles these visual
+states:
+
+| Hosted state | Okta-owned flow                                                | ACME-owned surface                                |
+| ------------ | -------------------------------------------------------------- | ------------------------------------------------- |
+| `signIn`     | Standard app sign-in                                           | Brand copy, recovery/register footer links, theme |
+| `signUp`     | Profile enrollment and registration                            | Registration headline/copy and state-aware layout |
+| `enroll`     | Password, email, and security-question enrollment              | Authenticator card styling and guidance           |
+| `verify`     | Email/SMS OTP, push, or other factor challenge                 | OTP/factor guidance and identifier contrast       |
+| `recovery`   | Forgot password, unlock, forgot email, or lost factor recovery | Recovery hints and support context                |
+| `password`   | Password reset or password setup                               | Password-update headline and recovery hints       |
+
+Run `npm run okta:audit-hosted-pages -- <env>` after changing the hosted page
+template or brand tokens. The audit renders each state in light and dark mode
+at mobile and desktop sizes, writes screenshots to
+`tmp/okta-hosted-state-audit`, and fails on missing state CTAs/copy, duplicate
+Okta-injected headings, horizontal overflow, obvious control overlap, low text
+contrast, or blank widget renders.
+
+The app should link users into Okta-hosted account actions rather than building
+local forms for these states. ACME may add CTAs and explanatory copy, but Okta
+remains the form authority for registration, recovery, credentials, and factors.
 
 `npm run okta:bootstrap -- <env>` manages three Okta account-management policy
 rules through the public Policy API:
@@ -264,12 +360,15 @@ After running the bootstrap, confirm in Okta Admin Console:
 3. Go to `Security` > `Authenticators` > `Enrollment`.
 4. Confirm the ACME LOS enrollment policy requires password, email, and security
    question only for the `acme-los-customers-<env>` customer group.
-5. Confirm the profile-enrollment form requires first name, last name, email,
-   and state for new registrations.
+5. Confirm the profile-enrollment form requires email, first name, last name,
+   phone number, and visible State for new registrations. The State field should
+   be backed by `acmeState`, not Okta's built-in base `state` string.
 6. Confirm the profile-enrollment registration rule targets only the
-   `acme-los-customers-<env>` customer group, especially if bootstrap printed a
-   `manual-required` profile-enrollment warning.
-7. Confirm phone/SMS enrollment matches the ACS rollout state.
+   `acme-los-customers-<env>` customer group, especially if bootstrap failed
+   with a `manual-required` profile-enrollment gate.
+7. Confirm phone/SMS factor enrollment is optional when telephony is enabled,
+   and required only if an explicit rollout enables
+   `registrationRequiresPhoneVerification`.
 8. Go to the Okta account-management policy.
 9. Confirm the three ACME LOS lifecycle rules exist, are scoped to the ACME
    customer group, and match the rendered `policyPlan` scenarios.

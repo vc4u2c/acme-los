@@ -203,11 +203,20 @@ function arraysEqualAsSets(left, right) {
 }
 
 const registrationProfileAttributes = [
+  { name: 'email', label: 'Primary email', required: true, uiFormat: 'text' },
   { name: 'firstName', label: 'First name', required: true },
   { name: 'lastName', label: 'Last name', required: true },
-  { name: 'email', label: 'Email', required: true },
-  { name: 'state', label: 'State', required: true },
+  {
+    name: 'mobilePhone',
+    label: 'Phone number',
+    required: true,
+    inputValidation: { format: 'phone' },
+    uiFormat: 'text',
+  },
+  { name: 'acmeState', label: 'State', required: true, uiFormat: 'select' },
 ];
+
+const registrationEnrollmentAuthenticatorTypes = ['password'];
 
 const usStateOptions = [
   ['AL', 'Alabama'],
@@ -549,6 +558,13 @@ async function getDefaultSignInPage(brandId) {
   return oktaRequest('GET', `/api/v1/brands/${brandId}/pages/sign-in/default`);
 }
 
+async function getCustomizedSignInPage(brandId) {
+  return oktaRequest(
+    'GET',
+    `/api/v1/brands/${brandId}/pages/sign-in/customized`,
+  );
+}
+
 async function putCustomizedSignInPage(brandId, payload) {
   return oktaRequest(
     'PUT',
@@ -561,12 +577,70 @@ async function getDefaultErrorPage(brandId) {
   return oktaRequest('GET', `/api/v1/brands/${brandId}/pages/error/default`);
 }
 
+async function getCustomizedErrorPage(brandId) {
+  return oktaRequest('GET', `/api/v1/brands/${brandId}/pages/error/customized`);
+}
+
 async function putCustomizedErrorPage(brandId, payload) {
   return oktaRequest(
     'PUT',
     `/api/v1/brands/${brandId}/pages/error/customized`,
     payload,
   );
+}
+
+function assertCustomizedPagePersisted({
+  actualPage,
+  expectedPageContent,
+  label,
+  markers,
+}) {
+  const actualPageContent = actualPage?.pageContent ?? '';
+  if (actualPageContent.length === 0) {
+    throw new Error(
+      `Okta accepted the ${label} customization request, but the persisted pageContent is empty.`,
+    );
+  }
+
+  const minimumExpectedLength = Math.floor(expectedPageContent.length * 0.9);
+  if (actualPageContent.length < minimumExpectedLength) {
+    throw new Error(
+      `Okta persisted a truncated ${label} page (${actualPageContent.length} chars, expected at least ${minimumExpectedLength}).`,
+    );
+  }
+
+  const missingMarkers = markers.filter(
+    (marker) => !actualPageContent.includes(marker),
+  );
+  if (missingMarkers.length > 0) {
+    throw new Error(
+      `Okta persisted the ${label} page without required marker(s): ${missingMarkers.join(', ')}.`,
+    );
+  }
+}
+
+async function putAndVerifyCustomizedSignInPage(brandId, payload) {
+  await putCustomizedSignInPage(brandId, payload);
+  const persistedPage = await getCustomizedSignInPage(brandId);
+  assertCustomizedPagePersisted({
+    actualPage: persistedPage,
+    expectedPageContent: payload.pageContent,
+    label: 'hosted sign-in',
+    markers: ['acme-auth-shell', 'data-acme-recovery-fallback'],
+  });
+  return persistedPage;
+}
+
+async function putAndVerifyCustomizedErrorPage(brandId, payload) {
+  await putCustomizedErrorPage(brandId, payload);
+  const persistedPage = await getCustomizedErrorPage(brandId);
+  assertCustomizedPagePersisted({
+    actualPage: persistedPage,
+    expectedPageContent: payload.pageContent,
+    label: 'hosted error',
+    markers: ['acme-error-shell', 'acme-error-card'],
+  });
+  return persistedPage;
 }
 
 async function listAuthenticators() {
@@ -844,6 +918,14 @@ async function updateDefaultUserSchema(payload) {
   return oktaRequest('POST', '/api/v1/meta/schemas/user/default', payload);
 }
 
+async function getUiSchema(uiSchemaId) {
+  return oktaRequest('GET', `/api/v1/meta/uischemas/${uiSchemaId}`);
+}
+
+async function updateUiSchema(uiSchemaId, payload) {
+  return oktaRequest('PUT', `/api/v1/meta/uischemas/${uiSchemaId}`, payload);
+}
+
 async function listAuthorizationServerPolicies(authServerId) {
   return oktaRequest(
     'GET',
@@ -1014,15 +1096,131 @@ function buildRegistrationProfileAttributes(existingAttributes = []) {
       .filter((attribute) => typeof attribute?.name === 'string')
       .map((attribute) => [attribute.name, attribute]),
   );
-  const managedAttributes = registrationProfileAttributes.map((attribute) => ({
-    ...(existingByName.get(attribute.name) ?? {}),
-    ...attribute,
-  }));
+  const managedAttributes = registrationProfileAttributes.map((attribute) => {
+    const policyAttribute = { ...attribute };
+    delete policyAttribute.uiFormat;
+
+    return {
+      ...(existingByName.get(attribute.name) ?? {}),
+      ...policyAttribute,
+    };
+  });
   const unmanagedAttributes = currentAttributes.filter(
     (attribute) => !managedNames.has(attribute?.name),
   );
 
   return [...managedAttributes, ...unmanagedAttributes];
+}
+
+function toProfileEnrollmentUiElement(attribute) {
+  return {
+    type: 'Control',
+    scope: `#/properties/${attribute.name}`,
+    label: attribute.label,
+    options: {
+      format: attribute.uiFormat ?? 'text',
+    },
+  };
+}
+
+function buildProfileEnrollmentUiSchema(existingUiSchema = {}) {
+  return {
+    uiSchema: {
+      type: existingUiSchema.type ?? 'Group',
+      label: existingUiSchema.label ?? 'Sign in',
+      buttonLabel: existingUiSchema.buttonLabel ?? 'Submit',
+      elements: registrationProfileAttributes.map(toProfileEnrollmentUiElement),
+    },
+  };
+}
+
+function readUiSchemaAttributeNames(uiSchema) {
+  const elements = uiSchema?.elements ?? [];
+
+  return Array.isArray(elements)
+    ? elements
+        .map((element) =>
+          optionalString(element?.scope)?.replace(/^#\/properties\//, ''),
+        )
+        .filter((name) => typeof name === 'string')
+    : [];
+}
+
+function profileEnrollmentUiSchemaMatches(uiSchema) {
+  const expectedElements = registrationProfileAttributes.map(
+    toProfileEnrollmentUiElement,
+  );
+  const currentElements = uiSchema?.elements ?? [];
+
+  if (
+    !Array.isArray(currentElements) ||
+    currentElements.length !== expectedElements.length
+  ) {
+    return false;
+  }
+
+  return expectedElements.every((expectedElement, index) => {
+    const currentElement = currentElements[index];
+
+    return (
+      currentElement?.type === expectedElement.type &&
+      currentElement?.scope === expectedElement.scope &&
+      currentElement?.label === expectedElement.label &&
+      currentElement?.options?.format === expectedElement.options.format
+    );
+  });
+}
+
+function readProfileEnrollmentAttributeNames(rule) {
+  const profileAttributes =
+    rule?.actions?.profileEnrollment?.profileAttributes ?? [];
+
+  return Array.isArray(profileAttributes)
+    ? profileAttributes
+        .map((attribute) => optionalString(attribute?.name))
+        .filter((name) => typeof name === 'string')
+    : [];
+}
+
+function readProfileEnrollmentAuthenticatorTypes(rule) {
+  const authenticatorTypes =
+    rule?.actions?.profileEnrollment?.enrollAuthenticatorTypes ?? [];
+
+  return Array.isArray(authenticatorTypes)
+    ? authenticatorTypes.filter((type) => typeof type === 'string')
+    : [];
+}
+
+function profileEnrollmentManagedAttributesMatch(rule) {
+  const profileAttributes =
+    rule?.actions?.profileEnrollment?.profileAttributes ?? [];
+
+  if (!Array.isArray(profileAttributes)) {
+    return false;
+  }
+
+  const existingByName = new Map(
+    profileAttributes
+      .filter((attribute) => typeof attribute?.name === 'string')
+      .map((attribute) => [attribute.name, attribute]),
+  );
+
+  return registrationProfileAttributes.every((expectedAttribute) => {
+    const existingAttribute = existingByName.get(expectedAttribute.name);
+
+    return (
+      existingAttribute &&
+      Boolean(existingAttribute.required) ===
+        Boolean(expectedAttribute.required)
+    );
+  });
+}
+
+function profileEnrollmentAuthenticatorTypesMatch(rule) {
+  return arraysEqualAsSets(
+    readProfileEnrollmentAuthenticatorTypes(rule),
+    registrationEnrollmentAuthenticatorTypes,
+  );
 }
 
 function buildProfileEnrollmentRulePayload(existingRule, customerGroupId) {
@@ -1035,7 +1233,9 @@ function buildProfileEnrollmentRulePayload(existingRule, customerGroupId) {
     ...(typeof existingRule?.priority === 'number'
       ? { priority: existingRule.priority }
       : {}),
-    conditions: existingRule?.conditions ?? null,
+    ...(existingRule?.conditions
+      ? { conditions: existingRule.conditions }
+      : {}),
     actions: {
       ...(existingRule?.actions ?? {}),
       profileEnrollment: {
@@ -1050,11 +1250,42 @@ function buildProfileEnrollmentRulePayload(existingRule, customerGroupId) {
         profileAttributes: buildRegistrationProfileAttributes(
           profileEnrollment.profileAttributes,
         ),
+        enrollAuthenticatorTypes: registrationEnrollmentAuthenticatorTypes,
         targetGroupIds: [customerGroupId],
         unknownUserAction: profileEnrollment.unknownUserAction ?? 'REGISTER',
       },
     },
   };
+}
+
+function readProfileEnrollmentTargetGroupIds(rule) {
+  const targetGroupIds = rule?.actions?.profileEnrollment?.targetGroupIds;
+
+  return Array.isArray(targetGroupIds) ? targetGroupIds : [];
+}
+
+function describeProfileEnrollmentManualGate({
+  customerGroupId,
+  customerGroupName,
+  missingEnrollmentAuthenticatorTypes = [],
+  missingProfileAttributes = [],
+  profileEnrollmentPolicyName,
+  ruleName,
+}) {
+  const fieldMessage =
+    missingProfileAttributes.length > 0
+      ? ` Add the missing required registration profile fields: ${missingProfileAttributes.join(', ')}.`
+      : '';
+  const authenticatorMessage =
+    missingEnrollmentAuthenticatorTypes.length > 0
+      ? ` Add the missing registration authenticator enrollment types: ${missingEnrollmentAuthenticatorTypes.join(', ')}.`
+      : '';
+
+  return [
+    `Okta refused API ownership of the profile-enrollment registration rule "${ruleName}" for ${profileEnrollmentPolicyName}.`,
+    `Manual gate: in Okta Admin, open Security > User Profile Policies > ${profileEnrollmentPolicyName}, edit the registration rule, verify the target group is ${customerGroupName} (${customerGroupId}), and verify the required hosted registration profile fields and password enrollment match the repo.${fieldMessage}${authenticatorMessage}`,
+    'Do not assign the ACME app to Everyone as a workaround; that broadens app access beyond the customer population.',
+  ].join(' ');
 }
 
 function buildMfaEnrollmentPolicyPayload({
@@ -1184,6 +1415,70 @@ function buildSessionRulePayload(existingRule) {
         },
       },
     },
+  };
+}
+
+function buildPasswordPolicyPayload({
+  policyName,
+  environmentName,
+  customerGroupId,
+}) {
+  return {
+    type: 'PASSWORD',
+    status: 'ACTIVE',
+    name: policyName,
+    description: `Password recovery policy for ACME LOS customers (${environmentName}).`,
+    conditions: {
+      people: {
+        groups: {
+          include: [customerGroupId],
+        },
+      },
+      authProvider: {
+        provider: 'OKTA',
+      },
+    },
+  };
+}
+
+function buildPasswordPolicyRulePayload(existingRule, ruleName) {
+  return {
+    ...(existingRule?.id ? { id: existingRule.id } : {}),
+    type: 'PASSWORD',
+    name: existingRule?.name ?? ruleName,
+    status: 'ACTIVE',
+    priority: existingRule?.priority ?? 1,
+    conditions: {
+      people: {
+        users: {
+          exclude: [],
+        },
+      },
+      network: {
+        connection: 'ANYWHERE',
+      },
+    },
+    actions: {
+      passwordChange: {
+        access: 'ALLOW',
+      },
+      selfServicePasswordReset: {
+        access: 'ALLOW',
+        requirement: {
+          primary: {
+            methods: ['email'],
+          },
+          stepUp: {
+            required: false,
+          },
+          accessControl: 'AUTH_POLICY',
+        },
+      },
+      selfServiceUnlock: {
+        access: 'ALLOW',
+      },
+    },
+    system: false,
   };
 }
 
@@ -1364,27 +1659,20 @@ async function ensureUserProfileAttributes(attributeDefinitions) {
     const existingBaseDefinition = currentBaseProperties[key];
     if (existingBaseDefinition && definition.useBaseWhenPresent !== false) {
       existingBaseAttributes.push(key);
+      const expectedBaseDefinition =
+        buildExpectedBaseProfileAttributeDefinition(
+          existingBaseDefinition,
+          definition,
+        );
 
       if (
-        definition.selfPermission &&
-        !profileAttributeHasSelfPermission(
+        !baseProfileAttributeMatches(
           existingBaseDefinition,
-          definition.selfPermission,
+          expectedBaseDefinition,
         )
       ) {
-        basePropertyUpdates[key] = {
-          ...existingBaseDefinition,
-          permissions: buildSelfProfileAttributePermissions(
-            definition.selfPermission,
-          ),
-        };
+        basePropertyUpdates[key] = expectedBaseDefinition;
         changedBaseAttributes.push(key);
-      }
-
-      if (definition.enumValues) {
-        warnings.push(
-          `Okta base profile attribute "${key}" already exists, so bootstrap will not create a conflicting custom enum. Verify the hosted registration field accepts the supported US state values.`,
-        );
       }
 
       continue;
@@ -1483,22 +1771,58 @@ function buildExpectedProfileAttributeDefinition(definition) {
   };
 }
 
-function profileAttributeHasSelfPermission(definition, expectedAction) {
-  const permissions = definition?.permissions;
+function buildExpectedBaseProfileAttributeDefinition(
+  existingDefinition,
+  definition,
+) {
+  const enumValues = Array.isArray(definition.enumValues)
+    ? definition.enumValues
+    : [];
 
-  if (Array.isArray(permissions)) {
-    return permissions.some(
-      (permission) =>
-        permission?.principal === 'SELF' &&
-        permission?.action === expectedAction,
-    );
-  }
+  return {
+    ...existingDefinition,
+    ...(definition.title ? { title: definition.title } : {}),
+    ...(definition.description ? { description: definition.description } : {}),
+    ...(typeof definition.minLength === 'number'
+      ? { minLength: definition.minLength }
+      : {}),
+    ...(typeof definition.maxLength === 'number'
+      ? { maxLength: definition.maxLength }
+      : {}),
+    ...(definition.selfPermission
+      ? {
+          permissions: buildSelfProfileAttributePermissions(
+            definition.selfPermission,
+          ),
+        }
+      : {}),
+    ...(enumValues.length > 0
+      ? {
+          enum: enumValues.map((option) => option.value),
+          oneOf: enumValues.map((option) => ({
+            const: option.value,
+            title: option.label,
+          })),
+        }
+      : {}),
+  };
+}
 
-  if (permissions && typeof permissions === 'object') {
-    return permissions.SELF === expectedAction;
-  }
-
-  return false;
+function baseProfileAttributeMatches(existingDefinition, expectedDefinition) {
+  return (
+    existingDefinition?.title === expectedDefinition.title &&
+    existingDefinition?.description === expectedDefinition.description &&
+    existingDefinition?.minLength === expectedDefinition.minLength &&
+    existingDefinition?.maxLength === expectedDefinition.maxLength &&
+    JSON.stringify(normalizeProfileAttributePermissions(existingDefinition)) ===
+      JSON.stringify(
+        normalizeProfileAttributePermissions(expectedDefinition),
+      ) &&
+    JSON.stringify(existingDefinition?.enum ?? []) ===
+      JSON.stringify(expectedDefinition.enum ?? []) &&
+    JSON.stringify(existingDefinition?.oneOf ?? []) ===
+      JSON.stringify(expectedDefinition.oneOf ?? [])
+  );
 }
 
 async function ensureAuthorizationServerClaim(
@@ -1649,6 +1973,8 @@ const hostedExperience = environment.okta?.hostedExperience ?? {};
 const telephony = environment.okta?.telephony ?? {};
 const userPrune = environment.okta?.userPrune ?? {};
 const telephonyEnabled = telephony.enabled === true;
+const mapPrimaryEmailToLogin =
+  hostedExperience.mapPrimaryEmailToLogin !== false;
 const customerSessionMaxLifetimeDays =
   optionalPositiveInteger(hostedExperience.customerSessionMaxLifetimeDays) ??
   60;
@@ -1695,15 +2021,33 @@ const accountSecurityPolicyIntent = {
     mutableContactClaims: ['email'],
     backendBusinessClaims: ['customer_id', 'lead_id'],
   },
+  orgLevelSettings: [
+    {
+      setting: 'Map primary email to login attribute',
+      desiredState: mapPrimaryEmailToLogin ? 'Enabled' : 'Not enabled',
+      adminPath: 'Security > General > Organization',
+      scope: 'Okta org',
+      automationStatus: 'manual-public-api-not-exposed',
+      reason:
+        'Okta public Org General Settings APIs do not expose this lifecycle setting. Bootstrap records the desired state and verifies customer users separately.',
+      impact:
+        'When enabled, new self-service registration users get profile.login from profile.email. Existing users are not rewritten unless their primary email changes or an admin/API user update changes login explicitly.',
+    },
+  ],
   registration: {
+    loginIdentifier: 'email',
+    mapPrimaryEmailToLogin,
     hostedProfileAttributes: registrationProfileAttributes,
+    hostedStateInput:
+      'US state enum rendered as a select control from the ACME-owned acmeState profile attribute',
     hostedFlowShape:
-      'Okta-hosted registration collects profile fields in the profile-enrollment step; password, email verification, security question, and phone authenticator enrollment may still be hosted follow-up steps depending on Okta org features.',
+      'Okta-hosted registration collects profile fields in the profile-enrollment step. Password is modeled as Okta password authenticator enrollment, not as a profile field; Okta renders password, repeat-password validation, and password requirements according to the org policy and profile-enrollment password option.',
+    profileEnrollmentAuthenticatorTypes:
+      registrationEnrollmentAuthenticatorTypes,
     requiredAuthenticators: [
       'okta_password',
       ...(requiresEmailAuthenticator ? ['okta_email'] : []),
       ...(requiresSecurityQuestionAuthenticator ? ['security_question'] : []),
-      ...(requiresPhoneAuthenticator ? ['phone_number'] : []),
     ],
     optionalAuthenticators: [
       ...(!requiresEmailAuthenticator ? ['okta_email'] : []),
@@ -1845,6 +2189,7 @@ const customerGroupName = `acme-los-customers-${environment.environment}`;
 const profileEnrollmentPolicyName = `ACME LOS Registration (${environment.environment})`;
 const mfaEnrollmentPolicyName = `ACME LOS Authenticator Enrollment (${environment.environment})`;
 const sessionPolicyName = `ACME LOS Global Session (${environment.environment})`;
+const passwordPolicyName = `ACME LOS Password Policy (${environment.environment})`;
 const accessPolicyName = `ACME LOS App Access (${environment.environment})`;
 const telephonyInlineHookName = `ACME LOS ACS SMS (${environment.environment})`;
 const authorizationServerPolicyName = `ACME LOS Default Authorization (${environment.environment})`;
@@ -1980,6 +2325,7 @@ const oktaPolicyPlan = buildOktaPolicyPlan({
   profileEnrollmentPolicyName,
   mfaEnrollmentPolicyName,
   sessionPolicyName,
+  passwordPolicyName,
   accessPolicyName,
   customerGroupName,
   webAppLabel: expectedWebApp.label,
@@ -2046,9 +2392,11 @@ if (dryRun) {
       profileEnrollmentPolicyName,
       mfaEnrollmentPolicyName,
       sessionPolicyName,
+      passwordPolicyName,
       accessPolicyName,
     },
     policyPlan: oktaPolicyPlan,
+    orgLevelSettingsIntent: accountSecurityPolicyIntent.orgLevelSettings,
     accountManagementPolicyRules: summarizeAccountManagementPolicyRules(
       expectedAccountManagementPolicyRules,
     ),
@@ -2078,8 +2426,15 @@ if (dryRun) {
         : 'disabled',
     },
     registrationProfileAttributes,
-    managedUserProfileAttributes: ['leadId', 'customerId', 'state'],
-    customProfileAttributes: ['leadId', 'customerId'],
+    registrationEnrollmentAuthenticatorTypes,
+    registrationProfileUiSchema: buildProfileEnrollmentUiSchema().uiSchema,
+    managedUserProfileAttributes: [
+      'leadId',
+      'customerId',
+      'mobilePhone',
+      'acmeState',
+    ],
+    customProfileAttributes: ['leadId', 'customerId', 'acmeState'],
     authorizationServerClaims: [
       { name: 'lead_id', claimType: 'IDENTITY', value: 'user.leadId' },
       { name: 'customer_id', claimType: 'IDENTITY', value: 'user.customerId' },
@@ -2097,6 +2452,12 @@ if (dryRun) {
     `- Preview file: ${path.relative(repoRoot, bootstrapOutputsPath)}`,
   );
   printOktaPolicyPlan(oktaPolicyPlan);
+  console.log('- Okta org-level settings intent:');
+  for (const settingIntent of accountSecurityPolicyIntent.orgLevelSettings) {
+    console.log(
+      `  - ${settingIntent.setting}: ${settingIntent.desiredState} (${settingIntent.automationStatus}; ${settingIntent.adminPath})`,
+    );
+  }
   printAccountManagementPolicyRules(expectedAccountManagementPolicyRules);
   process.exit(0);
 }
@@ -2335,22 +2696,38 @@ const hasActiveCustomDomain = customerBrandDomains.some(
 
 if (hasActiveCustomDomain) {
   const defaultSignInPage = await getDefaultSignInPage(customerBrand.id);
-  await putCustomizedSignInPage(customerBrand.id, {
-    pageContent: buildHostedSignInPageContent(hostedBranding),
-    contentSecurityPolicySetting:
-      defaultSignInPage.contentSecurityPolicySetting ?? { mode: 'enforced' },
-    widgetVersion: defaultSignInPage.widgetVersion ?? '^7',
-    widgetCustomizations: defaultSignInPage.widgetCustomizations ?? {},
-  });
-  results.customizedSignInPage = { mode: 'applied' };
+  const customizedSignInPageContent =
+    buildHostedSignInPageContent(hostedBranding);
+  const persistedSignInPage = await putAndVerifyCustomizedSignInPage(
+    customerBrand.id,
+    {
+      pageContent: customizedSignInPageContent,
+      contentSecurityPolicySetting:
+        defaultSignInPage.contentSecurityPolicySetting ?? { mode: 'enforced' },
+      widgetVersion: defaultSignInPage.widgetVersion ?? '^7',
+      widgetCustomizations: defaultSignInPage.widgetCustomizations ?? {},
+    },
+  );
+  results.customizedSignInPage = {
+    mode: 'applied',
+    pageContentLength: persistedSignInPage.pageContent?.length ?? 0,
+  };
 
   const defaultErrorPage = await getDefaultErrorPage(customerBrand.id);
-  await putCustomizedErrorPage(customerBrand.id, {
-    pageContent: buildHostedErrorPageContent(hostedBranding),
-    contentSecurityPolicySetting:
-      defaultErrorPage.contentSecurityPolicySetting ?? { mode: 'enforced' },
-  });
-  results.customizedErrorPage = { mode: 'applied' };
+  const customizedErrorPageContent =
+    buildHostedErrorPageContent(hostedBranding);
+  const persistedErrorPage = await putAndVerifyCustomizedErrorPage(
+    customerBrand.id,
+    {
+      pageContent: customizedErrorPageContent,
+      contentSecurityPolicySetting:
+        defaultErrorPage.contentSecurityPolicySetting ?? { mode: 'enforced' },
+    },
+  );
+  results.customizedErrorPage = {
+    mode: 'applied',
+    pageContentLength: persistedErrorPage.pageContent?.length ?? 0,
+  };
 } else {
   results.customizedSignInPage = { mode: 'pending-custom-domain' };
   results.customizedErrorPage = { mode: 'pending-custom-domain' };
@@ -2470,6 +2847,34 @@ if (!customerGroup) {
 }
 const customerGroupId = customerGroup.id;
 
+const passwordPolicyResult = await ensurePolicy(
+  'PASSWORD',
+  passwordPolicyName,
+  () =>
+    buildPasswordPolicyPayload({
+      policyName: passwordPolicyName,
+      environmentName: environment.environment,
+      customerGroupId,
+    }),
+);
+results.passwordPolicy = {
+  mode: passwordPolicyResult.mode,
+  id: passwordPolicyResult.policy.id,
+};
+
+const passwordPolicyRuleName = `ACME LOS Password Recovery (${environment.environment})`;
+const passwordPolicyRuleResult = await ensureRule(
+  passwordPolicyResult.policy.id,
+  passwordPolicyRuleName,
+  (existingRule) =>
+    buildPasswordPolicyRulePayload(existingRule, passwordPolicyRuleName),
+);
+results.passwordPolicyRule = {
+  mode: passwordPolicyRuleResult.mode,
+  id: passwordPolicyRuleResult.rule.id,
+  actions: passwordPolicyRuleResult.rule.actions,
+};
+
 const authorizationServerPolicyResult = await ensureAuthorizationServerPolicy(
   authorizationServerId,
   authorizationServerPolicyName,
@@ -2514,7 +2919,15 @@ const customProfileAttributesResult = await ensureUserProfileAttributes({
     description:
       'ACME customer identifier used for portal and servicing lookups.',
   },
-  state: {
+  mobilePhone: {
+    title: 'Phone number',
+    description:
+      'Customer phone number captured during Okta-hosted registration.',
+    minLength: 1,
+    maxLength: 32,
+    selfPermission: 'READ_WRITE',
+  },
+  acmeState: {
     title: 'State',
     description: 'Customer US state captured during Okta-hosted registration.',
     minLength: 2,
@@ -2640,30 +3053,153 @@ if (!profileEnrollmentRule) {
   );
 }
 
-try {
-  const updatedProfileEnrollmentRule = await updatePolicyRule(
-    profileEnrollmentPolicyResult.policy.id,
-    profileEnrollmentRule.id,
-    buildProfileEnrollmentRulePayload(profileEnrollmentRule, customerGroupId),
+const profileEnrollmentUiSchemaId = optionalString(
+  profileEnrollmentRule.actions?.profileEnrollment?.uiSchemaId,
+);
+if (profileEnrollmentUiSchemaId) {
+  const profileEnrollmentUiSchema = await getUiSchema(
+    profileEnrollmentUiSchemaId,
   );
-  results.profileEnrollmentRule = {
-    mode: 'updated',
-    id: updatedProfileEnrollmentRule.id,
-    targetGroupIds: [customerGroupId],
+  const uiSchemaAttributes = readUiSchemaAttributeNames(
+    profileEnrollmentUiSchema.uiSchema,
+  );
+
+  if (profileEnrollmentUiSchemaMatches(profileEnrollmentUiSchema.uiSchema)) {
+    results.profileEnrollmentUiSchema = {
+      mode: 'existing',
+      id: profileEnrollmentUiSchema.id,
+      profileAttributes: uiSchemaAttributes,
+    };
+  } else {
+    const updatedProfileEnrollmentUiSchema = await updateUiSchema(
+      profileEnrollmentUiSchemaId,
+      buildProfileEnrollmentUiSchema(profileEnrollmentUiSchema.uiSchema),
+    );
+
+    results.profileEnrollmentUiSchema = {
+      mode: 'updated',
+      id: updatedProfileEnrollmentUiSchema.id,
+      profileAttributes: readUiSchemaAttributeNames(
+        updatedProfileEnrollmentUiSchema.uiSchema,
+      ),
+    };
+  }
+} else {
+  results.profileEnrollmentUiSchema = {
+    mode: 'not-found',
+    id: '',
+    profileAttributes: [],
   };
+  warnings.push(
+    `Profile-enrollment rule "${profileEnrollmentRule.name}" did not expose a uiSchemaId, so bootstrap could not manage hosted registration field ordering through the UI Schema API.`,
+  );
+}
+
+try {
+  const existingTargetGroupIds = readProfileEnrollmentTargetGroupIds(
+    profileEnrollmentRule,
+  );
+  const profileAttributesMatch = profileEnrollmentManagedAttributesMatch(
+    profileEnrollmentRule,
+  );
+  const enrollmentAuthenticatorTypesMatch =
+    profileEnrollmentAuthenticatorTypesMatch(profileEnrollmentRule);
+
+  if (
+    existingTargetGroupIds.length === 1 &&
+    existingTargetGroupIds.includes(customerGroupId) &&
+    profileAttributesMatch &&
+    enrollmentAuthenticatorTypesMatch
+  ) {
+    results.profileEnrollmentRule = {
+      mode: 'existing',
+      id: profileEnrollmentRule.id,
+      targetGroupIds: existingTargetGroupIds,
+      profileAttributes: readProfileEnrollmentAttributeNames(
+        profileEnrollmentRule,
+      ),
+      enrollAuthenticatorTypes: readProfileEnrollmentAuthenticatorTypes(
+        profileEnrollmentRule,
+      ),
+    };
+  } else {
+    const updatedProfileEnrollmentRule = await updatePolicyRule(
+      profileEnrollmentPolicyResult.policy.id,
+      profileEnrollmentRule.id,
+      buildProfileEnrollmentRulePayload(profileEnrollmentRule, customerGroupId),
+    );
+    const targetGroupIds = readProfileEnrollmentTargetGroupIds(
+      updatedProfileEnrollmentRule,
+    );
+
+    if (!targetGroupIds.includes(customerGroupId)) {
+      throw new Error(
+        `Okta profile-enrollment registration rule "${updatedProfileEnrollmentRule.name}" did not target ${customerGroupName} (${customerGroupId}) after update.`,
+      );
+    }
+
+    results.profileEnrollmentRule = {
+      mode: 'updated',
+      id: updatedProfileEnrollmentRule.id,
+      targetGroupIds,
+      profileAttributes: readProfileEnrollmentAttributeNames(
+        updatedProfileEnrollmentRule,
+      ),
+      enrollAuthenticatorTypes: readProfileEnrollmentAuthenticatorTypes(
+        updatedProfileEnrollmentRule,
+      ),
+    };
+  }
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
 
   if (isReadOnlyConditionsError(error)) {
-    warnings.push(
-      `Okta rejected automatic profile-enrollment target-group scoping for ${profileEnrollmentPolicyName} because the rule conditions are read-only in this org. Verify the rule targets ${customerGroupName} (${customerGroupId}) manually before relying on self-service registration. Continuing with app, session, and account-policy updates.`,
+    const actualTargetGroupIds = readProfileEnrollmentTargetGroupIds(
+      profileEnrollmentRule,
     );
+    const actualProfileAttributes = readProfileEnrollmentAttributeNames(
+      profileEnrollmentRule,
+    );
+    const targetProfileAttributes = registrationProfileAttributes.map(
+      (attribute) => attribute.name,
+    );
+    const missingProfileAttributes = targetProfileAttributes.filter(
+      (attributeName) => !actualProfileAttributes.includes(attributeName),
+    );
+    const actualEnrollmentAuthenticatorTypes =
+      readProfileEnrollmentAuthenticatorTypes(profileEnrollmentRule);
+    const missingEnrollmentAuthenticatorTypes =
+      registrationEnrollmentAuthenticatorTypes.filter(
+        (authenticatorType) =>
+          !actualEnrollmentAuthenticatorTypes.includes(authenticatorType),
+      );
+    const uiSchemaProfileAttributes =
+      results.profileEnrollmentUiSchema?.profileAttributes ?? [];
+
     results.profileEnrollmentRule = {
       mode: 'manual-required',
       id: profileEnrollmentRule.id,
+      actualTargetGroupIds,
+      actualProfileAttributes,
+      actualEnrollmentAuthenticatorTypes,
       targetGroupIds: [customerGroupId],
+      targetProfileAttributes,
+      targetEnrollmentAuthenticatorTypes:
+        registrationEnrollmentAuthenticatorTypes,
+      missingProfileAttributes,
+      missingEnrollmentAuthenticatorTypes,
       reason: 'okta-read-only-rule-conditions',
     };
+    throw new Error(
+      `${describeProfileEnrollmentManualGate({
+        customerGroupId,
+        customerGroupName,
+        missingEnrollmentAuthenticatorTypes,
+        missingProfileAttributes,
+        profileEnrollmentPolicyName,
+        ruleName: profileEnrollmentRule.name,
+      })} Actual rule fields: ${actualProfileAttributes.join(', ') || 'none'}. Actual UI schema fields: ${uiSchemaProfileAttributes.join(', ') || 'none'}. Target fields: ${targetProfileAttributes.join(', ')}. Actual registration enrollment types: ${actualEnrollmentAuthenticatorTypes.join(', ') || 'none'}. Target registration enrollment types: ${registrationEnrollmentAuthenticatorTypes.join(', ')}. Okta error: ${message}`,
+    );
   } else {
     throw new Error(
       `Unable to scope ${profileEnrollmentPolicyName} registration to ${customerGroupName}. Update the profile enrollment rule target group manually, then rerun bootstrap. ${message}`,
@@ -2827,7 +3363,13 @@ results.applicationAssignmentGroupId = customerGroupId;
 
 if (hostedExperience.rememberUser) {
   warnings.push(
-    'The pre-auth remember-user checkbox is still controlled by Okta org settings. This bootstrap wires KMSI/session policy behavior, but the checkbox itself should still be verified once in the Admin Console.',
+    "The hosted sign-in page intentionally hides Okta's pre-auth remember-user checkbox. Customer session lifetime and remember-device behavior remain controlled by the scoped Okta session and access policies.",
+  );
+}
+
+if (mapPrimaryEmailToLogin) {
+  warnings.push(
+    'Verify Okta Admin > Security > General > Organization > Map primary email to login attribute is Enabled. Okta public Org General Settings APIs do not expose this lifecycle switch, so bootstrap records the desired state but cannot safely flip it.',
   );
 }
 
@@ -2868,10 +3410,15 @@ writeJsonFile(bootstrapOutputsPath, {
   leadIdAccessClaimId: results.leadIdAccessClaim.id,
   customerIdAccessClaimId: results.customerIdAccessClaim.id,
   profileEnrollmentPolicyId: results.profileEnrollmentPolicy.id,
+  profileEnrollmentRule: results.profileEnrollmentRule,
+  profileEnrollmentUiSchema: results.profileEnrollmentUiSchema,
+  passwordPolicyId: results.passwordPolicy.id,
+  passwordPolicyRuleId: results.passwordPolicyRule.id,
   mfaEnrollmentPolicyId: results.mfaEnrollmentPolicy.id,
   sessionPolicyId: results.sessionPolicy.id,
   accessPolicyId: results.accessPolicy.id,
   policyPlan: oktaPolicyPlan,
+  orgLevelSettingsIntent: accountSecurityPolicyIntent.orgLevelSettings,
   accountManagementPolicy: results.accountManagementPolicy,
   accountManagementPolicyRules: results.accountManagementPolicyRules,
   accountSecurityPolicyIntent,
@@ -2900,7 +3447,7 @@ console.log(
   `- Customer brand (${results.customerBrand.mode}): ${results.customerBrand.name}`,
 );
 console.log(
-  `- Managed user profile attributes (${results.customProfileAttributes.mode}): leadId, customerId, state`,
+  `- Managed user profile attributes (${results.customProfileAttributes.mode}): leadId, customerId, mobilePhone, acmeState`,
 );
 if (results.customProfileAttributes.changedBaseAttributes.length > 0) {
   console.log(
@@ -2922,6 +3469,18 @@ console.log(`- Hosted sign-in page: ${results.customizedSignInPage.mode}`);
 console.log(`- Hosted error page: ${results.customizedErrorPage.mode}`);
 console.log(`- Customer group: ${results.customerGroup.id}`);
 console.log(
+  `- Profile enrollment rule (${results.profileEnrollmentRule.mode}): ${results.profileEnrollmentRule.profileAttributes.join(', ')}`,
+);
+console.log(
+  `- Profile enrollment UI schema (${results.profileEnrollmentUiSchema.mode}): ${results.profileEnrollmentUiSchema.profileAttributes.join(', ')}`,
+);
+console.log(
+  `- Password policy (${results.passwordPolicy.mode}): ${results.passwordPolicy.id}`,
+);
+console.log(
+  `- Password recovery rule (${results.passwordPolicyRule.mode}): ${results.passwordPolicyRule.id}`,
+);
+console.log(
   `- Authorization server policy: ${results.authorizationServerPolicy.id}`,
 );
 console.log(
@@ -2929,6 +3488,12 @@ console.log(
 );
 console.log(`- Access policy: ${results.accessPolicy.id}`);
 printOktaPolicyPlan(oktaPolicyPlan);
+console.log('- Okta org-level settings intent:');
+for (const settingIntent of accountSecurityPolicyIntent.orgLevelSettings) {
+  console.log(
+    `  - ${settingIntent.setting}: ${settingIntent.desiredState} (${settingIntent.automationStatus}; ${settingIntent.adminPath})`,
+  );
+}
 printAccountManagementPolicyRules(accountManagementPolicyRules);
 console.log(
   `- Security question authenticator: ${results.securityQuestionAuthenticator.enrollment}`,

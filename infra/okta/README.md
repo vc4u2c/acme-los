@@ -32,6 +32,7 @@ Use this quick rule:
 - want to generate local app config only -> `npm run okta:render -- <env>`
 - want to review policy hierarchy/scenarios before changing Okta -> `npm run okta:policy-plan -- <env>`
 - want to create or update the dev Okta org -> `npm run okta:bootstrap -- <env>`
+- want a read-only live Okta policy/security scan -> `npm run okta:audit-live -- <env>`
 - want to remove the Okta apps for a clean-room retest -> `npm run okta:cleanup -- <env>`
 - want to deactivate non-allowlisted Okta users -> `npm run okta:prune-users -- <env> --dry-run`
 - want to permanently delete exact Okta users -> `npm run okta:delete-users -- <env> --login <login> --dry-run`
@@ -82,6 +83,36 @@ Outputs:
 - `tmp/okta/<env>.policy-plan.json`
 - `tmp/okta/<env>.policy-plan.md`
 
+### `npm run okta:audit-live -- <env>`
+
+Script:
+
+- `tools/scripts/okta/audit-live-okta.mjs`
+
+Purpose:
+
+- calls the live Okta Admin APIs in read-only mode
+- uses `OKTA_MANAGEMENT_ACCESS_TOKEN`, `OKTA_API_TOKEN`, or
+  `--token-file <path>`
+- compares live org/app/policy state to the git-tracked environment intent
+- masks emails and phone numbers in generated output
+- summarizes recent System Log SMS, phone, MFA, and inline-hook events without
+  writing raw log payloads
+
+Example:
+
+```powershell
+npm run okta:audit-live -- dev --token-file C:\secure\acme-los-okta-api-token.txt
+```
+
+Outputs:
+
+- `tmp/okta/<env>.live-okta-audit.json`
+
+Use this after bootstrap, after hosted-page changes, and whenever Okta
+behavior looks different from the repo intent. A clean dev run should have no
+`fail` checks and no actionable `warn` checks.
+
 ### `npm run okta:bootstrap -- <env>`
 
 Script:
@@ -112,11 +143,20 @@ It currently handles:
   rollback
 - optional phone authenticator SMS activation with voice disabled
 - customer group
+- org-level email-as-username intent (`Map primary email to login attribute`)
+  from `hostedExperience.mapPrimaryEmailToLogin`; bootstrap prints the desired
+  state, but Okta does not expose a public API setter for this org setting
 - profile-enrollment registration target group and required profile fields
-  (`firstName`, `lastName`, `email`, `state`); if Okta marks the rule
-  conditions read-only, bootstrap records a manual-required warning and
-  continues with the app, session, and account-policy updates
-- customer-group-scoped MFA enrollment policy
+  (`email`, `firstName`, `lastName`, `mobilePhone`, `acmeState`); email remains
+  the customer login identifier, and the captured phone number is profile
+  contact input until the phone/SMS authenticator is separately verified. The
+  visible State field is scripted as the ACME-owned `acmeState` enum plus a
+  UI-schema select control because Okta's built-in base `state` attribute is a
+  plain string field.
+  If Okta marks the rule conditions read-only, bootstrap fails closed with a
+  manual-required gate instead of broadening app assignment to `Everyone`
+- customer-group-scoped MFA enrollment policy for password, email,
+  security-question, and optional phone/SMS enrollment when telephony is enabled
 - customer-group-scoped global session policy with a 60-day maximum lifetime
   and 120-minute idle timeout
 - app access policy
@@ -146,12 +186,27 @@ Live dev org state last verified from the Admin API:
 - managed user profile attributes exist:
   - `leadId`
   - `customerId`
-  - `state` for Okta-hosted registration state capture; if the Okta org already
-    has the default base `state` attribute, bootstrap reuses it instead of
-    creating a conflicting custom attribute
+  - `mobilePhone` for Okta-hosted registration phone capture
+  - `acmeState` for Okta-hosted registration State capture and US-state
+    dropdown rendering
+- profile-enrollment UI schema is scripted as `email`, `firstName`, `lastName`,
+  `mobilePhone`, and `acmeState`; `acmeState` uses UI format `select`
+- `hostedExperience.mapPrimaryEmailToLogin` is source-controlled as `true`;
+  verify Okta Admin > Security > General > Organization > Map primary email to
+  login attribute is Enabled because the public Okta org API does not expose a
+  setter for this lifecycle switch
+- profile-enrollment registration rule targets only `acme-los-customers-dev`;
+  live rule fields match `email`, `firstName`, `lastName`, `mobilePhone`, and
+  `acmeState`, and registration enrollment type includes `password`. Okta
+  rejects public Policy API updates to that default rule with `E0000077`, so
+  bootstrap treats a matching rule as existing and fails closed if those fields
+  drift.
 - email, password, and Okta Verify authenticators are active
 - security-question enrollment is required by the ACME LOS authenticator policy
   for the `acme-los-customers-dev` customer group
+- phone/SMS factor enrollment is optional in `dev` through the repo-managed
+  mock telephony provider; the hosted profile phone number remains contact
+  metadata until the Okta phone/SMS authenticator is verified
 - account-management lifecycle rules are repo-managed by bootstrap:
   - `ACME LOS Password Lifecycle (dev)`
   - `ACME LOS Email Lifecycle (dev)`
@@ -188,7 +243,13 @@ $env:OKTA_API_TOKEN='<ssws token>'
 npm run okta:bootstrap -- dev
 ```
 
-5. Start the web app and test the hosted flow
+5. Run the read-only live audit:
+
+```powershell
+npm run okta:audit-live -- dev
+```
+
+6. Start the web app and test the hosted flow
 
 This gives you the least manual work with the least amount of architectural weirdness.
 
@@ -294,7 +355,9 @@ Current limitations:
   are Okta org features; bootstrap scopes their consumption through ACME app
   policy where Okta allows it and the runbook documents what cannot be
   app-scoped directly
-- the pre-auth "remember user" checkbox still needs one admin-console verification
+- the hosted sign-in page intentionally hides Okta's pre-auth "remember user"
+  checkbox; customer session lifetime and remember-device behavior stay
+  policy-driven
 - route-specific funding step-up still belongs in application runtime logic
 - custom-domain linking is still a manual tenant step because DNS ownership and certificate validation happen outside the repo bootstrap
 - profile-enrollment uses the Okta-managed catch-all rule, but bootstrap now
@@ -307,17 +370,27 @@ That means:
 - branding colors, logo, and favicon are automated
 - hosted sign-in and error page HTML/content are automated by
   `tools/scripts/okta/hosted-sign-in-page.mjs` after the custom domain is linked
+- the Okta-hosted page shells live in `tools/scripts/okta/templates`; the
+  configurator injects brand copy, CSS, support footer, and Okta widget settings
+  through named placeholders
+- hosted sign-in explicitly enables Sign-Up in the Okta Sign-In Widget config;
+  if the link is still missing, verify the profile-enrollment policy/rule is
+  assigned and registration is enabled for the app
 - hosted-page polish includes compact ACME-styled controls, recovery/contact
   hints, and a light/dark theme toggle
+- hosted-page visual quality is checked locally with
+  `npm run okta:audit-hosted-pages -- <env>`; the audit renders sign-in,
+  registration, enrollment, verification, recovery, and password states in
+  light/dark mode across mobile and desktop screenshots under
+  `tmp/okta-hosted-state-audit`
 - theme persistence uses only the non-sensitive `acme_theme=light|dark`
   preference cookie; when the app runs at a sibling `*.avanai.net` hostname,
   the cookie is scoped to `avanai.net` so theme follows the redirect round trip
 - auth session, state, CSRF, and token cookies remain host-scoped and are never
   shared with the Okta hostname
-- registration is working against the system default profile-enrollment rule,
-  with bootstrap-managed target-group assignment to
-  `acme-los-customers-<env>` and required profile fields for first name, last
-  name, email, and state
+- registration must target `acme-los-customers-<env>` through the
+  profile-enrollment rule; in Okta orgs that reject API updates to that
+  Okta-managed rule, set the target group manually and rerun bootstrap
 - the current dev org already has the custom domain linked manually:
   - `auth.avanai.net`
 - the `dev` manifest prepares `https://apply-dev.avanai.net` as an allowed
@@ -329,10 +402,15 @@ Current auth shape in this repo:
 
 - registration requires password, email, and security-question enrollment for
   users in the ACME LOS customer group because the MFA enrollment policy
-  requires those authenticators for that group
-- Okta-hosted registration captures first name, last name, email, and state in
-  profile enrollment; Okta may still render password, email OTP, and
-  security-question enrollment as follow-up hosted steps
+  requires those authenticators for that group; phone/SMS factor enrollment is
+  optional when telephony is enabled and required only by explicit rollout
+- Okta-hosted registration captures email, first name, last name, profile phone
+  number, and visible State in profile enrollment; State is backed by the
+  ACME-owned `acmeState` US-state dropdown.
+  Password/repeat-password and password requirements are Okta password
+  authenticator enrollment, not ACME profile fields. Okta may still render
+  password, email OTP, and security-question enrollment as follow-up hosted
+  steps.
 - Okta `sub` is the immutable ACME user key; email is mutable metadata synced to
   backend profile storage after a fresh Okta session
 - customer global session policy has a 60-day maximum lifetime and a

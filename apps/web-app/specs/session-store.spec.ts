@@ -4,12 +4,16 @@ import {
   createStoredWebAuthSession,
   getStoredWebAuthSessionCookieMaxAge,
   isStoredWebAuthStepUpFresh,
+  deleteStoredWebAuthTransaction,
+  readWebAuthTransaction,
+  readWebAuthTransactionCookie,
   readLogoutHintIdToken,
   readStoredWebAuthSession,
   readStoredWebAuthSessionForLogout,
   startOktaAuthTransaction,
   touchWebAuthSession,
   touchStoredWebAuthSession,
+  writeWebAuthTransaction,
   writeWebAuthSession,
 } from '@acme-los/api/web-server';
 import type { WebAuthSession } from '@acme-los/api/contracts';
@@ -84,6 +88,20 @@ function createSessionRequest(sessionId: string): NextRequest {
         name === 'acme-los.auth-session'
           ? { name, value: authCookieValue }
           : undefined,
+    },
+  } as unknown as NextRequest;
+}
+
+function createRequestWithCookie(
+  cookieName: string,
+  cookieValue: string,
+): NextRequest {
+  return {
+    nextUrl: new URL('https://los.example.test/'),
+    cookies: {
+      get: (name: string) =>
+        name === cookieName ? { name, value: cookieValue } : undefined,
+      has: (name: string) => name === cookieName,
     },
   } as unknown as NextRequest;
 }
@@ -404,16 +422,83 @@ describe('web auth session store idle expiry', () => {
     });
     const authorizeUrl = new URL(transaction.authorizeUrl);
 
-    expect(transaction.cookiePayload.expectedUserId).toBe('customer-1');
+    expect(transaction.cookiePayload).toEqual({
+      transactionId: transaction.transactionId,
+      returnTo: '/apply/funding',
+      minimumAssuranceLevel: 'aal2',
+      expiresAt: transaction.storedTransaction.expiresAt,
+    });
+    expect(transaction.storedTransaction.expectedUserId).toBe('customer-1');
+    expect(transaction.storedTransaction.codeVerifier).toEqual(
+      expect.any(String),
+    );
+    expect(transaction.storedTransaction.nonce).toEqual(expect.any(String));
     expect(authorizeUrl.searchParams.get('acr_values')).toBe(
       'urn:okta:loa:2fa:any',
     );
     expect(authorizeUrl.searchParams.has('prompt')).toBe(false);
     expect(authorizeUrl.searchParams.has('max_age')).toBe(false);
-    expect(transaction.cookiePayload.stepUp).toEqual({
+    expect(transaction.storedTransaction.stepUp).toEqual({
       reason: 'funding',
       maxAgeSeconds: 10 * 60,
     });
+  });
+
+  it('stores PKCE transaction details server-side and consumes them once', async () => {
+    process.env.ACME_AUTH_PROVIDER = 'okta';
+    process.env.ACME_OKTA_ISSUER = 'https://example.okta.com/oauth2/default';
+    process.env.ACME_OKTA_CLIENT_ID = 'client-id';
+    process.env.ACME_OKTA_REDIRECT_URI =
+      'https://los.example.test/api/auth/callback';
+    process.env.ACME_OKTA_POST_LOGOUT_REDIRECT_URI =
+      'https://los.example.test/';
+
+    const transaction = startOktaAuthTransaction({
+      returnTo: '/apply/personal-info',
+      leadId: 'lead-123',
+    });
+    let authTransactionCookieValue = '';
+    const request = {
+      nextUrl: new URL('https://los.example.test/'),
+    } as NextRequest;
+    const response = {
+      cookies: {
+        set: ({ value }: { value: string }) => {
+          authTransactionCookieValue = value;
+        },
+      },
+    } as unknown as NextResponse;
+
+    await writeWebAuthTransaction(request, response, transaction);
+
+    const callbackRequest = createRequestWithCookie(
+      'acme-los.auth-transaction',
+      authTransactionCookieValue,
+    );
+    const cookiePayload = readWebAuthTransactionCookie(callbackRequest);
+    const storedTransaction = await readWebAuthTransaction(callbackRequest);
+
+    expect(cookiePayload).toEqual({
+      transactionId: transaction.transactionId,
+      returnTo: '/apply/personal-info',
+      minimumAssuranceLevel: 'aal1',
+      expiresAt: transaction.storedTransaction.expiresAt,
+    });
+    expect(JSON.stringify(cookiePayload)).not.toContain(
+      transaction.storedTransaction.codeVerifier,
+    );
+    expect(storedTransaction).toMatchObject({
+      transactionId: transaction.transactionId,
+      state: transaction.storedTransaction.state,
+      nonce: transaction.storedTransaction.nonce,
+      codeVerifier: transaction.storedTransaction.codeVerifier,
+      leadId: 'lead-123',
+      returnTo: '/apply/personal-info',
+    });
+
+    await deleteStoredWebAuthTransaction(storedTransaction);
+
+    expect(await readWebAuthTransaction(callbackRequest)).toBeNull();
   });
 
   it('stores and expires a fresh funding step-up marker separately from the session', async () => {

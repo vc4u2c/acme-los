@@ -59,6 +59,11 @@ function readRequiredEnvironmentVariable(name: string): string {
   return value;
 }
 
+function readBooleanEnvironmentVariable(name: string): boolean {
+  const value = process.env[name]?.trim().toLowerCase();
+  return value === 'true' || value === '1' || value === 'yes';
+}
+
 function readSmsMfaConfiguration(): SmsMfaConfiguration {
   const provider = (process.env.ACME_OKTA_TELEPHONY_PROVIDER ?? 'acs')
     .trim()
@@ -108,7 +113,9 @@ function readSmsMfaConfiguration(): SmsMfaConfiguration {
 }
 
 function assertMockSmsAllowed(): void {
-  const mockEnabled = process.env.ACME_ENABLE_MOCK_SMS_OTP === 'true';
+  const mockEnabled = readBooleanEnvironmentVariable(
+    'ACME_ENABLE_MOCK_SMS_OTP',
+  );
   const environmentName = (
     process.env.APP_ENVIRONMENT_NAME ??
     process.env.NEXT_PUBLIC_APP_ENVIRONMENT ??

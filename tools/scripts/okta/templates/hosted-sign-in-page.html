@@ -1,0 +1,3756 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex,nofollow" />
+    <link href="{{themedStylesUrl}}" rel="stylesheet" type="text/css" />
+    <link rel="shortcut icon" href="{{faviconUrl}}" type="image/x-icon" />
+
+    <title>{{pageTitle}}</title>
+    {{{SignInWidgetResources}}}
+    <!-- %%THEME_BOOTSTRAP_SCRIPT%% -->
+
+    <!-- %%THEME_STYLE_MARKUP%% -->
+    <style nonce="{{nonceValue}}">
+      html,
+      body {
+        min-height: 100%;
+        max-width: 100%;
+        overflow-x: clip;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        padding: 0;
+        color: var(--acme-text);
+        background:
+          radial-gradient(
+            ellipse at top right,
+            var(--acme-hero-glow-top) 0%,
+            transparent 68%
+          ),
+          radial-gradient(
+            ellipse at top left,
+            var(--acme-hero-glow-side) 0%,
+            transparent 72%
+          ),
+          linear-gradient(
+            180deg,
+            var(--acme-background-top) 0%,
+            var(--acme-background) 22%,
+            var(--acme-background) 100%
+          );
+        background-position:
+          top right,
+          top left,
+          top left;
+        background-repeat: no-repeat;
+        background-size:
+          var(--acme-hero-glow-top-size),
+          var(--acme-hero-glow-side-size),
+          100% 100%;
+        font-family: var(--acme-font-body);
+        overflow-x: hidden;
+      }
+
+      #login-bg-image-id {
+        display: none !important;
+        background-image: none !important;
+      }
+
+      .acme-brand-header {
+        position: relative;
+        z-index: 1;
+        border-bottom: 1px solid var(--acme-border);
+        background: var(--acme-surface);
+        box-shadow: var(--acme-header-shadow);
+      }
+
+      .acme-brand-header__inner {
+        width: 100%;
+        max-width: 72rem;
+        margin: 0 auto;
+        padding: 0.65rem 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+
+      .acme-brand-header__lockup {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.9rem;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      .acme-brand-header__mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 1rem;
+        flex-shrink: 0;
+        background: var(--acme-brand);
+        box-shadow: 0 12px 24px var(--acme-brand-shadow);
+      }
+
+      .acme-brand-header__mark svg {
+        width: 1.16rem;
+        height: 1.16rem;
+        display: block;
+      }
+
+      .acme-brand-header__copy {
+        display: inline-flex;
+        flex-direction: column;
+        min-width: 0;
+        max-width: 100%;
+      }
+
+      .acme-brand-header__eyebrow {
+        color: var(--acme-muted-text);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+
+      .acme-brand-header__title {
+        color: var(--acme-text);
+        font-family: var(--acme-font-display);
+        font-size: 1.22rem;
+        line-height: 1.05;
+      }
+
+      .acme-theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.15rem;
+        padding: 0.18rem;
+        border: 1px solid var(--acme-border);
+        border-radius: 999px;
+        background: var(--acme-surface-strong);
+        flex-shrink: 0;
+      }
+
+      .acme-theme-toggle__button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.82rem;
+        height: 1.82rem;
+        border: 0;
+        border-radius: 999px;
+        background: transparent;
+        color: var(--acme-muted-text);
+        cursor: pointer;
+      }
+
+      .acme-theme-toggle__button[aria-pressed='true'] {
+        background: var(--acme-brand);
+        color: var(--acme-brand-contrast);
+      }
+
+      .acme-theme-toggle__button svg {
+        width: 0.92rem;
+        height: 0.92rem;
+        display: block;
+      }
+
+      .acme-auth-shell {
+        position: relative;
+        z-index: 1;
+        width: 100%;
+        max-width: 31rem;
+        margin: 0 auto;
+        padding: 1.35rem 1rem 1.15rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        overflow-x: clip;
+      }
+
+      .acme-auth-intro {
+        margin: 0 0 0.75rem;
+        text-align: center;
+        width: 100%;
+      }
+
+      .acme-auth-eyebrow {
+        margin: 0 0 0.55rem;
+        color: var(--acme-muted-text);
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .acme-auth-title {
+        margin: 0;
+        color: var(--acme-text);
+        font-size: 1.55rem;
+        line-height: 1.12;
+        font-family: var(--acme-font-display);
+      }
+
+      .acme-auth-subtitle {
+        margin: 0.5rem 0 0;
+        color: var(--acme-muted-text);
+        font-size: 0.9rem;
+        line-height: 1.45;
+      }
+
+      .acme-auth-guidance {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        margin: 0.7rem 0 0.85rem;
+        padding: 0.62rem 0.78rem;
+        border: 1px solid var(--acme-border);
+        border-radius: 0.95rem;
+        background: var(--acme-guidance-bg);
+        color: var(--acme-muted-text);
+        font-size: 0.84rem;
+        line-height: 1.45;
+        text-align: center;
+      }
+
+      .acme-auth-footer {
+        width: 100%;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--acme-border);
+        text-align: center;
+      }
+
+      .acme-auth-support {
+        text-align: center;
+        color: var(--acme-muted-text);
+        font-size: 0.9rem;
+        line-height: 1.55;
+      }
+
+      .acme-auth-support {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem 0.55rem;
+        margin-top: 0.7rem;
+      }
+
+      .acme-auth-support__divider {
+        color: var(--acme-border-strong);
+      }
+
+      #okta-login-container {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        margin: 0 auto;
+        display: flex;
+        justify-content: center;
+        overflow-x: clip;
+      }
+
+      #okta-login-container #okta-sign-in,
+      #okta-login-container .auth-container {
+        display: block !important;
+        max-width: none !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        border: 1px solid var(--acme-border);
+        border-radius: 1.55rem;
+        background: linear-gradient(
+          180deg,
+          var(--acme-card) 0%,
+          var(--acme-surface) 100%
+        );
+        box-shadow: var(--acme-card-shadow);
+        overflow: hidden;
+      }
+
+      #okta-login-container .auth-content,
+      #okta-login-container .siw-main-view,
+      #okta-login-container .siw-main-footer {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        background: transparent !important;
+        border: 0 !important;
+        box-shadow: none !important;
+      }
+
+      #okta-login-container .auth-header,
+      #okta-login-container .okta-sign-in-header,
+      #okta-login-container .okta-form-title,
+      #okta-login-container .o-form-head,
+      #okta-login-container .siw-form-header,
+      #okta-login-container .siw-main-header,
+      #okta-login-container .siw-main-header .auth-org-logo,
+      #okta-login-container .siw-main-header .logo {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        overflow: hidden !important;
+      }
+
+      #okta-login-container .auth-content {
+        padding: 1.15rem 1.25rem 0 !important;
+        display: block !important;
+      }
+
+      #okta-login-container .siw-main-view {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #okta-login-container .siw-main-footer {
+        width: 100% !important;
+        margin-top: 1rem !important;
+        padding: 0.95rem 1.25rem 1.25rem !important;
+        border-top: 1px solid var(--acme-border) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 0.5rem !important;
+        text-align: center !important;
+      }
+
+      #okta-login-container .siw-main-footer > * {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        text-align: center !important;
+      }
+
+      #okta-login-container .siw-main-footer a,
+      #okta-login-container .siw-main-footer .link-button,
+      #okta-login-container .siw-main-footer .js-back {
+        display: inline-flex !important;
+        align-items: center !important;
+        width: auto !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        white-space: normal !important;
+        word-break: normal !important;
+        overflow-wrap: normal !important;
+        writing-mode: horizontal-tb !important;
+        text-align: center !important;
+      }
+
+      #okta-login-container .auth-content-inner,
+      #okta-login-container .siw-main-body,
+      #okta-login-container .o-form,
+      #okta-login-container form {
+        display: block !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+      }
+
+      #okta-login-container .o-form-content,
+      #okta-login-container .authenticator-list,
+      #okta-login-container .authenticator-enrollments-list,
+      #okta-login-container .authenticator-verify-list,
+      #okta-login-container .authenticator-list ul,
+      #okta-login-container .authenticator-enrollments-list ul,
+      #okta-login-container .authenticator-verify-list ul,
+      #okta-login-container .siw-main-body > div,
+      #okta-login-container .siw-main-body > section {
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+      }
+
+      #okta-login-container .o-form-content {
+        display: grid !important;
+        gap: 0.98rem !important;
+      }
+
+      body[data-acme-auth-state='signIn']
+        #okta-login-container
+        .o-form-content {
+        gap: 0.86rem !important;
+      }
+
+      #okta-login-container .authenticator-list,
+      #okta-login-container .authenticator-enrollments-list,
+      #okta-login-container .authenticator-verify-list,
+      #okta-login-container .authenticator-list ul,
+      #okta-login-container .authenticator-enrollments-list ul,
+      #okta-login-container .authenticator-verify-list ul {
+        padding: 0 !important;
+      }
+
+      #okta-login-container .auth-content *,
+      #okta-login-container .siw-main-body *,
+      #okta-login-container form * {
+        min-width: 0 !important;
+        max-width: 100%;
+      }
+
+      #okta-login-container h2,
+      #okta-login-container h3 {
+        color: var(--acme-text) !important;
+        font-family: var(--acme-font-display) !important;
+        font-size: 1.02rem !important;
+        line-height: 1.12 !important;
+        margin-top: 0 !important;
+      }
+
+      #okta-login-container .okta-form-subtitle,
+      #okta-login-container .o-form-explain,
+      #okta-login-container .o-form-explain *,
+      #okta-login-container .okta-form-label,
+      #okta-login-container .okta-form-input-error,
+      #okta-login-container .o-form-input-error,
+      #okta-login-container .ion-form-field-tooltip {
+        color: var(--acme-muted-text) !important;
+        font-size: 0.92rem !important;
+        line-height: 1.55 !important;
+      }
+
+      #okta-login-container .siw-main-body p,
+      #okta-login-container .siw-main-body p span,
+      #okta-login-container .siw-main-body p em {
+        color: var(--acme-muted-text) !important;
+      }
+
+      #okta-login-container .siw-main-body p strong,
+      #okta-login-container .siw-main-body p b,
+      #okta-login-container .siw-main-body p [class*='strong'],
+      #okta-login-container .siw-main-body p [class*='identifier'],
+      #okta-login-container .siw-main-body p [class*='highlight'] {
+        color: var(--acme-text) !important;
+        font-weight: 700 !important;
+      }
+
+      #okta-login-container .siw-main-body p a {
+        color: var(--acme-link) !important;
+      }
+
+      #okta-login-container .acme-identifier-contrast,
+      #okta-login-container [data-se*='identifier'],
+      #okta-login-container [data-se*='identifier'] *,
+      #okta-login-container [class*='identifier'],
+      #okta-login-container [class*='identifier'] * {
+        color: var(--acme-text) !important;
+        -webkit-text-fill-color: var(--acme-text) !important;
+        font-weight: 700 !important;
+        opacity: 1 !important;
+      }
+
+      #okta-login-container label,
+      #okta-login-container .o-form-label,
+      #okta-login-container .siw-label,
+      #okta-login-container .select-authenticator-label {
+        display: block !important;
+        margin: 0 !important;
+        color: var(--acme-muted-text) !important;
+        font-size: 0.62rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.11em !important;
+        text-transform: uppercase !important;
+      }
+
+      #okta-login-container .o-form-fieldset,
+      #okta-login-container .o-form-fieldset-container,
+      #okta-login-container .okta-form-fieldset,
+      #okta-login-container .form-fieldset,
+      #okta-login-container [data-se^='o-form-fieldset'] {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 0.24rem !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #okta-login-container .o-form-fieldset > *,
+      #okta-login-container .o-form-fieldset-container > *,
+      #okta-login-container .okta-form-fieldset > *,
+      #okta-login-container .form-fieldset > *,
+      #okta-login-container [data-se^='o-form-fieldset'] > *,
+      #okta-login-container [data-se='o-form-label'],
+      #okta-login-container [data-se='o-form-input-container'],
+      #okta-login-container .o-form-label,
+      #okta-login-container .o-form-input-container {
+        margin: 0 !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+      }
+
+      #okta-login-container .o-form-input,
+      #okta-login-container .o-form-input-name-identifier,
+      #okta-login-container .okta-form-input-field,
+      #okta-login-container .input-fix {
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        height: auto !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+      }
+
+      #okta-login-container
+        input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+      #okta-login-container select,
+      #okta-login-container textarea,
+      #okta-login-container
+        .o-form-input
+        input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+      #okta-login-container .selectize-input,
+      #okta-login-container .chzn-single {
+        min-height: 1.92rem !important;
+        height: 1.92rem !important;
+        border: 1px solid var(--acme-border) !important;
+        border-radius: 0.5rem !important;
+        background: var(--acme-field-bg) !important;
+        color: var(--acme-text) !important;
+        box-shadow: none !important;
+        font-size: 0.82rem !important;
+        line-height: 1.2 !important;
+        padding: 0.25rem 0.58rem !important;
+      }
+
+      #okta-login-container
+        input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+      #okta-login-container select,
+      #okta-login-container textarea,
+      #okta-login-container
+        .o-form-input
+        input:not([type='checkbox']):not([type='radio']):not([type='hidden']),
+      #okta-login-container .selectize-input,
+      #okta-login-container .chzn-single {
+        width: 100% !important;
+      }
+
+      #okta-login-container input[type='password'],
+      #okta-login-container input[type='text'][autocomplete*='password'] {
+        padding-right: 2.55rem !important;
+      }
+
+      #okta-login-container .password-toggle,
+      #okta-login-container .password-toggle .input-fix,
+      #okta-login-container [class*='password'] .o-form-input,
+      #okta-login-container [data-se*='password'] .o-form-input {
+        min-height: 0 !important;
+      }
+
+      #okta-login-container .password-toggle button,
+      #okta-login-container .password-toggle .button,
+      #okta-login-container [data-se*='show-password'],
+      #okta-login-container [aria-label*='Show password'],
+      #okta-login-container [aria-label*='Hide password'] {
+        min-height: 1.45rem !important;
+        width: 1.65rem !important;
+        height: 1.65rem !important;
+        padding: 0 !important;
+      }
+
+      #okta-login-container .o-form-content > p,
+      #okta-login-container .o-form-content > div:not(.o-form-fieldset) p,
+      #okta-login-container .o-form-explain,
+      #okta-login-container [data-se*='password-requirements'],
+      #okta-login-container [class*='password-requirements'] {
+        margin: 0.28rem 0 0 !important;
+        color: var(--acme-muted-text) !important;
+        font-size: 0.78rem !important;
+        line-height: 1.32 !important;
+      }
+
+      #okta-login-container .o-form-content > ul,
+      #okta-login-container .o-form-content > div:not(.o-form-fieldset) ul,
+      #okta-login-container .o-form-explain ul,
+      #okta-login-container [data-se*='password-requirements'] ul,
+      #okta-login-container [class*='password-requirements'] ul {
+        display: grid !important;
+        gap: 0.1rem !important;
+        margin: 0.2rem 0 0 !important;
+        padding-left: 1rem !important;
+        color: var(--acme-muted-text) !important;
+        font-size: 0.76rem !important;
+        line-height: 1.28 !important;
+      }
+
+      #okta-login-container .o-form-content > li,
+      #okta-login-container .o-form-content li,
+      #okta-login-container [data-se*='password-requirements'] li,
+      #okta-login-container [class*='password-requirements'] li {
+        margin: 0 !important;
+        padding-left: 0.1rem !important;
+      }
+
+      #okta-login-container .acme-form-field {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 0.22rem !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #okta-login-container .acme-form-field--state,
+      #okta-login-container .acme-form-field--password {
+        gap: 0.22rem !important;
+      }
+
+      #okta-login-container .acme-confirm-password-field {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) !important;
+        gap: 0.22rem !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #okta-login-container .acme-confirm-password-error[hidden] {
+        display: none !important;
+      }
+
+      #okta-login-container .acme-form-field__label,
+      #okta-login-container .acme-form-field__input {
+        margin: 0 !important;
+        padding: 0 !important;
+        min-height: 0 !important;
+      }
+
+      #okta-login-container .acme-password-requirements,
+      #okta-login-container .acme-password-requirements *,
+      #okta-login-container form .acme-password-requirements,
+      #okta-login-container form .acme-password-requirements * {
+        color: var(--acme-muted-text) !important;
+        font-size: 0.76rem !important;
+        line-height: 1.25 !important;
+      }
+
+      #okta-login-container .acme-password-requirements {
+        margin: 0.42rem 0 0 !important;
+        padding: 0 !important;
+      }
+
+      #okta-login-container .acme-password-requirements p,
+      #okta-login-container .acme-password-requirements div {
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #okta-login-container .acme-password-requirements ul {
+        display: grid !important;
+        gap: 0.06rem !important;
+        margin: 0.16rem 0 0 !important;
+        padding-left: 0.95rem !important;
+      }
+
+      #okta-login-container .acme-password-requirements li {
+        margin: 0 !important;
+        padding-left: 0.05rem !important;
+      }
+
+      #okta-login-container
+        input:not([type='checkbox']):not([type='radio']):not(
+          [type='hidden']
+        ):focus,
+      #okta-login-container select:focus,
+      #okta-login-container textarea:focus,
+      #okta-login-container
+        .o-form-input
+        input:not([type='checkbox']):not([type='radio']):not(
+          [type='hidden']
+        ):focus,
+      #okta-login-container .selectize-input.focus {
+        border-color: var(--acme-focus) !important;
+        box-shadow: 0 0 0 3px var(--acme-ring-soft) !important;
+        outline: none !important;
+      }
+
+      #okta-login-container .button,
+      #okta-login-container input[type='button'],
+      #okta-login-container input[type='submit'] {
+        min-height: 1.98rem !important;
+        border-radius: 0.52rem !important;
+        border: 1px solid var(--acme-border) !important;
+        background: var(--acme-field-bg) !important;
+        color: var(--acme-text) !important;
+        box-shadow: none !important;
+        font-size: 0.8rem !important;
+        font-weight: 700 !important;
+        padding: 0.28rem 0.65rem !important;
+        transition:
+          background-color 120ms ease,
+          border-color 120ms ease,
+          color 120ms ease,
+          filter 120ms ease;
+      }
+
+      #okta-login-container .button-primary,
+      #okta-login-container .button.button-primary,
+      #okta-login-container input[type='submit'] {
+        min-height: 2.05rem !important;
+        width: auto !important;
+        min-width: 12rem !important;
+        max-width: 100% !important;
+        border-radius: 0.62rem !important;
+        border: 0 !important;
+        background: var(--acme-brand) !important;
+        color: var(--acme-brand-contrast) !important;
+        box-shadow: none !important;
+        font-size: 0.82rem !important;
+        font-weight: 700 !important;
+        padding: 0.34rem 0.85rem !important;
+      }
+
+      #okta-login-container .o-form-button-bar,
+      #okta-login-container .button-bar {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: stretch !important;
+        gap: 0.65rem !important;
+        margin-top: 0.95rem !important;
+        padding: 0 !important;
+      }
+
+      #okta-login-container .o-form-button-bar .button-primary,
+      #okta-login-container .o-form-button-bar .button.button-primary,
+      #okta-login-container .o-form-button-bar input[type='submit'],
+      #okta-login-container .button-bar .button-primary,
+      #okta-login-container .button-bar input[type='submit'] {
+        width: 100% !important;
+        min-width: 0 !important;
+      }
+
+      #okta-login-container .button:hover,
+      #okta-login-container input[type='button']:hover,
+      #okta-login-container input[type='submit']:hover,
+      #okta-login-container .button-primary:hover,
+      #okta-login-container .button.button-primary:hover {
+        filter: brightness(0.96);
+      }
+
+      #okta-login-container .button.button-secondary,
+      #okta-login-container .button-secondary,
+      #okta-login-container .button.cancel,
+      #okta-login-container a.button-link {
+        border: 1px solid var(--acme-border) !important;
+        background: var(--acme-field-bg) !important;
+        color: var(--acme-text) !important;
+      }
+
+      #okta-login-container a,
+      #okta-login-container .link,
+      #okta-login-container .registration-link,
+      #okta-login-container .js-help {
+        color: var(--acme-link) !important;
+        font-weight: 600 !important;
+        text-decoration: none !important;
+      }
+
+      #okta-login-container a:hover,
+      #okta-login-container .link:hover,
+      #okta-login-container .registration-link:hover,
+      #okta-login-container .js-help:hover {
+        text-decoration: underline !important;
+      }
+
+      #okta-login-container .siw-main-footer a.js-help,
+      #okta-login-container .siw-main-footer a[data-se='help'],
+      #okta-login-container .siw-main-footer a[href*='/help/login'],
+      #okta-login-container .siw-main-footer a[href*='/help/'] {
+        display: none !important;
+        visibility: hidden !important;
+      }
+
+      #okta-login-container .o-form-error-container,
+      #okta-login-container .infobox,
+      #okta-login-container .okta-form-infobox-error,
+      #okta-login-container .okta-form-infobox-warning,
+      #okta-login-container .okta-form-infobox-success {
+        border-radius: 1rem !important;
+      }
+
+      #okta-login-container .okta-form-infobox-error,
+      #okta-login-container .o-form-error-container {
+        border: 1px solid var(--acme-critical-border) !important;
+        background: var(--acme-critical-bg) !important;
+      }
+
+      #okta-login-container .o-form-input-error,
+      #okta-login-container .okta-form-input-error,
+      #okta-login-container .acme-inline-field-error,
+      #okta-login-container [data-se='o-form-input-error'] {
+        order: 2 !important;
+        display: grid !important;
+        grid-template-columns: 0.96rem minmax(0, 1fr) !important;
+        align-items: center !important;
+        column-gap: 0.46rem !important;
+        row-gap: 0 !important;
+        width: 100% !important;
+        margin: 0.36rem 0 0.1rem !important;
+        padding: 0 !important;
+        color: var(--acme-critical-text, #8f352b) !important;
+        font-size: 0.74rem !important;
+        font-weight: 650 !important;
+        line-height: 1.32 !important;
+        text-align: left !important;
+      }
+
+      #okta-login-container .o-form-input-error > *,
+      #okta-login-container .okta-form-input-error > *,
+      #okta-login-container .acme-inline-field-error > *,
+      #okta-login-container [data-se='o-form-input-error'] > * {
+        margin: 0 !important;
+        padding: 0 !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+      }
+
+      #okta-login-container .o-form-input-error br,
+      #okta-login-container .okta-form-input-error br,
+      #okta-login-container .acme-inline-field-error br,
+      #okta-login-container [data-se='o-form-input-error'] br {
+        display: none !important;
+      }
+
+      #okta-login-container .o-form-input-error p,
+      #okta-login-container .okta-form-input-error p,
+      #okta-login-container .acme-inline-field-error p,
+      #okta-login-container .acme-inline-field-error__text,
+      #okta-login-container [data-se='o-form-input-error'] p {
+        grid-column: 2 !important;
+        display: block !important;
+        width: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: var(--acme-critical-text, #8f352b) !important;
+        font-size: inherit !important;
+        font-weight: inherit !important;
+        line-height: inherit !important;
+      }
+
+      #okta-login-container .o-form-input-error .error-16-small,
+      #okta-login-container .o-form-input-error .error-16,
+      #okta-login-container .o-form-input-error .icon-16,
+      #okta-login-container .okta-form-input-error .error-16-small,
+      #okta-login-container .okta-form-input-error .error-16,
+      #okta-login-container .okta-form-input-error .icon-16,
+      #okta-login-container .acme-inline-field-error__icon,
+      #okta-login-container [data-se='o-form-input-error'] .error-16-small {
+        grid-column: 1 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex: 0 0 auto !important;
+        width: 0.96rem !important;
+        height: 0.96rem !important;
+        min-width: 0.96rem !important;
+        min-height: 0.96rem !important;
+        margin: 0 !important;
+        position: static !important;
+        overflow: hidden !important;
+        border-radius: 999px !important;
+        background: var(--acme-critical-icon-bg, #d94f43) !important;
+        background-image: none !important;
+        color: var(--acme-critical-icon-text, #fffaf7) !important;
+        font-size: 0 !important;
+        font-weight: 800 !important;
+        line-height: 1 !important;
+        text-align: center !important;
+      }
+
+      #okta-login-container .acme-inline-field-error__icon::before {
+        content: '!' !important;
+        display: block !important;
+        color: var(--acme-critical-icon-text, #fffaf7) !important;
+        font-size: 0.62rem !important;
+        font-weight: 800 !important;
+        line-height: 0.96rem !important;
+        text-align: center !important;
+      }
+
+      #okta-login-container
+        .o-form-input-error.acme-inline-field-error
+        .acme-inline-field-error__text,
+      #okta-login-container
+        .okta-form-input-error.acme-inline-field-error
+        .acme-inline-field-error__text,
+      #okta-login-container
+        .acme-inline-field-error
+        .acme-inline-field-error__text {
+        color: var(--acme-critical-text, #8f352b) !important;
+        -webkit-text-fill-color: var(--acme-critical-text, #8f352b) !important;
+      }
+
+      #okta-login-container .authenticator-button,
+      #okta-login-container .select-authenticator-authenticate,
+      #okta-login-container .okta-form-subsection,
+      #okta-login-container .siw-enroll-card,
+      #okta-login-container .authenticator-enrollments-list li {
+        border-radius: 1rem !important;
+        border-color: var(--acme-border) !important;
+        background: var(--acme-field-bg) !important;
+      }
+
+      #okta-login-container .authenticator-button,
+      #okta-login-container .okta-form-subsection,
+      #okta-login-container .siw-enroll-card,
+      #okta-login-container .authenticator-enrollments-list li {
+        padding: 0.72rem !important;
+      }
+
+      #okta-login-container .authenticator-enrollments-list li,
+      #okta-login-container .authenticator-list li,
+      #okta-login-container .authenticator-verify-list li {
+        list-style: none !important;
+        display: block !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+        margin: 0 0 0.65rem !important;
+      }
+
+      #okta-login-container .acme-authenticator-item {
+        display: grid !important;
+        grid-template-columns: auto minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        column-gap: 0.9rem !important;
+        row-gap: 0.4rem !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+      }
+
+      #okta-login-container .acme-authenticator-badge {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 2rem !important;
+        height: 2rem !important;
+        border-radius: 0.72rem !important;
+        border: 1px solid var(--acme-border) !important;
+        background: linear-gradient(
+          180deg,
+          var(--acme-surface-strong) 0%,
+          var(--acme-surface-accent) 100%
+        ) !important;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+        color: var(--acme-brand) !important;
+        flex-shrink: 0 !important;
+      }
+
+      #okta-login-container .acme-authenticator-badge svg {
+        width: 0.9rem !important;
+        height: 0.9rem !important;
+        display: block !important;
+      }
+
+      #okta-login-container .acme-authenticator-copy {
+        min-width: 0 !important;
+      }
+
+      #okta-login-container .acme-authenticator-action {
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: max-content !important;
+        justify-self: end !important;
+        align-self: center !important;
+        flex: 0 0 auto !important;
+      }
+
+      #okta-login-container .acme-authenticator-action-wrap {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        width: auto !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+
+      #okta-login-container .select-authenticator-authenticate,
+      #okta-login-container .authenticator-button {
+        display: grid !important;
+        grid-template-columns: minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        column-gap: 0.85rem !important;
+        row-gap: 0.6rem !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 0 !important;
+      }
+
+      #okta-login-container .select-authenticator-authenticate .button,
+      #okta-login-container .authenticator-button .button,
+      #okta-login-container .authenticator-enrollments-list li .button {
+        min-width: 0 !important;
+        min-height: 1.78rem !important;
+        width: auto !important;
+        max-width: max-content !important;
+        align-self: center !important;
+        justify-content: center !important;
+        border-radius: 0.62rem !important;
+        padding: 0.28rem 0.58rem !important;
+        background: var(--acme-brand) !important;
+        color: var(--acme-brand-contrast) !important;
+        border: 0 !important;
+        white-space: nowrap !important;
+        font-size: 0.76rem !important;
+        line-height: 1.1 !important;
+      }
+
+      #okta-login-container .acme-authenticator-action,
+      #okta-login-container input.acme-authenticator-action[type='button'],
+      #okta-login-container input.acme-authenticator-action[type='submit'],
+      #okta-login-container button.acme-authenticator-action {
+        width: auto !important;
+        min-width: 0 !important;
+        max-width: max-content !important;
+        min-height: 1.78rem !important;
+        padding: 0.28rem 0.58rem !important;
+        font-size: 0.76rem !important;
+        border-radius: 0.62rem !important;
+      }
+
+      #okta-login-container .authenticator-enrollments-list li p,
+      #okta-login-container .authenticator-list li p,
+      #okta-login-container .authenticator-verify-list li p,
+      #okta-login-container
+        .authenticator-enrollments-list
+        li
+        [class*='description'],
+      #okta-login-container .authenticator-list li [class*='description'],
+      #okta-login-container
+        .authenticator-verify-list
+        li
+        [class*='description'],
+      #okta-login-container .siw-user-account,
+      #okta-login-container .siw-user-account * {
+        color: var(--acme-muted-text) !important;
+      }
+
+      #okta-login-container .select-authenticator-authenticate > :first-child,
+      #okta-login-container .authenticator-button > :first-child {
+        min-width: 0 !important;
+        max-width: 100% !important;
+        overflow-wrap: anywhere !important;
+      }
+
+      #okta-login-container
+        .select-authenticator-authenticate
+        .select-authenticator-label,
+      #okta-login-container .authenticator-button .select-authenticator-label,
+      #okta-login-container .select-authenticator-authenticate h2,
+      #okta-login-container .select-authenticator-authenticate h3,
+      #okta-login-container .authenticator-button h2,
+      #okta-login-container .authenticator-button h3 {
+        overflow-wrap: anywhere !important;
+        word-break: break-word !important;
+      }
+
+      #okta-login-container .authenticator-enrollments-list,
+      #okta-login-container .authenticator-list,
+      #okta-login-container .authenticator-verify-list,
+      #okta-login-container .authenticator-enrollments-list ul,
+      #okta-login-container .authenticator-list ul,
+      #okta-login-container .authenticator-verify-list ul {
+        display: grid !important;
+        gap: 0.56rem !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #okta-login-container
+        .authenticator-enrollments-list
+        li.acme-authenticator-item,
+      #okta-login-container .authenticator-list li.acme-authenticator-item,
+      #okta-login-container
+        .authenticator-verify-list
+        li.acme-authenticator-item {
+        display: grid !important;
+        grid-template-columns: 2.1rem minmax(0, 1fr) auto !important;
+        align-items: center !important;
+        gap: 0.35rem 0.72rem !important;
+        margin: 0 !important;
+        padding: 0.64rem !important;
+        border: 1px solid var(--acme-border) !important;
+        border-radius: 0.9rem !important;
+        background: var(--acme-field-bg) !important;
+        box-shadow: none !important;
+      }
+
+      #okta-login-container
+        li.acme-authenticator-item
+        > .select-authenticator-authenticate,
+      #okta-login-container li.acme-authenticator-item > .authenticator-button {
+        grid-column: 2 !important;
+        grid-row: 1 !important;
+        display: block !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: transparent !important;
+        box-shadow: none !important;
+      }
+
+      #okta-login-container .acme-authenticator-item .acme-authenticator-badge {
+        grid-column: 1 !important;
+        grid-row: 1 !important;
+        width: 2.1rem !important;
+        height: 2.1rem !important;
+        border-radius: 0.7rem !important;
+      }
+
+      #okta-login-container .acme-authenticator-item .acme-authenticator-copy {
+        grid-column: 2 !important;
+        grid-row: 1 !important;
+        display: grid !important;
+        gap: 0.12rem !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-align: left !important;
+      }
+
+      #okta-login-container
+        .acme-authenticator-item
+        .select-authenticator-label,
+      #okta-login-container .acme-authenticator-item h2,
+      #okta-login-container .acme-authenticator-item h3,
+      #okta-login-container .acme-authenticator-item h4,
+      #okta-login-container .acme-authenticator-item strong {
+        margin: 0 !important;
+        color: var(--acme-text) !important;
+        font-family: var(--acme-font-body) !important;
+        font-size: 0.9rem !important;
+        font-weight: 750 !important;
+        line-height: 1.18 !important;
+        letter-spacing: 0 !important;
+        text-transform: none !important;
+      }
+
+      #okta-login-container .acme-authenticator-item p,
+      #okta-login-container .acme-authenticator-item [class*='description'] {
+        margin: 0 !important;
+        color: var(--acme-muted-text) !important;
+        font-size: 0.78rem !important;
+        line-height: 1.35 !important;
+      }
+
+      #okta-login-container .acme-authenticator-item .acme-authenticator-action,
+      #okta-login-container
+        .acme-authenticator-item
+        .acme-authenticator-action-wrap {
+        grid-column: 3 !important;
+        grid-row: 1 !important;
+        justify-self: end !important;
+        align-self: center !important;
+        width: auto !important;
+      }
+
+      #okta-login-container
+        .acme-authenticator-item
+        .acme-authenticator-action {
+        min-width: 4.7rem !important;
+        max-width: 7rem !important;
+        min-height: 1.92rem !important;
+        border-radius: 0.74rem !important;
+      }
+
+      #okta-login-container .acme-authenticator-native-icon {
+        display: none !important;
+        visibility: hidden !important;
+      }
+
+      #okta-login-container
+        .acme-authenticator-item
+        img:not(.acme-authenticator-badge),
+      #okta-login-container .acme-authenticator-item [class*='factor-icon'],
+      #okta-login-container
+        .acme-authenticator-item
+        [class*='authenticator-icon'],
+      #okta-login-container .acme-authenticator-item [class*='mfa-icon'],
+      #okta-login-container .acme-authenticator-item [data-se*='icon'] {
+        display: none !important;
+        visibility: hidden !important;
+      }
+
+      #okta-login-container .acme-email-code-panel {
+        margin: 0 0 0.9rem !important;
+        padding: 0.82rem !important;
+        border: 1px solid var(--acme-border) !important;
+        border-radius: 0.9rem !important;
+        background: var(--acme-field-bg) !important;
+        color: var(--acme-muted-text) !important;
+        text-align: center !important;
+      }
+
+      #okta-login-container .acme-email-code-panel p {
+        margin: 0 !important;
+        color: var(--acme-muted-text) !important;
+        font-size: 0.86rem !important;
+        line-height: 1.45 !important;
+      }
+
+      #okta-login-container .acme-code-toggle {
+        appearance: none !important;
+        border: 0 !important;
+        background: transparent !important;
+        color: var(--acme-link) !important;
+        display: inline-flex !important;
+        justify-content: center !important;
+        margin-top: 0.5rem !important;
+        padding: 0 !important;
+        font-size: 0.86rem !important;
+        font-weight: 650 !important;
+        line-height: 1.35 !important;
+        text-decoration: none !important;
+        cursor: pointer !important;
+      }
+
+      #okta-login-container .acme-email-code-fallback[hidden],
+      #okta-login-container .acme-email-code-submit[hidden] {
+        display: none !important;
+      }
+
+      #okta-login-container .beacon-container,
+      #okta-login-container .mfa-verify-passcode .beacon-container,
+      #okta-login-container .authenticator-verify-list .beacon-container {
+        display: none !important;
+      }
+
+      #okta-login-container .beacon,
+      #okta-login-container .mfa-verify-passcode .beacon,
+      #okta-login-container .authenticator-verify-list .beacon {
+        display: none !important;
+      }
+
+      #okta-login-container .siw-main-footer .acme-recovery-row {
+        display: inline-flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 0.35rem !important;
+        width: 100% !important;
+        color: var(--acme-muted-text) !important;
+        font-size: 0.92rem !important;
+        font-weight: 600 !important;
+        line-height: 1.45 !important;
+        text-align: center !important;
+      }
+
+      #okta-login-container .siw-main-footer .acme-auth-recovery-link,
+      #okta-login-container .siw-main-footer .acme-auth-unlock-link {
+        appearance: none !important;
+        border: 0 !important;
+        background: transparent !important;
+        color: var(--acme-link) !important;
+        cursor: pointer !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 0.92rem !important;
+        font-weight: 600 !important;
+        line-height: 1.45 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        text-decoration: none !important;
+      }
+
+      #okta-login-container .siw-main-footer .acme-recovery-separator {
+        color: var(--acme-muted-text) !important;
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
+      }
+
+      #okta-login-container .siw-main-footer .acme-registration-row {
+        display: inline-flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        gap: 0.35rem !important;
+        color: var(--acme-text) !important;
+        font-size: 0.98rem !important;
+        font-weight: 600 !important;
+        line-height: 1.5 !important;
+        opacity: 1 !important;
+      }
+
+      #okta-login-container .siw-main-footer .acme-registration-prompt {
+        color: var(--acme-text) !important;
+        font-size: 0.98rem !important;
+        font-weight: 600 !important;
+        opacity: 1 !important;
+      }
+
+      #okta-login-container .siw-main-footer .acme-registration-link {
+        color: var(--acme-link) !important;
+        font-size: 0.98rem !important;
+        font-weight: 700 !important;
+      }
+
+      #okta-login-container .registration-container {
+        display: inline-flex !important;
+        flex-wrap: wrap !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 0.35rem !important;
+        width: 100% !important;
+        color: var(--acme-text) !important;
+        text-align: center !important;
+        font-size: 0.92rem !important;
+        line-height: 1.5 !important;
+      }
+
+      #okta-login-container .registration-container,
+      #okta-login-container .registration-container span,
+      #okta-login-container .registration-container p,
+      #okta-login-container .registration-container div {
+        color: var(--acme-text) !important;
+        font-size: 0.98rem !important;
+        font-weight: 600 !important;
+        opacity: 1 !important;
+      }
+
+      #okta-login-container .registration-container .registration-link,
+      #okta-login-container .registration-container a[href*='signup'] {
+        color: var(--acme-link) !important;
+        font-size: 0.98rem !important;
+        font-weight: 700 !important;
+      }
+
+      #okta-login-container .remember-me,
+      #okta-login-container .custom-checkbox,
+      #okta-login-container [data-se*='remember'],
+      #okta-login-container [data-se='o-form-fieldset-rememberMe'] {
+        width: 100% !important;
+        min-height: 1.2rem !important;
+        padding: 0 !important;
+        color: var(--acme-muted-text) !important;
+        font-size: 0.68rem !important;
+        line-height: 1.2 !important;
+      }
+
+      #okta-login-container [data-se='o-form-fieldset-rememberMe'],
+      #okta-login-container .acme-remember-fieldset {
+        display: block !important;
+        margin: 0.56rem 0 0 !important;
+      }
+
+      #okta-login-container .remember-me,
+      #okta-login-container .custom-checkbox,
+      #okta-login-container .acme-remember-field {
+        order: 3 !important;
+        display: inline-grid !important;
+        grid-template-columns: 1rem minmax(0, max-content) !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        justify-self: start !important;
+        column-gap: 0.8rem !important;
+        row-gap: 0 !important;
+        position: static !important;
+        width: auto !important;
+        max-width: max-content !important;
+        min-height: 1.15rem !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #okta-login-container input[type='radio'] {
+        -webkit-appearance: none !important;
+        appearance: none !important;
+        position: static !important;
+        display: inline-grid !important;
+        place-items: center !important;
+        flex: 0 0 1rem !important;
+        border: 1px solid var(--acme-border-strong) !important;
+        border-radius: 999px !important;
+        background: var(--acme-field-bg) !important;
+        opacity: 1 !important;
+        transform: none !important;
+        vertical-align: middle !important;
+      }
+
+      #okta-login-container input[type='checkbox'],
+      #okta-login-container input[type='radio'] {
+        width: 1rem !important;
+        height: 1rem !important;
+        min-width: 1rem !important;
+        min-height: 1rem !important;
+        max-width: 1rem !important;
+        max-height: 1rem !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border-radius: 0.16rem !important;
+        box-shadow: none !important;
+      }
+
+      #okta-login-container input[type='radio']::after {
+        content: '' !important;
+        display: block !important;
+        width: 0.42rem !important;
+        height: 0.42rem !important;
+        border-radius: 999px !important;
+        background: var(--acme-brand) !important;
+        transform: scale(0) !important;
+        transition: transform 120ms ease !important;
+      }
+
+      #okta-login-container input[type='radio']:checked {
+        border-color: var(--acme-brand) !important;
+        border-radius: 999px !important;
+      }
+
+      #okta-login-container input[type='radio']:checked::after {
+        transform: scale(1) !important;
+      }
+
+      #okta-login-container input[type='radio'],
+      #okta-login-container .acme-radio-option input[type='radio'] {
+        border-radius: 999px !important;
+      }
+
+      #okta-login-container .acme-radio-fieldset,
+      #okta-login-container .acme-radio-group {
+        display: grid !important;
+        gap: 0.45rem !important;
+        align-items: start !important;
+        width: 100% !important;
+      }
+
+      #okta-login-container .acme-radio-option {
+        display: inline-grid !important;
+        grid-template-columns: 1rem minmax(0, 1fr) !important;
+        align-items: center !important;
+        column-gap: 0.56rem !important;
+        width: fit-content !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+
+      #okta-login-container .acme-radio-option-label {
+        display: inline-flex !important;
+        align-items: center !important;
+        min-height: 1rem !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: var(--acme-text) !important;
+        font-size: 0.74rem !important;
+        font-weight: 700 !important;
+        line-height: 1.25 !important;
+        letter-spacing: 0.08em !important;
+        text-transform: uppercase !important;
+      }
+
+      #okta-login-container .acme-radio-option-label::before,
+      #okta-login-container .acme-radio-option-label::after {
+        display: none !important;
+        content: none !important;
+      }
+
+      #okta-login-container .remember-me input[type='checkbox'],
+      #okta-login-container .custom-checkbox input[type='checkbox'],
+      #okta-login-container
+        [data-se='o-form-fieldset-rememberMe']
+        input[type='checkbox'],
+      #okta-login-container .acme-remember-field input[type='checkbox'] {
+        grid-column: 1 !important;
+        justify-self: start !important;
+        align-self: center !important;
+        position: relative !important;
+        inset: auto !important;
+        top: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        left: auto !important;
+        z-index: 2 !important;
+        display: inline-block !important;
+        width: 1rem !important;
+        height: 1rem !important;
+        opacity: 1 !important;
+        border: 1px solid var(--acme-border-strong) !important;
+        border-radius: 0.18rem !important;
+        background: var(--acme-field-bg) !important;
+        -webkit-appearance: none !important;
+        appearance: none !important;
+        clip: auto !important;
+        clip-path: none !important;
+        float: none !important;
+        transform: none !important;
+        vertical-align: middle !important;
+        cursor: pointer !important;
+      }
+
+      #okta-login-container .remember-me input[type='checkbox']::after,
+      #okta-login-container .custom-checkbox input[type='checkbox']::after,
+      #okta-login-container
+        [data-se='o-form-fieldset-rememberMe']
+        input[type='checkbox']::after,
+      #okta-login-container .acme-remember-field input[type='checkbox']::after {
+        content: '' !important;
+        position: absolute !important;
+        display: none !important;
+        width: 0.32rem !important;
+        height: 0.56rem !important;
+        left: 0.31rem !important;
+        top: 0.12rem !important;
+        border: solid var(--acme-brand-contrast) !important;
+        border-width: 0 0.12rem 0.12rem 0 !important;
+        transform: rotate(42deg) !important;
+      }
+
+      #okta-login-container .remember-me input[type='checkbox']:checked,
+      #okta-login-container .custom-checkbox input[type='checkbox']:checked,
+      #okta-login-container
+        [data-se='o-form-fieldset-rememberMe']
+        input[type='checkbox']:checked,
+      #okta-login-container
+        .acme-remember-field
+        input[type='checkbox']:checked {
+        border-color: var(--acme-brand) !important;
+        background: var(--acme-brand) !important;
+      }
+
+      #okta-login-container .remember-me input[type='checkbox']:checked::after,
+      #okta-login-container
+        .custom-checkbox
+        input[type='checkbox']:checked::after,
+      #okta-login-container
+        [data-se='o-form-fieldset-rememberMe']
+        input[type='checkbox']:checked::after,
+      #okta-login-container
+        .acme-remember-field
+        input[type='checkbox']:checked::after {
+        display: block !important;
+      }
+
+      #okta-login-container .remember-me label,
+      #okta-login-container .custom-checkbox label,
+      #okta-login-container [data-se*='remember'] label,
+      #okta-login-container [data-se='o-form-fieldset-rememberMe'] label,
+      #okta-login-container .acme-remember-field label {
+        grid-column: 2 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        position: static !important;
+        inset: auto !important;
+        top: auto !important;
+        right: auto !important;
+        bottom: auto !important;
+        left: auto !important;
+        min-height: 0 !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        color: var(--acme-muted-text) !important;
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+        line-height: 1.2 !important;
+        letter-spacing: 0.04em !important;
+        text-transform: uppercase !important;
+        white-space: nowrap !important;
+        transform: none !important;
+        pointer-events: auto !important;
+        overflow: visible !important;
+      }
+
+      #okta-login-container .acme-remember-field .acme-remember-label-text {
+        display: inline-block !important;
+        min-width: max-content !important;
+        color: var(--acme-muted-text) !important;
+        font-size: inherit !important;
+        font-weight: inherit !important;
+        line-height: inherit !important;
+        letter-spacing: inherit !important;
+        text-transform: inherit !important;
+        white-space: nowrap !important;
+      }
+
+      #okta-login-container .remember-me label::before,
+      #okta-login-container .custom-checkbox label::before,
+      #okta-login-container
+        [data-se='o-form-fieldset-rememberMe']
+        label::before,
+      #okta-login-container .acme-remember-field label::before {
+        display: none !important;
+        content: none !important;
+      }
+
+      #okta-login-container .remember-me label::after,
+      #okta-login-container .custom-checkbox label::after,
+      #okta-login-container [data-se='o-form-fieldset-rememberMe'] label::after,
+      #okta-login-container .acme-remember-field label::after {
+        display: none !important;
+        content: none !important;
+      }
+
+      #okta-login-container .acme-remember-field--checked label::before {
+        display: none !important;
+        content: none !important;
+      }
+
+      #okta-login-container .acme-remember-field--checked label::after {
+        display: none !important;
+        content: none !important;
+      }
+
+      #okta-login-container [data-se='o-form-fieldset-rememberMe'],
+      #okta-login-container .remember-me,
+      #okta-login-container .custom-checkbox:has(input[name='rememberMe']),
+      #okta-login-container .acme-remember-field,
+      #okta-login-container .acme-remember-fieldset,
+      #okta-login-container .acme-remember-field--hidden {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+      }
+
+      body:not([data-acme-auth-state='signIn'])
+        #okta-login-container
+        [data-se='o-form-fieldset-rememberMe'],
+      body:not([data-acme-auth-state='signIn'])
+        #okta-login-container
+        .acme-remember-fieldset,
+      body:not([data-acme-auth-state='signIn'])
+        #okta-login-container
+        .acme-remember-field {
+        display: none !important;
+      }
+
+      #okta-login-container
+        .acme-remember-field
+        input[type='checkbox']:focus-visible {
+        box-shadow: 0 0 0 3px var(--acme-ring-soft) !important;
+        outline: 1px solid var(--acme-focus) !important;
+      }
+
+      body[data-acme-auth-state='signIn']
+        #okta-login-container
+        .o-form-button-bar,
+      body[data-acme-auth-state='signIn'] #okta-login-container .button-bar {
+        margin-top: 0.58rem !important;
+      }
+
+      #okta-login-container .acme-auth-hints {
+        margin: 0.85rem 0 0 !important;
+        display: grid !important;
+        gap: 0.55rem !important;
+      }
+
+      #okta-login-container .acme-auth-hint {
+        padding: 0.7rem 0.78rem !important;
+        border: 1px solid var(--acme-border) !important;
+        border-radius: 0.95rem !important;
+        background: var(--acme-guidance-bg) !important;
+        text-align: left !important;
+      }
+
+      #okta-login-container .acme-auth-hint__title {
+        margin: 0 !important;
+        color: var(--acme-text) !important;
+        font-size: 0.84rem !important;
+        font-weight: 700 !important;
+        line-height: 1.35 !important;
+      }
+
+      #okta-login-container .acme-auth-hint__body {
+        margin: 0.18rem 0 0 !important;
+        color: var(--acme-muted-text) !important;
+        font-size: 0.82rem !important;
+        line-height: 1.45 !important;
+      }
+
+      .acme-auth-copyright {
+        margin: 0.15rem 0 0;
+        text-align: center;
+        color: var(--acme-muted-text);
+        font-size: 0.82rem;
+        line-height: 1.55;
+      }
+
+      .acme-auth-support a {
+        color: var(--acme-link);
+        font-weight: 600;
+        text-decoration: none;
+      }
+
+      .acme-auth-support a:hover {
+        text-decoration: underline;
+      }
+
+      .acme-auth-support a:focus-visible {
+        outline: 2px solid var(--acme-focus);
+        outline-offset: 3px;
+        border-radius: 0.25rem;
+      }
+
+      @media (max-width: 640px) {
+        .acme-auth-shell {
+          max-width: 100%;
+          padding: 1.35rem 0.9rem 1.15rem;
+        }
+
+        .acme-brand-header__inner {
+          padding: 0.85rem 1rem;
+          flex-wrap: wrap;
+          align-items: flex-start;
+        }
+
+        .acme-brand-header__title {
+          font-size: 1.3rem;
+        }
+
+        .acme-brand-header__lockup {
+          width: 100%;
+        }
+
+        .acme-auth-title {
+          font-size: 1.55rem;
+        }
+
+        .acme-auth-guidance {
+          margin: 0.7rem 0 0.95rem;
+          padding: 0.68rem 0.84rem;
+          font-size: 0.88rem;
+        }
+
+        #okta-login-container #okta-sign-in,
+        #okta-login-container .auth-container {
+          border-radius: 1.45rem;
+        }
+
+        #okta-login-container .auth-content {
+          padding: 1rem 0.95rem 0 !important;
+        }
+
+        #okta-login-container .siw-main-footer {
+          padding: 0 0.95rem 1rem !important;
+        }
+
+        #okta-login-container .okta-form-title,
+        #okta-login-container h2,
+        #okta-login-container h3 {
+          font-size: 1.24rem !important;
+        }
+
+        #okta-login-container .button-primary,
+        #okta-login-container .button.button-primary,
+        #okta-login-container input[type='submit'] {
+          width: 100% !important;
+          min-width: 0 !important;
+        }
+
+        .acme-auth-support {
+          flex-direction: column;
+          gap: 0.25rem;
+        }
+
+        .acme-auth-support__divider {
+          display: none;
+        }
+
+        #okta-login-container .select-authenticator-authenticate,
+        #okta-login-container .authenticator-button {
+          grid-template-columns: minmax(0, 1fr) auto !important;
+          gap: 0.7rem !important;
+          padding: 0.75rem !important;
+        }
+
+        #okta-login-container .select-authenticator-authenticate .button,
+        #okta-login-container .authenticator-button .button,
+        #okta-login-container .authenticator-enrollments-list li .button {
+          width: auto !important;
+          min-width: 4.55rem !important;
+        }
+
+        #okta-login-container .acme-authenticator-item {
+          column-gap: 0.75rem !important;
+        }
+
+        #okta-login-container .acme-authenticator-badge {
+          width: 2.2rem !important;
+          height: 2.2rem !important;
+          border-radius: 0.76rem !important;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="login-bg-image-id" class="login-bg-image tb--background"></div>
+    <!-- %%BRAND_HEADER_MARKUP%% -->
+    <main class="acme-auth-shell">
+      <div class="acme-auth-intro">
+        <p class="acme-auth-eyebrow" id="acme-auth-eyebrow">
+          %%PRODUCT_LABEL%%
+        </p>
+        <h1 class="acme-auth-title" id="acme-auth-title"></h1>
+        <p class="acme-auth-subtitle" id="acme-auth-subtitle"></p>
+      </div>
+      <div
+        class="acme-auth-guidance"
+        id="acme-auth-guidance"
+        aria-live="polite"
+      ></div>
+      <div id="okta-login-container"></div>
+      <!-- %%SUPPORT_FOOTER_MARKUP%% -->
+    </main>
+
+    <!-- %%THEME_CONTROLLER_SCRIPT%% -->
+    {{{OktaUtil}}}
+
+    <script type="text/javascript" nonce="{{nonceValue}}">
+      var copy = JSON.parse('%%TITLE_COPY_JSON%%');
+      var stateCopy = {
+        signIn: {
+          eyebrow: 'Customer sign in',
+          title: copy.signInTitle,
+          subtitle: copy.signInSubtitle,
+          guidance:
+            'Use the same secure account for application progress, disclosures, and funding updates.',
+        },
+        signUp: {
+          eyebrow: 'Account setup',
+          title: copy.signUpTitle,
+          subtitle: copy.signUpSubtitle,
+          guidance:
+            'Registration includes contact verification and the security steps you will use later.',
+        },
+        enroll: {
+          eyebrow: 'Security setup',
+          title: 'Set up your verification methods',
+          subtitle:
+            'Choose the verification methods that will protect future sign-in, account changes, and funding actions.',
+          guidance:
+            'A few minutes here makes later sign-in and funding confirmation much smoother.',
+        },
+        verify: {
+          eyebrow: 'Security verification',
+          title: 'Verify your identity',
+          subtitle:
+            'Complete the next security check so we can protect the account and keep the application moving.',
+          guidance:
+            'We only ask for the next proof step needed for this session.',
+        },
+        recovery: {
+          eyebrow: 'Account recovery',
+          title: 'Recover secure access',
+          subtitle:
+            'We will confirm it is really you before password reset or account recovery can continue.',
+          guidance:
+            'Recovery checks help protect the account before access is restored.',
+        },
+        password: {
+          eyebrow: 'Password update',
+          title: 'Create a new password',
+          subtitle:
+            'Choose a strong password so your future sign-in stays protected.',
+          guidance: 'Use a password you do not reuse anywhere else.',
+        },
+      };
+
+      function getRequestUrl() {
+        return new URL(window.location.href);
+      }
+
+      function normalizeRecoveryFlow(flow) {
+        return flow === 'resetPassword' || flow === 'unlockAccount'
+          ? flow
+          : null;
+      }
+
+      function getRecoveryFlowHash(flow) {
+        return flow === 'unlockAccount' ? '#unlock-account' : '#reset-password';
+      }
+
+      function getRecoveryFlowFromHash() {
+        var hash = (window.location.hash || '').replace(/^#/, '').toLowerCase();
+        if (hash === 'reset-password' || hash === 'forgot-password') {
+          return 'resetPassword';
+        }
+        if (hash === 'unlock-account') {
+          return 'unlockAccount';
+        }
+        return null;
+      }
+
+      function setRecoveryFlowHash(flow, replace) {
+        var nextHash = getRecoveryFlowHash(flow);
+        if (window.location.hash === nextHash) {
+          return;
+        }
+
+        if (
+          window.history &&
+          window.history[replace ? 'replaceState' : 'pushState']
+        ) {
+          window.history[replace ? 'replaceState' : 'pushState'](
+            { acmeOktaFlow: flow },
+            '',
+            nextHash,
+          );
+          return;
+        }
+
+        window.location.hash = nextHash;
+      }
+
+      function routeToHostedRecoveryFlow(event, flow, options) {
+        var nextFlow = normalizeRecoveryFlow(flow);
+        if (!nextFlow) {
+          return;
+        }
+
+        if (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (typeof event.stopImmediatePropagation === 'function') {
+            event.stopImmediatePropagation();
+          }
+        }
+
+        setRecoveryFlowHash(nextFlow, Boolean(options && options.replace));
+        renderOktaWidget(nextFlow);
+      }
+
+      function activateForgotPasswordExperience(event) {
+        routeToHostedRecoveryFlow(event, 'resetPassword');
+      }
+
+      function activateUnlockAccountExperience(event) {
+        routeToHostedRecoveryFlow(event, 'unlockAccount');
+      }
+
+      function isSignupFlow() {
+        return getRequestUrl().searchParams.get('screen_hint') === 'signup';
+      }
+
+      function isRecoveryFlowRequest() {
+        return Boolean(getRecoveryFlowFromHash());
+      }
+
+      function normalizeText(value) {
+        return (value || '').replace(/\\s+/g, ' ').trim().toLowerCase();
+      }
+
+      function getWidgetHeadingText() {
+        var heading = document.querySelector(
+          '#okta-login-container .okta-form-title, #okta-login-container .siw-main-header h2, #okta-login-container .siw-main-header h3, #okta-login-container h2, #okta-login-container h3',
+        );
+
+        return heading ? heading.textContent.trim() : '';
+      }
+
+      function deriveExperienceState() {
+        var widgetHeading = getWidgetHeadingText();
+        var normalizedHeading = normalizeText(widgetHeading);
+
+        if (
+          normalizedHeading.indexOf('reset password') !== -1 ||
+          normalizedHeading.indexOf('set password') !== -1 ||
+          normalizedHeading.indexOf('create password') !== -1
+        ) {
+          return { key: 'password', widgetHeading: widgetHeading };
+        }
+
+        if (
+          normalizedHeading.indexOf('unlock account') !== -1 ||
+          normalizedHeading.indexOf('recover') !== -1 ||
+          normalizedHeading.indexOf('forgot password') !== -1 ||
+          isRecoveryFlowRequest()
+        ) {
+          return { key: 'recovery', widgetHeading: widgetHeading };
+        }
+
+        if (
+          normalizedHeading.indexOf('select authenticator') !== -1 ||
+          normalizedHeading.indexOf('enroll authenticator') !== -1 ||
+          normalizedHeading.indexOf('set up') !== -1 ||
+          normalizedHeading.indexOf('security method') !== -1
+        ) {
+          return {
+            key:
+              normalizedHeading.indexOf('verify') !== -1 ? 'verify' : 'enroll',
+            widgetHeading: widgetHeading,
+          };
+        }
+
+        if (
+          normalizedHeading.indexOf('verify') !== -1 ||
+          normalizedHeading.indexOf('challenge') !== -1 ||
+          normalizedHeading.indexOf('passcode') !== -1 ||
+          normalizedHeading.indexOf('enter code') !== -1 ||
+          normalizedHeading.indexOf('push') !== -1 ||
+          normalizedHeading.indexOf('approve') !== -1
+        ) {
+          return { key: 'verify', widgetHeading: widgetHeading };
+        }
+
+        if (
+          normalizedHeading.indexOf('create account') !== -1 ||
+          normalizedHeading.indexOf('sign up') !== -1 ||
+          normalizedHeading.indexOf('register') !== -1
+        ) {
+          return { key: 'signUp', widgetHeading: widgetHeading };
+        }
+
+        if (isSignupFlow()) {
+          return { key: 'signUp', widgetHeading: widgetHeading };
+        }
+
+        return { key: 'signIn', widgetHeading: widgetHeading };
+      }
+
+      function resolveStateCopy() {
+        var state = deriveExperienceState();
+        var nextCopy = stateCopy[state.key] || stateCopy.signIn;
+        var nextTitle = nextCopy.title;
+
+        if (
+          state.widgetHeading &&
+          ['enroll', 'verify', 'recovery', 'password'].indexOf(state.key) !== -1
+        ) {
+          nextTitle = state.widgetHeading;
+        }
+
+        return {
+          key: state.key,
+          eyebrow: nextCopy.eyebrow,
+          title: nextTitle,
+          subtitle: nextCopy.subtitle,
+          guidance: nextCopy.guidance,
+        };
+      }
+
+      function updateExperienceCopy() {
+        var nextCopy = resolveStateCopy();
+        var eyebrow = document.getElementById('acme-auth-eyebrow');
+        var title = document.getElementById('acme-auth-title');
+        var subtitle = document.getElementById('acme-auth-subtitle');
+        var guidance = document.getElementById('acme-auth-guidance');
+
+        if (eyebrow) {
+          eyebrow.textContent = nextCopy.eyebrow;
+        }
+
+        if (title) {
+          title.textContent = nextCopy.title;
+        }
+
+        if (subtitle) {
+          subtitle.textContent = nextCopy.subtitle;
+        }
+
+        if (guidance) {
+          guidance.textContent = nextCopy.guidance || '';
+        }
+
+        document.body.setAttribute('data-acme-auth-state', nextCopy.key);
+      }
+
+      function getAuthenticatorTypeFromText(text) {
+        var normalized = normalizeText(text);
+        if (normalized.indexOf('password') !== -1) {
+          return 'password';
+        }
+        if (normalized.indexOf('email') !== -1) {
+          return 'email';
+        }
+        if (
+          normalized.indexOf('phone') !== -1 ||
+          normalized.indexOf('sms') !== -1
+        ) {
+          return 'phone';
+        }
+        return 'generic';
+      }
+
+      function getAuthenticatorGlyphMarkup(type) {
+        if (type === 'password') {
+          return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 10V8a5 5 0 0 1 10 0v2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><rect x="5" y="10" width="14" height="10" rx="3" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M12 13.75v2.5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>';
+        }
+        if (type === 'email') {
+          return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="6.5" width="16" height="11" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="m5.5 8 6.5 5 6.5-5" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+        }
+        if (type === 'phone') {
+          return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="7.25" y="3.5" width="9.5" height="17" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="M10 6.5h4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/><circle cx="12" cy="17.25" r="0.9" fill="currentColor"/></svg>';
+        }
+        return '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 4.5 6 7.25v4.1c0 3.55 2.48 6.85 6 7.65 3.52-.8 6-4.1 6-7.65v-4.1L12 4.5Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="m9.5 12 1.7 1.7 3.3-3.45" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      }
+
+      function enhanceAuthenticatorOptions() {
+        var items = document.querySelectorAll(
+          '#okta-login-container .authenticator-enrollments-list li, #okta-login-container .authenticator-list li, #okta-login-container .authenticator-verify-list li',
+        );
+
+        Array.prototype.forEach.call(items, function (item) {
+          var type = getAuthenticatorTypeFromText(item.textContent || '');
+
+          item.classList.add('acme-authenticator-item');
+          item.setAttribute('data-acme-authenticator', type);
+
+          var action = item.querySelector(
+            '.button, button, input[type="button"], input[type="submit"]',
+          );
+          if (action) {
+            action.classList.add('acme-authenticator-action');
+            if (
+              action.parentElement &&
+              action.parentElement !== item &&
+              action.tagName &&
+              action.tagName.toLowerCase() !== 'input'
+            ) {
+              item.appendChild(action);
+            } else if (action.parentElement && action.parentElement !== item) {
+              action.parentElement.classList.add(
+                'acme-authenticator-action-wrap',
+              );
+            }
+          }
+
+          var copyContainer =
+            item.querySelector(
+              '.select-authenticator-authenticate > :first-child, .authenticator-button > :first-child',
+            ) ||
+            item.querySelector('.select-authenticator-label') ||
+            item.querySelector('h2, h3, h4, strong') ||
+            item.firstElementChild;
+
+          if (copyContainer && copyContainer.nodeType === 1) {
+            copyContainer.classList.add('acme-authenticator-copy');
+          }
+
+          var badge = item.querySelector('.acme-authenticator-badge');
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'acme-authenticator-badge';
+            badge.innerHTML = getAuthenticatorGlyphMarkup(type);
+            item.insertBefore(badge, item.firstChild);
+          } else {
+            badge.innerHTML = getAuthenticatorGlyphMarkup(type);
+          }
+
+          Array.prototype.forEach.call(
+            item.querySelectorAll(
+              'img, [class*="factor-icon"], [class*="authenticator-icon"], [class*="mfa-icon"], [data-se*="icon"]',
+            ),
+            function (node) {
+              if (!badge.contains(node) && node !== badge) {
+                node.classList.add('acme-authenticator-native-icon');
+              }
+            },
+          );
+        });
+      }
+
+      function enhanceRadioOptions() {
+        var radios = Array.prototype.slice.call(
+          document.querySelectorAll(
+            '#okta-login-container input[type="radio"]',
+          ),
+        );
+
+        radios.forEach(function (radio) {
+          var label = getLabelForControl(radio);
+          var fieldset =
+            radio.closest(
+              '.o-form-fieldset, .okta-form-fieldset, .form-fieldset, [data-se^="o-form-fieldset"]',
+            ) || radio.parentElement;
+          var option = radio.closest('.acme-radio-option');
+
+          if (fieldset) {
+            fieldset.classList.add('acme-radio-fieldset');
+          }
+
+          if (!option) {
+            option = document.createElement('div');
+            option.className = 'acme-radio-option';
+            radio.parentNode.insertBefore(option, radio);
+            option.appendChild(radio);
+          }
+
+          if (label) {
+            label.classList.add('acme-radio-option-label');
+            if (label.parentElement !== option) {
+              option.appendChild(label);
+            }
+          }
+
+          var group =
+            option.parentElement &&
+            option.parentElement !== fieldset &&
+            option.parentElement.querySelectorAll('input[type="radio"]')
+              .length > 1
+              ? option.parentElement
+              : null;
+          if (group) {
+            group.classList.add('acme-radio-group');
+          }
+        });
+      }
+
+      function setElementHidden(element, hidden) {
+        if (!element) {
+          return;
+        }
+
+        if (hidden) {
+          element.setAttribute('hidden', 'hidden');
+          element.setAttribute('aria-hidden', 'true');
+          element.style.setProperty('display', 'none', 'important');
+          return;
+        }
+
+        element.removeAttribute('hidden');
+        element.removeAttribute('aria-hidden');
+        element.style.removeProperty('display');
+      }
+
+      function enhanceEmailCodeFallback() {
+        var container = document.querySelector('#okta-login-container');
+        if (!container) {
+          return;
+        }
+
+        var text = normalizeText(container.textContent || '');
+        var hasEmailLinkChoice =
+          text.indexOf('verification link') !== -1 &&
+          text.indexOf('enter') !== -1 &&
+          text.indexOf('code') !== -1 &&
+          text.indexOf('instead') !== -1;
+
+        if (!hasEmailLinkChoice) {
+          document.body.removeAttribute('data-acme-email-code-entry');
+          return;
+        }
+
+        Array.prototype.forEach.call(
+          container.querySelectorAll('a, button'),
+          function (action) {
+            var actionText = normalizeText(action.textContent || '');
+            var isManualCodeToggle =
+              actionText.indexOf('enter') !== -1 &&
+              actionText.indexOf('code') !== -1 &&
+              actionText.indexOf('instead') !== -1;
+            var isResendAction =
+              actionText.indexOf('resend') !== -1 ||
+              actionText.indexOf('send again') !== -1 ||
+              actionText.indexOf('send new') !== -1 ||
+              actionText.indexOf('new code') !== -1 ||
+              actionText.indexOf('another code') !== -1;
+
+            if (!isManualCodeToggle && !isResendAction) {
+              return;
+            }
+
+            action.classList.add('acme-code-toggle');
+            if (isManualCodeToggle) {
+              setElementHidden(action, true);
+              return;
+            }
+
+            action.textContent = 'Did not receive a code? Get a new one';
+            setElementHidden(action, false);
+          },
+        );
+
+        var panelCandidates = Array.prototype.slice
+          .call(container.querySelectorAll('div, section, p'))
+          .filter(function (candidate) {
+            var candidateText = normalizeText(candidate.textContent || '');
+            return (
+              candidateText.indexOf('we sent an email') !== -1 &&
+              candidateText.indexOf('verification link') !== -1 &&
+              candidate.querySelector('.acme-code-toggle, a, button')
+            );
+          });
+        panelCandidates.forEach(function (candidate) {
+          candidate.classList.remove('acme-email-code-panel');
+        });
+        panelCandidates.forEach(function (candidate) {
+          var hasMatchingDescendant = panelCandidates.some(function (other) {
+            return other !== candidate && candidate.contains(other);
+          });
+          if (!hasMatchingDescendant) {
+            candidate.classList.add('acme-email-code-panel');
+          }
+        });
+
+        Array.prototype.forEach.call(
+          container.querySelectorAll(
+            '.o-form-fieldset, .okta-form-fieldset, .form-fieldset, [data-se^="o-form-fieldset"]',
+          ),
+          function (fieldset) {
+            var fieldText = normalizeText(fieldset.textContent || '');
+            var hasCodeInput = Boolean(
+              fieldset.querySelector(
+                'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"])',
+              ),
+            );
+            var isCodeField =
+              hasCodeInput &&
+              (fieldText.indexOf('enter code') !== -1 ||
+                fieldText.indexOf('verification code') !== -1);
+
+            if (!isCodeField) {
+              return;
+            }
+
+            fieldset.classList.add('acme-email-code-fallback');
+            setElementHidden(fieldset, false);
+          },
+        );
+
+        Array.prototype.forEach.call(
+          container.querySelectorAll('.o-form-button-bar, .button-bar'),
+          function (buttonBar) {
+            var buttonText = normalizeText(buttonBar.textContent || '');
+            var hasVerifyButton =
+              buttonText === 'verify' ||
+              Boolean(
+                buttonBar.querySelector(
+                  'input[type="submit"][value*="Verify"], input[type="button"][value*="Verify"]',
+                ),
+              );
+            if (!hasVerifyButton) {
+              return;
+            }
+
+            buttonBar.classList.add('acme-email-code-submit');
+            setElementHidden(buttonBar, false);
+          },
+        );
+      }
+
+      function enhanceRecoveryHints() {
+        var currentState = resolveStateCopy().key;
+        var container = document.querySelector(
+          '#okta-login-container .siw-main-body, #okta-login-container .auth-content-inner, #okta-login-container form',
+        );
+        if (!container) {
+          return;
+        }
+
+        var existingHints = container.querySelector('.acme-auth-hints');
+        if (currentState !== 'recovery' && currentState !== 'password') {
+          if (existingHints) {
+            existingHints.remove();
+          }
+          return;
+        }
+
+        if (!existingHints) {
+          existingHints = document.createElement('div');
+          existingHints.className = 'acme-auth-hints';
+          existingHints.setAttribute('aria-label', 'Account recovery help');
+          container.appendChild(existingHints);
+        }
+
+        existingHints.innerHTML = [
+          '<section class="acme-auth-hint"><p class="acme-auth-hint__title">Reset your password</p><p class="acme-auth-hint__body">Enter the email used for this application, then complete the verification step Okta shows next.</p></section>',
+        ].join('');
+      }
+
+      function enhanceIdentifierContrast() {
+        var candidates = document.querySelectorAll(
+          '#okta-login-container p, #okta-login-container span, #okta-login-container strong, #okta-login-container b, #okta-login-container div',
+        );
+
+        Array.prototype.forEach.call(candidates, function (candidate) {
+          var value = candidate.textContent || '';
+          if (value.indexOf('@') === -1) {
+            return;
+          }
+
+          var descendantContainsIdentifier = Array.prototype.some.call(
+            candidate.children || [],
+            function (child) {
+              return (child.textContent || '').indexOf('@') !== -1;
+            },
+          );
+
+          if (!descendantContainsIdentifier) {
+            candidate.classList.add('acme-identifier-contrast');
+          }
+        });
+      }
+
+      function isLikelyFieldErrorIcon(node) {
+        if (!node || node.nodeType !== 1) {
+          return false;
+        }
+
+        var className =
+          typeof node.className === 'string'
+            ? node.className
+            : String(node.className || '');
+        var text = normalizeText(node.textContent || '');
+        return (
+          (text.length === 0 || text === '!' || text.length <= 2) &&
+          /(?:^|\s)(?:error|icon)(?:\s|$)|(?:^|\s)acme-inline-field-error__icon(?:\s|$)|error-16|icon-16/i.test(
+            className,
+          )
+        );
+      }
+
+      function isLikelyFieldErrorText(node) {
+        if (!node || node.nodeType !== 1) {
+          return false;
+        }
+
+        var text = normalizeText(node.textContent || '');
+        return (
+          text.indexOf('cannot be left blank') !== -1 ||
+          text.indexOf('required') !== -1 ||
+          text.indexOf('invalid') !== -1 ||
+          text.indexOf('does not match') !== -1 ||
+          text.indexOf('must match') !== -1
+        );
+      }
+
+      function prepareInlineFieldError(errorNode) {
+        if (!errorNode || errorNode.nodeType !== 1) {
+          return;
+        }
+
+        errorNode.classList.add('acme-inline-field-error');
+
+        Array.prototype.slice
+          .call(errorNode.childNodes)
+          .forEach(function (child) {
+            if (child.nodeType !== Node.TEXT_NODE) {
+              return;
+            }
+
+            var text = child.textContent || '';
+            if (text.trim().length === 0) {
+              child.remove();
+              return;
+            }
+
+            var textNode = document.createElement('span');
+            textNode.className = 'acme-inline-field-error__text';
+            textNode.textContent = text.trim();
+            errorNode.insertBefore(textNode, child);
+            child.remove();
+          });
+
+        var children = Array.prototype.slice.call(errorNode.children || []);
+        var icon =
+          children.find(isLikelyFieldErrorIcon) ||
+          errorNode.querySelector(
+            '.error-16-small, .error-16, .icon-16, [class*="error-16"], [class*="icon-16"]',
+          );
+
+        if (icon) {
+          icon.classList.add('acme-inline-field-error__icon');
+        }
+
+        children.forEach(function (child) {
+          if (child !== icon && normalizeText(child.textContent || '')) {
+            child.classList.add('acme-inline-field-error__text');
+          }
+        });
+      }
+
+      function enhanceInputErrors() {
+        var errorNodes = Array.prototype.slice.call(
+          document.querySelectorAll(
+            '#okta-login-container .o-form-input-error, #okta-login-container .okta-form-input-error, #okta-login-container [data-se="o-form-input-error"]',
+          ),
+        );
+
+        errorNodes.forEach(function (errorNode) {
+          if (
+            errorNode.closest('.acme-inline-field-error') &&
+            !errorNode.classList.contains('acme-inline-field-error')
+          ) {
+            return;
+          }
+
+          var wrapper = null;
+          var next = errorNode.nextElementSibling;
+          var previous = errorNode.previousElementSibling;
+
+          if (
+            isLikelyFieldErrorIcon(errorNode) &&
+            next &&
+            isLikelyFieldErrorText(next)
+          ) {
+            wrapper = document.createElement('div');
+            wrapper.className = 'acme-inline-field-error';
+            errorNode.parentNode.insertBefore(wrapper, errorNode);
+            wrapper.appendChild(errorNode);
+            wrapper.appendChild(next);
+            prepareInlineFieldError(wrapper);
+            return;
+          }
+
+          if (
+            isLikelyFieldErrorText(errorNode) &&
+            previous &&
+            isLikelyFieldErrorIcon(previous)
+          ) {
+            wrapper = document.createElement('div');
+            wrapper.className = 'acme-inline-field-error';
+            previous.parentNode.insertBefore(wrapper, previous);
+            wrapper.appendChild(previous);
+            wrapper.appendChild(errorNode);
+            prepareInlineFieldError(wrapper);
+            return;
+          }
+
+          prepareInlineFieldError(errorNode);
+        });
+      }
+
+      function escapeCssIdentifier(value) {
+        if (window.CSS && typeof window.CSS.escape === 'function') {
+          return window.CSS.escape(value);
+        }
+
+        return String(value || '').replace(/["\\]/g, '\\$&');
+      }
+
+      function getLabelForControl(control) {
+        if (!control) {
+          return null;
+        }
+
+        if (control.id) {
+          var explicitLabel = document.querySelector(
+            'label[for="' + escapeCssIdentifier(control.id) + '"]',
+          );
+          if (explicitLabel) {
+            return explicitLabel;
+          }
+        }
+
+        return control.closest('label');
+      }
+
+      function isPrimaryFormControl(control) {
+        if (!control || control.nodeType !== 1) {
+          return false;
+        }
+
+        var tagName = control.tagName ? control.tagName.toLowerCase() : '';
+        var type = (control.getAttribute('type') || '').toLowerCase();
+        return (
+          tagName === 'select' ||
+          tagName === 'textarea' ||
+          (tagName === 'input' &&
+            type !== 'checkbox' &&
+            type !== 'radio' &&
+            type !== 'hidden')
+        );
+      }
+
+      function isRememberCheckbox(checkbox) {
+        if (!checkbox || checkbox.type !== 'checkbox') {
+          return false;
+        }
+
+        var label = getLabelForControl(checkbox);
+        var labelText = normalizeText(label ? label.textContent : '');
+        var identityText = normalizeText(
+          [
+            checkbox.id,
+            checkbox.name,
+            checkbox.getAttribute('data-se'),
+            checkbox.className,
+          ].join(' '),
+        );
+
+        return (
+          labelText.indexOf('keep me signed') !== -1 ||
+          labelText.indexOf('remember me') !== -1 ||
+          identityText.indexOf('remember') !== -1
+        );
+      }
+
+      function findPrimaryFieldsetForControl(control) {
+        var fieldsetSelector =
+          '.o-form-fieldset, .okta-form-fieldset, .form-fieldset, [data-se^="o-form-fieldset"]';
+        var fieldset = control ? control.closest(fieldsetSelector) : null;
+
+        while (fieldset) {
+          var hasPrimaryControl = Array.prototype.some.call(
+            fieldset.querySelectorAll('input, select, textarea'),
+            function (candidate) {
+              return candidate !== control && isPrimaryFormControl(candidate);
+            },
+          );
+
+          if (hasPrimaryControl) {
+            return fieldset;
+          }
+
+          fieldset = fieldset.parentElement
+            ? fieldset.parentElement.closest(fieldsetSelector)
+            : null;
+        }
+
+        return null;
+      }
+
+      function enhanceRememberMeFields() {
+        var checkboxes = Array.prototype.slice.call(
+          document.querySelectorAll(
+            '#okta-login-container input[type="checkbox"]',
+          ),
+        );
+
+        checkboxes.forEach(function (checkbox) {
+          if (!isRememberCheckbox(checkbox)) {
+            return;
+          }
+
+          var label = getLabelForControl(checkbox);
+          var currentFieldset = findPrimaryFieldsetForControl(checkbox);
+          var fieldsetHasPrimaryControl = Boolean(currentFieldset);
+          var rememberContainer =
+            checkbox.closest(
+              '.acme-remember-field, .remember-me, .custom-checkbox, [data-se="o-form-fieldset-rememberMe"]',
+            ) || checkbox.parentElement;
+
+          if (
+            !rememberContainer ||
+            rememberContainer === currentFieldset ||
+            rememberContainer.querySelector(
+              'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea',
+            )
+          ) {
+            rememberContainer = document.createElement('div');
+            rememberContainer.className = 'acme-remember-field';
+            checkbox.parentNode.insertBefore(rememberContainer, checkbox);
+            rememberContainer.appendChild(checkbox);
+          }
+
+          rememberContainer.classList.add('acme-remember-field');
+          rememberContainer.classList.add('acme-remember-field--hidden');
+          rememberContainer.setAttribute('hidden', 'hidden');
+          rememberContainer.setAttribute('aria-hidden', 'true');
+          rememberContainer.style.setProperty('display', 'none', 'important');
+          rememberContainer.style.setProperty(
+            'visibility',
+            'hidden',
+            'important',
+          );
+          checkbox.checked = false;
+
+          if (label && label.parentElement !== rememberContainer) {
+            rememberContainer.appendChild(label);
+          }
+
+          checkbox.style.setProperty('position', 'relative', 'important');
+          checkbox.style.setProperty('inset', 'auto', 'important');
+          checkbox.style.setProperty('display', 'inline-block', 'important');
+          checkbox.style.setProperty('opacity', '1', 'important');
+          checkbox.style.setProperty('transform', 'none', 'important');
+          checkbox.style.setProperty('clip', 'auto', 'important');
+          checkbox.style.setProperty('clip-path', 'none', 'important');
+          checkbox.style.setProperty('appearance', 'none', 'important');
+
+          if (label) {
+            var rememberLabelText = label.querySelector(
+              '.acme-remember-label-text',
+            );
+            if (!rememberLabelText) {
+              label.textContent = '';
+              rememberLabelText = document.createElement('span');
+              rememberLabelText.className = 'acme-remember-label-text';
+              label.appendChild(rememberLabelText);
+            }
+            rememberLabelText.textContent = 'Keep me signed in';
+            label.setAttribute('aria-label', 'Keep me signed in');
+            label.style.setProperty('position', 'static', 'important');
+            label.style.setProperty('inset', 'auto', 'important');
+            label.style.setProperty('display', 'inline-flex', 'important');
+            label.style.setProperty('transform', 'none', 'important');
+            label.style.setProperty('padding', '0', 'important');
+            label.style.setProperty('margin', '0', 'important');
+          }
+
+          rememberContainer.classList.toggle(
+            'acme-remember-field--checked',
+            checkbox.checked,
+          );
+
+          if (!checkbox.getAttribute('data-acme-remember-bound')) {
+            checkbox.setAttribute('data-acme-remember-bound', 'true');
+            checkbox.addEventListener('change', function () {
+              rememberContainer.classList.toggle(
+                'acme-remember-field--checked',
+                checkbox.checked,
+              );
+            });
+          }
+
+          if (
+            fieldsetHasPrimaryControl &&
+            currentFieldset &&
+            currentFieldset.parentNode &&
+            rememberContainer.parentElement !== currentFieldset.parentNode
+          ) {
+            var insertionPoint = currentFieldset.nextSibling;
+            while (
+              insertionPoint &&
+              ((insertionPoint.nodeType === Node.TEXT_NODE &&
+                normalizeText(insertionPoint.textContent || '') === '') ||
+                (insertionPoint.nodeType === 1 &&
+                  (insertionPoint.classList.contains(
+                    'acme-inline-field-error',
+                  ) ||
+                    insertionPoint.classList.contains('o-form-input-error') ||
+                    insertionPoint.classList.contains(
+                      'okta-form-input-error',
+                    ) ||
+                    insertionPoint.getAttribute('data-se') ===
+                      'o-form-input-error' ||
+                    insertionPoint.getAttribute('data-se') ===
+                      'o-form-input-error-icon')))
+            ) {
+              insertionPoint = insertionPoint.nextSibling;
+            }
+            currentFieldset.parentNode.insertBefore(
+              rememberContainer,
+              insertionPoint,
+            );
+          }
+
+          if (fieldsetHasPrimaryControl && currentFieldset) {
+            currentFieldset.classList.remove('acme-remember-field');
+          }
+        });
+      }
+
+      function removePasswordConfirmationFields(root) {
+        Array.prototype.forEach.call(
+          (root || document).querySelectorAll(
+            '#okta-login-container .acme-confirm-password-field',
+          ),
+          function (field) {
+            field.remove();
+          },
+        );
+      }
+
+      function isVisibleControl(control) {
+        if (!control || control.nodeType !== 1) {
+          return false;
+        }
+
+        var style = window.getComputedStyle(control);
+        var rect = control.getBoundingClientRect();
+        return (
+          style.display !== 'none' &&
+          style.visibility !== 'hidden' &&
+          rect.width > 0 &&
+          rect.height > 0
+        );
+      }
+
+      function isPrimaryPasswordControl(control) {
+        if (
+          !control ||
+          control.nodeType !== 1 ||
+          control.tagName.toLowerCase() !== 'input' ||
+          control.type !== 'password' ||
+          control.getAttribute('data-acme-confirm-password') === 'true'
+        ) {
+          return false;
+        }
+
+        var label = getLabelForControl(control);
+        var labelText = normalizeText(label ? label.textContent : '');
+        var identityText = normalizeText(
+          [
+            control.id,
+            control.name,
+            control.getAttribute('autocomplete'),
+            control.getAttribute('data-se'),
+          ].join(' '),
+        );
+
+        if (
+          labelText.indexOf('repeat') !== -1 ||
+          labelText.indexOf('confirm') !== -1 ||
+          labelText.indexOf('current') !== -1 ||
+          identityText.indexOf('confirm') !== -1 ||
+          identityText.indexOf('repeat') !== -1
+        ) {
+          return false;
+        }
+
+        return (
+          labelText.indexOf('password') !== -1 ||
+          identityText.indexOf('passcode') !== -1 ||
+          identityText.indexOf('password') !== -1
+        );
+      }
+
+      function shouldEnhancePasswordConfirmation(passwordControl) {
+        var currentState = resolveStateCopy().key;
+        return (
+          (currentState === 'signUp' || currentState === 'password') &&
+          isPrimaryPasswordControl(passwordControl) &&
+          isVisibleControl(passwordControl)
+        );
+      }
+
+      function formHasNativePasswordConfirmation(form, passwordControl) {
+        return Array.prototype.some.call(
+          form.querySelectorAll('input[type="password"]'),
+          function (candidate) {
+            if (
+              candidate === passwordControl ||
+              candidate.getAttribute('data-acme-confirm-password') === 'true'
+            ) {
+              return false;
+            }
+
+            var label = getLabelForControl(candidate);
+            var labelText = normalizeText(label ? label.textContent : '');
+            var identityText = normalizeText(
+              [
+                candidate.id,
+                candidate.name,
+                candidate.getAttribute('autocomplete'),
+                candidate.getAttribute('data-se'),
+              ].join(' '),
+            );
+
+            return (
+              labelText.indexOf('repeat') !== -1 ||
+              labelText.indexOf('confirm') !== -1 ||
+              identityText.indexOf('repeat') !== -1 ||
+              identityText.indexOf('confirm') !== -1
+            );
+          },
+        );
+      }
+
+      function findPasswordFieldset(passwordControl) {
+        return (
+          passwordControl.closest(
+            '.o-form-fieldset, .okta-form-fieldset, .form-fieldset, [data-se^="o-form-fieldset"]',
+          ) || passwordControl.parentElement
+        );
+      }
+
+      function buildPasswordConfirmationField(passwordControl) {
+        var confirmId =
+          (passwordControl.id || 'acme-password') + '-repeat-password';
+        var errorId = confirmId + '-error';
+
+        var field = document.createElement('div');
+        field.className =
+          'o-form-fieldset acme-form-field acme-form-field--password acme-confirm-password-field';
+        field.setAttribute(
+          'data-acme-confirm-password-for',
+          passwordControl.id,
+        );
+
+        var label = document.createElement('label');
+        label.className = 'o-form-label acme-form-field__label';
+        label.setAttribute('for', confirmId);
+        label.textContent = 'Repeat password';
+
+        var inputContainer = document.createElement('div');
+        inputContainer.className =
+          'o-form-input-container acme-form-field__input';
+
+        var inputWrap = document.createElement('div');
+        inputWrap.className = 'o-form-input';
+
+        var input = document.createElement('input');
+        input.id = confirmId;
+        input.type = 'password';
+        input.autocomplete = 'new-password';
+        input.setAttribute('aria-describedby', errorId);
+        input.setAttribute('aria-invalid', 'false');
+        input.setAttribute('data-acme-confirm-password', 'true');
+
+        inputWrap.appendChild(input);
+        inputContainer.appendChild(inputWrap);
+
+        var error = document.createElement('div');
+        error.id = errorId;
+        error.className =
+          'o-form-input-error acme-inline-field-error acme-confirm-password-error';
+        error.setAttribute('role', 'alert');
+        error.hidden = true;
+
+        var icon = document.createElement('span');
+        icon.className = 'acme-inline-field-error__icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = '!';
+
+        var text = document.createElement('span');
+        text.className = 'acme-inline-field-error__text';
+        text.textContent = 'Passwords must match.';
+
+        error.appendChild(icon);
+        error.appendChild(text);
+
+        field.appendChild(label);
+        field.appendChild(inputContainer);
+        field.appendChild(error);
+
+        return field;
+      }
+
+      function setPasswordConfirmationError(confirmInput, message) {
+        var field = confirmInput
+          ? confirmInput.closest('.acme-confirm-password-field')
+          : null;
+        var error = field
+          ? field.querySelector('.acme-confirm-password-error')
+          : null;
+
+        if (error) {
+          while (error.firstChild) {
+            error.removeChild(error.firstChild);
+          }
+
+          var icon = document.createElement('span');
+          icon.className = 'acme-inline-field-error__icon';
+          icon.setAttribute('aria-hidden', 'true');
+          icon.textContent = '!';
+
+          var text = document.createElement('span');
+          text.className = 'acme-inline-field-error__text';
+          text.textContent = message;
+
+          error.appendChild(icon);
+          error.appendChild(text);
+          error.hidden = false;
+        }
+        if (confirmInput) {
+          confirmInput.setAttribute('aria-invalid', 'true');
+        }
+      }
+
+      function clearPasswordConfirmationError(confirmInput) {
+        var field = confirmInput
+          ? confirmInput.closest('.acme-confirm-password-field')
+          : null;
+        var error = field
+          ? field.querySelector('.acme-confirm-password-error')
+          : null;
+
+        if (error) {
+          error.hidden = true;
+        }
+        if (confirmInput) {
+          confirmInput.setAttribute('aria-invalid', 'false');
+        }
+      }
+
+      function validatePasswordConfirmation(form, options) {
+        var confirmInput = form
+          ? form.querySelector('[data-acme-confirm-password="true"]')
+          : null;
+        if (!confirmInput || !isVisibleControl(confirmInput)) {
+          return true;
+        }
+
+        var passwordInput = Array.prototype.find.call(
+          form.querySelectorAll('input[type="password"]'),
+          function (candidate) {
+            return (
+              candidate !== confirmInput && isPrimaryPasswordControl(candidate)
+            );
+          },
+        );
+        if (!passwordInput) {
+          return true;
+        }
+
+        var showErrors = Boolean(options && options.showErrors);
+        var passwordValue = passwordInput.value || '';
+        var confirmValue = confirmInput.value || '';
+
+        if (passwordValue.length === 0 && confirmValue.length === 0) {
+          clearPasswordConfirmationError(confirmInput);
+          return true;
+        }
+
+        if (passwordValue !== confirmValue) {
+          if (showErrors || confirmValue.length > 0) {
+            setPasswordConfirmationError(
+              confirmInput,
+              confirmValue.length === 0
+                ? 'Repeat the password to continue.'
+                : 'Passwords must match.',
+            );
+          }
+          return false;
+        }
+
+        clearPasswordConfirmationError(confirmInput);
+        return true;
+      }
+
+      function bindPasswordConfirmationForm(form) {
+        if (!form || form.getAttribute('data-acme-confirm-password-bound')) {
+          return;
+        }
+
+        form.setAttribute('data-acme-confirm-password-bound', 'true');
+        form.addEventListener(
+          'submit',
+          function (event) {
+            if (!validatePasswordConfirmation(form, { showErrors: true })) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              var confirmInput = form.querySelector(
+                '[data-acme-confirm-password="true"]',
+              );
+              if (confirmInput) {
+                confirmInput.focus();
+              }
+            }
+          },
+          true,
+        );
+        form.addEventListener(
+          'click',
+          function (event) {
+            var target = event.target;
+            if (!target || typeof target.closest !== 'function') {
+              return;
+            }
+
+            var submitter = target.closest(
+              'input[type="submit"], button[type="submit"], .button-primary',
+            );
+            if (
+              submitter &&
+              !validatePasswordConfirmation(form, { showErrors: true })
+            ) {
+              event.preventDefault();
+              event.stopImmediatePropagation();
+              var confirmInput = form.querySelector(
+                '[data-acme-confirm-password="true"]',
+              );
+              if (confirmInput) {
+                confirmInput.focus();
+              }
+            }
+          },
+          true,
+        );
+      }
+
+      function enhancePasswordConfirmation() {
+        var currentState = resolveStateCopy().key;
+        if (currentState !== 'signUp' && currentState !== 'password') {
+          removePasswordConfirmationFields(document);
+          return;
+        }
+
+        var passwordControls = Array.prototype.slice.call(
+          document.querySelectorAll(
+            '#okta-login-container input[type="password"]',
+          ),
+        );
+
+        passwordControls.forEach(function (passwordControl) {
+          if (!shouldEnhancePasswordConfirmation(passwordControl)) {
+            return;
+          }
+
+          var form = passwordControl.closest('form');
+          if (!form) {
+            return;
+          }
+
+          if (formHasNativePasswordConfirmation(form, passwordControl)) {
+            removePasswordConfirmationFields(form);
+            return;
+          }
+
+          var passwordFieldset = findPasswordFieldset(passwordControl);
+          if (!passwordFieldset || !passwordFieldset.parentNode) {
+            return;
+          }
+
+          var confirmationField = form.querySelector(
+            '.acme-confirm-password-field',
+          );
+          if (!confirmationField) {
+            confirmationField = buildPasswordConfirmationField(passwordControl);
+          }
+
+          if (confirmationField.previousSibling !== passwordFieldset) {
+            passwordFieldset.parentNode.insertBefore(
+              confirmationField,
+              passwordFieldset.nextSibling,
+            );
+          }
+
+          var confirmInput = confirmationField.querySelector(
+            '[data-acme-confirm-password="true"]',
+          );
+          var validateOnInput = function () {
+            validatePasswordConfirmation(form, {
+              showErrors:
+                confirmInput &&
+                (confirmInput.value.length > 0 ||
+                  confirmInput.getAttribute('aria-invalid') === 'true'),
+            });
+          };
+
+          if (
+            confirmInput &&
+            !confirmInput.getAttribute('data-acme-confirm-password-bound')
+          ) {
+            confirmInput.setAttribute(
+              'data-acme-confirm-password-bound',
+              'true',
+            );
+            confirmInput.addEventListener('input', validateOnInput);
+            passwordControl.addEventListener('input', validateOnInput);
+          }
+
+          bindPasswordConfirmationForm(form);
+        });
+      }
+
+      function enhanceFormFieldRhythm() {
+        var fieldsets = document.querySelectorAll(
+          '#okta-login-container .o-form-fieldset, #okta-login-container .okta-form-fieldset, #okta-login-container .form-fieldset, #okta-login-container [data-se^="o-form-fieldset"]',
+        );
+
+        Array.prototype.forEach.call(fieldsets, function (fieldset) {
+          var label =
+            fieldset.querySelector('label') ||
+            fieldset.querySelector('[data-se="o-form-label"]') ||
+            fieldset.querySelector('.o-form-label');
+          var inputContainer =
+            fieldset.querySelector('[data-se="o-form-input-container"]') ||
+            fieldset.querySelector('.o-form-input-container') ||
+            fieldset.querySelector('.o-form-input') ||
+            fieldset.querySelector(
+              'input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), select, textarea',
+            );
+          var fieldText = normalizeText(fieldset.textContent || '');
+          var hasPrimaryControl = Array.prototype.some.call(
+            fieldset.querySelectorAll('input, select, textarea'),
+            isPrimaryFormControl,
+          );
+
+          if (
+            !hasPrimaryControl &&
+            (fieldText.indexOf('keep me signed') !== -1 ||
+              fieldText.indexOf('remember me') !== -1 ||
+              fieldset.getAttribute('data-se') === 'o-form-fieldset-rememberMe')
+          ) {
+            fieldset.classList.add('acme-remember-fieldset');
+            fieldset.classList.remove('acme-remember-field');
+            return;
+          }
+
+          fieldset.classList.add('acme-form-field');
+
+          if (label) {
+            label.classList.add('acme-form-field__label');
+          }
+
+          if (inputContainer) {
+            inputContainer.classList.add('acme-form-field__input');
+          }
+
+          var labelText = normalizeText(label ? label.textContent : '');
+          if (labelText.indexOf('state') !== -1) {
+            fieldset.classList.add('acme-form-field--state');
+          }
+          if (labelText.indexOf('password') !== -1) {
+            fieldset.classList.add('acme-form-field--password');
+          }
+        });
+
+        var candidates = document.querySelectorAll(
+          '#okta-login-container p, #okta-login-container div, #okta-login-container section, #okta-login-container ul',
+        );
+
+        Array.prototype.forEach.call(candidates, function (candidate) {
+          var directText = Array.prototype.map
+            .call(candidate.childNodes || [], function (node) {
+              return node.nodeType === Node.TEXT_NODE ? node.textContent : '';
+            })
+            .join(' ');
+          var text = normalizeText(candidate.textContent || '');
+          var ownText = normalizeText(directText);
+          var isList =
+            candidate.tagName &&
+            candidate.tagName.toLowerCase() === 'ul' &&
+            (text.indexOf('at least 8 characters') !== -1 ||
+              text.indexOf('lowercase letter') !== -1 ||
+              text.indexOf('uppercase letter') !== -1);
+          var isHeading = ownText.indexOf('password requirements') !== -1;
+
+          if (!isHeading && !isList) {
+            return;
+          }
+
+          candidate.classList.add('acme-password-requirements');
+
+          if (isHeading) {
+            var sibling = candidate.nextElementSibling;
+            if (
+              sibling &&
+              sibling.tagName &&
+              sibling.tagName.toLowerCase() === 'ul'
+            ) {
+              sibling.classList.add('acme-password-requirements');
+            }
+            Array.prototype.forEach.call(
+              candidate.querySelectorAll('ul'),
+              function (list) {
+                list.classList.add('acme-password-requirements');
+              },
+            );
+          }
+        });
+      }
+
+      function isForgotPasswordFooterLink(link) {
+        if (!link || link.nodeType !== 1) {
+          return false;
+        }
+
+        var linkText = normalizeText(link.textContent);
+        var dataSe = normalizeText(link.getAttribute('data-se') || '');
+        var href = normalizeText(link.getAttribute('href') || '');
+        return (
+          linkText.indexOf('forgot password') !== -1 ||
+          dataSe === 'forgot-password' ||
+          dataSe === 'forgotpassword' ||
+          href.indexOf('forgot-password') !== -1 ||
+          href.indexOf('recover') !== -1
+        );
+      }
+
+      function isUnlockAccountFooterLink(link) {
+        if (!link || link.nodeType !== 1) {
+          return false;
+        }
+
+        var linkText = normalizeText(link.textContent);
+        var dataSe = normalizeText(link.getAttribute('data-se') || '');
+        var href = normalizeText(link.getAttribute('href') || '');
+        return (
+          linkText.indexOf('unlock') !== -1 ||
+          dataSe === 'unlock' ||
+          dataSe === 'unlock-account' ||
+          href.indexOf('unlock') !== -1
+        );
+      }
+
+      function isRegistrationOrBackFooterLink(link) {
+        if (!link || link.nodeType !== 1) {
+          return false;
+        }
+
+        var text = normalizeText(link.textContent);
+        var dataSe = normalizeText(link.getAttribute('data-se') || '');
+        return (
+          text === 'sign up' ||
+          text === 'create account' ||
+          text === 'register' ||
+          text === 'sign in' ||
+          text === 'back to sign in' ||
+          text === 'already have an account?' ||
+          dataSe === 'enroll' ||
+          dataSe === 'back' ||
+          link.classList.contains('js-enroll') ||
+          link.classList.contains('js-back')
+        );
+      }
+
+      function bindNativeHostedRecoveryLink(link, className, text, flow) {
+        var nextFlow = normalizeRecoveryFlow(flow);
+        if (!nextFlow) {
+          return;
+        }
+
+        link.classList.add(className);
+        link.textContent = text;
+        link.setAttribute('data-acme-okta-native-flow', nextFlow);
+        link.removeAttribute('data-acme-okta-flow');
+        link.removeAttribute('data-acme-recovery-fallback');
+      }
+
+      function bindFallbackHostedRecoveryLink(link, className, text, flow) {
+        var nextFlow = normalizeRecoveryFlow(flow);
+        if (!nextFlow) {
+          return;
+        }
+
+        link.classList.add(className);
+        link.textContent = text;
+
+        if (link.tagName && link.tagName.toLowerCase() === 'a') {
+          link.href = getRecoveryFlowHash(nextFlow);
+        } else if (link.tagName && link.tagName.toLowerCase() === 'button') {
+          link.type = 'button';
+        }
+        link.setAttribute('role', 'button');
+        link.setAttribute('tabindex', '0');
+        link.setAttribute('data-acme-okta-flow', nextFlow);
+        link.removeAttribute('data-acme-okta-native-flow');
+        link.onclick = null;
+      }
+
+      function createRecoveryFallbackLink(className, text, flow) {
+        var link = document.createElement('button');
+        link.type = 'button';
+        link.setAttribute('data-acme-recovery-fallback', 'true');
+        bindFallbackHostedRecoveryLink(link, className, text, flow);
+        return link;
+      }
+
+      function hideHostedFooterAction(link) {
+        if (!link) {
+          return;
+        }
+
+        link.style.setProperty('display', 'none', 'important');
+        link.style.setProperty('visibility', 'hidden', 'important');
+        link.setAttribute('aria-hidden', 'true');
+        link.setAttribute('tabindex', '-1');
+        link.removeAttribute('data-acme-okta-flow');
+        link.removeAttribute('data-acme-okta-native-flow');
+        link.classList.remove(
+          'acme-auth-recovery-link',
+          'acme-auth-unlock-link',
+        );
+        link.onclick = null;
+      }
+
+      function showHostedFooterAction(link) {
+        if (!link) {
+          return;
+        }
+
+        link.style.removeProperty('display');
+        link.style.removeProperty('visibility');
+        link.removeAttribute('aria-hidden');
+        link.removeAttribute('tabindex');
+      }
+
+      function installHostedRecoveryRouting() {
+        if (window.__acmeHostedRecoveryRoutingInstalled) {
+          return;
+        }
+
+        window.__acmeHostedRecoveryRoutingInstalled = true;
+        var routeRecoveryInteraction = function (event) {
+          if (
+            event.type === 'keydown' &&
+            event.key !== 'Enter' &&
+            event.key !== ' '
+          ) {
+            return;
+          }
+
+          var now = Date.now();
+          if (
+            window.__acmeLastRecoveryRouteAt &&
+            now - window.__acmeLastRecoveryRouteAt < 350
+          ) {
+            if (event) {
+              event.preventDefault();
+              event.stopPropagation();
+              if (typeof event.stopImmediatePropagation === 'function') {
+                event.stopImmediatePropagation();
+              }
+            }
+            return;
+          }
+
+          var target = event.target;
+          if (!target || typeof target.closest !== 'function') {
+            return;
+          }
+
+          var link = target.closest(
+            '#okta-login-container .acme-auth-recovery-link, #okta-login-container .acme-auth-unlock-link',
+          );
+          if (!link) {
+            return;
+          }
+
+          var flow = normalizeRecoveryFlow(
+            link.getAttribute('data-acme-okta-flow'),
+          );
+          if (!flow) {
+            return;
+          }
+
+          window.__acmeLastRecoveryRouteAt = now;
+          routeToHostedRecoveryFlow(event, flow);
+        };
+
+        ['pointerdown', 'touchstart', 'click', 'keydown'].forEach(
+          function (eventName) {
+            document.addEventListener(
+              eventName,
+              routeRecoveryInteraction,
+              true,
+            );
+          },
+        );
+
+        window.addEventListener('popstate', function () {
+          renderOktaWidget(getRecoveryFlowFromHash());
+        });
+        window.addEventListener('hashchange', function () {
+          renderOktaWidget(getRecoveryFlowFromHash());
+        });
+      }
+
+      function enhanceWidgetFooter() {
+        var footer = document.querySelector(
+          '#okta-login-container .siw-main-footer',
+        );
+        if (!footer) {
+          return;
+        }
+
+        var currentState = resolveStateCopy().key;
+        var footerLinks = Array.prototype.slice.call(
+          footer.querySelectorAll('a'),
+        );
+        footerLinks.forEach(function (link) {
+          var linkText = normalizeText(link.textContent);
+          var href = link.getAttribute('href') || '';
+          var dataSe = link.getAttribute('data-se') || '';
+          var isHelpLink =
+            linkText === 'help' ||
+            dataSe === 'help' ||
+            link.classList.contains('js-help') ||
+            /\/help(?:\/|$)|\/help\/login/i.test(href);
+
+          if (!isHelpLink) {
+            return;
+          }
+
+          hideHostedFooterAction(link);
+        });
+
+        var recoveryRow = footer.querySelector('.acme-recovery-row');
+        if (currentState === 'signIn') {
+          if (!recoveryRow) {
+            recoveryRow = document.createElement('div');
+            recoveryRow.className = 'acme-recovery-row';
+            footer.insertBefore(recoveryRow, footer.firstChild);
+          }
+
+          recoveryRow.style.display = 'inline-flex';
+
+          var nativeForgotPasswordLink = footerLinks.find(function (link) {
+            return (
+              !link.getAttribute('data-acme-recovery-fallback') &&
+              isForgotPasswordFooterLink(link)
+            );
+          });
+
+          footerLinks.forEach(function (link) {
+            if (
+              link.getAttribute('data-acme-recovery-fallback') ||
+              (!isForgotPasswordFooterLink(link) &&
+                !isUnlockAccountFooterLink(link))
+            ) {
+              return;
+            }
+
+            if (link !== nativeForgotPasswordLink) {
+              hideHostedFooterAction(link);
+            }
+          });
+
+          var forgotPasswordLink = nativeForgotPasswordLink;
+          if (forgotPasswordLink) {
+            bindNativeHostedRecoveryLink(
+              forgotPasswordLink,
+              'acme-auth-recovery-link',
+              'Forgot password?',
+              'resetPassword',
+            );
+          } else {
+            forgotPasswordLink = footer.querySelector(
+              '.acme-auth-recovery-link[data-acme-recovery-fallback="true"]',
+            );
+            if (!forgotPasswordLink) {
+              forgotPasswordLink = footer.querySelector(
+                '[data-acme-recovery-fallback="true"][data-acme-okta-flow="resetPassword"]',
+              );
+            }
+            if (!forgotPasswordLink) {
+              forgotPasswordLink = createRecoveryFallbackLink(
+                'acme-auth-recovery-link',
+                'Forgot password?',
+                'resetPassword',
+              );
+            }
+            bindFallbackHostedRecoveryLink(
+              forgotPasswordLink,
+              'acme-auth-recovery-link',
+              'Forgot password?',
+              'resetPassword',
+            );
+          }
+
+          Array.prototype.slice
+            .call(
+              footer.querySelectorAll(
+                '[data-acme-recovery-fallback="true"][data-acme-okta-flow="resetPassword"]',
+              ),
+            )
+            .forEach(function (fallbackLink) {
+              if (fallbackLink !== forgotPasswordLink) {
+                hideHostedFooterAction(fallbackLink);
+              }
+            });
+
+          if (!forgotPasswordLink) {
+            forgotPasswordLink = createRecoveryFallbackLink(
+              'acme-auth-recovery-link',
+              'Forgot password?',
+              'resetPassword',
+            );
+          }
+          showHostedFooterAction(forgotPasswordLink);
+
+          while (recoveryRow.firstChild) {
+            recoveryRow.removeChild(recoveryRow.firstChild);
+          }
+
+          recoveryRow.appendChild(forgotPasswordLink);
+        } else if (recoveryRow) {
+          recoveryRow.style.display = 'none';
+        }
+
+        var registrationLink =
+          footer.querySelector('.registration-link') ||
+          footer.querySelector('.js-back') ||
+          footer.querySelector('[data-se="back"]') ||
+          footerLinks.find(function (link) {
+            return isRegistrationOrBackFooterLink(link);
+          });
+        if (!registrationLink) {
+          return;
+        }
+
+        registrationLink.classList.add('acme-registration-link');
+
+        var row =
+          registrationLink.closest('.signup-info') ||
+          registrationLink.closest('.registration-container') ||
+          registrationLink.parentElement;
+        if (!row) {
+          return;
+        }
+
+        var promptText =
+          currentState === 'signUp'
+            ? 'Already have an account?'
+            : 'Do not have an account?';
+        var actionText = currentState === 'signUp' ? 'Sign in' : 'Sign up';
+
+        if (
+          !row ||
+          row === footer ||
+          row.classList.contains('siw-main-footer')
+        ) {
+          row = footer.querySelector('.acme-registration-row');
+          if (!row) {
+            row = document.createElement('div');
+            row.className = 'acme-registration-row';
+            footer.appendChild(row);
+          }
+          row.appendChild(registrationLink);
+        }
+
+        row.classList.add('acme-registration-row');
+        registrationLink.textContent = actionText;
+
+        if (registrationLink.parentElement !== row) {
+          row.insertBefore(registrationLink, row.firstChild);
+        }
+
+        Array.prototype.slice.call(row.childNodes).forEach(function (node) {
+          if (node !== registrationLink) {
+            row.removeChild(node);
+          }
+        });
+
+        var promptNode = row.querySelector('.acme-registration-prompt');
+        if (!promptNode) {
+          promptNode = document.createElement('span');
+          promptNode.className = 'acme-registration-prompt';
+          row.insertBefore(promptNode, registrationLink);
+        }
+
+        promptNode.textContent = promptText;
+      }
+
+      function syncHostedExperience() {
+        installHostedRecoveryRouting();
+        updateExperienceCopy();
+        enhanceAuthenticatorOptions();
+        enhanceRadioOptions();
+        enhanceEmailCodeFallback();
+        enhanceRecoveryHints();
+        enhanceIdentifierContrast();
+        enhancePasswordConfirmation();
+        enhanceInputErrors();
+        enhanceRememberMeFields();
+        enhanceFormFieldRhythm();
+        enhanceWidgetFooter();
+      }
+
+      function observeWidgetUpdates() {
+        var container = document.getElementById('okta-login-container');
+        if (!container || typeof MutationObserver === 'undefined') {
+          return;
+        }
+
+        var pendingFrame = 0;
+        var scheduleSync = function () {
+          if (pendingFrame) {
+            return;
+          }
+
+          pendingFrame = window.requestAnimationFrame
+            ? window.requestAnimationFrame(function () {
+                pendingFrame = 0;
+                syncHostedExperience();
+              })
+            : window.setTimeout(function () {
+                pendingFrame = 0;
+                syncHostedExperience();
+              }, 0);
+        };
+
+        var observer = new MutationObserver(scheduleSync);
+        observer.observe(container, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+        });
+      }
+
+      var oktaSignIn = null;
+      var currentOktaFlow = null;
+
+      function createOktaWidgetConfig(flow) {
+        var config = OktaUtil.getSignInWidgetConfig();
+        var nextFlow = normalizeRecoveryFlow(flow);
+
+        config.features = Object.assign({}, config.features || {}, {
+          rememberMe: false,
+          registration: true,
+          selfServiceUnlock: false,
+          emailRecovery: true,
+          smsRecovery: true,
+          callRecovery: false,
+        });
+        config['features.rememberMe'] = false;
+        config['features.registration'] = true;
+        config['features.selfServiceUnlock'] = false;
+        config['features.emailRecovery'] = true;
+        config['features.smsRecovery'] = true;
+        config['features.callRecovery'] = false;
+        config.i18n = Object.assign({}, config.i18n || {}, {
+          en: Object.assign(
+            {},
+            config.i18n && config.i18n.en ? config.i18n.en : {},
+            {
+              'primaryauth.remember': 'Remember me',
+              remember: 'Remember me',
+            },
+          ),
+        });
+
+        if (nextFlow) {
+          config.flow = nextFlow;
+        } else if (
+          config.flow === 'resetPassword' ||
+          config.flow === 'unlockAccount'
+        ) {
+          delete config.flow;
+        }
+
+        return config;
+      }
+
+      function renderOktaWidget(flow) {
+        var nextFlow = normalizeRecoveryFlow(flow);
+        if (currentOktaFlow === nextFlow && oktaSignIn) {
+          syncHostedExperience();
+          return;
+        }
+
+        currentOktaFlow = nextFlow;
+        if (oktaSignIn && typeof oktaSignIn.remove === 'function') {
+          oktaSignIn.remove();
+        }
+
+        oktaSignIn = new OktaSignIn(createOktaWidgetConfig(nextFlow));
+        oktaSignIn.renderEl(
+          { el: '#okta-login-container' },
+          OktaUtil.completeLogin,
+          function (error) {
+            console.log(error.message, error);
+          },
+        );
+
+        window.setTimeout(syncHostedExperience, 0);
+      }
+
+      installHostedRecoveryRouting();
+      observeWidgetUpdates();
+      renderOktaWidget(getRecoveryFlowFromHash());
+    </script>
+  </body>
+</html>

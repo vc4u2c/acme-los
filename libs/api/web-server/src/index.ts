@@ -79,8 +79,10 @@ export { getWebStateStoreMode } from './lib/state-store';
 export { buildPublicRequestUrl, getRequestOrigin } from './lib/request-url';
 export {
   clearWebAuthTransaction,
+  deleteStoredWebAuthTransaction,
   exchangeOktaAuthorizationCode,
   readWebAuthTransaction,
+  readWebAuthTransactionCookie,
   refreshOktaTokenSet,
   startOktaAuthTransaction,
   writeBffWebAuthTransaction,

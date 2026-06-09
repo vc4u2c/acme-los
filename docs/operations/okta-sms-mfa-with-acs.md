@@ -130,6 +130,11 @@ telephony hook. The hook validates the request, writes the OTP to dev web app
 logs, and returns Okta's success contract. The operator copies the OTP from ACME
 logs and enters it on the Okta-hosted page.
 
+Because no carrier message is sent, mock mode is not subject to ACS, Twilio,
+10DLC, toll-free, or Okta SMS-send quotas. The remaining limits are application
+and Okta abuse-protection limits, including the ACME hook rate limit and Okta
+factor-flow throttles.
+
 Current dev mock shape:
 
 ```json
@@ -152,7 +157,8 @@ and:
 Guardrails:
 
 - mock mode is allowed only for `dev`
-- `ACME_ENABLE_MOCK_SMS_OTP=true` must be explicit
+- `ACME_ENABLE_MOCK_SMS_OTP=true` must be explicit; the app accepts common
+  boolean casing, and Bicep emits lowercase `true`/`false`
 - OTPs are logged only in mock mode
 - phone numbers are masked in logs
 - ACS/Twilio credentials are not needed for mock mode
@@ -193,6 +199,30 @@ otp: 482913
 expires: 2026-06-04T19:47:11.000Z
 transaction: mock-evt-123
 ```
+
+Verify the live Okta side after bootstrap:
+
+```powershell
+npm run okta:audit-live -- dev --token-file C:\secure\acme-los-okta-api-token.txt
+```
+
+The audit should show the telephony inline hook as `ACTIVE`, the phone
+authenticator with `sms=ACTIVE` and `voice=INACTIVE`, optional phone enrollment,
+and no recent System Log SMS limit-exceeded entries. The audit output is written
+to `tmp/okta/dev.live-okta-audit.json`.
+
+If Okta shows `Unable to deliver the verification code` or an SMS-limit style
+message during a mock demo, check these in order:
+
+1. Live ACA environment has `ACME_OKTA_TELEPHONY_PROVIDER=mock`,
+   `ACME_ENABLE_MOCK_SMS_OTP=true`, and `APP_ENVIRONMENT_NAME=dev`.
+2. Okta System Log `inline_hook.response.processed` events should not have
+   `outcome.result=FAILURE`.
+3. Send a synthetic hook payload only with the configured hook authorization
+   secret and a fake E.164 test number. A healthy mock path returns Okta's
+   `com.okta.telephony.action` success command with a `mock-...` transaction id.
+4. If the hook fails or times out, Okta can show delivery errors and may fall
+   back to provider behavior that is subject to Okta or carrier send limits.
 
 For real SMS, switch `provider` back to `acs`, keep `enableMockOtp` absent or
 `false`, and enable only after the ACS sender number is verified.

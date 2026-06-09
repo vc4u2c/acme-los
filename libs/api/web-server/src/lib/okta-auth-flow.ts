@@ -10,8 +10,17 @@ import {
 import { getSafeServerAuthReturnTo } from './auth-routing';
 import { getServerWebAuthConfig } from './config';
 import type { StoredWebAuthStepUpRequirement } from './session-store';
+import {
+  deleteStateValue,
+  readStateValue,
+  writeStateValue,
+} from './state-store';
 
-export type WebAuthTransactionCookiePayload = {
+const AUTH_TRANSACTION_NAMESPACE = 'auth-transaction';
+const AUTH_TRANSACTION_MAX_AGE_SECONDS = 10 * 60;
+
+export type StoredWebAuthTransaction = {
+  transactionId: string;
   state: string;
   nonce: string;
   codeVerifier: string;
@@ -23,7 +32,21 @@ export type WebAuthTransactionCookiePayload = {
   expiresAt: number;
 };
 
+type LegacyWebAuthTransactionCookiePayload = Omit<
+  StoredWebAuthTransaction,
+  'transactionId'
+>;
+
+export type WebAuthTransactionCookiePayload = {
+  transactionId: string;
+  returnTo: string;
+  minimumAssuranceLevel: 'aal1' | 'aal2';
+  expiresAt: number;
+};
+
 export type StartedWebAuthTransaction = {
+  transactionId: string;
+  storedTransaction: StoredWebAuthTransaction;
   cookiePayload: WebAuthTransactionCookiePayload;
   authorizeUrl: string;
   maxAge: number;
@@ -46,8 +69,6 @@ export type OktaTokenResponse = {
   error?: string;
   error_description?: string;
 };
-
-const AUTH_TRANSACTION_MAX_AGE_SECONDS = 10 * 60;
 
 function toBase64Url(value: Buffer): string {
   return value
@@ -115,19 +136,30 @@ export function startOktaAuthTransaction({
     );
   }
 
+  const transactionId = createRandomToken();
+  const storedTransaction: StoredWebAuthTransaction = {
+    transactionId,
+    state,
+    nonce,
+    codeVerifier,
+    returnTo: safeReturnTo,
+    minimumAssuranceLevel,
+    expectedUserId:
+      minimumAssuranceLevel === 'aal2' && expectedUserId?.trim()
+        ? expectedUserId.trim()
+        : undefined,
+    leadId: leadId?.trim() ? leadId.trim() : undefined,
+    stepUp: minimumAssuranceLevel === 'aal2' ? stepUp : undefined,
+    expiresAt,
+  };
+
   return {
+    transactionId,
+    storedTransaction,
     cookiePayload: {
-      state,
-      nonce,
-      codeVerifier,
+      transactionId,
       returnTo: safeReturnTo,
       minimumAssuranceLevel,
-      expectedUserId:
-        minimumAssuranceLevel === 'aal2' && expectedUserId?.trim()
-          ? expectedUserId.trim()
-          : undefined,
-      leadId: leadId?.trim() ? leadId.trim() : undefined,
-      stepUp: minimumAssuranceLevel === 'aal2' ? stepUp : undefined,
       expiresAt,
     },
     authorizeUrl: authorizeUrl.toString(),
@@ -135,13 +167,12 @@ export function startOktaAuthTransaction({
   };
 }
 
-export function readWebAuthTransaction(
+export function readWebAuthTransactionCookie(
   request: NextRequest,
 ): WebAuthTransactionCookiePayload | null {
-  const cookiePayload = readSignedCookie<WebAuthTransactionCookiePayload>(
-    request,
-    AUTH_TRANSACTION_COOKIE_NAME,
-  );
+  const cookiePayload = readSignedCookie<
+    WebAuthTransactionCookiePayload | LegacyWebAuthTransactionCookiePayload
+  >(request, AUTH_TRANSACTION_COOKIE_NAME);
 
   if (!cookiePayload) {
     return null;
@@ -152,14 +183,79 @@ export function readWebAuthTransaction(
     return null;
   }
 
-  return cookiePayload;
+  if ('transactionId' in cookiePayload) {
+    return cookiePayload;
+  }
+
+  return {
+    transactionId: '',
+    returnTo: cookiePayload.returnTo,
+    minimumAssuranceLevel: cookiePayload.minimumAssuranceLevel,
+    expiresAt: cookiePayload.expiresAt,
+  };
 }
 
-export function writeWebAuthTransaction(
+export async function readWebAuthTransaction(
+  request: NextRequest,
+): Promise<StoredWebAuthTransaction | null> {
+  const cookiePayload = readSignedCookie<
+    WebAuthTransactionCookiePayload | LegacyWebAuthTransactionCookiePayload
+  >(request, AUTH_TRANSACTION_COOKIE_NAME);
+
+  if (!cookiePayload) {
+    return null;
+  }
+
+  const currentEpochSeconds = Math.floor(Date.now() / 1000);
+  if (cookiePayload.expiresAt <= currentEpochSeconds) {
+    return null;
+  }
+
+  if (!('transactionId' in cookiePayload)) {
+    return {
+      transactionId: '',
+      ...cookiePayload,
+    };
+  }
+
+  if (!cookiePayload.transactionId) {
+    return null;
+  }
+
+  const storedTransaction = await readStateValue<StoredWebAuthTransaction>(
+    AUTH_TRANSACTION_NAMESPACE,
+    cookiePayload.transactionId,
+  );
+
+  if (
+    !storedTransaction ||
+    storedTransaction.expiresAt <= currentEpochSeconds
+  ) {
+    return null;
+  }
+
+  if (
+    storedTransaction.returnTo !== cookiePayload.returnTo ||
+    storedTransaction.minimumAssuranceLevel !==
+      cookiePayload.minimumAssuranceLevel
+  ) {
+    return null;
+  }
+
+  return storedTransaction;
+}
+
+export async function writeWebAuthTransaction(
   request: NextRequest,
   response: NextResponse,
   transaction: StartedWebAuthTransaction,
-): void {
+): Promise<void> {
+  await writeStateValue(
+    AUTH_TRANSACTION_NAMESPACE,
+    transaction.transactionId,
+    transaction.storedTransaction,
+    transaction.maxAge,
+  );
   setSignedCookie(
     response,
     request,
@@ -169,6 +265,16 @@ export function writeWebAuthTransaction(
       maxAge: transaction.maxAge,
     },
   );
+}
+
+export async function deleteStoredWebAuthTransaction(
+  transaction: StoredWebAuthTransaction | null,
+): Promise<void> {
+  if (!transaction?.transactionId) {
+    return;
+  }
+
+  await deleteStateValue(AUTH_TRANSACTION_NAMESPACE, transaction.transactionId);
 }
 
 export function writeBffWebAuthTransaction(

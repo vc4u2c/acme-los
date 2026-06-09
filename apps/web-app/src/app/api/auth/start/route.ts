@@ -149,15 +149,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
     const response = NextResponse.redirect(transaction.authorizeUrl);
 
-    writeWebAuthTransaction(request, response, transaction);
+    await writeWebAuthTransaction(request, response, transaction);
     applyRateLimitHeaders(response, rateLimit);
     logAuthAuditEvent(request, {
       event: 'auth.start',
       outcome: 'success',
       message: 'Started secure sign-in redirect.',
       metadata: {
-        returnTo: transaction.cookiePayload.returnTo,
-        minimumAssuranceLevel: transaction.cookiePayload.minimumAssuranceLevel,
+        returnTo: transaction.storedTransaction.returnTo,
+        minimumAssuranceLevel:
+          transaction.storedTransaction.minimumAssuranceLevel,
       },
     });
 
