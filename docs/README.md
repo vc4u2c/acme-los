@@ -19,6 +19,7 @@ explicitly so readers do not mistake future phases for deployed behavior.
 
 For a grouped feature/design inventory, start with:
 
+- [Reference architecture demo report](./architecture/reference-architecture-demo-report.md) - 30-item reference architecture demo showcase across engineering, product UI, identity, BFF security, Azure, observability, analytics, and tooling.
 - [Root README demo feature inventory](../README.md#demo-feature-inventory)
 - [Azure and website demo runbook](./operations/azure-and-website-demo-runbook.md)
 - [Tech stack and tooling](./reference/tech-stack.md)
@@ -29,10 +30,11 @@ mobile app, `.NET` BFF, Okta auth, server-side sessions, CSRF, Redis-backed
 state, Azure Container Apps, Key Vault/private endpoints, Application
 Insights/Log Analytics, GitHub Actions CI/CD, Nx Release versioning, Husky
 commit guardrails, shadcn/Radix/Tailwind UI primitives, and TanStack Query,
-Form, and Table workflows. It now also has a repo-owned GA4/GTM analytics admin
-plane, web runtime analytics wiring, optional managed-identity service auth
-between Next and the BFF, Okta account-security/profile-sync runbooks, a
-staged ACS-backed SMS MFA path, and a documented HTTP API testing path.
+Form, and Table workflows, including the UI layout grid and data grid system.
+It now also has a repo-owned GA4/GTM analytics admin plane, web runtime
+analytics wiring, optional managed-identity service auth between Next and the
+BFF, Okta account-security/profile-sync runbooks, a staged ACS-backed SMS MFA
+path, and a documented HTTP API testing path.
 
 ## Suggested Read Order
 
@@ -53,6 +55,7 @@ path:
 
 ## Architecture
 
+- [Reference architecture demo report](./architecture/reference-architecture-demo-report.md)
 - [Current platform architecture](./architecture/current-platform.md)
 - [BFF rollout plan](./architecture/bff-rollout-plan.md)
 - [BFF implementation checklist](./architecture/bff-implementation-checklist.md)
