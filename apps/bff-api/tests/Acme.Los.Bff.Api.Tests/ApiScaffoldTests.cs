@@ -1109,6 +1109,24 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public void AuthAssurance_WithConfiguredFundingAcr_ReturnsAal2()
+  {
+    Assert.Equal(
+      "aal2",
+      AuthAssurance.GetAssuranceLevel(
+        new[] { "pwd" },
+        "urn:okta:loa:2fa:any",
+        new[] { "urn:okta:loa:2fa:any" }));
+
+    Assert.Equal(
+      "aal1",
+      AuthAssurance.GetAssuranceLevel(
+        new[] { "pwd" },
+        "urn:okta:loa:1fa:any",
+        new[] { "urn:okta:loa:2fa:any" }));
+  }
+
+  [Fact]
   public async Task GetBffAuthCallback_WithoutTransaction_ReturnsBadRequest()
   {
     using var environment = new TemporaryEnvironmentVariables(

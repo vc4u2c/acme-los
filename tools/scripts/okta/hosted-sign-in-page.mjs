@@ -6,15 +6,28 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const hostedPageTemplateDirectory = path.join(scriptDirectory, 'templates');
 const hostedPagePlaceholderPattern = /%%[A-Z0-9_]+%%/g;
 
-function renderHostedPageTemplate(templateFileName, replacements) {
-  const templatePath = path.join(hostedPageTemplateDirectory, templateFileName);
-  let content = fs.readFileSync(templatePath, 'utf8');
+function replaceLiteral(content, searchValue, replacementValue) {
+  return content.split(searchValue).join(`${replacementValue}`);
+}
+
+function replaceHostedPagePlaceholders(content, replacements) {
+  let nextContent = content;
 
   for (const [name, value] of Object.entries(replacements)) {
-    content = content.replaceAll(`<!-- %%${name}%% -->`, `${value}`);
-    content = content.replaceAll(`/* %%${name}%% */`, `${value}`);
-    content = content.replaceAll(`%%${name}%%`, `${value}`);
+    nextContent = replaceLiteral(nextContent, `<!-- %%${name}%% -->`, value);
+    nextContent = replaceLiteral(nextContent, `/* %%${name}%% */`, value);
+    nextContent = replaceLiteral(nextContent, `%%${name}%%`, value);
   }
+
+  return nextContent;
+}
+
+function renderHostedPageTemplate(templateFileName, replacements) {
+  const templatePath = path.join(hostedPageTemplateDirectory, templateFileName);
+  const content = replaceHostedPagePlaceholders(
+    fs.readFileSync(templatePath, 'utf8'),
+    replacements,
+  );
 
   const unresolvedPlaceholders = content.match(hostedPagePlaceholderPattern);
   if (unresolvedPlaceholders) {
@@ -28,6 +41,11 @@ function renderHostedPageTemplate(templateFileName, replacements) {
   return content;
 }
 
+function readHostedPagePartial(partialFileName) {
+  const partialPath = path.join(hostedPageTemplateDirectory, partialFileName);
+  return fs.readFileSync(partialPath, 'utf8').trimEnd();
+}
+
 function escapeHtml(value) {
   return `${value}`
     .replaceAll('&', '&amp;')
@@ -35,17 +53,6 @@ function escapeHtml(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;');
-}
-
-function escapeJavaScriptSingleQuotedString(value) {
-  return `${value}`
-    .replaceAll('\\', '\\\\')
-    .replaceAll("'", "\\'")
-    .replaceAll('\r', '\\r')
-    .replaceAll('\n', '\\n')
-    .replaceAll('\u2028', '\\u2028')
-    .replaceAll('\u2029', '\\u2029')
-    .replaceAll('</script', '<\\/script');
 }
 
 function requiredString(value, fieldName) {
@@ -533,53 +540,13 @@ function buildHostedThemeCss(branding) {
   `;
 }
 
-export function buildHostedSignInPageContent(branding) {
-  const titleCopy = {
-    signInTitle: requiredString(branding.SignInTitle, 'Branding.SignInTitle'),
-    signInSubtitle: requiredString(
-      branding.SignInSubtitle,
-      'Branding.SignInSubtitle',
-    ),
-    signUpTitle: requiredString(branding.SignUpTitle, 'Branding.SignUpTitle'),
-    signUpSubtitle: requiredString(
-      branding.SignUpSubtitle,
-      'Branding.SignUpSubtitle',
-    ),
-  };
-
-  const supportCopy = {
-    phone: requiredString(branding.SupportPhone, 'Branding.SupportPhone'),
-    hours: requiredString(branding.SupportHours, 'Branding.SupportHours'),
-  };
-  const supportPhoneHref = `tel:+${supportCopy.phone.replaceAll(/\D/g, '')}`;
-  const helpUrl = requiredString(branding.HelpUrl, 'Branding.HelpUrl');
-  const copyrightYear = new Date().getFullYear();
-
-  const brandLabel = deriveBrandLabel(branding);
-  const productLabel = escapeHtml(
-    requiredString(branding.ProductName, 'Branding.ProductName'),
+export function buildHostedSignInPageContent() {
+  const hostedSignInController = readHostedPagePartial(
+    'hosted-sign-in-page.controller.js',
   );
-  const themeCss = buildHostedThemeCss(branding);
 
   return renderHostedPageTemplate('hosted-sign-in-page.html', {
-    THEME_BOOTSTRAP_SCRIPT: buildHostedThemeBootstrapScript(branding),
-    THEME_STYLE_MARKUP: buildHostedThemeStyleMarkup(themeCss),
-    BRAND_HEADER_MARKUP: buildHostedBrandHeaderMarkup({
-      brandLabel,
-      productLabel,
-    }),
-    PRODUCT_LABEL: productLabel,
-    SUPPORT_FOOTER_MARKUP: buildHostedSupportFooterMarkup({
-      supportPhoneHref,
-      supportPhone: escapeHtml(supportCopy.phone),
-      supportHours: escapeHtml(supportCopy.hours),
-      helpUrl,
-      copyrightYear,
-    }),
-    THEME_CONTROLLER_SCRIPT: buildHostedThemeControllerScript(branding),
-    TITLE_COPY_JSON: escapeJavaScriptSingleQuotedString(
-      JSON.stringify(titleCopy),
-    ),
+    HOSTED_SIGN_IN_CONTROLLER: hostedSignInController,
   });
 }
 

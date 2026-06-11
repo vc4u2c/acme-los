@@ -16,6 +16,25 @@ export type WebAuthStepUpRequirement = {
 
 export const MOCK_AUTH_STORAGE_KEY = 'acme-los-auth-mock-session';
 
+const DEFAULT_HIGH_ASSURANCE_ACR_VALUES = ['urn:okta:loa:2fa:any'];
+
+function normalizeClaimValues(value?: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim().toLowerCase();
+
+    return trimmedValue ? [trimmedValue] : [];
+  }
+
+  return [];
+}
+
 export function getAssuranceLevelFromAuthenticationMethods(
   authenticationMethods?: string[],
 ): WebAuthSessionAssuranceLevel {
@@ -40,6 +59,36 @@ export function getAssuranceLevelFromAuthenticationMethods(
   }
 
   return 'aal1';
+}
+
+export function getAssuranceLevelFromAuthenticationEvidence({
+  authenticationMethods,
+  acr,
+  acceptedHighAssuranceAcrValues = DEFAULT_HIGH_ASSURANCE_ACR_VALUES,
+}: {
+  authenticationMethods?: string[];
+  acr?: unknown;
+  acceptedHighAssuranceAcrValues?: string[];
+}): WebAuthSessionAssuranceLevel {
+  const assuranceFromAuthenticationMethods =
+    getAssuranceLevelFromAuthenticationMethods(authenticationMethods);
+
+  if (assuranceFromAuthenticationMethods === 'aal2') {
+    return 'aal2';
+  }
+
+  const acceptedAcrValues = new Set(
+    acceptedHighAssuranceAcrValues
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  const tokenAcrValues = normalizeClaimValues(acr);
+
+  if (tokenAcrValues.some((value) => acceptedAcrValues.has(value))) {
+    return 'aal2';
+  }
+
+  return assuranceFromAuthenticationMethods;
 }
 
 export function isAssuranceSatisfied(

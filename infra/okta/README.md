@@ -34,7 +34,7 @@ Use this quick rule:
 - want to create or update the dev Okta org -> `npm run okta:bootstrap -- <env>`
 - want a read-only live Okta policy/security scan -> `npm run okta:audit-live -- <env>`
 - want to remove the Okta apps for a clean-room retest -> `npm run okta:cleanup -- <env>`
-- want to deactivate non-allowlisted Okta users -> `npm run okta:prune-users -- <env> --dry-run`
+- want to deactivate or delete non-allowlisted Okta users -> `npm run okta:prune-users -- <env> --dry-run`
 - want to permanently delete exact Okta users -> `npm run okta:delete-users -- <env> --login <login> --dry-run`
 
 If you are unsure, use `okta:bootstrap`.
@@ -138,10 +138,14 @@ It currently handles:
 - customer-brand theme colors
 - customer-brand hosted logo and favicon upload
 - customer-brand hosted sign-in and error page content from the repo template
+- customer-brand hosted sign-in page generation from
+  `hostedExperience.signInWidgetGeneration`; `G3` is required and bootstrap
+  verifies Okta persisted `widgetCustomizations.widgetGeneration`
 - email authenticator activation/update
 - optional ACS-backed telephony inline-hook creation, update, activation, and
   rollback
-- optional phone authenticator SMS activation with voice disabled
+- phone authenticator SMS activation with voice disabled when telephony is
+  enabled
 - customer group
 - org-level email-as-username intent (`Map primary email to login attribute`)
   from `hostedExperience.mapPrimaryEmailToLogin`; bootstrap prints the desired
@@ -150,13 +154,14 @@ It currently handles:
   (`email`, `firstName`, `lastName`, `mobilePhone`, `acmeState`); email remains
   the customer login identifier, and the captured phone number is profile
   contact input until the phone/SMS authenticator is separately verified. The
-  visible State field is scripted as the ACME-owned `acmeState` enum plus a
-  UI-schema select control because Okta's built-in base `state` attribute is a
-  plain string field.
+  visible State field is scripted as the ACME-owned `acmeState` enum limited to
+  Missouri and Texas plus a UI-schema select control because Okta's built-in
+  base `state` attribute is a plain string field.
   If Okta marks the rule conditions read-only, bootstrap fails closed with a
   manual-required gate instead of broadening app assignment to `Everyone`
 - customer-group-scoped MFA enrollment policy for password, email,
-  security-question, and optional phone/SMS enrollment when telephony is enabled
+  security-question, and phone/SMS enrollment when telephony is enabled; `dev`
+  requires phone/SMS because the mock provider is active
 - customer-group-scoped global session policy with a 60-day maximum lifetime
   and 120-minute idle timeout
 - app access policy
@@ -181,14 +186,16 @@ Live dev org state last verified from the Admin API:
 - localhost trusted origin exists with `CORS` and `REDIRECT`
 - customer brand exists
 - customer brand custom sign-in page exists
+- customer brand custom sign-in page is configured for Sign-In Widget Gen 3
+  through the Custom Pages API
 - customer brand custom error page exists
 - `lead_id` and `customer_id` claims exist for both ID and access tokens
 - managed user profile attributes exist:
   - `leadId`
   - `customerId`
   - `mobilePhone` for Okta-hosted registration phone capture
-  - `acmeState` for Okta-hosted registration State capture and US-state
-    dropdown rendering
+  - `acmeState` for Okta-hosted registration State capture limited to Missouri
+    and Texas
 - profile-enrollment UI schema is scripted as `email`, `firstName`, `lastName`,
   `mobilePhone`, and `acmeState`; `acmeState` uses UI format `select`
 - `hostedExperience.mapPrimaryEmailToLogin` is source-controlled as `true`;
@@ -204,7 +211,7 @@ Live dev org state last verified from the Admin API:
 - email, password, and Okta Verify authenticators are active
 - security-question enrollment is required by the ACME LOS authenticator policy
   for the `acme-los-customers-dev` customer group
-- phone/SMS factor enrollment is optional in `dev` through the repo-managed
+- phone/SMS factor enrollment is required in `dev` through the repo-managed
   mock telephony provider; the hosted profile phone number remains contact
   metadata until the Okta phone/SMS authenticator is verified
 - account-management lifecycle rules are repo-managed by bootstrap:
@@ -279,10 +286,15 @@ Purpose:
 - prepares a dry-run report by default
 - deactivates non-allowlisted users only when `okta.userPrune.enabled` is
   `true` and `--confirm-deactivate` is passed
+- permanently deletes non-allowlisted users only when
+  `okta.userPrune.enabled` is `true`, `okta.userPrune.action` is `delete`,
+  and `--confirm-delete` is passed
+- refuses admin-role users and the API-token owner unless explicitly overridden
 
-It does not permanently delete users. Okta documents user deletion as
-irrecoverable, so this repo uses deactivation as the source-supported prune
-operation.
+Delete mode always deactivates first, waits for Okta to report
+`DEPROVISIONED`, and then deletes as a second pass. Okta deletion is
+irrecoverable, so use delete mode only for throwaway dev/demo tenant cleanup
+after checking the dry-run report.
 
 Dry-run first:
 
@@ -295,6 +307,24 @@ After verifying `tmp/okta/dev.user-prune.outputs.json`:
 
 ```powershell
 npm run okta:prune-users -- dev --confirm-deactivate
+```
+
+For irreversible allowlist cleanup in dev only, set the manifest guard:
+
+```json
+"userPrune": {
+  "enabled": true,
+  "action": "delete",
+  "keepLogins": [],
+  "keepProfileContains": ["vinod", "gopi", "sasha"]
+}
+```
+
+Then dry-run and confirm:
+
+```powershell
+npm run okta:prune-users -- dev --dry-run
+npm run okta:prune-users -- dev --confirm-delete
 ```
 
 ### `npm run okta:delete-users -- <env>`
@@ -345,8 +375,9 @@ Some things are still manual or limited by the Okta plan/API surface.
 
 Current limitations:
 
-- phone verification is deferred until the source-supported ACS telephony path
-  is activated; follow
+- real ACS phone verification is deferred until the source-supported ACS
+  telephony path is activated; `dev` can require phone/SMS through the
+  repo-managed mock telephony provider for demos. Follow
   [Okta SMS MFA with Azure Communication Services](../../docs/operations/okta-sms-mfa-with-acs.md)
 - customer account-security policy intent, backend profile sync, and the manual
   account-management policy checks are documented in
@@ -370,19 +401,33 @@ That means:
 - branding colors, logo, and favicon are automated
 - hosted sign-in and error page HTML/content are automated by
   `tools/scripts/okta/hosted-sign-in-page.mjs` after the custom domain is linked
-- the Okta-hosted page shells live in `tools/scripts/okta/templates`; the
-  configurator injects brand copy, CSS, support footer, and Okta widget settings
-  through named placeholders
-- hosted sign-in explicitly enables Sign-Up in the Okta Sign-In Widget config;
-  if the link is still missing, verify the profile-enrollment policy/rule is
-  assigned and registration is enabled for the app
-- hosted-page polish includes compact ACME-styled controls, recovery/contact
-  hints, and a light/dark theme toggle
-- hosted-page visual quality is checked locally with
-  `npm run okta:audit-hosted-pages -- <env>`; the audit renders sign-in,
-  registration, enrollment, verification, recovery, and password states in
-  light/dark mode across mobile and desktop screenshots under
-  `tmp/okta-hosted-state-audit`
+- the Okta-hosted page templates live in `tools/scripts/okta/templates`; the
+  sign-in template is currently a native Gen 3 baseline that keeps Okta in
+  charge of all credential, registration, recovery, and authenticator controls
+- hosted sign-in is locked to Okta Sign-In Widget Gen 3. Okta documents Gen 3
+  as Okta-hosted only, so ACME keeps redirect auth through Okta and does not
+  self-host or embed the widget in Next.js. The current repo template avoids
+  Gen 2 class-name DOM overrides and custom form controls; the only ACME page
+  controller behavior is selecting supported widget flows for forgot-password,
+  unlock-account, and signup entry. If you need the matching Admin Console
+  check, go to
+  `Customizations > Brands > ACME LOS Customer > Pages > Sign-in page > Settings > Sign-In Widget version`
+  and verify `Use third generation` is active and published.
+- hosted registration is controlled by the Okta profile-enrollment policy/rule
+  assigned to the app. If the sign-up link is missing, verify that profile
+  enrollment targets `acme-los-customers-<env>` and registration is enabled for
+  the app.
+- password policy controls password requirements and lifecycle behavior; it
+  does not control whether the hosted Gen 3 registration form shows a
+  repeat/confirm-password field. ACME does not inject browser-only credential
+  fields into the hosted page. If a true confirm-password field becomes a hard
+  requirement, build an embedded/custom IDX registration experience instead of
+  patching the Okta-hosted DOM.
+- hosted-page behavior is checked locally with
+  `npm run okta:audit-hosted-pages -- <env>`; the audit renders the native
+  sign-in baseline and verifies that sign-in, signup, forgot-password, and
+  unlock-account widget flows initialize without dead hosted/help routes. Rich
+  ACME styling should be added later with a focused Gen 3-compatible pass.
 - theme persistence uses only the non-sensitive `acme_theme=light|dark`
   preference cookie; when the app runs at a sibling `*.avanai.net` hostname,
   the cookie is scoped to `avanai.net` so theme follows the redirect round trip
@@ -400,17 +445,18 @@ That means:
 
 Current auth shape in this repo:
 
-- registration requires password, email, and security-question enrollment for
-  users in the ACME LOS customer group because the MFA enrollment policy
-  requires those authenticators for that group; phone/SMS factor enrollment is
-  optional when telephony is enabled and required only by explicit rollout
+- registration requires password, email, security-question, and phone/SMS
+  enrollment for `dev` users in the ACME LOS customer group because the MFA
+  enrollment policy requires those authenticators for that group; higher
+  environments keep phone/SMS disabled until a sender/provider rollout is ready
 - Okta-hosted registration captures email, first name, last name, profile phone
   number, and visible State in profile enrollment; State is backed by the
-  ACME-owned `acmeState` US-state dropdown.
-  Password/repeat-password and password requirements are Okta password
-  authenticator enrollment, not ACME profile fields. Okta may still render
-  password, email OTP, and security-question enrollment as follow-up hosted
-  steps.
+  ACME-owned `acmeState` dropdown limited to Missouri and Texas.
+  Password and password requirements are Okta password authenticator enrollment,
+  not ACME profile fields. Confirm/repeat-password display is controlled by the
+  Okta hosted widget/org behavior, not by the ACME profile-enrollment schema.
+  Okta may still render password, email OTP, phone OTP, and security-question
+  enrollment as follow-up hosted steps.
 - Okta `sub` is the immutable ACME user key; email is mutable metadata synced to
   backend profile storage after a fresh Okta session
 - customer global session policy has a 60-day maximum lifetime and a

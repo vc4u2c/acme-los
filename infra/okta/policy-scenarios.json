@@ -130,7 +130,7 @@
       "managedBy": "okta:bootstrap",
       "configures": [
         "self-service registration",
-        "required hosted profile fields: email login identifier, first name, last name, profile phone number, and US-state dropdown backed by acmeState",
+        "required hosted profile fields: email login identifier, first name, last name, profile phone number, and Missouri/Texas State dropdown backed by acmeState",
         "new registrations target {customerGroupName}"
       ],
       "scenarioIds": ["new-customer-registration"]
@@ -243,14 +243,14 @@
       "automationStatus": "automated",
       "flow": [
         "Customer starts Okta hosted registration from ACME app.",
-        "Profile enrollment captures email as the login identifier, first name, last name, profile phone number, and visible State backed by the acmeState US-state dropdown, then targets {customerGroupName}.",
-        "Authenticator enrollment requires password, email, and security question in the same Okta-hosted registration flow; password and repeat-password are Okta-rendered enrollment inputs, not profile fields.",
-        "Phone/SMS authenticator enrollment is optional when telephony is enabled; until the customer verifies that authenticator, profile phone remains contact metadata, not a verified SMS factor."
+        "Profile enrollment captures email as the login identifier, first name, last name, profile phone number, and visible State backed by the acmeState Missouri/Texas dropdown, then targets {customerGroupName}.",
+        "Authenticator enrollment requires password, email, security question, and phone/SMS in dev when telephony is enabled; password is an Okta-rendered enrollment input, not a profile field.",
+        "Until the customer verifies the phone/SMS authenticator, profile phone remains contact metadata, not a verified SMS factor."
       ],
       "securityNotes": [
         "Admin users should not be members of {customerGroupName}.",
         "Registration policy must not be scoped to Okta Everyone.",
-        "Password, repeat-password validation, security-question answer, and OTP material stay in Okta."
+        "Password validation, security-question answer, and OTP material stay in Okta."
       ]
     },
     {
@@ -452,7 +452,7 @@
     },
     {
       "id": "registration-profile-fields",
-      "title": "Hosted registration requires email login identifier, first name, last name, phone number, and acmeState US-state dropdown",
+      "title": "Hosted registration requires email login identifier, first name, last name, phone number, and acmeState Missouri/Texas dropdown",
       "scopeKind": "customerGroup"
     },
     {

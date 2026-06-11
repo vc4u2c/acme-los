@@ -10,6 +10,7 @@ import type {
 import type { NextRequest, NextResponse } from 'next/server';
 import { clearApplicationFlow } from './application-flow';
 import {
+  getAssuranceLevelFromAuthenticationEvidence,
   getAssuranceLevelFromAuthenticationMethods,
   isAssuranceSatisfied,
   MOCK_AUTH_STORAGE_KEY,
@@ -196,6 +197,7 @@ function buildAuthUserFromClaims(
 function buildAuthenticatedSession(
   claims: Record<string, unknown>,
   fallbackLeadId?: string,
+  acceptedHighAssuranceAcrValues?: string[],
 ): WebAuthSession {
   const user = buildAuthUserFromClaims(claims, fallbackLeadId);
   if (!user) {
@@ -206,11 +208,21 @@ function buildAuthenticatedSession(
     provider: 'okta',
     status: 'authenticated',
     isAuthenticated: true,
-    assuranceLevel: getAssuranceLevelFromAuthenticationMethods(
-      user.authenticationMethods,
-    ),
+    assuranceLevel: getAssuranceLevelFromAuthenticationEvidence({
+      authenticationMethods: user.authenticationMethods,
+      acr: claims.acr,
+      acceptedHighAssuranceAcrValues,
+    }),
     user,
   };
+}
+
+function getConfiguredHighAssuranceAcrValues(): string[] {
+  const config = getServerWebAuthConfig();
+
+  return config.provider === 'okta' && config.okta?.fundingStepUpAcrValues
+    ? [config.okta.fundingStepUpAcrValues]
+    : [];
 }
 
 function readMockRequestSession(request: NextRequest): WebAuthSession | null {
@@ -417,6 +429,9 @@ export async function syncWebAuthSession(
   const session = buildAuthenticatedSession(
     verifiedIdTokenClaims,
     payload.leadId,
+    options.minimumAssuranceLevel === 'aal2'
+      ? getConfiguredHighAssuranceAcrValues()
+      : undefined,
   );
 
   if (options.expectedUserId && session.user?.id !== options.expectedUserId) {

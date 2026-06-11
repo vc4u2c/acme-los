@@ -27,6 +27,7 @@ export {
   type BffServiceAuthMode,
 } from './lib/bff-service-auth';
 export { logAuthAuditEvent } from './lib/auth-audit';
+export { getAssuranceLevelFromAuthenticationEvidence } from './lib/assurance';
 export {
   clearReplacedWebAuthSession,
   clearWebAuthLogoutArtifacts,

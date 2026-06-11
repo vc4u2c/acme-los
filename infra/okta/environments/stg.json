@@ -15,6 +15,7 @@
       "keepLogins": []
     },
     "hostedExperience": {
+      "signInWidgetGeneration": "G3",
       "rememberUser": true,
       "keepMeSignedIn": true,
       "customerSessionMaxLifetimeDays": 60,

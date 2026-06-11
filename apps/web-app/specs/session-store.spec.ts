@@ -2,6 +2,7 @@ import {
   clearReplacedWebAuthSession,
   consumeStoredWebAuthStepUp,
   createStoredWebAuthSession,
+  getAssuranceLevelFromAuthenticationEvidence,
   getStoredWebAuthSessionCookieMaxAge,
   isStoredWebAuthStepUpFresh,
   deleteStoredWebAuthTransaction,
@@ -120,6 +121,24 @@ describe('web auth session store idle expiry', () => {
   afterEach(() => {
     restoreEnvironment();
     jest.useRealTimers();
+  });
+
+  it('treats the configured Okta funding ACR value as aal2 evidence', () => {
+    expect(
+      getAssuranceLevelFromAuthenticationEvidence({
+        authenticationMethods: ['pwd'],
+        acr: 'urn:okta:loa:2fa:any',
+        acceptedHighAssuranceAcrValues: ['urn:okta:loa:2fa:any'],
+      }),
+    ).toBe('aal2');
+
+    expect(
+      getAssuranceLevelFromAuthenticationEvidence({
+        authenticationMethods: ['pwd'],
+        acr: 'urn:okta:loa:1fa:any',
+        acceptedHighAssuranceAcrValues: ['urn:okta:loa:2fa:any'],
+      }),
+    ).toBe('aal1');
   });
 
   it('rejects a stored session after its idle expiry', async () => {

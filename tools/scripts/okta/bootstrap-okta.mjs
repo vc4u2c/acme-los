@@ -119,6 +119,21 @@ function optionalPositiveInteger(value) {
   return value;
 }
 
+function resolveSignInWidgetGeneration(value) {
+  const normalized = optionalString(value)?.toUpperCase();
+  if (!normalized) {
+    return 'G3';
+  }
+
+  if (normalized !== 'G3') {
+    throw new Error(
+      'Expected okta.hostedExperience.signInWidgetGeneration to be "G3".',
+    );
+  }
+
+  return normalized;
+}
+
 function getUniqueValues(values) {
   return [...new Set(values.filter((value) => typeof value === 'string'))];
 }
@@ -218,57 +233,9 @@ const registrationProfileAttributes = [
 
 const registrationEnrollmentAuthenticatorTypes = ['password'];
 
-const usStateOptions = [
-  ['AL', 'Alabama'],
-  ['AK', 'Alaska'],
-  ['AZ', 'Arizona'],
-  ['AR', 'Arkansas'],
-  ['CA', 'California'],
-  ['CO', 'Colorado'],
-  ['CT', 'Connecticut'],
-  ['DE', 'Delaware'],
-  ['FL', 'Florida'],
-  ['GA', 'Georgia'],
-  ['HI', 'Hawaii'],
-  ['ID', 'Idaho'],
-  ['IL', 'Illinois'],
-  ['IN', 'Indiana'],
-  ['IA', 'Iowa'],
-  ['KS', 'Kansas'],
-  ['KY', 'Kentucky'],
-  ['LA', 'Louisiana'],
-  ['ME', 'Maine'],
-  ['MD', 'Maryland'],
-  ['MA', 'Massachusetts'],
-  ['MI', 'Michigan'],
-  ['MN', 'Minnesota'],
-  ['MS', 'Mississippi'],
+const supportedStateOptions = [
   ['MO', 'Missouri'],
-  ['MT', 'Montana'],
-  ['NE', 'Nebraska'],
-  ['NV', 'Nevada'],
-  ['NH', 'New Hampshire'],
-  ['NJ', 'New Jersey'],
-  ['NM', 'New Mexico'],
-  ['NY', 'New York'],
-  ['NC', 'North Carolina'],
-  ['ND', 'North Dakota'],
-  ['OH', 'Ohio'],
-  ['OK', 'Oklahoma'],
-  ['OR', 'Oregon'],
-  ['PA', 'Pennsylvania'],
-  ['RI', 'Rhode Island'],
-  ['SC', 'South Carolina'],
-  ['SD', 'South Dakota'],
-  ['TN', 'Tennessee'],
   ['TX', 'Texas'],
-  ['UT', 'Utah'],
-  ['VT', 'Vermont'],
-  ['VA', 'Virginia'],
-  ['WA', 'Washington'],
-  ['WV', 'West Virginia'],
-  ['WI', 'Wisconsin'],
-  ['WY', 'Wyoming'],
 ].map(([value, label]) => ({ value, label }));
 
 function writeJsonFile(targetPath, value) {
@@ -594,6 +561,7 @@ function assertCustomizedPagePersisted({
   expectedPageContent,
   label,
   markers,
+  expectedWidgetGeneration,
 }) {
   const actualPageContent = actualPage?.pageContent ?? '';
   if (actualPageContent.length === 0) {
@@ -617,6 +585,16 @@ function assertCustomizedPagePersisted({
       `Okta persisted the ${label} page without required marker(s): ${missingMarkers.join(', ')}.`,
     );
   }
+
+  if (expectedWidgetGeneration) {
+    const actualWidgetGeneration =
+      actualPage?.widgetCustomizations?.widgetGeneration ?? '';
+    if (actualWidgetGeneration !== expectedWidgetGeneration) {
+      throw new Error(
+        `Okta persisted the ${label} page with widgetGeneration="${actualWidgetGeneration || 'missing'}", expected "${expectedWidgetGeneration}".`,
+      );
+    }
+  }
 }
 
 async function putAndVerifyCustomizedSignInPage(brandId, payload) {
@@ -626,7 +604,8 @@ async function putAndVerifyCustomizedSignInPage(brandId, payload) {
     actualPage: persistedPage,
     expectedPageContent: payload.pageContent,
     label: 'hosted sign-in',
-    markers: ['acme-auth-shell', 'data-acme-recovery-fallback'],
+    markers: ['okta-login-container', 'OktaUtil.getSignInWidgetConfig'],
+    expectedWidgetGeneration: payload.widgetCustomizations?.widgetGeneration,
   });
   return persistedPage;
 }
@@ -1973,6 +1952,9 @@ const hostedExperience = environment.okta?.hostedExperience ?? {};
 const telephony = environment.okta?.telephony ?? {};
 const userPrune = environment.okta?.userPrune ?? {};
 const telephonyEnabled = telephony.enabled === true;
+const signInWidgetGeneration = resolveSignInWidgetGeneration(
+  hostedExperience.signInWidgetGeneration,
+);
 const mapPrimaryEmailToLogin =
   hostedExperience.mapPrimaryEmailToLogin !== false;
 const customerSessionMaxLifetimeDays =
@@ -2039,9 +2021,9 @@ const accountSecurityPolicyIntent = {
     mapPrimaryEmailToLogin,
     hostedProfileAttributes: registrationProfileAttributes,
     hostedStateInput:
-      'US state enum rendered as a select control from the ACME-owned acmeState profile attribute',
+      'Missouri/Texas state enum rendered as a select control from the ACME-owned acmeState profile attribute',
     hostedFlowShape:
-      'Okta-hosted registration collects profile fields in the profile-enrollment step. Password is modeled as Okta password authenticator enrollment, not as a profile field; Okta renders password, repeat-password validation, and password requirements according to the org policy and profile-enrollment password option.',
+      'Okta-hosted registration collects profile fields in the profile-enrollment step. Password is modeled as Okta password authenticator enrollment, not as a profile field; Okta renders password requirements and any confirm-password behavior according to hosted widget/org behavior.',
     profileEnrollmentAuthenticatorTypes:
       registrationEnrollmentAuthenticatorTypes,
     requiredAuthenticators: [
@@ -2379,6 +2361,9 @@ if (dryRun) {
     },
     hostedPages: {
       signIn: {
+        widgetCustomizations: {
+          widgetGeneration: signInWidgetGeneration,
+        },
         pageContent: buildHostedSignInPageContent(hostedBranding),
       },
       error: {
@@ -2705,11 +2690,17 @@ if (hasActiveCustomDomain) {
       contentSecurityPolicySetting:
         defaultSignInPage.contentSecurityPolicySetting ?? { mode: 'enforced' },
       widgetVersion: defaultSignInPage.widgetVersion ?? '^7',
-      widgetCustomizations: defaultSignInPage.widgetCustomizations ?? {},
+      widgetCustomizations: {
+        ...(defaultSignInPage.widgetCustomizations ?? {}),
+        widgetGeneration: signInWidgetGeneration,
+      },
     },
   );
   results.customizedSignInPage = {
     mode: 'applied',
+    presentation: 'okta-native-baseline',
+    widgetGeneration:
+      persistedSignInPage.widgetCustomizations?.widgetGeneration ?? 'unknown',
     pageContentLength: persistedSignInPage.pageContent?.length ?? 0,
   };
 
@@ -2929,11 +2920,12 @@ const customProfileAttributesResult = await ensureUserProfileAttributes({
   },
   acmeState: {
     title: 'State',
-    description: 'Customer US state captured during Okta-hosted registration.',
+    description:
+      'Customer supported state captured during Okta-hosted registration.',
     minLength: 2,
     maxLength: 2,
     selfPermission: 'READ_WRITE',
-    enumValues: usStateOptions,
+    enumValues: supportedStateOptions,
   },
 });
 results.customProfileAttributes = {
@@ -3363,7 +3355,7 @@ results.applicationAssignmentGroupId = customerGroupId;
 
 if (hostedExperience.rememberUser) {
   warnings.push(
-    "The hosted sign-in page intentionally hides Okta's pre-auth remember-user checkbox. Customer session lifetime and remember-device behavior remain controlled by the scoped Okta session and access policies.",
+    "The hosted sign-in page is currently in Okta native-baseline mode, so Okta's built-in remember-user behavior is visible if enabled by the widget/org configuration. Customer session lifetime and remember-device behavior remain controlled by the scoped Okta session and access policies.",
   );
 }
 

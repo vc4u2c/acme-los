@@ -16,13 +16,14 @@
       "keepProfileContains": ["vinod", "gopi", "sasha"]
     },
     "hostedExperience": {
+      "signInWidgetGeneration": "G3",
       "rememberUser": true,
       "keepMeSignedIn": true,
       "customerSessionMaxLifetimeDays": 60,
       "registrationRequiresEmailVerification": true,
       "mapPrimaryEmailToLogin": true,
       "registrationRequiresSecurityQuestion": true,
-      "registrationRequiresPhoneVerification": false,
+      "registrationRequiresPhoneVerification": true,
       "adaptiveMfaOnSignIn": true,
       "fundingRouteStepUp": true,
       "fundingStepUpMethod": "email",

@@ -6,22 +6,31 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDirectory, '..', '..', '..');
 
 const environmentName = process.argv[2];
+const args = process.argv.slice(3);
 const confirmDeactivate =
-  process.argv.includes('--confirm-deactivate') ||
-  getNpmConfigBoolean('confirm-deactivate');
+  hasFlag('--confirm-deactivate') || getNpmConfigBoolean('confirm-deactivate');
+const confirmDelete =
+  hasFlag('--confirm-delete') || getNpmConfigBoolean('confirm-delete');
 const includeAdmins =
-  process.argv.includes('--include-admins') ||
-  getNpmConfigBoolean('include-admins');
+  hasFlag('--include-admins') || getNpmConfigBoolean('include-admins');
+const allowTokenOwner =
+  hasFlag('--allow-token-owner') || getNpmConfigBoolean('allow-token-owner');
 const dryRun =
-  !confirmDeactivate ||
-  process.argv.includes('--dry-run') ||
+  (!confirmDeactivate && !confirmDelete) ||
+  hasFlag('--dry-run') ||
   getNpmConfigBoolean('dry-run');
 
 if (!environmentName) {
   console.error(
-    'Usage: node tools/scripts/okta/prune-okta-users.mjs <dev|qa|stg|prod> [--dry-run] [--confirm-deactivate] [--include-admins]',
+    'Usage: node tools/scripts/okta/prune-okta-users.mjs <dev|qa|stg|prod> [--dry-run] [--confirm-deactivate|--confirm-delete] [--include-admins] [--allow-token-owner]',
   );
   process.exit(1);
+}
+
+if (confirmDeactivate && confirmDelete) {
+  throw new Error(
+    'Choose either --confirm-deactivate or --confirm-delete, not both.',
+  );
 }
 
 if (!process.env.OKTA_API_TOKEN?.trim()) {
@@ -60,25 +69,31 @@ const keepProfileContains = readKeepLogins(userPruneConfig.keepProfileContains);
 const keepLoginSet = new Set(keepLogins.map(normalizeLogin));
 const keepProfileTerms = keepProfileContains.map(normalizeLogin);
 
-if (action !== 'deactivate') {
+if (!['deactivate', 'delete'].includes(action)) {
   throw new Error(
-    `Unsupported okta.userPrune.action "${action}". Use "deactivate".`,
+    `Unsupported okta.userPrune.action "${action}". Use "deactivate" or "delete".`,
   );
 }
 
-if (!enabled && confirmDeactivate) {
+if (!enabled && (confirmDeactivate || confirmDelete)) {
   throw new Error(
-    'Set okta.userPrune.enabled to true before running --confirm-deactivate.',
+    'Set okta.userPrune.enabled to true before running a confirmed prune.',
   );
 }
 
 if (
-  confirmDeactivate &&
+  (confirmDeactivate || confirmDelete) &&
   keepLogins.length === 0 &&
   keepProfileTerms.length === 0
 ) {
   throw new Error(
-    'Set okta.userPrune.keepLogins or okta.userPrune.keepProfileContains before running --confirm-deactivate.',
+    'Set okta.userPrune.keepLogins or okta.userPrune.keepProfileContains before running a confirmed prune.',
+  );
+}
+
+if (confirmDelete && action !== 'delete') {
+  throw new Error(
+    'Set okta.userPrune.action to "delete" before running --confirm-delete.',
   );
 }
 
@@ -97,6 +112,10 @@ function optionalString(value) {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function hasFlag(flagName) {
+  return args.includes(flagName);
 }
 
 function getNpmConfigValue(name) {
@@ -211,6 +230,28 @@ async function listAllUsers() {
   return users;
 }
 
+async function getCurrentUser() {
+  try {
+    const response = await oktaFetch('GET', '/api/v1/users/me');
+    return response.payload;
+  } catch (error) {
+    return {
+      id: undefined,
+      status: undefined,
+      profile: {
+        login: undefined,
+        email: undefined,
+      },
+      lookupError: error instanceof Error ? error.message : `${error}`,
+    };
+  }
+}
+
+async function getUser(userId) {
+  const response = await oktaFetch('GET', `/api/v1/users/${userId}`);
+  return response.payload;
+}
+
 async function listUserRoles(userId) {
   const response = await oktaFetch('GET', `/api/v1/users/${userId}/roles`);
   return Array.isArray(response.payload) ? response.payload : [];
@@ -259,21 +300,79 @@ function isDeactivatable(user) {
   return user.status !== 'DEPROVISIONED';
 }
 
+function sleep(delayMilliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, delayMilliseconds));
+}
+
+async function waitForDeprovisioned(userId) {
+  const maxAttempts = 30;
+  const delayMilliseconds = 2000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const user = await getUser(userId);
+    if (user.status === 'DEPROVISIONED') {
+      return user;
+    }
+
+    await sleep(delayMilliseconds);
+  }
+
+  throw new Error(
+    `Timed out waiting for user "${userId}" to reach DEPROVISIONED status.`,
+  );
+}
+
+function isDeactivationInProgressError(error) {
+  return (
+    error instanceof Error &&
+    (error.message.includes('E0000038') ||
+      error.message.toLowerCase().includes('deactivation is in progress'))
+  );
+}
+
+async function deleteUserWhenReady(userId) {
+  const maxAttempts = 30;
+  const delayMilliseconds = 2000;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      await oktaFetch('DELETE', `/api/v1/users/${userId}`);
+      return;
+    } catch (error) {
+      if (!isDeactivationInProgressError(error) || attempt === maxAttempts) {
+        throw error;
+      }
+
+      await sleep(delayMilliseconds);
+    }
+  }
+}
+
 async function buildPlan() {
-  const users = await listAllUsers();
+  const [users, currentUser] = await Promise.all([
+    listAllUsers(),
+    getCurrentUser(),
+  ]);
   const retained = [];
   const candidates = [];
   const skipped = [];
+  const tokenOwnerId = currentUser?.id;
 
   for (const user of users) {
-    const describedUser = describeUser(user);
+    const roles = await listUserRoles(user.id);
+    const roleLabels = roles.map((role) => role.label ?? role.type ?? role.id);
+    const describedUser = {
+      ...describeUser(user),
+      roles: roleLabels,
+      isTokenOwner: Boolean(tokenOwnerId && user.id === tokenOwnerId),
+    };
 
     if (isKeptUser(user)) {
       retained.push(describedUser);
       continue;
     }
 
-    if (!isDeactivatable(user)) {
+    if (!isDeactivatable(user) && action !== 'delete') {
       skipped.push({
         ...describedUser,
         reason: 'already-deprovisioned',
@@ -281,19 +380,30 @@ async function buildPlan() {
       continue;
     }
 
-    const roles = await listUserRoles(user.id);
-    if (roles.length > 0 && !includeAdmins) {
+    if (roleLabels.length > 0 && !includeAdmins) {
       skipped.push({
         ...describedUser,
         reason: 'admin-role',
-        roles: roles.map((role) => role.label ?? role.type ?? role.id),
+      });
+      continue;
+    }
+
+    if (describedUser.isTokenOwner && !allowTokenOwner) {
+      skipped.push({
+        ...describedUser,
+        reason: 'api-token-owner',
       });
       continue;
     }
 
     candidates.push({
       ...describedUser,
-      roles: roles.map((role) => role.label ?? role.type ?? role.id),
+      plannedAction:
+        action === 'delete'
+          ? user.status === 'DEPROVISIONED'
+            ? 'delete'
+            : 'deactivate-and-delete'
+          : 'deactivate',
     });
   }
 
@@ -306,16 +416,27 @@ async function buildPlan() {
 
   return {
     environment: environmentName,
-    mode: dryRun ? 'dry-run' : 'confirm-deactivate',
+    mode: dryRun
+      ? 'dry-run'
+      : confirmDelete
+        ? 'confirm-delete'
+        : 'confirm-deactivate',
     oktaApiBaseUrl,
     enabled,
     action,
     includeAdmins,
+    allowTokenOwner,
     keepLogins,
     keepProfileContains,
     missingKeepLogins,
+    tokenOwner: currentUser?.lookupError
+      ? { lookupError: currentUser.lookupError }
+      : describeUser(currentUser),
     retained,
-    deactivationCandidates: candidates,
+    deactivationCandidates: candidates.filter(
+      (user) => user.status !== 'DEPROVISIONED',
+    ),
+    deletionCandidates: action === 'delete' ? candidates : [],
     skipped,
   };
 }
@@ -331,18 +452,54 @@ async function deactivateUser(user) {
   });
 
   return {
-    id: user.id,
-    login: user.login,
+    ...user,
     mode: 'deactivation-requested',
   };
 }
 
+async function deactivateAndDeleteUser(user) {
+  const result = {
+    ...user,
+    operations: [],
+  };
+
+  if (user.status !== 'DEPROVISIONED') {
+    await oktaFetch('POST', `/api/v1/users/${user.id}/lifecycle/deactivate`, {
+      headers: {
+        Prefer: 'respond-async',
+      },
+      query: {
+        sendEmail: 'false',
+      },
+    });
+    result.operations.push('deactivation-requested');
+    await waitForDeprovisioned(user.id);
+    result.operations.push('deprovisioned-confirmed');
+  }
+
+  await deleteUserWhenReady(user.id);
+  result.operations.push('deleted');
+
+  return result;
+}
+
 const plan = await buildPlan();
 
-if (plan.missingKeepLogins.length > 0 && confirmDeactivate) {
+if (
+  plan.tokenOwner?.lookupError &&
+  (confirmDeactivate || confirmDelete) &&
+  !allowTokenOwner
+) {
   writeJsonFile(outputsPath, plan);
   throw new Error(
-    `Refusing to deactivate users because these keepLogins were not found: ${plan.missingKeepLogins.join(', ')}`,
+    `Refusing to prune users because the API token owner could not be resolved: ${plan.tokenOwner.lookupError}`,
+  );
+}
+
+if (plan.missingKeepLogins.length > 0 && (confirmDeactivate || confirmDelete)) {
+  writeJsonFile(outputsPath, plan);
+  throw new Error(
+    `Refusing to prune users because these keepLogins were not found: ${plan.missingKeepLogins.join(', ')}`,
   );
 }
 
@@ -350,9 +507,18 @@ if (dryRun) {
   writeJsonFile(outputsPath, plan);
   console.log(`Prepared Okta user prune plan for "${environmentName}".`);
   console.log(`- Users retained: ${plan.retained.length}`);
-  console.log(
-    `- Users that would be deactivated: ${plan.deactivationCandidates.length}`,
-  );
+  if (action === 'delete') {
+    console.log(
+      `- Users that would be deleted: ${plan.deletionCandidates.length}`,
+    );
+    console.log(
+      `- Users that would be deactivated first: ${plan.deactivationCandidates.length}`,
+    );
+  } else {
+    console.log(
+      `- Users that would be deactivated: ${plan.deactivationCandidates.length}`,
+    );
+  }
   console.log(`- Users skipped: ${plan.skipped.length}`);
   console.log(`- Preview file: ${path.relative(repoRoot, outputsPath)}`);
   process.exit(0);
@@ -361,15 +527,29 @@ if (dryRun) {
 const results = {
   ...plan,
   deactivated: [],
+  deleted: [],
 };
 
-for (const user of plan.deactivationCandidates) {
-  results.deactivated.push(await deactivateUser(user));
+if (confirmDelete) {
+  for (const user of plan.deletionCandidates) {
+    results.deleted.push(await deactivateAndDeleteUser(user));
+  }
+} else {
+  for (const user of plan.deactivationCandidates) {
+    results.deactivated.push(await deactivateUser(user));
+  }
 }
 
 writeJsonFile(outputsPath, results);
 console.log(`Pruned Okta users for "${environmentName}".`);
 console.log(`- Users retained: ${results.retained.length}`);
-console.log(`- Deactivation requests: ${results.deactivated.length}`);
+if (confirmDelete) {
+  console.log(`- Deleted users: ${results.deleted.length}`);
+  console.log(
+    `- Users deactivated before delete: ${results.deleted.filter((user) => user.operations.includes('deactivation-requested')).length}`,
+  );
+} else {
+  console.log(`- Deactivation requests: ${results.deactivated.length}`);
+}
 console.log(`- Users skipped: ${results.skipped.length}`);
 console.log(`- Report file: ${path.relative(repoRoot, outputsPath)}`);
