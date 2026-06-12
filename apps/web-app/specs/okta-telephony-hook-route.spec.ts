@@ -2,7 +2,7 @@
 
 import { SmsClient } from '@azure/communication-sms';
 import { NextRequest } from 'next/server';
-import { POST } from '../src/app/api/hooks/okta/telephony/route';
+import { GET, POST } from '../src/app/api/hooks/okta/telephony/route';
 
 jest.mock('@azure/communication-sms', () => ({
   SmsClient: jest.fn(),
@@ -44,11 +44,26 @@ function createTelephonyHookRequest({
   });
 }
 
+function createMockSmsInboxRequest(
+  authorization = 'Basic dGVzdDp0ZXN0',
+): NextRequest {
+  return new NextRequest('https://los.example.test/api/hooks/okta/telephony', {
+    method: 'GET',
+    headers: {
+      authorization,
+      'x-forwarded-for': `198.51.100.${++requestAddressSuffix}`,
+    },
+  });
+}
+
 describe('Okta telephony hook route', () => {
   const originalEnvironment = { ...process.env };
   const send = jest.fn();
 
   beforeEach(() => {
+    process.env.ACME_WEB_STATE_STORE = 'file';
+    delete process.env.ACME_REDIS_HOST;
+    delete process.env.ACME_REDIS_URL;
     process.env.ACME_ACS_ENDPOINT =
       'https://acs-acme-los-dev-cus-01.communication.azure.com';
     process.env.ACME_ACS_SMS_SENDER_PHONE_NUMBER = '+15555550100';
@@ -108,6 +123,8 @@ describe('Okta telephony hook route', () => {
 
     const response = await POST(createTelephonyHookRequest());
     const payload = await response.json();
+    const inboxResponse = await GET(createMockSmsInboxRequest());
+    const inboxPayload = await inboxResponse.json();
 
     expect(response.status).toBe(200);
     expect(send).not.toHaveBeenCalled();
@@ -125,6 +142,26 @@ describe('Okta telephony hook route', () => {
         },
       ],
     });
+    expect(inboxResponse.status).toBe(200);
+    expect(inboxPayload).toEqual({
+      record: expect.objectContaining({
+        event: 'okta.telephony_hook.mock_sms_delivered',
+        maskedPhoneNumber: '+155******0123',
+        mockOtpCode: '123456',
+        route: '/api/hooks/okta/telephony',
+        transactionId: expect.stringMatching(/^mock-evt-\d+$/),
+      }),
+    });
+  });
+
+  it('rejects unauthorized direct mock SMS inbox reads', async () => {
+    process.env.ACME_OKTA_TELEPHONY_PROVIDER = 'mock';
+    process.env.ACME_ENABLE_MOCK_SMS_OTP = 'True';
+    process.env.APP_ENVIRONMENT_NAME = 'dev';
+
+    const response = await GET(createMockSmsInboxRequest('Basic invalid'));
+
+    expect(response.status).toBe(401);
   });
 
   it('refuses mock provider outside local or dev environments', async () => {

@@ -27,6 +27,7 @@ export {
   type BffServiceAuthMode,
 } from './lib/bff-service-auth';
 export { logAuthAuditEvent } from './lib/auth-audit';
+export { getAssuranceLevelFromAuthenticationEvidence } from './lib/assurance';
 export {
   clearReplacedWebAuthSession,
   clearWebAuthLogoutArtifacts,
@@ -75,7 +76,12 @@ export {
   writeStoredWebAuthSession,
 } from './lib/session-store';
 export { getWebSessionTimeoutConfig } from './lib/session-timeout';
-export { getWebStateStoreMode } from './lib/state-store';
+export {
+  deleteStateValue,
+  getWebStateStoreMode,
+  readStateValue,
+  writeStateValue,
+} from './lib/state-store';
 export { buildPublicRequestUrl, getRequestOrigin } from './lib/request-url';
 export {
   clearWebAuthTransaction,

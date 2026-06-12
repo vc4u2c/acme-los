@@ -7,14 +7,13 @@ import {
 } from '../src/lib/application-auth';
 
 describe('application auth requirements', () => {
-  it('requires a consumable fresh funding step-up for the funding route entry', () => {
+  it('requires a fresh funding step-up for the funding route entry', () => {
     const expectedRequirement = {
       requiresAuthentication: true,
       minimumAssuranceLevel: 'aal2',
       requiredStepUp: {
         reason: 'funding',
         maxAgeSeconds: FUNDING_STEP_UP_MAX_AGE_SECONDS,
-        consumeOnSatisfied: true,
       },
     };
 

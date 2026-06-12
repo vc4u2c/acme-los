@@ -65,7 +65,7 @@ What is still bridge-state rather than final:
   `+18772244103`, but real carrier SMS remains blocked until Microsoft approves
   toll-free verification
 - `dev` can use a mock Okta telephony provider to demo Phone Authenticator UI by
-  logging Okta-generated OTPs in dev web app logs
+  storing Okta-generated OTPs in a protected, dev-only state-store inbox
 
 ## Current Runtime Diagram
 

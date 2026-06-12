@@ -44,6 +44,13 @@ const environmentPath = path.join(
   'environments',
   `${environmentName}.json`,
 );
+const brandProfilePath = path.join(
+  repoRoot,
+  'infra',
+  'okta',
+  'brand',
+  'acme-los.json',
+);
 
 if (!fs.existsSync(environmentPath)) {
   console.error(`Unknown Okta environment "${environmentName}".`);
@@ -91,10 +98,34 @@ function requiredString(value, fieldName) {
   return value.trim();
 }
 
+function optionalString(value) {
+  if (typeof value !== 'string') {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function optionalStringArray(values) {
   return Array.isArray(values)
     ? values.filter((value) => typeof value === 'string' && value.length > 0)
     : [];
+}
+
+function resolveSignInWidgetGeneration(value) {
+  const normalized = optionalString(value)?.toUpperCase();
+  if (!normalized) {
+    return 'G3';
+  }
+
+  if (normalized !== 'G3') {
+    throw new Error(
+      'Expected okta.hostedExperience.signInWidgetGeneration to be "G3".',
+    );
+  }
+
+  return normalized;
 }
 
 function resolveAuthorizationServerId(issuerValue) {
@@ -272,6 +303,7 @@ function summarizeRules(rules) {
 
 const token = readToken();
 const environment = readJsonFile(environmentPath);
+const brandProfile = readJsonFile(brandProfilePath);
 const policyScenarioManifest = loadOktaPolicyScenarioManifest(repoRoot);
 const issuer = requiredString(environment.okta?.issuer, 'okta.issuer');
 const oktaApiBaseUrl = new URL('/', issuer).toString().replace(/\/$/, '');
@@ -287,6 +319,13 @@ const accessPolicyName = `ACME LOS App Access (${environment.environment})`;
 const authorizationServerPolicyName = `ACME LOS Default Authorization (${environment.environment})`;
 const authorizationServerRuleName = 'ACME LOS Default Tokens';
 const telephonyInlineHookName = `ACME LOS ACS SMS (${environment.environment})`;
+const customerBrandName = requiredString(
+  brandProfile.customerBrandName,
+  'brand.customerBrandName',
+);
+const expectedSignInWidgetGeneration = resolveSignInWidgetGeneration(
+  environment.okta?.hostedExperience?.signInWidgetGeneration,
+);
 const expectedTelephonyUri = environment.okta?.telephony?.enabled
   ? toAbsoluteUrl(
       requiredString(environment.web?.deployedBaseUrl, 'web.deployedBaseUrl'),
@@ -680,6 +719,37 @@ if (mobileApp) {
   );
 }
 
+const brands = await oktaRequestNullable('/api/v1/brands');
+const customerBrand = Array.isArray(brands)
+  ? (brands.find((brand) => brand.name === customerBrandName) ?? null)
+  : null;
+checkObjectExists(
+  customerBrand,
+  'brand.customer.exists',
+  `${customerBrandName} customer brand exists`,
+);
+const customizedSignInPage = customerBrand
+  ? await oktaRequestNullable(
+      `/api/v1/brands/${customerBrand.id}/pages/sign-in/customized`,
+    )
+  : null;
+checkObjectExists(
+  customizedSignInPage,
+  'brand.sign-in.customized',
+  `${customerBrandName} customized sign-in page exists`,
+);
+addCheck(
+  customizedSignInPage?.widgetCustomizations?.widgetGeneration ===
+    expectedSignInWidgetGeneration
+    ? 'pass'
+    : 'fail',
+  'brand.sign-in.widget-generation',
+  `${customerBrandName} sign-in page uses Sign-In Widget ${expectedSignInWidgetGeneration}`,
+  customizedSignInPage
+    ? `actual=${customizedSignInPage.widgetCustomizations?.widgetGeneration ?? 'missing'}`
+    : 'missing',
+);
+
 const authenticators = await listAll('/api/v1/authenticators', { limit: 200 });
 const authenticatorsByKey = new Map(
   authenticators.map((authenticator) => [authenticator.key, authenticator]),
@@ -990,6 +1060,12 @@ const userSchema = await oktaRequestNullable(
   '/api/v1/meta/schemas/user/default',
 );
 const userProperties = userSchema?.definitions?.custom?.properties ?? {};
+const acmeStateValues = Array.isArray(userProperties.acmeState?.oneOf)
+  ? userProperties.acmeState.oneOf
+      .map((option) => option?.const ?? option?.value)
+      .filter((value) => typeof value === 'string')
+      .sort()
+  : [];
 addCheck(
   ['leadId', 'customerId', 'acmeState'].every((propertyName) =>
     Object.hasOwn(userProperties, propertyName),
@@ -1000,12 +1076,13 @@ addCheck(
   'leadId, customerId, and acmeState user profile attributes exist',
 );
 addCheck(
-  Array.isArray(userProperties.acmeState?.oneOf) &&
-    userProperties.acmeState.oneOf.length >= 50
+  acmeStateValues.length === 2 &&
+    acmeStateValues[0] === 'MO' &&
+    acmeStateValues[1] === 'TX'
     ? 'pass'
     : 'fail',
   'profile-schema.acme-state-dropdown',
-  'acmeState has US-state dropdown values',
+  'acmeState is limited to Missouri and Texas',
 );
 
 const since = new Date(
@@ -1102,6 +1179,23 @@ const result = {
           priority: assignment.priority,
         })),
       },
+    },
+    hostedSignIn: {
+      brand: customerBrand
+        ? {
+            id: customerBrand.id,
+            name: customerBrand.name,
+            isDefault: customerBrand.isDefault,
+          }
+        : null,
+      customizedPage: customizedSignInPage
+        ? {
+            widgetVersion: customizedSignInPage.widgetVersion,
+            widgetGeneration:
+              customizedSignInPage.widgetCustomizations?.widgetGeneration,
+            pageContentLength: customizedSignInPage.pageContent?.length ?? 0,
+          }
+        : null,
     },
     authenticators: {
       email: summarizeAuthenticator(emailAuthenticator),

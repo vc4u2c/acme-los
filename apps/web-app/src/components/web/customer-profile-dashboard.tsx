@@ -11,11 +11,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { createWebApiClient } from '@acme-los/api/web-client';
-import {
-  getCurrentOktaTokenClaims,
-  getWebAuthConfig,
-  useAuthSession,
-} from '@acme-los/auth/web';
+import { getCurrentOktaTokenClaims, useAuthSession } from '@acme-los/auth/web';
 import {
   Alert,
   AlertDescription,
@@ -46,56 +42,78 @@ const emptyCustomerProfile: CustomerProfileFormState = {
 const navigationItems: { href: string; label: string }[] = [];
 
 const oktaAccountSecurityActions: Array<{
+  actionId: AccountSecurityActionId;
   label: string;
   description: string;
   cta: string;
-  accountSettingsPath: string;
   icon: LucideIcon;
 }> = [
   {
-    label: 'Update login email',
+    actionId: 'change-email',
+    label: 'Change sign-in email',
     description:
-      'Use another enrolled verification method before changing your sign-in email.',
-    cta: 'Update email',
-    accountSettingsPath: '/enduser/settings/personal',
+      'Start hosted verification before replacing the email used to sign in.',
+    cta: 'Verify email change',
     icon: Mail,
   },
   {
-    label: 'Manage text-message verification',
+    actionId: 'change-phone',
+    label: 'Change SMS verification phone',
     description:
-      'Enroll, review, or replace your optional SMS verification phone.',
-    cta: 'Manage phone',
-    accountSettingsPath: '/enduser/settings/security',
+      'Use hosted verification before replacing the phone used for SMS codes.',
+    cta: 'Verify phone change',
     icon: Phone,
   },
   {
+    actionId: 'change-password',
     label: 'Change password',
     description:
-      'Confirm your current password and a verification method first.',
-    cta: 'Change password',
-    accountSettingsPath: '/enduser/settings/security',
+      'Verify the current customer session before starting password recovery or reset.',
+    cta: 'Verify password change',
     icon: KeyRound,
   },
   {
+    actionId: 'recovery-question',
     label: 'Update recovery question',
-    description: 'Keep the recovery challenge current for account recovery.',
-    cta: 'Update question',
-    accountSettingsPath: '/enduser/settings/security',
+    description:
+      'Step up before reviewing the security question used during recovery.',
+    cta: 'Verify question change',
     icon: CircleHelp,
   },
 ];
 
-function getOktaAccountSettingsUrl(pathname: string): string | null {
-  try {
-    const config = getWebAuthConfig();
-    if (config.provider !== 'okta' || !config.okta) {
-      return null;
-    }
+type AccountSecurityActionId =
+  | 'overview'
+  | 'change-email'
+  | 'change-phone'
+  | 'change-password'
+  | 'recovery-question';
 
-    return new URL(pathname, new URL(config.okta.issuer).origin).toString();
-  } catch {
-    return null;
-  }
+const accountSecurityActionCompletionMessages: Record<
+  AccountSecurityActionId,
+  string
+> = {
+  overview:
+    'Hosted account-security verification completed for this customer session.',
+  'change-email':
+    'Hosted verification completed for a sign-in email change. Refresh the secure session after the verified email changes so ACME can sync it.',
+  'change-phone':
+    'Hosted verification completed for a phone change. Verified SMS factor updates still come from Okta-managed factor state.',
+  'change-password':
+    'Hosted verification completed for a password change. Sign out and sign in again after a reset to refresh the customer session.',
+  'recovery-question':
+    'Hosted verification completed for recovery-question maintenance. Recovery answers stay only in Okta.',
+};
+
+function buildHostedAccountSecurityUrl(
+  actionId: AccountSecurityActionId,
+): string {
+  const searchParams = new URLSearchParams({
+    returnTo: `/account/profile?account_action=${actionId}`,
+    aal: 'aal2',
+  });
+
+  return `/api/auth/start?${searchParams.toString()}`;
 }
 
 function formatDebugClaimValue(value: unknown): string {
@@ -149,15 +167,14 @@ export function CustomerProfileDashboard(): React.ReactElement {
   const [formState, setFormState] =
     React.useState<CustomerProfileFormState>(emptyCustomerProfile);
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
+  const [accountActionMessage, setAccountActionMessage] = React.useState<
+    string | null
+  >(null);
   const [showTokenDebug, setShowTokenDebug] = React.useState(false);
   const [isProfileLoading, setIsProfileLoading] = React.useState(true);
   const [isSavingProfile, setIsSavingProfile] = React.useState(false);
-  const oktaAccountSettingsBaseUrl = React.useMemo(
-    () => getOktaAccountSettingsUrl('/enduser/settings'),
-    [],
-  );
-  const oktaAccountSecurityUrl = React.useMemo(
-    () => getOktaAccountSettingsUrl('/enduser/settings/security'),
+  const hostedAccountSecurityUrl = React.useMemo(
+    () => buildHostedAccountSecurityUrl('overview'),
     [],
   );
   const tokenDebugSupported =
@@ -249,6 +266,28 @@ export function CustomerProfileDashboard(): React.ReactElement {
     const searchParams = new URLSearchParams(window.location.search);
     setShowTokenDebug(searchParams.get('token_debug') === '1');
   }, [tokenDebugSupported]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    const actionId = new URLSearchParams(window.location.search).get(
+      'account_action',
+    ) as AccountSecurityActionId | null;
+
+    if (
+      actionId &&
+      Object.prototype.hasOwnProperty.call(
+        accountSecurityActionCompletionMessages,
+        actionId,
+      )
+    ) {
+      setAccountActionMessage(
+        accountSecurityActionCompletionMessages[actionId],
+      );
+    }
+  }, []);
 
   React.useEffect(() => {
     if (!showTokenDebug) {
@@ -379,9 +418,9 @@ export function CustomerProfileDashboard(): React.ReactElement {
                       className="border-[var(--border)] bg-[var(--surface-strong)] text-[var(--muted-foreground)]"
                     />
                     <p className="text-xs leading-5 text-[var(--muted-foreground)]">
-                      Change the login email in the secure account center, then
-                      refresh your session here so ACME can sync the verified
-                      value.
+                      Use hosted verification before changing the login email,
+                      then refresh your session here so ACME can sync the
+                      verified value.
                     </p>
                   </div>
                   <div className="space-y-2">
@@ -506,6 +545,11 @@ export function CustomerProfileDashboard(): React.ReactElement {
                       {statusMessage}
                     </p>
                   ) : null}
+                  {accountActionMessage ? (
+                    <p className="mt-3 text-sm font-medium text-[var(--brand)]">
+                      {accountActionMessage}
+                    </p>
+                  ) : null}
                 </Alert>
 
                 <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-6 sm:flex-row sm:items-center sm:justify-between">
@@ -545,36 +589,34 @@ export function CustomerProfileDashboard(): React.ReactElement {
                 </CardTitle>
                 <CardDescription className="text-sm leading-6 text-[var(--muted-foreground)] sm:text-base sm:leading-7">
                   Passwords, recovery questions, and verification factors stay
-                  in the hosted account center. ACME syncs only verified contact
+                  behind hosted verification. ACME syncs only verified contact
                   metadata after a fresh session.
                 </CardDescription>
-                {oktaAccountSecurityUrl ? (
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="mt-2 w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-6 text-[var(--foreground)] hover:bg-[var(--surface-accent)] sm:w-fit"
-                  >
-                    <a href={oktaAccountSecurityUrl}>
-                      <span>Open account security</span>
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </a>
-                  </Button>
-                ) : null}
+                <Button
+                  asChild
+                  variant="outline"
+                  className="mt-2 w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-6 text-[var(--foreground)] hover:bg-[var(--surface-accent)] sm:w-fit"
+                >
+                  <a href={hostedAccountSecurityUrl}>
+                    <span>Verify account security</span>
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </a>
+                </Button>
               </CardHeader>
               <CardContent className="min-w-0 space-y-4 px-5 pb-5 sm:px-6 sm:pb-6">
                 <div className="grid gap-3">
                   {oktaAccountSecurityActions.map((action) => {
                     const Icon = action.icon;
-                    const actionUrl =
-                      getOktaAccountSettingsUrl(action.accountSettingsPath) ??
-                      oktaAccountSettingsBaseUrl;
+                    const actionUrl = buildHostedAccountSecurityUrl(
+                      action.actionId,
+                    );
 
-                    return actionUrl ? (
+                    return (
                       <a
                         key={action.label}
                         href={actionUrl}
                         className="group grid gap-3 rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-4 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] sm:grid-cols-[1fr_auto] sm:items-center"
-                        aria-label={`${action.cta} in the hosted account center`}
+                        aria-label={`${action.cta} with hosted secure verification`}
                       >
                         <span className="flex min-w-0 items-start gap-3">
                           <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--brand)] transition group-hover:border-[var(--border-strong)]">
@@ -598,53 +640,21 @@ export function CustomerProfileDashboard(): React.ReactElement {
                           <ArrowRight className="h-4 w-4" aria-hidden="true" />
                         </span>
                       </a>
-                    ) : (
-                      <div
-                        key={action.label}
-                        className="grid gap-3 rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-4 sm:grid-cols-[1fr_auto] sm:items-center"
-                      >
-                        <div className="flex min-w-0 items-start gap-3">
-                          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--brand)]">
-                            <Icon
-                              className="h-[18px] w-[18px]"
-                              aria-hidden="true"
-                              strokeWidth={2}
-                            />
-                          </span>
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold text-[var(--foreground)]">
-                              {action.label}
-                            </p>
-                            <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
-                              {action.description}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
                     );
                   })}
                 </div>
 
                 <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-4">
-                  {!oktaAccountSettingsBaseUrl ? (
-                    <div className="rounded-[1.25rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--muted-foreground)]">
-                      Account settings are available after the hosted sign-in
-                      environment is configured.
-                    </div>
-                  ) : null}
-
-                  {oktaAccountSettingsBaseUrl ? (
-                    <Button
-                      asChild
-                      variant="outline"
-                      className="w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-6 text-[var(--foreground)] hover:bg-[var(--surface-accent)]"
-                    >
-                      <a href={oktaAccountSettingsBaseUrl}>
-                        <span>Open hosted account center</span>
-                        <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                      </a>
-                    </Button>
-                  ) : null}
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-6 text-[var(--foreground)] hover:bg-[var(--surface-accent)]"
+                  >
+                    <a href={hostedAccountSecurityUrl}>
+                      <span>Start hosted verification</span>
+                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                    </a>
+                  </Button>
                 </div>
               </CardContent>
             </Card>

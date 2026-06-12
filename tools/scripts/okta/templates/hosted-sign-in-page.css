@@ -1,0 +1,657 @@
+.acme-brand-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--acme-border);
+  background: color-mix(in srgb, var(--acme-surface) 92%, transparent);
+  box-shadow: var(--acme-header-shadow);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+.acme-brand-header__inner {
+  width: min(100%, 76rem);
+  margin: 0 auto;
+  padding: 0.7rem clamp(1rem, 4vw, 2rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.acme-brand-header__lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.72rem;
+  min-width: 0;
+}
+
+.acme-brand-header__mark {
+  width: 2.6rem;
+  height: 2.6rem;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: var(--acme-brand);
+  box-shadow: 0 12px 24px var(--acme-brand-shadow);
+}
+
+.acme-brand-header__mark svg {
+  width: 1.3rem;
+  height: 1.3rem;
+  display: block;
+}
+
+.acme-brand-header__copy {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.acme-brand-header__eyebrow {
+  color: var(--acme-muted-text);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.acme-brand-header__title {
+  color: var(--acme-text);
+  font-family: var(--acme-font-display);
+  font-size: clamp(1.1rem, 2vw, 1.38rem);
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.acme-theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18rem;
+  padding: 0.18rem;
+  border: 1px solid var(--acme-border);
+  border-radius: 999px;
+  background: var(--acme-surface-strong);
+  flex: 0 0 auto;
+}
+
+.acme-theme-toggle__button {
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 0;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--acme-muted-text);
+  background: transparent;
+  cursor: pointer;
+}
+
+.acme-theme-toggle__button[aria-pressed='true'] {
+  color: var(--acme-brand-contrast);
+  background: var(--acme-brand);
+}
+
+.acme-theme-toggle__button svg {
+  width: 1rem;
+  height: 1rem;
+  display: block;
+}
+
+.acme-auth-page {
+  min-height: calc(100vh - 4rem);
+  padding: clamp(1.35rem, 3.5vw, 2.75rem) clamp(1rem, 4vw, 2rem) 1.2rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.acme-auth-layout {
+  width: min(100%, 72rem);
+  margin: 0 auto clamp(1.35rem, 3.5vw, 2.5rem);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 27rem);
+  gap: clamp(1.4rem, 5vw, 4rem);
+  align-items: start;
+}
+
+.acme-auth-context {
+  max-width: 34rem;
+  padding-top: clamp(0.25rem, 2.5vw, 1.55rem);
+}
+
+.acme-auth-eyebrow {
+  margin: 0 0 0.75rem;
+  color: var(--acme-muted-text);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.acme-auth-title {
+  margin: 0;
+  color: var(--acme-text);
+  font-family: var(--acme-font-display);
+  font-size: clamp(2.15rem, 4.4vw, 3.8rem);
+  font-weight: 650;
+  line-height: 0.98;
+  letter-spacing: 0;
+  max-width: 11ch;
+}
+
+.acme-auth-subtitle {
+  max-width: 34rem;
+  margin: 1rem 0 0;
+  color: var(--acme-muted-text);
+  font-size: clamp(0.98rem, 1.6vw, 1.12rem);
+  line-height: 1.55;
+}
+
+.acme-auth-trust-band {
+  max-width: 31rem;
+  margin-top: clamp(1.15rem, 3vw, 1.7rem);
+  padding: 0.82rem 0.95rem;
+  border-left: 3px solid var(--acme-accent);
+  color: var(--acme-text);
+  background: color-mix(in srgb, var(--acme-surface-accent) 82%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.42;
+}
+
+.acme-auth-widget,
+#okta-login-container {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Okta Gen3 owns remediation structure; ACME only skins stable boundaries. */
+#okta-login-container {
+  --acme-widget-control-height: 2.4rem;
+  color: var(--acme-text);
+  font-family: var(--acme-font-body);
+}
+
+#okta-login-container,
+#okta-login-container * {
+  box-sizing: border-box;
+}
+
+#okta-login-container > div,
+#okta-login-container :where(#okta-sign-in, [data-se~='auth-container']) {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+#okta-login-container :where(#okta-sign-in, [data-se~='auth-container']) {
+  border: 1px solid var(--acme-border) !important;
+  border-radius: 8px !important;
+  background: var(--acme-card) !important;
+  box-shadow: var(--acme-card-shadow) !important;
+  color: var(--acme-text) !important;
+  padding: clamp(1rem, 3vw, 1.45rem) !important;
+  overflow: hidden !important;
+}
+
+#okta-login-container
+  :where(.auth-header, .okta-sign-in-header, .siw-main-header),
+#okta-login-container
+  :where([data-se*='auth-header'], [data-se='auth-org-logo']) {
+  display: none !important;
+}
+
+#okta-login-container
+  :where(.auth-content, .siw-main-body, [data-se='o-form']) {
+  padding: 0 !important;
+}
+
+#okta-login-container :where(form, .o-form, .o-form-content, .o-form-fieldset) {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+}
+
+#okta-login-container
+  :where(.MuiBox-root, .MuiStack-root, .MuiGrid-root, .MuiTypography-root) {
+  color: var(--acme-text) !important;
+}
+
+#okta-login-container
+  :where(.o-form-fieldset, [data-se^='o-form-fieldset'], .MuiFormControl-root) {
+  margin: 0 0 0.78rem !important;
+}
+
+#okta-login-container
+  :where(h1, h2, h3, .okta-form-title, .o-form-head, [data-se='o-form-head']) {
+  margin: 0 0 0.78rem !important;
+  color: var(--acme-text) !important;
+  font-family: var(--acme-font-display) !important;
+  font-size: clamp(1.26rem, 2.35vw, 1.62rem) !important;
+  line-height: 1.12 !important;
+  letter-spacing: 0 !important;
+}
+
+#okta-login-container :where([data-se='o-form-explain'], .o-form-explain) {
+  margin: 0 0 0.9rem !important;
+  color: var(--acme-muted-text) !important;
+  font-size: 0.92rem !important;
+  line-height: 1.45 !important;
+}
+
+#okta-login-container
+  :where(
+    label,
+    .okta-form-label,
+    .o-form-label,
+    .MuiFormLabel-root,
+    .MuiInputLabel-root
+  ) {
+  margin: 0 0 0.34rem !important;
+  color: var(--acme-text) !important;
+  font-family: var(--acme-font-body) !important;
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.12em !important;
+  line-height: 1.22 !important;
+  opacity: 1 !important;
+  text-transform: uppercase !important;
+}
+
+#okta-login-container
+  :where(
+    input:not([type='checkbox']):not([type='radio']):not(
+        .MuiInputBase-input
+      ):not(.MuiSelect-nativeInput),
+    select,
+    textarea,
+    .MuiInputBase-root
+  ) {
+  width: 100% !important;
+  min-height: var(--acme-widget-control-height) !important;
+  border: 1px solid var(--acme-border-strong) !important;
+  border-radius: 6px !important;
+  background: var(--acme-field-bg) !important;
+  color: var(--acme-text) !important;
+  box-shadow: none !important;
+  font-family: var(--acme-font-body) !important;
+  font-size: 0.96rem !important;
+  line-height: 1.35 !important;
+}
+
+#okta-login-container :where(.MuiInputBase-root) {
+  display: flex !important;
+  align-items: center !important;
+  overflow: hidden !important;
+}
+
+#okta-login-container
+  :where(
+    input:not([type='checkbox']):not([type='radio']):not(
+        .MuiInputBase-input
+      ):not(.MuiSelect-nativeInput),
+    textarea,
+    .MuiInputBase-input,
+    .MuiSelect-select
+  ) {
+  padding: 0.46rem 0.68rem !important;
+}
+
+#okta-login-container :where(.MuiInputBase-input, .MuiSelect-select) {
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  color: var(--acme-text) !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+}
+
+#okta-login-container :where(.MuiNativeSelect-select, .MuiSelect-select) {
+  padding-right: 2rem !important;
+}
+
+#okta-login-container option {
+  background: var(--acme-card) !important;
+  color: var(--acme-text) !important;
+}
+
+html[data-acme-theme]
+  :where(.MuiPopover-root .MuiPaper-root, .MuiMenu-paper, [role='listbox']) {
+  border: 1px solid var(--acme-border) !important;
+  border-radius: 6px !important;
+  background: var(--acme-card) !important;
+  color: var(--acme-text) !important;
+  box-shadow: var(--acme-card-shadow) !important;
+}
+
+html[data-acme-theme] :where(.MuiMenuItem-root, [role='option']) {
+  background: var(--acme-card) !important;
+  color: var(--acme-text) !important;
+}
+
+html[data-acme-theme]
+  :where(
+    .MuiMenuItem-root.Mui-selected,
+    .MuiMenuItem-root[aria-selected='true'],
+    [role='option'][aria-selected='true']
+  ) {
+  background: var(--acme-surface-accent) !important;
+  color: var(--acme-text) !important;
+}
+
+html[data-acme-theme] :where(.MuiMenuItem-root:hover, [role='option']:hover) {
+  background: color-mix(
+    in srgb,
+    var(--acme-surface-accent) 82%,
+    transparent
+  ) !important;
+  color: var(--acme-text) !important;
+}
+
+#okta-login-container :where(.MuiSelect-nativeInput) {
+  width: 0 !important;
+  min-width: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  padding: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  position: absolute !important;
+}
+
+#okta-login-container
+  :where(.MuiOutlinedInput-notchedOutline, .MuiInputBase-root fieldset) {
+  border: 0 !important;
+}
+
+#okta-login-container
+  :where(
+    input:not(.MuiInputBase-input):not(.MuiSelect-nativeInput):focus,
+    select:focus,
+    textarea:focus,
+    .MuiInputBase-root.Mui-focused
+  ) {
+  border-color: var(--acme-focus) !important;
+  outline: 2px solid var(--acme-ring-soft) !important;
+  outline-offset: 2px !important;
+}
+
+#okta-login-container input:-webkit-autofill,
+#okta-login-container input:-webkit-autofill:hover,
+#okta-login-container input:-webkit-autofill:focus,
+#okta-login-container select:-webkit-autofill,
+#okta-login-container select:-webkit-autofill:hover,
+#okta-login-container select:-webkit-autofill:focus {
+  border-color: var(--acme-border-strong) !important;
+  -webkit-box-shadow: 0 0 0 1000px var(--acme-field-bg) inset !important;
+  -webkit-text-fill-color: var(--acme-text) !important;
+  caret-color: var(--acme-text) !important;
+}
+
+#okta-login-container
+  :where(
+    button[data-se='save'],
+    input[type='submit'],
+    input[type='button'],
+    .button,
+    .MuiButton-root:not(.MuiIconButton-root)
+  ) {
+  width: 100% !important;
+  min-height: var(--acme-widget-control-height) !important;
+  border: 1px solid transparent !important;
+  border-radius: 6px !important;
+  background: var(--acme-brand) !important;
+  color: var(--acme-brand-contrast) !important;
+  font-family: var(--acme-font-body) !important;
+  font-size: 0.94rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+  padding: 0.44rem 0.8rem !important;
+  box-shadow: none !important;
+  text-transform: none !important;
+}
+
+#okta-login-container
+  :where(
+    button[data-se='save']:hover,
+    input[type='submit']:hover,
+    input[type='button']:hover,
+    .button:hover,
+    .MuiButton-root:not(.MuiIconButton-root):hover
+  ) {
+  background: var(--acme-brand-strong) !important;
+}
+
+#okta-login-container :where(.MuiIconButton-root) {
+  width: 2.1rem !important;
+  min-width: 2.1rem !important;
+  height: 2.1rem !important;
+  min-height: 2.1rem !important;
+  margin: 0 0.08rem 0 0 !important;
+  border: 0 !important;
+  border-radius: 6px !important;
+  background: transparent !important;
+  color: var(--acme-muted-text) !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+}
+
+#okta-login-container :where(.MuiIconButton-root:hover) {
+  color: var(--acme-link) !important;
+  background: color-mix(
+    in srgb,
+    var(--acme-surface-accent) 70%,
+    transparent
+  ) !important;
+}
+
+#okta-login-container
+  :where(a, .link, .link-button, .MuiLink-root, [role='link']) {
+  color: var(--acme-link) !important;
+  font-weight: 800 !important;
+  text-decoration: none !important;
+}
+
+#okta-login-container
+  :where(a, .link, .link-button, .MuiLink-root, [role='link']):hover {
+  text-decoration: underline !important;
+  text-underline-offset: 0.18em;
+}
+
+#okta-login-container a[data-se='unlock'] {
+  margin-left: 0.72rem !important;
+}
+
+#okta-login-container
+  :where(
+    [data-se='help'],
+    [data-se='help-link'],
+    a[href*='/help'],
+    a[href*='help.okta']
+  ) {
+  display: none !important;
+}
+
+#okta-login-container :where([data-se='back']) {
+  width: auto !important;
+  min-height: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+#okta-login-container :where(input[type='checkbox'], input[type='radio']) {
+  width: 1rem !important;
+  height: 1rem !important;
+  margin: 0 0.5rem 0 0 !important;
+  vertical-align: middle !important;
+  accent-color: var(--acme-brand);
+}
+
+#okta-login-container
+  :where(.custom-checkbox, .custom-radio, .MuiFormControlLabel-root) {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.42rem !important;
+  margin: 0.18rem 0 0.78rem !important;
+  color: var(--acme-text) !important;
+}
+
+#okta-login-container
+  :where(
+    .okta-form-input-error,
+    .o-form-input-error,
+    .Mui-error,
+    [role='alert']
+  ) {
+  color: var(--acme-critical-text) !important;
+  font-size: 0.86rem !important;
+  line-height: 1.35 !important;
+}
+
+#okta-login-container
+  :where(.okta-form-infobox-error, .okta-form-infobox-warning, .MuiAlert-root) {
+  border: 1px solid var(--acme-critical-border) !important;
+  border-radius: 8px !important;
+  background: var(--acme-critical-bg) !important;
+  color: var(--acme-critical-text) !important;
+}
+
+#okta-login-container :where([data-se='password-authenticator--rules']) {
+  margin: 0 0 0.78rem !important;
+  color: var(--acme-muted-text) !important;
+  font-size: 0.82rem !important;
+  line-height: 1.3 !important;
+}
+
+#okta-login-container :where([data-se='password-authenticator--rules'] *) {
+  color: inherit !important;
+}
+
+#okta-login-container :where([data-se='password-authenticator--heading']) {
+  margin-bottom: 0.34rem !important;
+  color: var(--acme-muted-text) !important;
+  font-size: 0.84rem !important;
+  line-height: 1.32 !important;
+}
+
+#okta-login-container :where(ul, ol) {
+  padding-left: 1.05rem !important;
+}
+
+#okta-login-container :where(li) {
+  margin: 0.2rem 0 !important;
+  line-height: 1.32 !important;
+}
+
+.acme-auth-footer {
+  width: min(100%, 72rem);
+  margin: auto auto 0;
+  padding-top: 0.95rem;
+  border-top: 1px solid var(--acme-border);
+  color: var(--acme-muted-text);
+  text-align: center;
+}
+
+.acme-auth-support {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem 0.62rem;
+  font-size: 0.9rem;
+  line-height: 1.42;
+}
+
+.acme-auth-support a {
+  color: var(--acme-link);
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.acme-auth-support a:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.acme-auth-support__divider {
+  color: var(--acme-border-strong);
+}
+
+.acme-auth-copyright {
+  margin: 0.6rem 0 0;
+  color: var(--acme-muted-text);
+  font-size: 0.84rem;
+}
+
+@media (max-width: 880px) {
+  .acme-auth-page {
+    padding-top: 1.45rem;
+  }
+
+  .acme-auth-layout {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .acme-auth-context {
+    max-width: 34rem;
+    padding-top: 0;
+    text-align: center;
+    justify-self: center;
+  }
+
+  .acme-auth-title {
+    max-width: none;
+    margin: 0 auto;
+    font-size: clamp(2rem, 9vw, 2.9rem);
+  }
+
+  .acme-auth-subtitle,
+  .acme-auth-trust-band {
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .acme-auth-trust-band {
+    text-align: left;
+  }
+
+  .acme-auth-widget {
+    max-width: 27rem;
+    margin: 0 auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .acme-brand-header__inner {
+    padding: 0.62rem 0.85rem;
+  }
+
+  .acme-brand-header__mark {
+    width: 2.3rem;
+    height: 2.3rem;
+  }
+
+  .acme-brand-header__title {
+    font-size: 1.06rem;
+  }
+
+  .acme-auth-page {
+    padding-left: 0.85rem;
+    padding-right: 0.85rem;
+  }
+
+  #okta-login-container :where(#okta-sign-in, [data-se~='auth-container']) {
+    padding: 1rem !important;
+  }
+}

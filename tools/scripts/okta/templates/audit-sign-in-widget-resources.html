@@ -1,0 +1,152 @@
+<script>
+  window.OktaSignIn = function OktaSignIn(config) {
+    this.config = config;
+    this.handlers = {};
+    window.__ACME_LAST_WIDGET_CONFIG__ = config;
+  };
+
+  window.OktaSignIn.prototype.on = function on(eventName, handler) {
+    this.handlers[eventName] = this.handlers[eventName] || [];
+    this.handlers[eventName].push(handler);
+  };
+
+  window.OktaSignIn.prototype.emit = function emit(eventName, context) {
+    (this.handlers[eventName] || []).forEach(function callHandler(handler) {
+      handler(context);
+    });
+  };
+
+  window.OktaSignIn.prototype.renderEl = function renderEl(target) {
+    var container = document.querySelector(target.el);
+
+    if (!container) {
+      return;
+    }
+
+    var flow = this.config.flow || 'signIn';
+    var links = this.config.helpLinks || {};
+    var forgotHref = links.forgotPassword || '#';
+    var unlockHref = links.unlock || '#';
+    var customLinks = Array.isArray(links.custom) ? links.custom : [];
+    var contextByFlow = {
+      signIn: { formName: 'identify' },
+      signup: { formName: 'enroll-profile' },
+      resetPassword: { formName: 'identify' },
+      unlockAccount: { formName: 'unlock-account' },
+    };
+
+    function field(label, type) {
+      return [
+        '<div class="MuiFormControl-root o-form-fieldset" data-se="o-form-fieldset-' +
+          label.toLowerCase().replace(/[^a-z0-9]+/g, '-') +
+          '">',
+        '<label class="MuiFormLabel-root MuiInputLabel-root">' +
+          label +
+          '</label>',
+        '<div class="MuiInputBase-root MuiOutlinedInput-root">',
+        '<input class="MuiInputBase-input MuiOutlinedInput-input" type="' +
+          type +
+          '" />',
+        '<fieldset class="MuiOutlinedInput-notchedOutline"></fieldset>',
+        '</div>',
+        '</div>',
+      ].join('');
+    }
+
+    function selectField(label) {
+      return [
+        '<div class="MuiFormControl-root o-form-fieldset" data-se="o-form-fieldset-' +
+          label.toLowerCase().replace(/[^a-z0-9]+/g, '-') +
+          '">',
+        '<label class="MuiFormLabel-root MuiInputLabel-root">' +
+          label +
+          '</label>',
+        '<div class="MuiInputBase-root MuiOutlinedInput-root MuiSelect-root">',
+        '<div class="MuiSelect-select">Select an option</div>',
+        '<input class="MuiSelect-nativeInput" aria-hidden="true" tabindex="-1" />',
+        '<fieldset class="MuiOutlinedInput-notchedOutline"></fieldset>',
+        '</div>',
+        '</div>',
+      ].join('');
+    }
+
+    function button(text) {
+      return (
+        '<div class="o-form-button-bar"><button class="MuiButton-root button button-primary" type="submit">' +
+        text +
+        '</button></div>'
+      );
+    }
+
+    function customHelpLinks() {
+      return customLinks
+        .map(function toLink(link) {
+          return (
+            '<a data-se="custom" href="' +
+            String(link.href || '#') +
+            '">' +
+            String(link.text || '') +
+            '</a>'
+          );
+        })
+        .join('');
+    }
+
+    function shell(flowName, title, body, footer) {
+      return [
+        '<div id="okta-sign-in" class="MuiPaper-root MuiCard-root auth-container main-container" data-audit-flow="' +
+          flowName +
+          '">',
+        '<div class="MuiBox-root siw-main-view">',
+        '<div class="MuiBox-root auth-content"><div class="MuiBox-root siw-main-body">',
+        '<h2 class="MuiTypography-root okta-form-title">' + title + '</h2>',
+        '<form class="o-form"><div class="MuiBox-root o-form-content">' +
+          body +
+          '</div></form>',
+        '</div></div>',
+        footer ? '<div class="siw-main-footer">' + footer + '</div>' : '',
+        '</div></div>',
+      ].join('');
+    }
+
+    var contentByFlow = {
+      signIn: shell(
+        'signIn',
+        'Sign in',
+        field('Email', 'email') + button('Continue'),
+        [
+          '<a data-se="forgot-password" href="' +
+            forgotHref +
+            '">Forgot password?</a>',
+          '<a data-se="unlock" href="' + unlockHref + '">Unlock account</a>',
+        ].join(''),
+      ),
+      signup: shell(
+        'signup',
+        'Create account',
+        field('Email', 'email') +
+          field('First name', 'text') +
+          field('Last name', 'text') +
+          field('Mobile phone', 'tel') +
+          selectField('State') +
+          button('Continue'),
+        '',
+      ),
+      resetPassword: shell(
+        'resetPassword',
+        'Forgot password',
+        field('Email', 'email') + button('Send recovery code'),
+        customHelpLinks(),
+      ),
+      unlockAccount: shell(
+        'unlockAccount',
+        'Unlock account',
+        field('Email', 'email') + button('Send unlock code'),
+        customHelpLinks(),
+      ),
+    };
+
+    container.innerHTML = contentByFlow[flow] || contentByFlow.signIn;
+    this.emit('afterRender', contextByFlow[flow] || contextByFlow.signIn);
+  };
+</script>

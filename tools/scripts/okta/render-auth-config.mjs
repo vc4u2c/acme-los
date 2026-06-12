@@ -57,6 +57,21 @@ function optionalString(value) {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+function resolveSignInWidgetGeneration(value) {
+  const normalized = optionalString(value)?.toUpperCase();
+  if (!normalized) {
+    return 'G3';
+  }
+
+  if (normalized !== 'G3') {
+    throw new Error(
+      'Expected okta.hostedExperience.signInWidgetGeneration to be "G3".',
+    );
+  }
+
+  return normalized;
+}
+
 function optionalStringArray(values) {
   if (!Array.isArray(values)) {
     return [];
@@ -179,6 +194,9 @@ const webPostLogoutRedirectUri = toAbsoluteUrl(
 const mobileRedirectUri = toMobileRedirectUri(mobileScheme, mobileRedirectPath);
 
 const hostedExperience = environment.okta?.hostedExperience ?? {};
+const signInWidgetGeneration = resolveSignInWidgetGeneration(
+  hostedExperience.signInWidgetGeneration,
+);
 const fundingStepUpMethod =
   optionalString(hostedExperience.fundingStepUpMethod) ?? 'email';
 const fundingStepUpRequiresPassword =
@@ -186,6 +204,7 @@ const fundingStepUpRequiresPassword =
 const themeCookieDomain =
   optionalString(hostedExperience.themeCookieDomain) ?? '';
 const policySummary = [
+  `sign-in-widget-generation=${signInWidgetGeneration}`,
   `remember-user=${Boolean(hostedExperience.rememberUser)}`,
   `keep-me-signed-in=${Boolean(hostedExperience.keepMeSignedIn)}`,
   `registration-email-verification=${Boolean(hostedExperience.registrationRequiresEmailVerification)}`,
@@ -314,6 +333,7 @@ const bffSettings = {
       ),
       BaseUrl: requiredString(environment.bff?.baseUrl, 'bff.baseUrl'),
       HostedExperience: {
+        SignInWidgetGeneration: signInWidgetGeneration,
         RememberUser: Boolean(hostedExperience.rememberUser),
         KeepMeSignedIn: Boolean(hostedExperience.keepMeSignedIn),
         RegistrationRequiresEmailVerification: Boolean(

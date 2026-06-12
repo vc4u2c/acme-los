@@ -170,7 +170,12 @@ public sealed class BffAuthFlowService : IAuthFlowService
       idToken,
       transaction.Nonce,
       cancellationToken);
-    var session = BuildAuthenticatedSession(claims, transaction.LeadId);
+    var session = BuildAuthenticatedSession(
+      claims,
+      transaction.LeadId,
+      transaction.MinimumAssuranceLevel == "aal2"
+        ? new[] { options.FundingAcrValues }
+        : null);
 
     EnforceSessionRequirement(session, transaction);
 
@@ -338,9 +343,11 @@ public sealed class BffAuthFlowService : IAuthFlowService
 
   private static WebAuthSession BuildAuthenticatedSession(
     IReadOnlyDictionary<string, string[]> claims,
-    string? fallbackLeadId)
+    string? fallbackLeadId,
+    IEnumerable<string>? acceptedHighAssuranceAcrValues = null)
   {
     var authenticationMethods = TryReadStringClaims(claims, "amr");
+    var acr = TryReadStringClaim(claims, "acr");
     var email = TryReadStringClaim(claims, ClaimTypes.Email)
       ?? TryReadStringClaim(claims, "email");
     var claimedName = TryReadStringClaim(claims, "name")?.Trim() ?? string.Empty;
@@ -381,7 +388,10 @@ public sealed class BffAuthFlowService : IAuthFlowService
       "okta",
       "authenticated",
       true,
-      GetAssuranceLevel(authenticationMethods),
+      AuthAssurance.GetAssuranceLevel(
+        authenticationMethods,
+        acr,
+        acceptedHighAssuranceAcrValues),
       new WebAuthSessionUser(
         id,
         string.IsNullOrWhiteSpace(displayName) ? "Customer" : displayName,
@@ -498,28 +508,6 @@ public sealed class BffAuthFlowService : IAuthFlowService
         $"/apply/personal-info{returnTo["/apply".Length..]}",
       _ => returnTo,
     };
-  }
-
-  private static string GetAssuranceLevel(string[] authenticationMethods)
-  {
-    if (authenticationMethods.Length == 0)
-    {
-      return "anonymous";
-    }
-
-    var normalizedMethods = authenticationMethods
-      .Select(method => method.ToLowerInvariant())
-      .ToArray();
-
-    return normalizedMethods.Contains("mfa")
-      || normalizedMethods.Contains("sms")
-      || normalizedMethods.Contains("email")
-      || normalizedMethods.Contains("otp")
-      || normalizedMethods.Contains("totp")
-      || normalizedMethods.Contains("phone")
-      || normalizedMethods.Length > 1
-        ? "aal2"
-        : "aal1";
   }
 
   private static int ToAssuranceRank(string? assuranceLevel)
