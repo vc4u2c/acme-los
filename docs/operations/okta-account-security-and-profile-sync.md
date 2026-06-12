@@ -318,9 +318,10 @@ enrollment are Okta Identity Engine remediation states inside that hosted shell,
 not separate ACME-owned pages. This keeps passwords, OTPs, security-question
 answers, and authenticator enrollment inside Okta.
 
-The hosted page template in `tools/scripts/okta/templates` is currently a
-native Gen 3 baseline. Okta owns these remediation states and their controls;
-ACME policy/bootstrap owns which states are available and how they are scoped:
+The hosted page template in `tools/scripts/okta/templates` is currently an
+ACME-styled Gen 3 shell around native Okta controls. Okta owns these remediation
+states and their controls; ACME policy/bootstrap owns which states are
+available and how they are scoped:
 
 | Okta state | Okta-owned flow                                                | ACME-owned responsibility                                      |
 | ---------- | -------------------------------------------------------------- | -------------------------------------------------------------- |
@@ -332,11 +333,11 @@ ACME policy/bootstrap owns which states are available and how they are scoped:
 | `password` | Password reset or password setup                               | Password policy and post-change sign-in expectations           |
 
 Run `npm run okta:audit-hosted-pages -- <env>` after changing the hosted page
-template or controller. The current native-baseline audit renders sign-in,
-signup, forgot-password, and unlock-account entry at mobile and desktop sizes,
-writes screenshots to `tmp/okta-hosted-state-audit`, and fails on blank widget
-renders, horizontal overflow, duplicate/missing recovery entry, or recovery
-links pointed at dead hosted/help routes.
+template or controller. The current audit renders the styled shell plus native
+sign-in, signup, forgot-password, and unlock-account entry at mobile and desktop
+sizes, writes screenshots to `tmp/okta-hosted-state-audit`, and fails on blank
+widget renders, horizontal overflow, duplicate/missing recovery entry, or
+recovery links pointed at dead hosted/help routes.
 
 The app should link users into Okta-hosted account actions rather than building
 local forms for these states. ACME may add CTAs and explanatory copy, but Okta
@@ -470,16 +471,24 @@ overridden. Okta deletion is unrecoverable.
 
 ## Dashboard UX
 
-The ACME customer dashboard links users to the hosted account center for:
+The ACME customer dashboard starts hosted Gen3 verification for:
 
-- login email
-- phone/SMS factor
-- password
-- security question
+- sign-in email changes
+- phone/SMS factor changes
+- password changes
+- recovery-question maintenance
 
-After the user completes a hosted account change, they return to the dashboard
-and refresh their secure session. The fresh session lets ACME sync confirmed
-metadata without collecting secrets or OTPs in the app.
+These CTAs use `/api/auth/start` with `aal=aal2`, so the browser enters the
+same server-side PKCE/BFF transaction path used by normal sign-in and funding
+step-up. The dashboard does not deep-link to Okta `/enduser/settings` pages.
+
+After the user completes hosted verification, they return to the dashboard with
+an `account_action` marker. ACME can then continue the supportable app/BFF
+workflow for that action, refresh the secure session, and sync confirmed
+metadata without collecting passwords, OTPs, or security-question answers in the
+app. Arbitrary profile or factor mutation is not implemented by custom
+client-side widget scripting; it must remain an Okta-supported account
+management flow or a BFF-mediated API workflow with explicit least privilege.
 
 ## Official References
 

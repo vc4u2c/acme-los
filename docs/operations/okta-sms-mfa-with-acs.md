@@ -18,12 +18,14 @@ flows.
 - `dev` has purchased toll-free sender `+18772244103`, recorded in
   `infra/azure/config/platform.json`.
 - `dev` can set `smsMfa.provider` to `mock` and `okta.telephony.enabled` to
-  `true` for demo-only OTP logging.
+  `true` for the demo-only protected OTP inbox.
 - `POST /api/hooks/okta/telephony` accepts Okta telephony inline-hook requests,
   validates a shared authorization header and bounded SMS payload, rate-limits
-  requests, and either sends OTP messages through ACS or logs mock OTPs in dev.
+  requests, and either sends OTP messages through ACS or stores mock OTPs in the
+  dev-only protected state store.
 - the webhook does not log phone numbers or OTP codes in real ACS mode
-- mock mode logs masked phone numbers and OTP codes in dev only
+- mock mode logs masked phone numbers only; OTP codes are read through the
+  protected watcher
 
 SMS should initially be an optional factor and recovery path. Keep a stronger
 phishing-resistant authenticator available for sensitive production actions.
@@ -126,9 +128,11 @@ but ACS toll-free verification or Twilio 10DLC/toll-free registration is still
 blocked.
 
 Mock mode does not send an SMS. Okta generates the OTP and sends it to the ACME
-telephony hook. The hook validates the request, writes the OTP to dev web app
-logs, and returns Okta's success contract. The operator copies the OTP from ACME
-logs and enters it on the Okta-hosted page.
+telephony hook. The hook validates the request, writes the OTP to the dev-only
+protected state store, and returns Okta's success contract. The operator runs
+the direct watcher, which reads the latest OTP from the protected inbox using
+the same telephony hook authorization secret, then enters it on the Okta-hosted
+page.
 
 Because no carrier message is sent, mock mode is not subject to ACS, Twilio,
 10DLC, toll-free, or Okta SMS-send quotas. The remaining limits are application
@@ -159,8 +163,10 @@ Guardrails:
 - mock mode is allowed only for `dev`
 - `ACME_ENABLE_MOCK_SMS_OTP=true` must be explicit; the app accepts common
   boolean casing, and Bicep emits lowercase `true`/`false`
-- OTPs are logged only in mock mode
-- phone numbers are masked in logs
+- OTPs are not written to container logs
+- the direct mock OTP inbox requires `ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION`
+- OTP inbox records expire with the Okta OTP window
+- phone numbers are masked in the watcher output
 - ACS/Twilio credentials are not needed for mock mode
 
 Before deploying, create or reuse the Okta telephony hook authorization secret:
@@ -184,10 +190,13 @@ $env:OKTA_API_TOKEN='<ssws token>'
 npm run okta:bootstrap -- dev
 ```
 
-Watch mock OTP logs while testing:
+Watch mock OTP records while testing. The watcher polls the protected dev
+endpoint directly every 250 ms by default; it does not read Container App or Log
+Analytics logs. It accepts the hook authorization through `-Authorization`,
+`ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION`, or an authorization file.
 
 ```powershell
-npm run azure:okta-mock-sms:watch
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/watch-okta-mock-sms-otp.ps1 -AuthorizationFile C:\secure\acme-los-okta-telephony-hook-authorization.txt
 ```
 
 Expected watcher output:
@@ -386,7 +395,7 @@ exceptional rather than becoming the normal delivery path.
 2. Register or sign in with a test customer.
 3. Enroll the test phone number.
 4. Request an SMS OTP.
-5. In mock mode, copy the OTP from
+5. In mock mode, copy the OTP from the direct protected inbox watcher at
    `tools/scripts/azure/watch-okta-mock-sms-otp.ps1` output and complete the
    Okta challenge.
 6. In real ACS mode, confirm the code arrives on the phone and logs contain

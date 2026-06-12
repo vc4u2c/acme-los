@@ -5,11 +5,11 @@ param(
 
   [string]$SubscriptionId,
   [string]$ConfigurationPath,
-  [ValidateSet('LogAnalytics', 'Console')]
-  [string]$Source = 'LogAnalytics',
-  [ValidateRange(5, 3600)]
-  [int]$LookbackSeconds = 30,
-  [int]$PollSeconds = 3,
+  [ValidateRange(100, 5000)]
+  [int]$PollMilliseconds = 250,
+  [string]$BaseUrl,
+  [string]$Authorization = $env:ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION,
+  [string]$AuthorizationFile = $env:ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION_FILE,
   [switch]$Once,
   [switch]$Raw
 )
@@ -71,72 +71,45 @@ function Get-ObjectPropertyValue {
   return $null
 }
 
-function ConvertFrom-JsonText {
-  param([string]$Text)
+function Read-SecretTextFile {
+  param([string]$Path)
 
-  if ([string]::IsNullOrWhiteSpace($Text)) {
+  if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path -PathType Leaf)) {
     return $null
   }
 
-  $jsonStart = $Text.IndexOf('{')
-  if ($jsonStart -lt 0) {
+  $value = (Get-Content -Raw -LiteralPath $Path).Trim()
+  if ([string]::IsNullOrWhiteSpace($value)) {
     return $null
   }
 
-  try {
-    return $Text.Substring($jsonStart) | ConvertFrom-Json
-  } catch {
-    return $null
-  }
+  return $value
 }
 
-function Find-MockSmsRecord {
+function Resolve-HookAuthorization {
   param(
-    $InputObject,
-    [int]$Depth = 0
+    [string]$Authorization,
+    [string]$AuthorizationFile
   )
 
-  if ($null -eq $InputObject -or $Depth -gt 4) {
-    return $null
+  if (-not [string]::IsNullOrWhiteSpace($Authorization)) {
+    return $Authorization.Trim()
   }
 
-  if ($InputObject -is [string]) {
-    if ($InputObject -notmatch 'okta\.telephony_hook\.mock_sms_delivered') {
-      return $null
-    }
-
-    $parsed = ConvertFrom-JsonText -Text $InputObject
-    if ($null -eq $parsed) {
-      return $null
-    }
-
-    return Find-MockSmsRecord -InputObject $parsed -Depth ($Depth + 1)
+  $candidateFiles = New-Object System.Collections.Generic.List[string]
+  if (-not [string]::IsNullOrWhiteSpace($AuthorizationFile)) {
+    [void]$candidateFiles.Add($AuthorizationFile)
   }
 
-  $eventName = Get-ObjectPropertyValue -InputObject $InputObject -Names @('event', 'eventName')
-  if ($eventName -eq 'okta.telephony_hook.mock_sms_delivered') {
-    return $InputObject
-  }
-
-  foreach ($propertyName in @('log', 'Log', 'Log_s', 'message', 'Message', 'Message_s', 'msg', 'text', 'value', 'Value')) {
-    $value = Get-ObjectPropertyValue -InputObject $InputObject -Names @($propertyName)
-    if ($value -is [string] -and $value -match 'okta\.telephony_hook\.mock_sms_delivered') {
-      $record = Find-MockSmsRecord -InputObject $value -Depth ($Depth + 1)
-      if ($record) {
-        return $record
-      }
+  foreach ($candidateFile in $candidateFiles) {
+    $value = Read-SecretTextFile -Path $candidateFile
+    if ($value) {
+      Write-Host "Using Okta telephony hook authorization from '$candidateFile'."
+      return $value
     }
   }
 
-  foreach ($propertyName in @('properties', 'Properties', 'data', 'Data')) {
-    $value = Get-ObjectPropertyValue -InputObject $InputObject -Names @($propertyName)
-    $record = Find-MockSmsRecord -InputObject $value -Depth ($Depth + 1)
-    if ($record) {
-      return $record
-    }
-  }
-
-  return $null
+  throw 'Set -Authorization, ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION, -AuthorizationFile, or ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION_FILE to the Okta telephony hook shared authorization value.'
 }
 
 function Resolve-SubscriptionIdByDisplayName {
@@ -172,43 +145,6 @@ function Resolve-EnvironmentSubscriptionId {
   return Resolve-SubscriptionIdByDisplayName -DisplayName $targetDisplayName
 }
 
-function Resolve-PlatformSubscriptionId {
-  param($Configuration)
-
-  return Resolve-SubscriptionIdByDisplayName -DisplayName $Configuration.subscriptions.platform
-}
-
-function Get-PlatformMonitorResourceGroupName {
-  param($Configuration)
-
-  return [string]$Configuration.platformResources.monitorResourceGroupName
-}
-
-function Get-LogAnalyticsWorkspaceName {
-  param(
-    $Configuration,
-    [string]$EnvironmentName
-  )
-
-  return "log-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
-}
-
-function Get-LogAnalyticsWorkspaceCustomerId {
-  param(
-    [string]$PlatformSubscriptionId,
-    [string]$PlatformMonitorResourceGroupName,
-    [string]$WorkspaceName
-  )
-
-  return [string](az monitor log-analytics workspace show `
-      --subscription $PlatformSubscriptionId `
-      --resource-group $PlatformMonitorResourceGroupName `
-      --workspace-name $WorkspaceName `
-      --query customerId `
-      --output tsv `
-      --only-show-errors)
-}
-
 function Get-WorkloadResourceGroupName {
   param(
     $Configuration,
@@ -227,6 +163,26 @@ function Get-ContainerAppName {
   return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
 }
 
+function Get-ContainerAppBaseUrl {
+  param(
+    [string]$ResourceGroupName,
+    [string]$ContainerAppName
+  )
+
+  $fqdn = [string](az containerapp show `
+      --resource-group $ResourceGroupName `
+      --name $ContainerAppName `
+      --query properties.configuration.ingress.fqdn `
+      --output tsv `
+      --only-show-errors)
+
+  if ([string]::IsNullOrWhiteSpace($fqdn)) {
+    throw "Unable to resolve ingress FQDN for container app '$ContainerAppName'."
+  }
+
+  return "https://$fqdn"
+}
+
 function Get-MockSmsRecordKey {
   param($Record)
 
@@ -238,32 +194,6 @@ function Get-MockSmsRecordKey {
   }
 
   return ($Record | ConvertTo-Json -Compress)
-}
-
-function Get-MockSmsRecordUtcTime {
-  param(
-    $Record,
-    $FallbackTime
-  )
-
-  foreach ($propertyName in @('timestamp', 'time', 'timeStamp')) {
-    $value = Get-ObjectPropertyValue -InputObject $Record -Names @($propertyName)
-    if ($value) {
-      try {
-        return [DateTimeOffset]::Parse([string]$value).UtcDateTime
-      } catch {
-      }
-    }
-  }
-
-  if ($FallbackTime) {
-    try {
-      return [DateTimeOffset]::Parse([string]$FallbackTime).UtcDateTime
-    } catch {
-    }
-  }
-
-  return $null
 }
 
 function Write-MockSmsRecord {
@@ -288,163 +218,111 @@ function Write-MockSmsRecord {
   Write-Host "transaction: $transactionId"
 }
 
-function Write-MockSmsOtp {
-  param([string]$LogLine)
-
-  if ($LogLine -notmatch 'okta\.telephony_hook\.mock_sms_delivered') {
-    return
-  }
-
-  if ($Raw) {
-    Write-Output $LogLine
-    return
-  }
-
-  $record = Find-MockSmsRecord -InputObject $LogLine
-  if ($null -eq $record) {
-    return
-  }
-
-  Write-MockSmsRecord -Record $record
-}
-
-function Watch-MockSmsOtpFromConsole {
+function Invoke-MockSmsInboxRequest {
   param(
-    [string]$ResourceGroupName,
-    [string]$ContainerAppName,
-    [switch]$Once
+    [string]$BaseUrl,
+    [string]$Authorization
   )
 
-  $arguments = @(
-    'containerapp', 'logs', 'show',
-    '--resource-group', $ResourceGroupName,
-    '--name', $ContainerAppName,
-    '--type', 'console',
-    '--tail', '300',
-    '--only-show-errors'
-  )
-
-  if (-not $Once) {
-    $arguments += '--follow'
+  $normalizedBaseUrl = $BaseUrl.TrimEnd('/')
+  $uri = "$normalizedBaseUrl/api/hooks/okta/telephony"
+  $headers = @{
+    Authorization = $Authorization
+    Accept = 'application/json'
   }
 
-  az @arguments |
-    ForEach-Object { Write-MockSmsOtp -LogLine ([string]$_) }
+  try {
+    return Invoke-RestMethod `
+      -Method Get `
+      -Uri $uri `
+      -Headers $headers `
+      -TimeoutSec 5
+  } catch {
+    $response = $_.Exception.Response
+    $statusCode = if ($response) { [int]$response.StatusCode } else { $null }
+
+    if ($statusCode -eq 405) {
+      throw 'The deployed web app does not expose the direct mock SMS OTP inbox yet. Deploy the latest web app revision before using this watcher.'
+    }
+
+    if ($statusCode -eq 401) {
+      throw 'The mock SMS OTP inbox rejected the authorization value. Confirm the local authorization file matches the deployed ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION secret.'
+    }
+
+    if ($statusCode -eq 404) {
+      throw 'The mock SMS OTP inbox is not available. Confirm dev is deployed with ACME_OKTA_TELEPHONY_PROVIDER=mock and ACME_ENABLE_MOCK_SMS_OTP=true.'
+    }
+
+    throw
+  }
 }
 
-function Watch-MockSmsOtpFromLogAnalytics {
+function Watch-MockSmsOtpFromDirectInbox {
   param(
-    [string]$WorkspaceCustomerId,
-    [string]$ContainerAppName,
-    [int]$LookbackSeconds,
-    [int]$PollSeconds,
+    [string]$BaseUrl,
+    [string]$Authorization,
+    [int]$PollMilliseconds,
     [switch]$Once
   )
 
   $seen = @{}
 
   while ($true) {
-    $queryStartedUtc = (Get-Date).ToUniversalTime()
-    $cutoffUtc = $queryStartedUtc.AddSeconds(-1 * $LookbackSeconds)
-    $queryLookbackSeconds = [Math]::Max($LookbackSeconds + 120, $LookbackSeconds * 4)
+    $payload = Invoke-MockSmsInboxRequest -BaseUrl $BaseUrl -Authorization $Authorization
+    $record = Get-ObjectPropertyValue -InputObject $payload -Names @('record')
 
-    $query = @"
-ContainerAppConsoleLogs_CL
-| where TimeGenerated > ago(${queryLookbackSeconds}s)
-| where ContainerAppName_s == '$ContainerAppName'
-| where Log_s has 'okta.telephony_hook.mock_sms_delivered'
-| project TimeGenerated, Log_s
-| order by TimeGenerated desc
-| take 50
-"@
-
-    $rows = ConvertTo-ObjectArray (az monitor log-analytics query `
-        --workspace $WorkspaceCustomerId `
-        --analytics-query $query `
-        --output json `
-        --only-show-errors | ConvertFrom-Json)
-
-    $records = foreach ($row in $rows) {
-      $rowTime = Get-ObjectPropertyValue -InputObject $row -Names @('TimeGenerated', 'time_t')
-      $logLine = Get-ObjectPropertyValue -InputObject $row -Names @('Log_s', 'Log')
-      $record = Find-MockSmsRecord -InputObject $logLine
-      if ($null -eq $record) {
-        continue
+    if ($record) {
+      $key = Get-MockSmsRecordKey -Record $record
+      if ($key -and -not $seen.ContainsKey($key)) {
+        $seen[$key] = $true
+        Write-MockSmsRecord -Record $record
       }
-
-      $recordTime = Get-MockSmsRecordUtcTime -Record $record -FallbackTime $rowTime
-      if ($null -eq $recordTime -or $recordTime -lt $cutoffUtc) {
-        continue
-      }
-
-      [pscustomobject]@{
-        Key = Get-MockSmsRecordKey -Record $record
-        Record = $record
-        Time = $recordTime
-      }
-    }
-
-    $records = if ($Once) {
-      @($records | Sort-Object Time -Descending | Select-Object -First 1)
-    } else {
-      @($records | Sort-Object Time)
-    }
-
-    foreach ($row in $records) {
-      $key = $row.Key
-      if (-not $key -or $seen.ContainsKey($key)) {
-        continue
-      }
-
-      $seen[$key] = $true
-      Write-MockSmsRecord -Record $row.Record
+    } elseif ($Once) {
+      Write-Host 'No mock SMS OTP is currently available.'
     }
 
     if ($Once) {
       break
     }
 
-    Start-Sleep -Seconds $PollSeconds
+    Start-Sleep -Milliseconds $PollMilliseconds
   }
 }
 
-Test-RequiredCommand -Name 'az'
+if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
+  Test-RequiredCommand -Name 'az'
 
-$configuration = Get-JsonFile -Path $ConfigurationPath
-if (-not $SubscriptionId) {
-  $SubscriptionId = Resolve-EnvironmentSubscriptionId -Configuration $configuration -EnvironmentName $EnvironmentName
+  $configuration = Get-JsonFile -Path $ConfigurationPath
+  if (-not $SubscriptionId) {
+    $SubscriptionId = Resolve-EnvironmentSubscriptionId -Configuration $configuration -EnvironmentName $EnvironmentName
+  }
+
+  $resourceGroupName = Get-WorkloadResourceGroupName -Configuration $configuration -EnvironmentName $EnvironmentName
+  $containerAppName = Get-ContainerAppName -Configuration $configuration -EnvironmentName $EnvironmentName
+
+  az account set --subscription $SubscriptionId --only-show-errors
+
+  $BaseUrl = Get-ContainerAppBaseUrl -ResourceGroupName $resourceGroupName -ContainerAppName $containerAppName
+  Write-Host "Watching mock Okta SMS OTP records for '$containerAppName' in '$resourceGroupName'."
+} else {
+  Write-Host "Watching mock Okta SMS OTP records for '$($BaseUrl.TrimEnd('/'))'."
 }
 
-$resourceGroupName = Get-WorkloadResourceGroupName -Configuration $configuration -EnvironmentName $EnvironmentName
-$containerAppName = Get-ContainerAppName -Configuration $configuration -EnvironmentName $EnvironmentName
-
-az account set --subscription $SubscriptionId --only-show-errors
-
-Write-Host "Watching mock Okta SMS OTP logs for '$containerAppName' in '$resourceGroupName'."
-Write-Host "Source: $Source."
-Write-Host "Lookback: $LookbackSeconds seconds."
+Write-Host "Direct endpoint: $($BaseUrl.TrimEnd('/'))/api/hooks/okta/telephony."
+Write-Host "Poll interval: $PollMilliseconds milliseconds."
 Write-Host 'Trigger an Okta phone/SMS challenge, then copy the OTP printed below.'
 Write-Host 'Press Ctrl+C to stop.'
 
-if ($Source -eq 'Console') {
-  Watch-MockSmsOtpFromConsole `
-    -ResourceGroupName $resourceGroupName `
-    -ContainerAppName $containerAppName `
-    -Once:$Once
-} else {
-  $platformSubscriptionId = Resolve-PlatformSubscriptionId -Configuration $configuration
-  $platformMonitorResourceGroupName = Get-PlatformMonitorResourceGroupName -Configuration $configuration
-  $workspaceName = Get-LogAnalyticsWorkspaceName -Configuration $configuration -EnvironmentName $EnvironmentName
-  $workspaceCustomerId = Get-LogAnalyticsWorkspaceCustomerId `
-    -PlatformSubscriptionId $platformSubscriptionId `
-    -PlatformMonitorResourceGroupName $platformMonitorResourceGroupName `
-    -WorkspaceName $workspaceName
+$Authorization = Resolve-HookAuthorization -Authorization $Authorization -AuthorizationFile $AuthorizationFile
 
-  Write-Host "Workspace: $workspaceName."
-  Watch-MockSmsOtpFromLogAnalytics `
-    -WorkspaceCustomerId $workspaceCustomerId `
-    -ContainerAppName $containerAppName `
-    -LookbackSeconds $LookbackSeconds `
-    -PollSeconds $PollSeconds `
+try {
+  Watch-MockSmsOtpFromDirectInbox `
+    -BaseUrl $BaseUrl `
+    -Authorization $Authorization `
+    -PollMilliseconds $PollMilliseconds `
     -Once:$Once
+} catch {
+  Write-Host ''
+  Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+  exit 1
 }

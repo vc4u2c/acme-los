@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   applyRateLimitHeaders,
   checkRateLimit,
+  readStateValue,
+  writeStateValue,
 } from '@acme-los/api/web-server';
 import { createConsoleLogger } from '@acme-los/core/logger';
 import { z } from 'zod';
@@ -15,10 +17,18 @@ const logger = createConsoleLogger();
 const telephonyHookRoute = '/api/hooks/okta/telephony';
 const maximumRequestBytes = 16_384;
 const maximumOtpLifetimeMilliseconds = 15 * 60 * 1000;
+const mockSmsOtpNamespace = 'okta-mock-sms-otp';
+const mockSmsOtpLatestKey = 'latest';
 
 const telephonyHookRateLimitPolicy = {
   namespace: 'okta-telephony-hook',
   limit: 120,
+  windowSeconds: 60,
+} as const;
+
+const mockSmsOtpInboxRateLimitPolicy = {
+  namespace: 'okta-mock-sms-inbox',
+  limit: 600,
   windowSeconds: 60,
 } as const;
 
@@ -47,6 +57,19 @@ type SmsMfaConfiguration = {
     managedIdentityClientId: string;
     senderPhoneNumber: string;
   };
+};
+
+type TelephonyHookPayload = z.infer<typeof telephonyHookRequestSchema>;
+
+type MockSmsOtpInboxRecord = {
+  event: 'okta.telephony_hook.mock_sms_delivered';
+  eventId: string;
+  timestamp: string;
+  maskedPhoneNumber: string;
+  mockOtpCode: string;
+  otpExpires: string;
+  route: string;
+  transactionId: string;
 };
 
 function readRequiredEnvironmentVariable(name: string): string {
@@ -173,6 +196,61 @@ function createMockTransactionId(eventId: string): string {
   return `mock-${eventId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64)}`;
 }
 
+function createMockSmsOtpInboxRecord(
+  payload: TelephonyHookPayload,
+  transactionId: string,
+): MockSmsOtpInboxRecord {
+  return {
+    event: 'okta.telephony_hook.mock_sms_delivered',
+    eventId: payload.eventId,
+    timestamp: new Date().toISOString(),
+    maskedPhoneNumber: maskPhoneNumber(payload.data.messageProfile.phoneNumber),
+    mockOtpCode: payload.data.messageProfile.otpCode,
+    otpExpires: payload.data.messageProfile.otpExpires,
+    route: telephonyHookRoute,
+    transactionId,
+  };
+}
+
+function getMockSmsOtpTtlSeconds(otpExpires: string): number {
+  const expiresAt = Date.parse(otpExpires);
+  const lifetimeMilliseconds = Number.isFinite(expiresAt)
+    ? expiresAt - Date.now()
+    : maximumOtpLifetimeMilliseconds;
+
+  return Math.max(
+    1,
+    Math.min(
+      Math.ceil(lifetimeMilliseconds / 1000),
+      maximumOtpLifetimeMilliseconds / 1000,
+    ),
+  );
+}
+
+async function writeLatestMockSmsOtp(
+  record: MockSmsOtpInboxRecord,
+): Promise<void> {
+  await writeStateValue(
+    mockSmsOtpNamespace,
+    mockSmsOtpLatestKey,
+    record,
+    getMockSmsOtpTtlSeconds(record.otpExpires),
+  );
+}
+
+async function readLatestMockSmsOtp(): Promise<MockSmsOtpInboxRecord | null> {
+  const record = await readStateValue<MockSmsOtpInboxRecord>(
+    mockSmsOtpNamespace,
+    mockSmsOtpLatestKey,
+  );
+
+  if (!record || Date.parse(record.otpExpires) <= Date.now()) {
+    return null;
+  }
+
+  return record;
+}
+
 function createTelephonyHookErrorResponse() {
   return {
     error: {
@@ -197,6 +275,90 @@ function isFreshOtpWindow(eventTime: string, otpExpires: string): boolean {
 
 function getErrorName(error: unknown): string {
   return error instanceof Error ? error.name : 'Error';
+}
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  try {
+    const configuration = readSmsMfaConfiguration();
+    const authorization = request.headers.get('authorization') ?? '';
+
+    if (configuration.provider !== 'mock') {
+      return NextResponse.json(
+        { message: 'Mock SMS inbox is not enabled.' },
+        {
+          status: 404,
+          headers: {
+            'cache-control': 'no-store, max-age=0',
+          },
+        },
+      );
+    }
+
+    if (!valuesMatch(authorization, configuration.authorization)) {
+      logger.warn('Rejected unauthorized Okta mock SMS inbox request.', {
+        event: 'okta.telephony_hook.mock_sms_inbox_unauthorized',
+        route: telephonyHookRoute,
+      });
+
+      return NextResponse.json(
+        { message: 'Unauthorized.' },
+        {
+          status: 401,
+          headers: {
+            'cache-control': 'no-store, max-age=0',
+          },
+        },
+      );
+    }
+
+    const rateLimit = await checkRateLimit(
+      request,
+      mockSmsOtpInboxRateLimitPolicy,
+    );
+    if (!rateLimit.allowed) {
+      const response = NextResponse.json(
+        { message: 'Too many mock SMS inbox requests.' },
+        {
+          status: 429,
+          headers: {
+            'cache-control': 'no-store, max-age=0',
+          },
+        },
+      );
+
+      applyRateLimitHeaders(response, rateLimit);
+      return response;
+    }
+
+    const response = NextResponse.json(
+      { record: await readLatestMockSmsOtp() },
+      {
+        status: 200,
+        headers: {
+          'cache-control': 'no-store, max-age=0',
+        },
+      },
+    );
+
+    applyRateLimitHeaders(response, rateLimit);
+    return response;
+  } catch (error) {
+    logger.warn('Mock Okta SMS inbox is unavailable.', {
+      event: 'okta.telephony_hook.mock_sms_inbox_unavailable',
+      errorName: getErrorName(error),
+      route: telephonyHookRoute,
+    });
+
+    return NextResponse.json(
+      { message: 'Mock SMS inbox is not available.' },
+      {
+        status: 404,
+        headers: {
+          'cache-control': 'no-store, max-age=0',
+        },
+      },
+    );
+  }
 }
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -269,17 +431,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (configuration.provider === 'mock') {
       const transactionId = createMockTransactionId(payload.eventId);
+      const mockSmsOtpRecord = createMockSmsOtpInboxRecord(
+        payload,
+        transactionId,
+      );
+
+      await writeLatestMockSmsOtp(mockSmsOtpRecord);
 
       logger.warn('Mock delivered Okta SMS MFA verification code.', {
-        event: 'okta.telephony_hook.mock_sms_delivered',
-        eventId,
-        maskedPhoneNumber: maskPhoneNumber(
-          payload.data.messageProfile.phoneNumber,
-        ),
-        mockOtpCode: payload.data.messageProfile.otpCode,
-        otpExpires: payload.data.messageProfile.otpExpires,
-        route: telephonyHookRoute,
-        transactionId,
+        event: mockSmsOtpRecord.event,
+        eventId: mockSmsOtpRecord.eventId,
+        maskedPhoneNumber: mockSmsOtpRecord.maskedPhoneNumber,
+        otpExpires: mockSmsOtpRecord.otpExpires,
+        route: mockSmsOtpRecord.route,
+        transactionId: mockSmsOtpRecord.transactionId,
       });
 
       const response = NextResponse.json(

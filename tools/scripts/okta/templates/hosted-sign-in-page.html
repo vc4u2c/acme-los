@@ -9,12 +9,42 @@
 
     <title>{{pageTitle}}</title>
     {{{SignInWidgetResources}}}
+    <!-- %%THEME_BOOTSTRAP_SCRIPT%% -->
+    <!-- %%THEME_STYLE_MARKUP%% -->
   </head>
   <body>
     <div id="login-bg-image-id" class="login-bg-image tb--background"></div>
-    <div id="okta-login-container"></div>
+    <!-- %%BRAND_HEADER_MARKUP%% -->
+    <main class="acme-auth-page">
+      <div class="acme-auth-layout">
+        <section class="acme-auth-context" aria-labelledby="acme-auth-title">
+          <p class="acme-auth-eyebrow" data-acme-auth-copy="eyebrow">
+            Customer sign in
+          </p>
+          <h1
+            id="acme-auth-title"
+            class="acme-auth-title"
+            data-acme-auth-copy="title"
+          >
+            <!-- %%SIGN_IN_TITLE%% -->
+          </h1>
+          <p class="acme-auth-subtitle" data-acme-auth-copy="subtitle">
+            <!-- %%SIGN_IN_SUBTITLE%% -->
+          </p>
+          <div class="acme-auth-trust-band" data-acme-auth-copy="trust">
+            Secure account access for application progress, disclosures, and
+            funding updates.
+          </div>
+        </section>
+        <section class="acme-auth-widget" aria-label="Account access">
+          <div id="okta-login-container"></div>
+        </section>
+      </div>
+      <!-- %%SUPPORT_FOOTER_MARKUP%% -->
+    </main>
 
     {{{OktaUtil}}}
+    <!-- %%THEME_CONTROLLER_SCRIPT%% -->
     <script type="text/javascript" nonce="{{nonceValue}}">
       /* %%HOSTED_SIGN_IN_CONTROLLER%% */
     </script>

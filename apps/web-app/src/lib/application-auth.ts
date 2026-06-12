@@ -14,7 +14,6 @@ const fundingPageRequirement: AuthRequirement = {
   requiredStepUp: {
     reason: 'funding',
     maxAgeSeconds: FUNDING_STEP_UP_MAX_AGE_SECONDS,
-    consumeOnSatisfied: true,
   },
 };
 
@@ -57,7 +56,7 @@ export function getApplicationAuthRequirementForPath(
   const pathname = path.split('?')[0];
 
   if (pathname === '/apply/funding') {
-    return fundingPageRequirement;
+    return fundingApiRequirement;
   }
 
   return null;

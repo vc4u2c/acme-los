@@ -1117,11 +1117,11 @@ if ($smsMfaEnabled) {
 
   if ($smsMfaProvider -eq 'mock') {
     if ($EnvironmentName -ne 'dev') {
-      throw "Environment '$EnvironmentName' enables mock SMS MFA. Mock SMS OTP logging is allowed only in dev."
+      throw "Environment '$EnvironmentName' enables mock SMS MFA. The protected mock SMS OTP inbox is allowed only in dev."
     }
 
     if (-not $smsMfaMockOtpEnabled) {
-      throw "Environment '$EnvironmentName' enables mock SMS MFA. Set smsMfa.enableMockOtp to true to make the dev-only OTP logging explicit."
+      throw "Environment '$EnvironmentName' enables mock SMS MFA. Set smsMfa.enableMockOtp to true to make the dev-only OTP inbox explicit."
     }
   } elseif ($smsSenderPhoneNumber -notmatch '^\+[1-9]\d{7,14}$') {
     throw "Environment '$EnvironmentName' enables smsMfa through ACS but does not declare a valid E.164 senderPhoneNumber."

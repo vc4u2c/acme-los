@@ -1,0 +1,48 @@
+<script nonce="{{nonceValue}}">
+  (function () {
+    try {
+      var key = 'acme-los-theme';
+      var legacyKey = 'acme.okta.theme';
+      var cookieName = 'acme_theme';
+      var cookieDomain = %%THEME_COOKIE_DOMAIN_JSON%%;
+      var cookieTheme = null;
+      var cookieEntries = document.cookie.split(';');
+
+      for (var index = 0; index < cookieEntries.length; index += 1) {
+        var entry = cookieEntries[index].trim();
+        if (entry.indexOf(cookieName + '=') !== 0) {
+          continue;
+        }
+
+        var cookieValue = decodeURIComponent(entry.slice(cookieName.length + 1));
+        cookieTheme = cookieValue === 'light' || cookieValue === 'dark' ? cookieValue : null;
+        break;
+      }
+
+      var storedTheme = window.localStorage ? window.localStorage.getItem(key) : null;
+      var legacyTheme = window.localStorage ? window.localStorage.getItem(legacyKey) : null;
+      var theme =
+        cookieTheme ||
+        (storedTheme === 'light' || storedTheme === 'dark' ? storedTheme : null) ||
+        (legacyTheme === 'light' || legacyTheme === 'dark' ? legacyTheme : null) ||
+        (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+      document.documentElement.setAttribute('data-acme-theme', theme);
+      if (window.localStorage) {
+        window.localStorage.setItem(key, theme);
+        window.localStorage.removeItem(legacyKey);
+      }
+
+      var canShare =
+        cookieDomain &&
+        (window.location.hostname === cookieDomain ||
+          window.location.hostname.slice(-(cookieDomain.length + 1)) === '.' + cookieDomain);
+      document.cookie =
+        cookieName +
+        '=' +
+        theme +
+        '; Max-Age=31536000; Path=/; SameSite=Lax; Secure' +
+        (canShare ? '; Domain=' + cookieDomain : '');
+    } catch (error) {}
+  })();
+</script>

@@ -2698,7 +2698,7 @@ if (hasActiveCustomDomain) {
   );
   results.customizedSignInPage = {
     mode: 'applied',
-    presentation: 'okta-native-baseline',
+    presentation: 'okta-gen3-shell',
     widgetGeneration:
       persistedSignInPage.widgetCustomizations?.widgetGeneration ?? 'unknown',
     pageContentLength: persistedSignInPage.pageContent?.length ?? 0,
@@ -3355,7 +3355,7 @@ results.applicationAssignmentGroupId = customerGroupId;
 
 if (hostedExperience.rememberUser) {
   warnings.push(
-    "The hosted sign-in page is currently in Okta native-baseline mode, so Okta's built-in remember-user behavior is visible if enabled by the widget/org configuration. Customer session lifetime and remember-device behavior remain controlled by the scoped Okta session and access policies.",
+    "The hosted sign-in page uses the ACME Gen3 shell around native Okta controls, so Okta's built-in remember-user behavior is visible if enabled by the widget/org configuration. Customer session lifetime and remember-device behavior remain controlled by the scoped Okta session and access policies.",
   );
 }
 

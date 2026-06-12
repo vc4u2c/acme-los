@@ -402,13 +402,14 @@ That means:
 - hosted sign-in and error page HTML/content are automated by
   `tools/scripts/okta/hosted-sign-in-page.mjs` after the custom domain is linked
 - the Okta-hosted page templates live in `tools/scripts/okta/templates`; the
-  sign-in template is currently a native Gen 3 baseline that keeps Okta in
-  charge of all credential, registration, recovery, and authenticator controls
+  sign-in template uses an ACME-styled Gen 3 shell while keeping Okta in charge
+  of all credential, registration, recovery, and authenticator controls
 - hosted sign-in is locked to Okta Sign-In Widget Gen 3. Okta documents Gen 3
   as Okta-hosted only, so ACME keeps redirect auth through Okta and does not
   self-host or embed the widget in Next.js. The current repo template avoids
-  Gen 2 class-name DOM overrides and custom form controls; the only ACME page
-  controller behavior is selecting supported widget flows for forgot-password,
+  Gen 2 class-name DOM overrides and custom form controls; ACME styling is
+  limited to the surrounding shell plus scoped form/control normalization, and
+  the controller only selects supported widget flows for forgot-password,
   unlock-account, and signup entry. If you need the matching Admin Console
   check, go to
   `Customizations > Brands > ACME LOS Customer > Pages > Sign-in page > Settings > Sign-In Widget version`
@@ -424,10 +425,9 @@ That means:
   requirement, build an embedded/custom IDX registration experience instead of
   patching the Okta-hosted DOM.
 - hosted-page behavior is checked locally with
-  `npm run okta:audit-hosted-pages -- <env>`; the audit renders the native
-  sign-in baseline and verifies that sign-in, signup, forgot-password, and
-  unlock-account widget flows initialize without dead hosted/help routes. Rich
-  ACME styling should be added later with a focused Gen 3-compatible pass.
+  `npm run okta:audit-hosted-pages -- <env>`; the audit renders the styled Gen
+  3 shell and verifies that sign-in, signup, forgot-password, and
+  unlock-account widget flows initialize without dead hosted/help routes.
 - theme persistence uses only the non-sensitive `acme_theme=light|dark`
   preference cookie; when the app runs at a sibling `*.avanai.net` hostname,
   the cookie is scoped to `avanai.net` so theme follows the redirect round trip
