@@ -64,8 +64,6 @@ param mockSmsOtpEnabled bool = false
 param communicationServicesEndpoint string = ''
 param smsSenderPhoneNumber string = ''
 param oktaTelephonyHookAuthorizationSecretName string = 'sec-acme-los-okta-telephony-hook-authorization'
-@secure()
-param oktaTelephonyHookAuthorizationSecretValue string = ''
 @allowed([
   ''
   'disabled'
@@ -74,8 +72,6 @@ param oktaTelephonyHookAuthorizationSecretValue string = ''
 param oktaCustomerIdWritebackMode string = ''
 param oktaManagementClientId string = ''
 param oktaManagementPrivateKeySecretName string = 'sec-acme-los-okta-management-private-key'
-@secure()
-param oktaManagementPrivateKeySecretValue string = ''
 param oktaManagementPrivateKeyId string = ''
 param oktaManagementScopes string = 'okta.users.manage'
 param containerRegistryLoginServer string
@@ -166,22 +162,6 @@ resource bffTrustedProxySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = 
   }
 }
 
-resource oktaTelephonyHookAuthorizationSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (smsMfaEnabled) {
-  parent: keyVaultResource
-  name: oktaTelephonyHookAuthorizationSecretName
-  properties: {
-    value: oktaTelephonyHookAuthorizationSecretValue
-  }
-}
-
-resource oktaManagementPrivateKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (oktaCustomerIdWritebackEnabled && !empty(oktaManagementPrivateKeySecretValue)) {
-  parent: keyVaultResource
-  name: oktaManagementPrivateKeySecretName
-  properties: {
-    value: oktaManagementPrivateKeySecretValue
-  }
-}
-
 module tags './modules/foundation/tags.bicep' = {
   name: 'runtime-tags-${environmentName}'
   params: {
@@ -267,11 +247,14 @@ module containerApp './modules/web/container-app.bicep' = {
     sessionIdleTimeoutSeconds: sessionIdleTimeoutSeconds
     sessionWarningSeconds: sessionWarningSeconds
   }
-  dependsOn: [
-    sessionSecret
-    bffTrustedProxySecret
-    oktaTelephonyHookAuthorizationSecret
-  ]
+  dependsOn: deployBff
+    ? [
+        sessionSecret
+        bffTrustedProxySecret
+      ]
+    : [
+        sessionSecret
+      ]
 }
 
 module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
@@ -328,7 +311,6 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
   dependsOn: [
     sessionSecret
     bffTrustedProxySecret
-    oktaManagementPrivateKeySecret
   ]
 }
 

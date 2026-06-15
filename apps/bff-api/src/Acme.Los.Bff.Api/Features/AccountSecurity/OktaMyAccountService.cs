@@ -260,7 +260,8 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     {
       throw new OktaMyAccountException(
         "A valid new email address is required.",
-        StatusCodes.Status400BadRequest);
+        StatusCodes.Status400BadRequest,
+        exposeMessageToClient: true);
     }
 
     try
@@ -271,7 +272,8 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     {
       throw new OktaMyAccountException(
         "A valid new email address is required.",
-        StatusCodes.Status400BadRequest);
+        StatusCodes.Status400BadRequest,
+        exposeMessageToClient: true);
     }
 
     return email;
@@ -298,7 +300,8 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     {
       throw new OktaMyAccountException(
         "A valid SMS-capable phone number is required.",
-        StatusCodes.Status400BadRequest);
+        StatusCodes.Status400BadRequest,
+        exposeMessageToClient: true);
     }
 
     return compactPhoneNumber;
@@ -312,7 +315,8 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     {
       throw new OktaMyAccountException(
         "A valid verification code is required.",
-        StatusCodes.Status400BadRequest);
+        StatusCodes.Status400BadRequest,
+        exposeMessageToClient: true);
     }
 
     return code;
@@ -326,7 +330,8 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     {
       throw new OktaMyAccountException(
         $"A valid {label} is required.",
-        StatusCodes.Status400BadRequest);
+        StatusCodes.Status400BadRequest,
+        exposeMessageToClient: true);
     }
 
     return normalizedValue;
@@ -338,15 +343,18 @@ public sealed class OktaMyAccountException : Exception
   public OktaMyAccountException(
     string message,
     int statusCode,
-    bool requiresReauthentication = false)
+    bool requiresReauthentication = false,
+    bool exposeMessageToClient = false)
     : base(message)
   {
     StatusCode = statusCode;
     RequiresReauthentication = requiresReauthentication;
+    ExposeMessageToClient = exposeMessageToClient;
   }
 
   public int StatusCode { get; }
   public bool RequiresReauthentication { get; }
+  public bool ExposeMessageToClient { get; }
 }
 
 internal sealed record OktaEmailTransaction(

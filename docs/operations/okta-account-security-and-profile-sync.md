@@ -210,8 +210,11 @@ Pre-deployment checklist for the sample bridge:
 
 Current `dev` enables the sample bridge, so first-time setup and key rotation
 must provide a real `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` value before
-deployment. Later local redeploys can omit the env var and reuse the existing
-Key Vault secret. Keep the service app identifiers in source control because
+deployment. The deploy script stores that value in Key Vault before the Bicep
+runtime deployment; Bicep then wires the internal BFF env var to a Key Vault
+secret reference. Later local redeploys can omit the env var and reuse the
+existing Key Vault secret; the deploy script verifies that the secret exists
+before it continues. Keep the service app identifiers in source control because
 they are not secret.
 
 Current `dev` shape:

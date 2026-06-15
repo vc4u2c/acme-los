@@ -183,6 +183,12 @@ hook authorization secret:
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev
 ```
 
+Set `ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION` only for first-time setup or
+rotation. The deploy script stores it in Key Vault before the Bicep runtime
+deployment, and Bicep configures the Container App env var as a Key Vault secret
+reference. Later redeploys verify and reuse the existing Key Vault secret
+`sec-acme-los-okta-telephony-hook-authorization`.
+
 Apply the Okta dev configuration after the deployment is live:
 
 ```powershell

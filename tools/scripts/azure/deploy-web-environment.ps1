@@ -293,6 +293,60 @@ function Test-ContainerRegistryTagExists {
   return [int]$tagCount -gt 0
 }
 
+function Test-KeyVaultSecretExists {
+  param(
+    [string]$SubscriptionId,
+    [string]$VaultName,
+    [string]$SecretName
+  )
+
+  if ([string]::IsNullOrWhiteSpace($VaultName) -or [string]::IsNullOrWhiteSpace($SecretName)) {
+    return $false
+  }
+
+  $secretId = az keyvault secret show `
+    --subscription $SubscriptionId `
+    --vault-name $VaultName `
+    --name $SecretName `
+    --query id `
+    --output tsv `
+    --only-show-errors 2>$null
+
+  if ($LASTEXITCODE -ne 0) {
+    return $false
+  }
+
+  return -not [string]::IsNullOrWhiteSpace($secretId)
+}
+
+function Set-KeyVaultSecretFromValue {
+  param(
+    [string]$SubscriptionId,
+    [string]$VaultName,
+    [string]$SecretName,
+    [string]$SecretValue
+  )
+
+  if ([string]::IsNullOrWhiteSpace($SecretValue)) {
+    return
+  }
+
+  $secretFilePath = Join-Path ([System.IO.Path]::GetTempPath()) ("acme-los-kv-secret-" + [guid]::NewGuid().ToString('N') + '.txt')
+  [System.IO.File]::WriteAllText($secretFilePath, $SecretValue, [System.Text.Encoding]::UTF8)
+
+  try {
+    Invoke-AzNoOutput -Arguments @(
+      'keyvault', 'secret', 'set',
+      '--subscription', $SubscriptionId,
+      '--vault-name', $VaultName,
+      '--name', $SecretName,
+      '--file', $secretFilePath
+    )
+  } finally {
+    Remove-Item -LiteralPath $secretFilePath -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Get-WorkloadResourceGroupName {
   param(
     $Configuration,
@@ -863,6 +917,7 @@ $smsMfaMockOtpEnabledEnvValue = if ($smsMfaMockOtpEnabled) { 'true' } else { 'fa
 $smsSenderPhoneNumber = Get-StringOrDefault -Value (
   Get-OptionalPropertyValue -InputObject $smsMfaConfiguration -Name 'senderPhoneNumber'
 )
+$oktaTelephonyHookAuthorizationSecretName = 'sec-acme-los-okta-telephony-hook-authorization'
 $oktaTelephonyHookAuthorizationSecretValue = Get-OptionalString $env:ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION
 $oktaCustomerIdWritebackConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'oktaCustomerIdWriteback'
 $oktaCustomerIdWritebackMode = Get-StringOrDefault -Value (
@@ -1129,7 +1184,15 @@ if ($smsMfaEnabled) {
   }
 
   if (-not $oktaTelephonyHookAuthorizationSecretValue) {
-    throw "Environment '$EnvironmentName' enables smsMfa. Set ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION before deploying."
+    if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -VaultName $keyVaultName -SecretName $oktaTelephonyHookAuthorizationSecretName) {
+      Write-Warning "Environment '$EnvironmentName' enables smsMfa but ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION is not set. Deployment will reuse the existing Key Vault secret '$oktaTelephonyHookAuthorizationSecretName'. Set the env var only for first-time setup or rotation."
+    } else {
+      throw "Environment '$EnvironmentName' enables smsMfa, but ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION is not set and Key Vault secret '$oktaTelephonyHookAuthorizationSecretName' does not exist. Set the env var for first-time setup or rotation."
+    }
+  }
+
+  if ($oktaTelephonyHookAuthorizationSecretValue) {
+    Set-KeyVaultSecretFromValue -SubscriptionId $resolvedSubscriptionId -VaultName $keyVaultName -SecretName $oktaTelephonyHookAuthorizationSecretName -SecretValue $oktaTelephonyHookAuthorizationSecretValue
   }
 }
 
@@ -1147,11 +1210,19 @@ if ($oktaCustomerIdWritebackMode -eq 'sample') {
   }
 
   if (-not $oktaManagementPrivateKeySecretValue) {
-    Write-Warning "Environment '$EnvironmentName' enables sample Okta customer id write-back but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set. Deployment will reuse the existing Key Vault secret '$oktaManagementPrivateKeySecretName'. Set the env var for first-time setup or key rotation."
+    if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName) {
+      Write-Warning "Environment '$EnvironmentName' enables sample Okta customer id write-back but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set. Deployment will reuse the existing Key Vault secret '$oktaManagementPrivateKeySecretName'. Set the env var only for first-time setup or key rotation."
+    } else {
+      throw "Environment '$EnvironmentName' enables sample Okta customer id write-back, but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set and Key Vault secret '$oktaManagementPrivateKeySecretName' does not exist. Set the env var for first-time setup or key rotation."
+    }
   }
 
   if ($oktaManagementScopes -notmatch '(^|[\s,;])okta\.users\.manage($|[\s,;])') {
     throw "Environment '$EnvironmentName' enables sample Okta customer id write-back. oktaCustomerIdWriteback.scopes must include okta.users.manage."
+  }
+
+  if ($oktaManagementPrivateKeySecretValue) {
+    Set-KeyVaultSecretFromValue -SubscriptionId $resolvedSubscriptionId -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName -SecretValue $oktaManagementPrivateKeySecretValue
   }
 }
 
@@ -1488,20 +1559,6 @@ $runtimeDeploymentArguments = @(
   '--parameters', "maxReplicas=$runtimeMaxReplicas",
   '--output', 'json'
 )
-
-if ($smsMfaEnabled) {
-  $runtimeDeploymentArguments += @(
-    '--parameters',
-    "oktaTelephonyHookAuthorizationSecretValue=$oktaTelephonyHookAuthorizationSecretValue"
-  )
-}
-
-if ($oktaCustomerIdWritebackMode -eq 'sample' -and $oktaManagementPrivateKeySecretValue) {
-  $runtimeDeploymentArguments += @(
-    '--parameters',
-    "oktaManagementPrivateKeySecretValue=$oktaManagementPrivateKeySecretValue"
-  )
-}
 
 $runtimeDeploymentArguments += @('--parameters', "stateStoreMode=$resolvedStateStoreMode")
 

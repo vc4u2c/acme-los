@@ -248,10 +248,16 @@ public static class AccountSecurityEndpoints
 
   private static IResult BuildOktaError(OktaMyAccountException exception)
   {
+    var clientMessage = exception.ExposeMessageToClient
+      ? exception.Message
+      : exception.RequiresReauthentication
+        ? "Fresh verification is required before this account change can continue."
+        : "Unable to complete the account security change right now.";
+
     return Results.Json(
       new
       {
-        error = exception.Message,
+        error = clientMessage,
         requiresReauthentication = exception.RequiresReauthentication,
       },
       statusCode: exception.StatusCode);
