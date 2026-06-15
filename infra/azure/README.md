@@ -331,12 +331,13 @@ Okta API Service app, grant it `okta.users.manage`, set
 `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` from the private key file in the deploy
 shell for first-time setup or key rotation, then redeploy the web environment.
 The deploy script stores the private key in Key Vault as
-`sec-acme-los-okta-management-private-key` before the Bicep runtime deployment.
-Bicep then configures the internal BFF ACA environment variable as a Key Vault
-secret reference only while sample mode is enabled. Later redeploys can omit the
-env var and reuse the existing Key Vault secret; the deployment verifies that
-the secret is already present before it proceeds. The BFF reads Okta first and
-will not overwrite an existing `profile.customerId`.
+`sec-acme-los-okta-management-private-key` before the Bicep runtime deployment,
+using an ARM/Bicep secret deployment so private-only Key Vault networking stays
+intact. Bicep then configures the internal BFF ACA environment variable as a Key
+Vault secret reference only while sample mode is enabled. Later redeploys can
+omit the env var and reuse the existing Key Vault secret; the deployment
+verifies the existing secret through ARM metadata before it proceeds. The BFF
+reads Okta first and will not overwrite an existing `profile.customerId`.
 
 If the runtime image changes and you want to force a new image build instead of
 reusing an existing tag, pass `-ImageTag` explicitly:

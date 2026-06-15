@@ -296,18 +296,20 @@ function Test-ContainerRegistryTagExists {
 function Test-KeyVaultSecretExists {
   param(
     [string]$SubscriptionId,
+    [string]$ResourceGroupName,
     [string]$VaultName,
     [string]$SecretName
   )
 
-  if ([string]::IsNullOrWhiteSpace($VaultName) -or [string]::IsNullOrWhiteSpace($SecretName)) {
+  if ([string]::IsNullOrWhiteSpace($ResourceGroupName) -or [string]::IsNullOrWhiteSpace($VaultName) -or [string]::IsNullOrWhiteSpace($SecretName)) {
     return $false
   }
 
-  $secretId = az keyvault secret show `
+  $secretResourceId = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.KeyVault/vaults/$VaultName/secrets/$SecretName"
+  $secretId = az resource show `
     --subscription $SubscriptionId `
-    --vault-name $VaultName `
-    --name $SecretName `
+    --ids $secretResourceId `
+    --api-version '2023-07-01' `
     --query id `
     --output tsv `
     --only-show-errors 2>$null
@@ -322,28 +324,57 @@ function Test-KeyVaultSecretExists {
 function Set-KeyVaultSecretFromValue {
   param(
     [string]$SubscriptionId,
+    [string]$ResourceGroupName,
     [string]$VaultName,
     [string]$SecretName,
-    [string]$SecretValue
+    [string]$SecretValue,
+    [string]$TemplateFile
   )
 
   if ([string]::IsNullOrWhiteSpace($SecretValue)) {
     return
   }
 
-  $secretFilePath = Join-Path ([System.IO.Path]::GetTempPath()) ("acme-los-kv-secret-" + [guid]::NewGuid().ToString('N') + '.txt')
-  [System.IO.File]::WriteAllText($secretFilePath, $SecretValue, [System.Text.Encoding]::UTF8)
+  if (-not $TemplateFile) {
+    $TemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\modules\security\key-vault-secret.bicep'
+  }
+
+  $parameterFilePath = Join-Path ([System.IO.Path]::GetTempPath()) ("acme-los-kv-secret-parameters-" + [guid]::NewGuid().ToString('N') + '.json')
+  $parameterPayload = @{
+    '$schema' = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
+    contentVersion = '1.0.0.0'
+    parameters = @{
+      vaultName = @{
+        value = $VaultName
+      }
+      secretName = @{
+        value = $SecretName
+      }
+      secretValue = @{
+        value = $SecretValue
+      }
+    }
+  } | ConvertTo-Json -Depth 10
+
+  [System.IO.File]::WriteAllText($parameterFilePath, $parameterPayload, [System.Text.Encoding]::UTF8)
+
+  $deploymentName = "kv-secret-$SecretName"
+  if ($deploymentName.Length -gt 64) {
+    $deploymentName = "kv-secret-$([guid]::NewGuid().ToString('N').Substring(0, 24))"
+  }
 
   try {
     Invoke-AzNoOutput -Arguments @(
-      'keyvault', 'secret', 'set',
+      'deployment', 'group', 'create',
       '--subscription', $SubscriptionId,
-      '--vault-name', $VaultName,
-      '--name', $SecretName,
-      '--file', $secretFilePath
+      '--resource-group', $ResourceGroupName,
+      '--name', $deploymentName,
+      '--template-file', $TemplateFile,
+      '--parameters', "@$parameterFilePath",
+      '--output', 'none'
     )
   } finally {
-    Remove-Item -LiteralPath $secretFilePath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $parameterFilePath -Force -ErrorAction SilentlyContinue
   }
 }
 
@@ -1184,7 +1215,7 @@ if ($smsMfaEnabled) {
   }
 
   if (-not $oktaTelephonyHookAuthorizationSecretValue) {
-    if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -VaultName $keyVaultName -SecretName $oktaTelephonyHookAuthorizationSecretName) {
+    if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaTelephonyHookAuthorizationSecretName) {
       Write-Warning "Environment '$EnvironmentName' enables smsMfa but ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION is not set. Deployment will reuse the existing Key Vault secret '$oktaTelephonyHookAuthorizationSecretName'. Set the env var only for first-time setup or rotation."
     } else {
       throw "Environment '$EnvironmentName' enables smsMfa, but ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION is not set and Key Vault secret '$oktaTelephonyHookAuthorizationSecretName' does not exist. Set the env var for first-time setup or rotation."
@@ -1192,7 +1223,7 @@ if ($smsMfaEnabled) {
   }
 
   if ($oktaTelephonyHookAuthorizationSecretValue) {
-    Set-KeyVaultSecretFromValue -SubscriptionId $resolvedSubscriptionId -VaultName $keyVaultName -SecretName $oktaTelephonyHookAuthorizationSecretName -SecretValue $oktaTelephonyHookAuthorizationSecretValue
+    Set-KeyVaultSecretFromValue -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaTelephonyHookAuthorizationSecretName -SecretValue $oktaTelephonyHookAuthorizationSecretValue
   }
 }
 
@@ -1210,7 +1241,7 @@ if ($oktaCustomerIdWritebackMode -eq 'sample') {
   }
 
   if (-not $oktaManagementPrivateKeySecretValue) {
-    if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName) {
+    if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName) {
       Write-Warning "Environment '$EnvironmentName' enables sample Okta customer id write-back but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set. Deployment will reuse the existing Key Vault secret '$oktaManagementPrivateKeySecretName'. Set the env var only for first-time setup or key rotation."
     } else {
       throw "Environment '$EnvironmentName' enables sample Okta customer id write-back, but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set and Key Vault secret '$oktaManagementPrivateKeySecretName' does not exist. Set the env var for first-time setup or key rotation."
@@ -1222,7 +1253,7 @@ if ($oktaCustomerIdWritebackMode -eq 'sample') {
   }
 
   if ($oktaManagementPrivateKeySecretValue) {
-    Set-KeyVaultSecretFromValue -SubscriptionId $resolvedSubscriptionId -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName -SecretValue $oktaManagementPrivateKeySecretValue
+    Set-KeyVaultSecretFromValue -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName -SecretValue $oktaManagementPrivateKeySecretValue
   }
 }
 
