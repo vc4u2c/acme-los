@@ -14,17 +14,42 @@ function buildCustomerGroupCondition(customerGroupId) {
   };
 }
 
-function buildSecurityQuestionAndPossessionVerificationMethod() {
+function buildAuthenticationMethod(key, method) {
+  return {
+    key,
+    ...(method ? { method } : {}),
+  };
+}
+
+const emailOtpAuthenticationMethod = buildAuthenticationMethod(
+  'okta_email',
+  'email',
+);
+const phoneSmsAuthenticationMethod = buildAuthenticationMethod(
+  'phone_number',
+  'sms',
+);
+
+function buildSecurityQuestionAndPossessionVerificationMethod({
+  possessionAuthenticationMethods = [],
+} = {}) {
+  const possessionConstraint = {
+    required: true,
+    userPresence: 'OPTIONAL',
+    ...(possessionAuthenticationMethods.length > 0
+      ? {
+          authenticationMethods: possessionAuthenticationMethods,
+        }
+      : {}),
+  };
+
   return {
     factorMode: '2FA',
     type: 'ASSURANCE',
     reauthenticateIn: 'PT0S',
     constraints: [
       {
-        possession: {
-          required: true,
-          userPresence: 'OPTIONAL',
-        },
+        possession: possessionConstraint,
       },
       {
         knowledge: {
@@ -42,6 +67,7 @@ function buildRulePayload({
   priority,
   customerGroupId,
   elCondition,
+  possessionAuthenticationMethods,
 }) {
   return {
     ...(existingRule?.id ? { id: existingRule.id } : {}),
@@ -69,7 +95,9 @@ function buildRulePayload({
       appSignOn: {
         access: 'ALLOW',
         verificationMethod:
-          buildSecurityQuestionAndPossessionVerificationMethod(),
+          buildSecurityQuestionAndPossessionVerificationMethod({
+            possessionAuthenticationMethods,
+          }),
       },
     },
   };
@@ -92,9 +120,27 @@ export function buildAccountManagementPolicyRuleDefinitions({
   customerGroupName,
   telephonyEnabled,
 }) {
-  const expectedPossessionFactors = telephonyEnabled
-    ? ['okta_email', 'phone_number']
-    : ['okta_email'];
+  const phoneSmsPossessionAuthenticationMethods = telephonyEnabled
+    ? [phoneSmsAuthenticationMethod]
+    : [];
+  const passwordPossessionAuthenticationMethods = telephonyEnabled
+    ? phoneSmsPossessionAuthenticationMethods
+    : [emailOtpAuthenticationMethod];
+  const emailLifecyclePossessionAuthenticationMethods = telephonyEnabled
+    ? phoneSmsPossessionAuthenticationMethods
+    : [emailOtpAuthenticationMethod];
+  const phoneLifecyclePossessionAuthenticationMethods = [
+    emailOtpAuthenticationMethod,
+  ];
+  const passwordPossessionFactors = telephonyEnabled
+    ? ['phone_number:sms']
+    : ['okta_email:email'];
+  const emailLifecyclePossessionFactors = telephonyEnabled
+    ? ['phone_number:sms']
+    : ['okta_email:email'];
+  const phoneLifecyclePossessionFactors = ['okta_email:email'];
+  const phoneSmsUnavailableNote =
+    'Phone/SMS OTP is the target opposite-channel proof, but this environment has telephony disabled, so the rendered payload falls back to email OTP until phone/SMS is enabled.';
 
   return [
     {
@@ -102,17 +148,19 @@ export function buildAccountManagementPolicyRuleDefinitions({
       name: `ACME LOS Password Lifecycle (${environmentName})`,
       priority: 1,
       scenarioIds: [
-        'forgot-password-security-question-email-otp',
+        'forgot-password-security-question-phone-sms-otp',
         'change-password',
       ],
       expectedProofs: [
         'security_question_challenge',
-        'possession_factor_otp',
+        telephonyEnabled ? 'phone_sms_otp' : 'okta_email_otp',
         'current_password_for_change_password_only',
       ],
-      expectedPossessionFactors,
+      expectedPossessionFactors: passwordPossessionFactors,
       notes: [
-        'Forgot-password recovery should use the Okta password policy recovery method for email OTP, then this account-management rule requires fresh proof.',
+        telephonyEnabled
+          ? 'Password recovery/change uses phone/SMS OTP as the possession proof plus security question; ACME never receives password or OTP material.'
+          : phoneSmsUnavailableNote,
         'Change-password remains Okta-hosted; ACME never receives password material.',
       ],
       payload: (existingRule) =>
@@ -123,6 +171,8 @@ export function buildAccountManagementPolicyRuleDefinitions({
           customerGroupId,
           elCondition:
             "accessRequest.authenticator.key == 'okta_password' && (accessRequest.operation == 'recover' || accessRequest.operation == 'enroll' || accessRequest.operation == 'unenroll')",
+          possessionAuthenticationMethods:
+            passwordPossessionAuthenticationMethods,
         }),
       scope: customerGroupName,
     },
@@ -131,14 +181,13 @@ export function buildAccountManagementPolicyRuleDefinitions({
       name: `ACME LOS Email Lifecycle (${environmentName})`,
       priority: 2,
       scenarioIds: ['forgot-email', 'change-email'],
-      expectedProofs: [
-        'phone_or_other_non_email_possession_factor_otp',
-        'security_question_challenge',
-      ],
-      expectedPossessionFactors,
+      expectedProofs: ['phone_sms_otp', 'security_question_challenge'],
+      expectedPossessionFactors: emailLifecyclePossessionFactors,
       notes: [
-        'Email recovery/change must use an opposite-channel possession proof, not the email address being recovered or changed.',
-        'Okta owns email authenticator changes; ACME syncs the mutable email claim only after the customer signs in fresh with the recovered or new email.',
+        telephonyEnabled
+          ? 'Email recovery/change must use phone/SMS OTP as the opposite-channel proof, not the email address being recovered or changed.'
+          : phoneSmsUnavailableNote,
+        'After email change, Okta signs the customer out; ACME syncs the mutable email claim only after the customer signs in fresh with the new email and satisfies email OTP.',
       ],
       payload: (existingRule) =>
         buildRulePayload({
@@ -148,6 +197,8 @@ export function buildAccountManagementPolicyRuleDefinitions({
           customerGroupId,
           elCondition:
             "accessRequest.authenticator.key == 'okta_email' && (accessRequest.operation == 'recover' || accessRequest.operation == 'enroll' || accessRequest.operation == 'unenroll')",
+          possessionAuthenticationMethods:
+            emailLifecyclePossessionAuthenticationMethods,
         }),
       scope: customerGroupName,
     },
@@ -157,13 +208,13 @@ export function buildAccountManagementPolicyRuleDefinitions({
       priority: 3,
       scenarioIds: ['lost-phone-replace-factor', 'change-phone'],
       expectedProofs: ['okta_email_otp', 'security_question_challenge'],
-      expectedPossessionFactors: ['okta_email'],
+      expectedPossessionFactors: phoneLifecyclePossessionFactors,
       notes: [
         telephonyEnabled
           ? 'Phone/SMS account-management rule is active because telephony is enabled.'
           : 'Phone/SMS account-management rule is prepared, but the phone authenticator remains inactive until a real or dev mock SMS provider is enabled.',
         'Phone/SMS replacement uses email OTP because the unavailable phone factor cannot prove its own replacement.',
-        'ACME syncs verified phone metadata only from a trusted Okta claim, Management API lookup, or event hook after fresh sign-in.',
+        'After phone/SMS change, Okta signs the customer out; ACME should require fresh sign-in with the unchanged email and the new phone/SMS OTP before syncing verified phone metadata.',
       ],
       payload: (existingRule) =>
         buildRulePayload({
@@ -173,6 +224,8 @@ export function buildAccountManagementPolicyRuleDefinitions({
           customerGroupId,
           elCondition:
             "accessRequest.authenticator.key == 'phone_number' && (accessRequest.operation == 'recover' || accessRequest.operation == 'enroll' || accessRequest.operation == 'unenroll')",
+          possessionAuthenticationMethods:
+            phoneLifecyclePossessionAuthenticationMethods,
         }),
       scope: customerGroupName,
     },
@@ -201,5 +254,8 @@ export function printAccountManagementPolicyRules(ruleDefinitions) {
     console.log(`    Priority: ${definition.priority}`);
     console.log(`    Scenarios: ${definition.scenarioIds.join(', ')}`);
     console.log(`    Proofs: ${definition.expectedProofs.join(', ')}`);
+    console.log(
+      `    Possession factors: ${definition.expectedPossessionFactors.join(', ')}`,
+    );
   }
 }

@@ -34,7 +34,7 @@ const auditedRoutes = [
   },
   {
     path: '/account/profile',
-    waitFor: { role: 'heading', name: /Keep your contact details current/i },
+    waitFor: { role: 'heading', name: /Review your verified account/i },
   },
   {
     path: '/logging-demo',

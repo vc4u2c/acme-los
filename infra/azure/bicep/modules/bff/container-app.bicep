@@ -17,6 +17,11 @@ param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
 param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
 @allowed([
+  'email'
+  'sms'
+])
+param oktaFundingStepUpMethod string = 'email'
+@allowed([
   ''
   'disabled'
   'sample'
@@ -197,6 +202,10 @@ var environmentVariables = concat(
     {
       name: 'ACME_OKTA_FUNDING_ACR_VALUES'
       value: oktaFundingAcrValues
+    }
+    {
+      name: 'ACME_OKTA_FUNDING_STEP_UP_METHOD'
+      value: oktaFundingStepUpMethod
     }
     {
       name: 'ACME_WEB_STATE_STORE'

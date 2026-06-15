@@ -14,6 +14,7 @@ export default async function SignInPage({
     returnTo?: string;
     aal?: string;
     authError?: string;
+    authRecovery?: string;
   }>;
 }) {
   const resolvedSearchParams = await searchParams;
@@ -37,6 +38,8 @@ export default async function SignInPage({
         minimumAssuranceLevel,
       };
   const authError = resolvedSearchParams.authError?.trim() || undefined;
+  const recoverableAuthError =
+    resolvedSearchParams.authRecovery === 'restart' && Boolean(authError);
   const { session, isSatisfied } =
     await getServerWebAuthSessionRequirementStatus(signInRequirement);
 
@@ -51,9 +54,22 @@ export default async function SignInPage({
       eyebrow="Customer portal"
       title="Opening secure sign in"
       description="Use the hosted Okta customer portal to resume the application, review disclosures, and check funding updates in one secure place."
-      actionLabel="Continue to secure sign in"
-      launchingLabel="Redirecting to secure sign in..."
-      errorMessage={authError}
+      actionLabel={
+        recoverableAuthError
+          ? 'Continue to application'
+          : 'Continue to secure sign in'
+      }
+      launchingLabel={
+        recoverableAuthError
+          ? 'Opening the application...'
+          : 'Redirecting to secure sign in...'
+      }
+      errorMessage={
+        recoverableAuthError
+          ? 'That secure handoff took longer than expected. We can reopen Okta and continue without starting over.'
+          : authError
+      }
+      autoLaunchOnError={recoverableAuthError}
     />
   );
 }

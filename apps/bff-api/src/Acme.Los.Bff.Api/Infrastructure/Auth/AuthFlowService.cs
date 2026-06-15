@@ -35,11 +35,12 @@ public sealed record StartAuthFlowParameters(
   string? MinimumAssuranceLevel,
   string? ExpectedUserId,
   string? LeadId,
-  WebAuthStepUpRequirement? StepUp);
+  WebAuthStepUpRequirement? StepUp,
+  string? WidgetFlow);
 
 public sealed class BffAuthFlowService : IAuthFlowService
 {
-  private const int AuthTransactionMaxAgeSeconds = 10 * 60;
+  private const int AuthTransactionMaxAgeSeconds = 30 * 60;
 
   private readonly IAuthTransactionStore _transactionStore;
   private readonly IAuthSessionService _authSessionService;
@@ -117,6 +118,17 @@ public sealed class BffAuthFlowService : IAuthFlowService
       authorizeQuery["acr_values"] = options.FundingAcrValues;
     }
 
+    if (minimumAssuranceLevel == "aal2" && parameters.StepUp is not null)
+    {
+      authorizeQuery["max_age"] = "0";
+    }
+
+    var widgetFlow = NormalizeHostedWidgetFlow(parameters.WidgetFlow);
+    if (widgetFlow is not null)
+    {
+      authorizeQuery["acme_widget_flow"] = widgetFlow;
+    }
+
     return new StartAuthFlowResponse(
       BuildUrlWithQuery(BuildIssuerEndpoint(options.Issuer, "authorize"), authorizeQuery),
       transactionId,
@@ -177,7 +189,7 @@ public sealed class BffAuthFlowService : IAuthFlowService
         ? new[] { options.FundingAcrValues }
         : null);
 
-    EnforceSessionRequirement(session, transaction);
+    EnforceSessionRequirement(session, transaction, options);
 
     var expiresAt = TryReadIntClaim(claims, "exp")
       ?? GetCurrentEpochSeconds() + (tokenResponse.ExpiresIn ?? 60 * 60);
@@ -405,7 +417,8 @@ public sealed class BffAuthFlowService : IAuthFlowService
 
   private static void EnforceSessionRequirement(
     WebAuthSession session,
-    StoredAuthTransaction transaction)
+    StoredAuthTransaction transaction,
+    OktaAuthOptions options)
   {
     if (!string.IsNullOrWhiteSpace(transaction.ExpectedUserId)
       && !string.Equals(
@@ -422,6 +435,31 @@ public sealed class BffAuthFlowService : IAuthFlowService
     {
       throw new InvalidOperationException(
         "The completed sign-in did not satisfy the required assurance level.");
+    }
+
+    if (string.Equals(transaction.StepUp?.Reason, "funding", StringComparison.Ordinal)
+      && !AuthAssurance.IsFundingStepUpMethodSatisfied(
+        options.FundingStepUpMethod,
+        session.User?.AuthenticationMethods))
+    {
+      throw new InvalidOperationException(
+        "Funding step-up must be completed with phone/SMS OTP.");
+    }
+
+    if (string.Equals(transaction.StepUp?.Reason, "account-email", StringComparison.Ordinal)
+      && !AuthAssurance.IsSmsAuthenticationMethodSatisfied(
+        session.User?.AuthenticationMethods))
+    {
+      throw new InvalidOperationException(
+        "Email change step-up must be completed with phone/SMS OTP.");
+    }
+
+    if (string.Equals(transaction.StepUp?.Reason, "account-phone", StringComparison.Ordinal)
+      && !AuthAssurance.IsEmailAuthenticationMethodSatisfied(
+        session.User?.AuthenticationMethods))
+    {
+      throw new InvalidOperationException(
+        "Phone change step-up must be completed with email OTP.");
     }
   }
 
@@ -490,6 +528,17 @@ public sealed class BffAuthFlowService : IAuthFlowService
     };
 
     return builder.Uri.ToString();
+  }
+
+  private static string? NormalizeHostedWidgetFlow(string? widgetFlow)
+  {
+    return widgetFlow switch
+    {
+      "resetPassword" => "resetPassword",
+      "unlockAccount" => "unlockAccount",
+      "signup" => "signup",
+      _ => null,
+    };
   }
 
   private static string GetSafeReturnTo(string? returnTo)
@@ -590,7 +639,8 @@ internal sealed record OktaAuthOptions(
   string RedirectUri,
   string PostLogoutRedirectUri,
   string[] Scopes,
-  string FundingAcrValues)
+  string FundingAcrValues,
+  string FundingStepUpMethod)
 {
   internal static OktaAuthOptions FromEnvironment()
   {
@@ -630,11 +680,24 @@ internal sealed record OktaAuthOptions(
           clientId,
           redirectUri,
           postLogoutRedirectUri,
-          ["openid", "profile", "email", "offline_access"],
+          [
+            "openid",
+            "profile",
+            "email",
+            "offline_access",
+            "okta.myAccount.email.read",
+            "okta.myAccount.email.manage",
+            "okta.myAccount.phone.read",
+            "okta.myAccount.phone.manage",
+          ],
           ReadConfigValue(
             "ACME_OKTA_FUNDING_ACR_VALUES",
             "NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES")
-          ?? "urn:okta:loa:2fa:any");
+          ?? "urn:okta:loa:2fa:any",
+          ReadConfigValue(
+            "ACME_OKTA_FUNDING_STEP_UP_METHOD",
+            "NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD")
+          ?? "email");
   }
 
   private static string? ReadConfigValue(

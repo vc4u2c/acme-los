@@ -33,6 +33,10 @@ const authCallbackQuerySchema = z.object({
   error_description: z.string().min(1).optional(),
 });
 
+function isRecoverableExpiredTransactionError(authError: string): boolean {
+  return authError.toLowerCase().includes('secure sign-in session expired');
+}
+
 function buildSignInErrorResponse(request: NextRequest, authError: string) {
   const transaction = readWebAuthTransactionCookie(request);
   const response = NextResponse.redirect(
@@ -42,6 +46,9 @@ function buildSignInErrorResponse(request: NextRequest, authError: string) {
         returnTo: transaction?.returnTo ?? '/apply/personal-info',
         minimumAssuranceLevel: transaction?.minimumAssuranceLevel ?? 'aal1',
         authError,
+        authRecovery: isRecoverableExpiredTransactionError(authError)
+          ? 'restart'
+          : undefined,
       }),
     ),
   );

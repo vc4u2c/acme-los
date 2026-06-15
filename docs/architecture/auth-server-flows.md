@@ -83,8 +83,10 @@ idle expiry.
   a token for a different subject
 - funding step-up is intentionally fresh: an existing `aal2` session is not
   enough by itself, because each funding page entry consumes the latest funding
-  step-up marker; funding save/submit APIs can still use that marker during the
-  bounded 10-minute funding API window written by the latest Okta callback
+  step-up marker; when the environment configures phone/SMS funding step-up, the
+  callback must also include Okta `amr` evidence for SMS or phone before the
+  marker is written; funding save/submit APIs can still use that marker during
+  the bounded 10-minute funding API window written by the latest Okta callback
 
 Current defaults:
 
@@ -110,7 +112,7 @@ sequenceDiagram
   W->>U: Render sign-in launch page
   U->>W: GET /api/auth/start?returnTo=/apply/personal-info
   W->>W: Generate state, nonce, code_verifier, code_challenge
-  W->>S: Store auth transaction with 10-minute TTL
+  W->>S: Store auth transaction with 30-minute TTL
   W->>U: Set opaque auth transaction cookie
   W->>U: Redirect to Okta authorize endpoint
   U->>O: Hosted sign-in

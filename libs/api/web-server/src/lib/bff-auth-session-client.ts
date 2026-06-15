@@ -207,6 +207,7 @@ export async function startBffAuthFlow(
     expectedUserId?: string;
     leadId?: string;
     stepUp?: WebAuthStepUpRequirement;
+    widgetFlow?: 'resetPassword' | 'unlockAccount' | 'signup';
   },
 ): Promise<StartAuthFlowResponse> {
   const searchParams = new URLSearchParams();
@@ -225,6 +226,10 @@ export async function startBffAuthFlow(
 
   if (options.leadId) {
     searchParams.set('leadId', options.leadId);
+  }
+
+  if (options.widgetFlow) {
+    searchParams.set('widgetFlow', options.widgetFlow);
   }
 
   if (options.stepUp) {

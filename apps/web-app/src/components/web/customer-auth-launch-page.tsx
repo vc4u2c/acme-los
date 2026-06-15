@@ -28,6 +28,7 @@ type CustomerAuthLaunchPageProps = {
   actionLabel: string;
   launchingLabel: string;
   errorMessage?: string;
+  autoLaunchOnError?: boolean;
 };
 
 export function CustomerAuthLaunchPage({
@@ -39,12 +40,14 @@ export function CustomerAuthLaunchPage({
   actionLabel,
   launchingLabel,
   errorMessage,
+  autoLaunchOnError = false,
 }: CustomerAuthLaunchPageProps): React.ReactElement {
   const { signIn } = useAuthSession();
   const trackSignInStarted = useTrackSignInStarted();
   const [isLaunching, setIsLaunching] = React.useState(false);
   const hasAutoLaunchedRef = React.useRef(false);
-  const allowAutoLaunch = shouldAutoLaunch && !errorMessage;
+  const allowAutoLaunch =
+    shouldAutoLaunch && (!errorMessage || autoLaunchOnError);
 
   const launch = React.useCallback(() => {
     setIsLaunching(true);
@@ -57,9 +60,31 @@ export function CustomerAuthLaunchPage({
       return;
     }
 
+    if (errorMessage && autoLaunchOnError) {
+      const recoveryKey = [
+        'acme-los.auth-recovery',
+        returnTo,
+        minimumAssuranceLevel,
+        errorMessage,
+      ].join(':');
+
+      if (window.sessionStorage.getItem(recoveryKey) === 'launched') {
+        return;
+      }
+
+      window.sessionStorage.setItem(recoveryKey, 'launched');
+    }
+
     hasAutoLaunchedRef.current = true;
     launch();
-  }, [allowAutoLaunch, launch]);
+  }, [
+    allowAutoLaunch,
+    autoLaunchOnError,
+    errorMessage,
+    launch,
+    minimumAssuranceLevel,
+    returnTo,
+  ]);
 
   return (
     <>

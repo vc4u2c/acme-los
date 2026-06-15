@@ -100,6 +100,7 @@ function Resolve-HookAuthorization {
   if (-not [string]::IsNullOrWhiteSpace($AuthorizationFile)) {
     [void]$candidateFiles.Add($AuthorizationFile)
   }
+  [void]$candidateFiles.Add('C:\secure\acme-los-okta-telephony-hook-authorization.txt')
 
   foreach ($candidateFile in $candidateFiles) {
     $value = Read-SecretTextFile -Path $candidateFile

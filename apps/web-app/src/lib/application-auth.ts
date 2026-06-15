@@ -2,6 +2,7 @@ import type { AuthRequirement } from '@acme-los/auth/contracts';
 import type { ApplicationStepSlug } from '../components/web/apply/step-definitions';
 
 export const FUNDING_STEP_UP_MAX_AGE_SECONDS = 10 * 60;
+export const ACCOUNT_SECURITY_STEP_UP_MAX_AGE_SECONDS = 10 * 60;
 
 const standardApplicationRequirement: AuthRequirement = {
   requiresAuthentication: true,
@@ -14,6 +15,7 @@ const fundingPageRequirement: AuthRequirement = {
   requiredStepUp: {
     reason: 'funding',
     maxAgeSeconds: FUNDING_STEP_UP_MAX_AGE_SECONDS,
+    consumeOnSatisfied: true,
   },
 };
 
@@ -23,6 +25,24 @@ const fundingApiRequirement: AuthRequirement = {
   requiredStepUp: {
     reason: 'funding',
     maxAgeSeconds: FUNDING_STEP_UP_MAX_AGE_SECONDS,
+  },
+};
+
+const accountEmailPageRequirement: AuthRequirement = {
+  requiresAuthentication: true,
+  minimumAssuranceLevel: 'aal2',
+  requiredStepUp: {
+    reason: 'account-email',
+    maxAgeSeconds: ACCOUNT_SECURITY_STEP_UP_MAX_AGE_SECONDS,
+  },
+};
+
+const accountPhonePageRequirement: AuthRequirement = {
+  requiresAuthentication: true,
+  minimumAssuranceLevel: 'aal2',
+  requiredStepUp: {
+    reason: 'account-phone',
+    maxAgeSeconds: ACCOUNT_SECURITY_STEP_UP_MAX_AGE_SECONDS,
   },
 };
 
@@ -56,10 +76,26 @@ export function getApplicationAuthRequirementForPath(
   const pathname = path.split('?')[0];
 
   if (pathname === '/apply/funding') {
-    return fundingApiRequirement;
+    return fundingPageRequirement;
+  }
+
+  if (pathname === '/account/security/email') {
+    return accountEmailPageRequirement;
+  }
+
+  if (pathname === '/account/security/phone') {
+    return accountPhonePageRequirement;
   }
 
   return null;
+}
+
+export function getAccountSecurityAuthRequirement(
+  action: 'email' | 'phone',
+): AuthRequirement {
+  return action === 'email'
+    ? accountEmailPageRequirement
+    : accountPhonePageRequirement;
 }
 
 export function getMinimumAssuranceLevelForApplicationPath(

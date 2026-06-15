@@ -201,10 +201,11 @@ to show the full platform surface, not just the visible web pages.
 
 - funding route requires stronger assurance than ordinary application steps
 - funding access starts a fresh Okta authorize request with MFA-oriented
-  `acr_values`, without forcing `prompt=login` or `max_age=0`; an active
-  password session should proceed to email/SMS OTP instead of asking for the
-  password again
+  `acr_values` and `max_age=0`; an active Okta SSO session should not bypass
+  the configured OTP factor, and in `dev`, that configured factor is phone/SMS
 - each funding page entry consumes the latest funding step-up marker
+- the callback must include Okta `amr` evidence for the configured funding
+  method before the marker is written
 - funding save/submit APIs can use the bounded 10-minute funding API window
   after callback
 - assurance checks are part of route and API enforcement, not only UI state
@@ -697,8 +698,8 @@ What to prove:
 - unauthenticated access redirects to
   `/account/sign-in?returnTo=%2Fapply%2Ffunding&aal=aal2`
 - the funding sign-in start asks Okta for stronger assurance with
-  `acr_values`, while allowing an existing password session to proceed to the
-  configured email/SMS OTP step-up factor without password replay
+  `acr_values` and `max_age=0`, so an existing Okta SSO session is not enough
+  to bypass the configured phone/SMS OTP step-up factor in `dev`
 - an existing `aal2` session is not enough by itself; each funding page entry
   consumes the funding step-up marker written by the latest Okta callback
 - after the Okta challenge completes, funding save/submit APIs can use that
@@ -730,7 +731,7 @@ $decodedAuthorizeQuery = [System.Net.WebUtility]::UrlDecode($authorizeUrl.Query)
 $authorizeUrl.Host
 $decodedAuthorizeQuery -match "acr_values=urn:okta:loa:2fa:any"
 $decodedAuthorizeQuery -notmatch "prompt=login"
-$decodedAuthorizeQuery -notmatch "max_age=0"
+$decodedAuthorizeQuery -match "max_age=0"
 ```
 
 Expected result:
@@ -745,7 +746,7 @@ user:
 
 1. sign in normally
 2. open `/apply/funding`
-3. complete the Okta email step-up challenge
+3. complete the Okta phone/SMS step-up challenge
 4. confirm the funding page loads and funding save/submit calls no longer return
    the step-up error during the 10-minute API window
 5. leave funding and open `/apply/funding` again; it should start a new Okta

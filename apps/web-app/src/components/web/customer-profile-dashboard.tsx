@@ -4,7 +4,6 @@ import * as React from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
-  CircleHelp,
   KeyRound,
   Mail,
   Phone,
@@ -22,8 +21,11 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Input,
 } from '@acme-los/ui-web';
+import {
+  buildAccountSecurityActionUrl,
+  type AccountSecurityActionId,
+} from '../../lib/okta-account-actions';
 import { SiteHeader } from './site-header';
 import type { CustomerProfile } from '@acme-los/api/contracts';
 
@@ -49,71 +51,46 @@ const oktaAccountSecurityActions: Array<{
   icon: LucideIcon;
 }> = [
   {
+    actionId: 'password',
+    label: 'Change or reset password',
+    description: 'Use the Okta-hosted password recovery widget.',
+    cta: 'Change or reset password',
+    icon: KeyRound,
+  },
+  {
     actionId: 'change-email',
-    label: 'Change sign-in email',
-    description:
-      'Start hosted verification before replacing the email used to sign in.',
-    cta: 'Verify email change',
+    label: 'Change email',
+    description: 'Verify with phone/SMS, then confirm the new email OTP.',
+    cta: 'Change email',
     icon: Mail,
   },
   {
     actionId: 'change-phone',
-    label: 'Change SMS verification phone',
-    description:
-      'Use hosted verification before replacing the phone used for SMS codes.',
-    cta: 'Verify phone change',
+    label: 'Change phone',
+    description: 'Verify with email OTP, then confirm the new SMS phone.',
+    cta: 'Change phone',
     icon: Phone,
   },
-  {
-    actionId: 'change-password',
-    label: 'Change password',
-    description:
-      'Verify the current customer session before starting password recovery or reset.',
-    cta: 'Verify password change',
-    icon: KeyRound,
-  },
-  {
-    actionId: 'recovery-question',
-    label: 'Update recovery question',
-    description:
-      'Step up before reviewing the security question used during recovery.',
-    cta: 'Verify question change',
-    icon: CircleHelp,
-  },
 ];
-
-type AccountSecurityActionId =
-  | 'overview'
-  | 'change-email'
-  | 'change-phone'
-  | 'change-password'
-  | 'recovery-question';
 
 const accountSecurityActionCompletionMessages: Record<
   AccountSecurityActionId,
   string
 > = {
-  overview:
-    'Hosted account-security verification completed for this customer session.',
+  password:
+    'Password recovery was completed through Okta. Sign in again after a reset to refresh the customer session.',
   'change-email':
-    'Hosted verification completed for a sign-in email change. Refresh the secure session after the verified email changes so ACME can sync it.',
+    'Email change completed. Sign in again with the new email so ACME can sync the verified value.',
   'change-phone':
-    'Hosted verification completed for a phone change. Verified SMS factor updates still come from Okta-managed factor state.',
-  'change-password':
-    'Hosted verification completed for a password change. Sign out and sign in again after a reset to refresh the customer session.',
-  'recovery-question':
-    'Hosted verification completed for recovery-question maintenance. Recovery answers stay only in Okta.',
+    'Phone change completed. Sign in again and satisfy the new phone/SMS OTP before funding.',
 };
 
-function buildHostedAccountSecurityUrl(
-  actionId: AccountSecurityActionId,
-): string {
-  const searchParams = new URLSearchParams({
-    returnTo: `/account/profile?account_action=${actionId}`,
-    aal: 'aal2',
-  });
-
-  return `/api/auth/start?${searchParams.toString()}`;
+function isAccountSecurityActionId(
+  value: string | null,
+): value is AccountSecurityActionId {
+  return (
+    value === 'password' || value === 'change-email' || value === 'change-phone'
+  );
 }
 
 function formatDebugClaimValue(value: unknown): string {
@@ -156,6 +133,49 @@ function getDebugRows(
     }));
 }
 
+function ReadOnlyProfileField({
+  id,
+  label,
+  value,
+  placeholder = 'Not on file',
+  description,
+}: {
+  id: string;
+  label: string;
+  value?: string | null;
+  placeholder?: string;
+  description?: React.ReactNode;
+}): React.ReactElement {
+  const normalizedValue = value?.trim() ?? '';
+  const displayValue = normalizedValue || placeholder;
+
+  return (
+    <div className="space-y-2">
+      <span
+        id={id}
+        className="block text-sm font-medium text-[var(--foreground)]"
+      >
+        {label}
+      </span>
+      <div
+        aria-labelledby={id}
+        className={`min-h-10 cursor-default select-text break-words rounded-md border border-[var(--border)] bg-[var(--surface-strong)] px-3 py-2 text-sm leading-6 ${
+          normalizedValue
+            ? 'text-[var(--foreground)]'
+            : 'text-[var(--muted-foreground)]'
+        }`}
+      >
+        {displayValue}
+      </div>
+      {description ? (
+        <p className="text-xs leading-5 text-[var(--muted-foreground)]">
+          {description}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 export function CustomerProfileDashboard(): React.ReactElement {
   const { session } = useAuthSession();
   const user = session.user;
@@ -172,11 +192,6 @@ export function CustomerProfileDashboard(): React.ReactElement {
   >(null);
   const [showTokenDebug, setShowTokenDebug] = React.useState(false);
   const [isProfileLoading, setIsProfileLoading] = React.useState(true);
-  const [isSavingProfile, setIsSavingProfile] = React.useState(false);
-  const hostedAccountSecurityUrl = React.useMemo(
-    () => buildHostedAccountSecurityUrl('overview'),
-    [],
-  );
   const tokenDebugSupported =
     process.env.NODE_ENV !== 'production' &&
     process.env.NEXT_PUBLIC_AUTH_PROVIDER === 'okta';
@@ -216,7 +231,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
         });
         setStatusMessage(
           options.showSuccessMessage
-            ? 'Account status refreshed from the current verified session.'
+            ? 'Account details refreshed from the current verified session.'
             : null,
         );
       } catch (error) {
@@ -274,15 +289,9 @@ export function CustomerProfileDashboard(): React.ReactElement {
 
     const actionId = new URLSearchParams(window.location.search).get(
       'account_action',
-    ) as AccountSecurityActionId | null;
+    );
 
-    if (
-      actionId &&
-      Object.prototype.hasOwnProperty.call(
-        accountSecurityActionCompletionMessages,
-        actionId,
-      )
-    ) {
+    if (isAccountSecurityActionId(actionId)) {
       setAccountActionMessage(
         accountSecurityActionCompletionMessages[actionId],
       );
@@ -310,41 +319,6 @@ export function CustomerProfileDashboard(): React.ReactElement {
     [tokenClaims.accessToken],
   );
 
-  const updateField = React.useCallback(
-    (field: keyof CustomerProfileFormState, value: string) => {
-      setFormState((currentState) => ({
-        ...currentState,
-        [field]: value,
-      }));
-      setStatusMessage(null);
-    },
-    [],
-  );
-
-  const saveProfile = React.useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      setIsSavingProfile(true);
-
-      try {
-        const response = await webApiClient.customer.updateProfile({
-          profile: formState,
-        });
-        setFormState(response.profile);
-        setStatusMessage('Profile changes saved to the secure web session.');
-      } catch (error) {
-        setStatusMessage(
-          error instanceof Error
-            ? error.message
-            : 'Unable to save profile changes right now.',
-        );
-      } finally {
-        setIsSavingProfile(false);
-      }
-    },
-    [formState, webApiClient],
-  );
-
   return (
     <main className="min-h-screen text-[var(--foreground)]">
       <SiteHeader items={navigationItems} variant="application" />
@@ -357,188 +331,87 @@ export function CustomerProfileDashboard(): React.ReactElement {
                 Customer dashboard
               </p>
               <CardTitle className="font-display text-[2rem] leading-tight text-[var(--foreground)] sm:text-[2.35rem] lg:text-4xl">
-                Keep your contact details current.
+                Review your verified account.
               </CardTitle>
               <CardDescription className="max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base sm:leading-8">
-                Your verified identity comes from the secure sign-in provider.
-                Contact details and address updates live here so the application
-                and support team have the latest reachability information.
+                Verified identity and account changes stay in the Okta-hosted
+                widget. This dashboard shows the current account record for
+                review.
               </CardDescription>
             </CardHeader>
             <CardContent className="min-w-0 p-5 sm:p-6 lg:p-8">
-              <form className="space-y-8" onSubmit={saveProfile}>
+              <div className="space-y-8">
                 {isProfileLoading ? (
                   <div className="rounded-[1.4rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--muted-foreground)]">
                     Loading your secure profile details.
                   </div>
                 ) : null}
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="customer-first-name"
-                      className="text-sm font-medium text-[var(--foreground)]"
-                    >
-                      First name
-                    </label>
-                    <Input
-                      id="customer-first-name"
-                      value={user?.firstName || ''}
-                      readOnly
-                      className="border-[var(--border)] bg-[var(--surface-strong)] text-[var(--muted-foreground)]"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="customer-last-name"
-                      className="text-sm font-medium text-[var(--foreground)]"
-                    >
-                      Last name
-                    </label>
-                    <Input
-                      id="customer-last-name"
-                      value={user?.lastName || ''}
-                      readOnly
-                      className="border-[var(--border)] bg-[var(--surface-strong)] text-[var(--muted-foreground)]"
-                    />
-                  </div>
+                  <ReadOnlyProfileField
+                    id="customer-first-name"
+                    label="First name"
+                    value={user?.firstName}
+                  />
+                  <ReadOnlyProfileField
+                    id="customer-last-name"
+                    label="Last name"
+                    value={user?.lastName}
+                  />
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="customer-email"
-                      className="text-sm font-medium text-[var(--foreground)]"
-                    >
-                      Sign-in email
-                    </label>
-                    <Input
-                      id="customer-email"
-                      value={formState.email}
-                      readOnly
-                      className="border-[var(--border)] bg-[var(--surface-strong)] text-[var(--muted-foreground)]"
-                    />
-                    <p className="text-xs leading-5 text-[var(--muted-foreground)]">
-                      Use hosted verification before changing the login email,
-                      then refresh your session here so ACME can sync the
-                      verified value.
-                    </p>
-                  </div>
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="customer-phone"
-                      className="text-sm font-medium text-[var(--foreground)]"
-                    >
-                      Application contact phone
-                    </label>
-                    <Input
-                      id="customer-phone"
-                      value={formState.phone}
-                      onChange={(event) =>
-                        updateField('phone', event.target.value)
-                      }
-                      className="border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]"
-                    />
-                    <p className="text-xs leading-5 text-[var(--muted-foreground)]">
-                      Use account security to manage optional text-message
-                      verification; this phone is for application servicing.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label
-                    htmlFor="customer-street-address"
-                    className="text-sm font-medium text-[var(--foreground)]"
-                  >
-                    Street address
-                  </label>
-                  <Input
-                    id="customer-street-address"
-                    value={formState.streetAddress}
-                    onChange={(event) =>
-                      updateField('streetAddress', event.target.value)
-                    }
-                    className="border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]"
+                  <ReadOnlyProfileField
+                    id="customer-email"
+                    label="Sign-in email"
+                    value={formState.email}
+                    description="Use hosted verification before changing the login email, then refresh your session here so ACME can sync the verified value."
+                  />
+                  <ReadOnlyProfileField
+                    id="customer-phone"
+                    label="Application contact phone"
+                    value={formState.phone}
+                    description="Okta owns SMS verification factor changes."
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label
-                    htmlFor="customer-address-line-2"
-                    className="text-sm font-medium text-[var(--foreground)]"
-                  >
-                    Address line 2
-                  </label>
-                  <Input
-                    id="customer-address-line-2"
-                    value={formState.addressLine2}
-                    onChange={(event) =>
-                      updateField('addressLine2', event.target.value)
-                    }
-                    className="border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]"
-                  />
-                </div>
+                <ReadOnlyProfileField
+                  id="customer-street-address"
+                  label="Street address"
+                  value={formState.streetAddress}
+                />
+
+                <ReadOnlyProfileField
+                  id="customer-address-line-2"
+                  label="Address line 2"
+                  value={formState.addressLine2}
+                />
 
                 <div className="grid gap-4 sm:grid-cols-[1.1fr_0.7fr_0.7fr]">
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="customer-city"
-                      className="text-sm font-medium text-[var(--foreground)]"
-                    >
-                      City
-                    </label>
-                    <Input
-                      id="customer-city"
-                      value={formState.city}
-                      onChange={(event) =>
-                        updateField('city', event.target.value)
-                      }
-                      className="border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="customer-state"
-                      className="text-sm font-medium text-[var(--foreground)]"
-                    >
-                      State
-                    </label>
-                    <Input
-                      id="customer-state"
-                      value={formState.state}
-                      onChange={(event) =>
-                        updateField('state', event.target.value)
-                      }
-                      className="border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label
-                      htmlFor="customer-zip-code"
-                      className="text-sm font-medium text-[var(--foreground)]"
-                    >
-                      Zip code
-                    </label>
-                    <Input
-                      id="customer-zip-code"
-                      value={formState.zipCode}
-                      onChange={(event) =>
-                        updateField('zipCode', event.target.value)
-                      }
-                      className="border-[var(--border)] bg-[var(--surface)] text-[var(--foreground)]"
-                    />
-                  </div>
+                  <ReadOnlyProfileField
+                    id="customer-city"
+                    label="City"
+                    value={formState.city}
+                  />
+                  <ReadOnlyProfileField
+                    id="customer-state"
+                    label="State"
+                    value={formState.state}
+                  />
+                  <ReadOnlyProfileField
+                    id="customer-zip-code"
+                    label="Zip code"
+                    value={formState.zipCode}
+                  />
                 </div>
 
                 <Alert className="rounded-[1.4rem] border-[var(--border)] bg-[var(--surface-strong)] p-4 sm:p-5">
                   <AlertTitle className="text-sm text-[var(--foreground)]">
-                    Identity stays tied to verified sign-in
+                    Read-only account record
                   </AlertTitle>
                   <AlertDescription className="text-[var(--muted-foreground)]">
-                    Name fields are locked to your verified customer identity.
-                    The sign-in email is synced after a fresh secure session.
-                    Application phone and address details save here for
-                    servicing workflows.
+                    Use the protected actions to change password, sign-in email,
+                    or phone. ACME refreshes verified values after a fresh
+                    secure session.
                   </AlertDescription>
                   {statusMessage ? (
                     <p className="mt-3 text-sm font-medium text-[var(--brand)]">
@@ -555,15 +428,6 @@ export function CustomerProfileDashboard(): React.ReactElement {
                 <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-6 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-col gap-3 sm:flex-row">
                     <Button
-                      type="submit"
-                      disabled={isSavingProfile || isProfileLoading}
-                      className="w-full rounded-full bg-[var(--brand)] px-6 text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)] hover:bg-[var(--brand-strong)] sm:w-auto"
-                    >
-                      {isSavingProfile
-                        ? 'Saving profile changes'
-                        : 'Save profile changes'}
-                    </Button>
-                    <Button
                       asChild
                       variant="outline"
                       className="w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-6 text-[var(--foreground)] hover:bg-[var(--surface-accent)] sm:w-auto"
@@ -574,7 +438,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
                     </Button>
                   </div>
                 </div>
-              </form>
+              </div>
             </CardContent>
           </Card>
 
@@ -585,29 +449,19 @@ export function CustomerProfileDashboard(): React.ReactElement {
                   Account security
                 </p>
                 <CardTitle className="font-display text-[1.8rem] leading-tight text-[var(--foreground)] sm:text-3xl">
-                  Secure sign-in settings.
+                  Protected actions.
                 </CardTitle>
                 <CardDescription className="text-sm leading-6 text-[var(--muted-foreground)] sm:text-base sm:leading-7">
-                  Passwords, recovery questions, and verification factors stay
-                  behind hosted verification. ACME syncs only verified contact
-                  metadata after a fresh session.
+                  Password recovery stays in the Okta-hosted widget. Email and
+                  phone changes use Okta MyAccount verification behind this
+                  ACME-branded surface.
                 </CardDescription>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="mt-2 w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-6 text-[var(--foreground)] hover:bg-[var(--surface-accent)] sm:w-fit"
-                >
-                  <a href={hostedAccountSecurityUrl}>
-                    <span>Verify account security</span>
-                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                  </a>
-                </Button>
               </CardHeader>
               <CardContent className="min-w-0 space-y-4 px-5 pb-5 sm:px-6 sm:pb-6">
                 <div className="grid gap-3">
                   {oktaAccountSecurityActions.map((action) => {
                     const Icon = action.icon;
-                    const actionUrl = buildHostedAccountSecurityUrl(
+                    const actionUrl = buildAccountSecurityActionUrl(
                       action.actionId,
                     );
 
@@ -616,7 +470,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
                         key={action.label}
                         href={actionUrl}
                         className="group grid gap-3 rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-4 text-left transition hover:border-[var(--border-strong)] hover:bg-[var(--surface-accent)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] sm:grid-cols-[1fr_auto] sm:items-center"
-                        aria-label={`${action.cta} with hosted secure verification`}
+                        aria-label={action.cta}
                       >
                         <span className="flex min-w-0 items-start gap-3">
                           <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--brand)] transition group-hover:border-[var(--border-strong)]">
@@ -643,19 +497,6 @@ export function CustomerProfileDashboard(): React.ReactElement {
                     );
                   })}
                 </div>
-
-                <div className="flex flex-col gap-3 border-t border-[var(--border)] pt-4">
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="w-full rounded-full border-[var(--border-strong)] bg-[var(--surface)] px-6 text-[var(--foreground)] hover:bg-[var(--surface-accent)]"
-                  >
-                    <a href={hostedAccountSecurityUrl}>
-                      <span>Start hosted verification</span>
-                      <ArrowRight className="h-4 w-4" aria-hidden="true" />
-                    </a>
-                  </Button>
-                </div>
               </CardContent>
             </Card>
 
@@ -673,7 +514,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
               </CardHeader>
               <CardContent className="min-w-0 space-y-3 px-5 pb-5 sm:px-6 sm:pb-6">
                 <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--foreground)]">
-                  Email verification is enabled for sign-in.
+                  Email verification is handled by Okta.
                 </div>
                 <div className="rounded-[1.35rem] border border-[var(--border)] bg-[var(--surface-strong)] px-4 py-3 text-sm text-[var(--foreground)]">
                   Funding still requires step-up verification.
@@ -786,8 +627,8 @@ export function CustomerProfileDashboard(): React.ReactElement {
               </CardHeader>
               <CardContent className="space-y-4 px-5 pb-5 sm:px-6 sm:pb-6">
                 <p className="text-sm leading-7 text-[var(--foreground)] sm:text-base sm:leading-8">
-                  Use this dashboard for profile maintenance, then return to the
-                  guarded application shell when you are ready to keep moving.
+                  Review your account, then return to the guarded application
+                  shell when you are ready to keep moving.
                 </p>
                 <Button
                   asChild

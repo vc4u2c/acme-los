@@ -76,7 +76,7 @@ test('customer and application routes proxy through the BFF', async ({
   await primeAuthenticatedCustomer(page);
   await page.goto('/account/profile');
   await expect(
-    page.getByRole('heading', { name: /Keep your contact details current/i }),
+    page.getByRole('heading', { name: /Review your verified account/i }),
   ).toBeVisible();
 
   const csrf = await issueCsrfToken(page);

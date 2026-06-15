@@ -139,8 +139,11 @@ It currently handles:
 - customer-brand hosted logo and favicon upload
 - customer-brand hosted sign-in and error page content from the repo template
 - customer-brand hosted sign-in page generation from
-  `hostedExperience.signInWidgetGeneration`; `G3` is required and bootstrap
-  verifies Okta persisted `widgetCustomizations.widgetGeneration`
+  `hostedExperience.signInWidgetGeneration` and the exact
+  `hostedExperience.signInWidgetVersion`; `G3` is required, the version must be
+  pinned to an Okta-supported hosted-widget version such as `7.46`, and
+  bootstrap/audit verify Okta persisted both `widgetVersion` and
+  `widgetCustomizations.widgetGeneration`
 - email authenticator activation/update
 - optional ACS-backed telephony inline-hook creation, update, activation, and
   rollback
@@ -404,8 +407,9 @@ That means:
 - the Okta-hosted page templates live in `tools/scripts/okta/templates`; the
   sign-in template uses an ACME-styled Gen 3 shell while keeping Okta in charge
   of all credential, registration, recovery, and authenticator controls
-- hosted sign-in is locked to Okta Sign-In Widget Gen 3. Okta documents Gen 3
-  as Okta-hosted only, so ACME keeps redirect auth through Okta and does not
+- hosted sign-in is locked to Okta Sign-In Widget Gen 3 and pinned to the exact
+  version in `hostedExperience.signInWidgetVersion`. Okta documents Gen 3 as
+  Okta-hosted only, so ACME keeps redirect auth through Okta and does not
   self-host or embed the widget in Next.js. The current repo template avoids
   Gen 2 class-name DOM overrides and custom form controls; ACME styling is
   limited to the surrounding shell plus scoped form/control normalization, and
@@ -413,7 +417,8 @@ That means:
   unlock-account, and signup entry. If you need the matching Admin Console
   check, go to
   `Customizations > Brands > ACME LOS Customer > Pages > Sign-in page > Settings > Sign-In Widget version`
-  and verify `Use third generation` is active and published.
+  and verify `Use third generation` is active, the configured widget version
+  matches the manifest, and the page is published.
 - hosted registration is controlled by the Okta profile-enrollment policy/rule
   assigned to the app. If the sign-up link is missing, verify that profile
   enrollment targets `acme-los-customers-<env>` and registration is enabled for
@@ -438,6 +443,10 @@ That means:
   Okta-managed rule, set the target group manually and rerun bootstrap
 - the current dev org already has the custom domain linked manually:
   - `auth.avanai.net`
+- the current dev org uses `https://integrator-9373984.okta.com` as the
+  source-controlled `okta.orgUrl` for end-user settings links because the
+  custom auth domain serves hosted sign-in/error pages but not the end-user
+  settings app
 - the `dev` manifest prepares `https://apply-dev.avanai.net` as an allowed
   origin, but theme continuity from app to Okta is not live until that hostname
   is DNS-validated, enabled through the Bicep-managed web custom-domain
@@ -459,19 +468,28 @@ Current auth shape in this repo:
   enrollment as follow-up hosted steps.
 - Okta `sub` is the immutable ACME user key; email is mutable metadata synced to
   backend profile storage after a fresh Okta session
+- ACME account-security pages use Okta user-scoped MyAccount APIs for email and
+  phone changes, while password recovery remains in the Okta-hosted Gen3 widget
+- account management uses opposite-channel proofing: password and email
+  lifecycle actions require phone/SMS OTP plus security question, while
+  phone/SMS lifecycle actions require email OTP plus security question
+- after email changes, ACME syncs the new email only after fresh sign-in with
+  the new email and email OTP; after phone/SMS changes, ACME syncs verified
+  phone metadata only after fresh sign-in with the unchanged email and the new
+  phone/SMS OTP
 - customer global session policy has a 60-day maximum lifetime and a
   120-minute idle timeout for the ACME LOS customer group
 - standard sign-in is password-first
 - adaptive sign-in, when the high-risk/new-device rule is supported and
   triggered, steps up to 2FA with password required as the first factor; it
   does not use security-question challenge/hint during sign-in
-- the funding step is still enforced in application runtime with `acr_values`;
-  the request does not force `prompt=login` or `max_age=0`, so Okta can use
-  the existing password session and present the configured email/SMS OTP
-  step-up factor without asking for the password again
+- the funding step is still enforced in application runtime with `acr_values`
+  and `max_age=0`, so Okta must ignore the existing SSO session for the fresh
+  step-up transaction; in `dev`, the configured factor is phone/SMS
 - an existing `aal2` web session does not by itself unlock funding; the current
-  server-side session needs the latest funding step-up marker, funding page
-  entry consumes that marker, and funding APIs can use it during the bounded
+  server-side session needs the latest funding step-up marker, the callback
+  must include Okta `amr` evidence for the configured method, funding page entry
+  consumes that marker, and funding APIs can use it during the bounded
   10-minute API window written by the latest Okta callback
 
 ## Current Admin Auth Path

@@ -148,7 +148,7 @@
       ],
       "scenarioIds": [
         "new-customer-registration",
-        "forgot-password-security-question-email-otp"
+        "forgot-password-security-question-phone-sms-otp"
       ]
     },
     {
@@ -190,10 +190,10 @@
       "managedBy": "okta:bootstrap",
       "configures": [
         "customer-scoped password policy gate for self-service password reset and account unlock",
-        "email as the primary forgot-password recovery method",
+        "SMS as the primary forgot-password recovery method when telephony is enabled",
         "delegates password recovery assurance to Okta Account Management with accessControl=AUTH_POLICY"
       ],
-      "scenarioIds": ["forgot-password-security-question-email-otp"]
+      "scenarioIds": ["forgot-password-security-question-phone-sms-otp"]
     },
     {
       "id": "account-management-recovery",
@@ -209,7 +209,7 @@
       ],
       "scenarioIds": [
         "forgot-email",
-        "forgot-password-security-question-email-otp",
+        "forgot-password-security-question-phone-sms-otp",
         "lost-phone-replace-factor",
         "fresh-sign-in-after-sensitive-change"
       ]
@@ -222,8 +222,8 @@
       "automationStatus": "automated-public-policy-api",
       "managedBy": "okta:bootstrap",
       "configures": [
-        "change email requires phone/SMS or another non-email possession OTP plus security-question challenge/hint",
-        "change password requires current password plus factor proof and security-question challenge/hint",
+        "change email requires phone/SMS OTP plus security-question challenge/hint",
+        "change password requires current password plus phone/SMS OTP and security-question challenge/hint",
         "change phone requires email OTP plus security-question challenge/hint",
         "fresh ACME sign-in after sensitive change"
       ],
@@ -293,13 +293,13 @@
       "automationStatus": "automated-public-policy-api",
       "flow": [
         "Customer chooses forgot email or lost email access from Okta-hosted recovery.",
-        "Okta verifies an opposite-channel possession factor OTP such as phone/SMS when enabled, not the email being recovered.",
+        "Okta verifies phone/SMS OTP, not the email being recovered.",
         "Okta verifies the enrolled security-question challenge/hint.",
         "Okta shows the recovered sign-in email after proof succeeds, preferably masked until final confirmation.",
         "Customer must establish a fresh ACME sign-in before ACME syncs any profile data."
       ],
       "securityNotes": [
-        "If phone/SMS is not approved yet, this scenario remains a documented target until another non-email recovery factor is enabled.",
+        "If phone/SMS is not enabled yet, this scenario remains a documented target until telephony is enabled for that environment.",
         "ACME never receives the security-question answer or OTP.",
         "This scenario must be scoped to {customerGroupName}; admin users are out of scope."
       ],
@@ -309,20 +309,20 @@
       ]
     },
     {
-      "id": "forgot-password-security-question-email-otp",
-      "title": "Forgot Password: Security Question + Email OTP",
+      "id": "forgot-password-security-question-phone-sms-otp",
+      "title": "Forgot Password: Security Question + Phone/SMS OTP",
       "scopeKind": "customerGroup",
       "automationStatus": "automated-public-policy-api",
       "flow": [
         "Customer chooses forgot password from the Okta hosted sign-in page.",
         "Okta account management or password recovery policy verifies the enrolled security-question challenge/hint.",
-        "Okta sends an email OTP or equivalent email recovery challenge before reset.",
+        "Okta sends a phone/SMS OTP before reset when telephony is enabled.",
         "Customer sets a new password in Okta.",
         "Okta signs the customer out or ACME treats any existing session as stale.",
         "Customer must establish a fresh ACME sign-in with the new password."
       ],
       "securityNotes": [
-        "ACME never receives the old password, new password, security-question answer, or email OTP.",
+        "ACME never receives the old password, new password, security-question answer, or SMS OTP.",
         "This scenario must be scoped to {customerGroupName}; admin users are out of scope.",
         "Bootstrap manages the Okta account-management policy rule through the public Policy API."
       ],
@@ -338,14 +338,14 @@
       "automationStatus": "automated-public-policy-api",
       "flow": [
         "Customer changes email in Okta-hosted account management.",
-        "Before the change is accepted, Okta requires phone/SMS or another non-email possession OTP proof, not the email address being changed.",
+        "Before the change is accepted, Okta requires phone/SMS OTP proof, not the email address being changed.",
         "Okta verifies the enrolled security-question challenge/hint.",
         "Okta signs the customer out or ACME treats the existing session as stale.",
-        "Customer signs in again with the new email.",
+        "Customer signs in again with the new email and satisfies email OTP.",
         "ACME syncs backend email from the current Okta email claim when Okta subject is unchanged."
       ],
       "securityNotes": [
-        "If phone/SMS is not approved yet, use another enrolled possession factor supported by the Okta org.",
+        "If phone/SMS is not enabled yet, this scenario remains a documented target until telephony is enabled for that environment.",
         "ACME logs the email-change event without logging old or new email values."
       ]
     },
@@ -357,7 +357,7 @@
       "flow": [
         "Customer starts change password from Okta-hosted account management while signed in.",
         "Okta verifies the current password.",
-        "Okta verifies a factor OTP and the security-question challenge/hint.",
+        "Okta verifies phone/SMS OTP and the security-question challenge/hint.",
         "Customer sets the new password in Okta.",
         "Okta signs the customer out or ACME treats the existing session as stale.",
         "Customer signs in again with the new password."
@@ -378,7 +378,7 @@
         "Okta verifies the enrolled security-question challenge/hint.",
         "Okta allows the customer to replace the phone/SMS factor after proof succeeds.",
         "Okta may show only a masked prior phone hint when useful; do not reveal the full prior phone number.",
-        "Customer signs in fresh after phone/SMS factor replacement.",
+        "Customer signs in fresh with the unchanged email and the new phone/SMS OTP after phone/SMS factor replacement.",
         "ACME treats verified phone as Okta-owned until a trusted claim, Management API lookup, or event hook is enabled."
       ],
       "securityNotes": [
@@ -397,7 +397,7 @@
         "Okta requires email OTP before the phone/SMS factor is changed.",
         "Okta verifies the enrolled security-question challenge/hint.",
         "Okta signs the customer out or ACME treats the existing session as stale.",
-        "Customer signs in fresh after the phone/SMS change.",
+        "Customer signs in fresh with the unchanged email and the new phone/SMS OTP after the phone/SMS change.",
         "ACME treats verified phone as Okta-owned until a trusted profile claim, Management API lookup, or event hook is enabled."
       ],
       "securityNotes": [
@@ -447,7 +447,7 @@
     },
     {
       "id": "forgot-password-recovery-policy",
-      "title": "Forgot password requires security question plus email OTP and fresh sign-in",
+      "title": "Forgot password requires security question plus phone/SMS OTP and fresh sign-in",
       "scopeKind": "customerGroup"
     },
     {
@@ -477,7 +477,7 @@
     },
     {
       "id": "email-phone-account-management",
-      "title": "Email and phone account-management changes require the expected proofs",
+      "title": "Email/password account-management uses phone/SMS OTP and phone account-management uses email OTP",
       "scopeKind": "customerGroup"
     }
   ],

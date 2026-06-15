@@ -3,7 +3,9 @@ import {
   consumeStoredWebAuthStepUp,
   createStoredWebAuthSession,
   getAssuranceLevelFromAuthenticationEvidence,
+  getStoredWebAuthSessionTiming,
   getStoredWebAuthSessionCookieMaxAge,
+  isFundingStepUpMethodSatisfied,
   isStoredWebAuthStepUpFresh,
   deleteStoredWebAuthTransaction,
   readWebAuthTransaction,
@@ -43,6 +45,8 @@ const ENVIRONMENT_KEYS = [
   'ACME_OKTA_REDIRECT_URI',
   'ACME_OKTA_POST_LOGOUT_REDIRECT_URI',
   'ACME_OKTA_FUNDING_ACR_VALUES',
+  'ACME_OKTA_FUNDING_STEP_UP_METHOD',
+  'NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD',
   'ACME_BFF_BASE_URL',
   'ACME_BFF_URL',
   'ACME_BFF_PROXY_MODE',
@@ -139,6 +143,36 @@ describe('web auth session store idle expiry', () => {
         acceptedHighAssuranceAcrValues: ['urn:okta:loa:2fa:any'],
       }),
     ).toBe('aal1');
+  });
+
+  it('requires SMS or phone evidence for SMS-backed funding step-up', () => {
+    expect(
+      isFundingStepUpMethodSatisfied({
+        fundingStepUpMethod: 'sms',
+        authenticationMethods: ['pwd', 'sms'],
+      }),
+    ).toBe(true);
+
+    expect(
+      isFundingStepUpMethodSatisfied({
+        fundingStepUpMethod: 'sms',
+        authenticationMethods: ['pwd', 'phone'],
+      }),
+    ).toBe(true);
+
+    expect(
+      isFundingStepUpMethodSatisfied({
+        fundingStepUpMethod: 'sms',
+        authenticationMethods: ['pwd', 'email'],
+      }),
+    ).toBe(false);
+
+    expect(
+      isFundingStepUpMethodSatisfied({
+        fundingStepUpMethod: 'email',
+        authenticationMethods: ['pwd', 'email'],
+      }),
+    ).toBe(true);
   });
 
   it('rejects a stored session after its idle expiry', async () => {
@@ -441,6 +475,7 @@ describe('web auth session store idle expiry', () => {
     });
     const authorizeUrl = new URL(transaction.authorizeUrl);
 
+    expect(transaction.maxAge).toBe(30 * 60);
     expect(transaction.cookiePayload).toEqual({
       transactionId: transaction.transactionId,
       returnTo: '/apply/funding',
@@ -456,11 +491,32 @@ describe('web auth session store idle expiry', () => {
       'urn:okta:loa:2fa:any',
     );
     expect(authorizeUrl.searchParams.has('prompt')).toBe(false);
-    expect(authorizeUrl.searchParams.has('max_age')).toBe(false);
+    expect(authorizeUrl.searchParams.get('max_age')).toBe('0');
     expect(transaction.storedTransaction.stepUp).toEqual({
       reason: 'funding',
       maxAgeSeconds: 10 * 60,
     });
+  });
+
+  it('passes supported hosted widget flow selectors to Okta authorize', () => {
+    process.env.ACME_AUTH_PROVIDER = 'okta';
+    process.env.ACME_OKTA_ISSUER = 'https://example.okta.com/oauth2/default';
+    process.env.ACME_OKTA_CLIENT_ID = 'client-id';
+    process.env.ACME_OKTA_REDIRECT_URI =
+      'https://los.example.test/api/auth/callback';
+    process.env.ACME_OKTA_POST_LOGOUT_REDIRECT_URI =
+      'https://los.example.test/';
+
+    const transaction = startOktaAuthTransaction({
+      returnTo: '/account/profile',
+      widgetFlow: 'resetPassword',
+    });
+    const authorizeUrl = new URL(transaction.authorizeUrl);
+
+    expect(authorizeUrl.searchParams.get('acme_widget_flow')).toBe(
+      'resetPassword',
+    );
+    expect(transaction.storedTransaction.returnTo).toBe('/account/profile');
   });
 
   it('stores PKCE transaction details server-side and consumes them once', async () => {
@@ -497,6 +553,7 @@ describe('web auth session store idle expiry', () => {
     const cookiePayload = readWebAuthTransactionCookie(callbackRequest);
     const storedTransaction = await readWebAuthTransaction(callbackRequest);
 
+    expect(transaction.maxAge).toBe(30 * 60);
     expect(cookiePayload).toEqual({
       transactionId: transaction.transactionId,
       returnTo: '/apply/personal-info',
@@ -542,6 +599,11 @@ describe('web auth session store idle expiry', () => {
     });
 
     expect(storedSession.stepUp).toEqual({
+      reason: 'funding',
+      completedAt: currentEpochSeconds,
+      expiresAt: currentEpochSeconds + 60,
+    });
+    expect(getStoredWebAuthSessionTiming(storedSession).stepUp).toEqual({
       reason: 'funding',
       completedAt: currentEpochSeconds,
       expiresAt: currentEpochSeconds + 60,

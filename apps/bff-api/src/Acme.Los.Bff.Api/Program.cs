@@ -1,4 +1,5 @@
 using Acme.Los.Bff.Api.Features.Diagnostics;
+using Acme.Los.Bff.Api.Features.AccountSecurity;
 using Acme.Los.Bff.Api.Features.Application;
 using Acme.Los.Bff.Api.Features.Auth;
 using Acme.Los.Bff.Api.Features.Customer;
@@ -82,6 +83,7 @@ else
 
 builder.Services.AddSingleton<IAuthSessionService, BffAuthSessionService>();
 builder.Services.AddSingleton<IAuthFlowService, BffAuthFlowService>();
+builder.Services.AddSingleton<IOktaMyAccountService, OktaMyAccountService>();
 
 var healthChecks = builder.Services.AddHealthChecks()
     .AddCheck("self", () => HealthCheckResult.Healthy(), tags: ["ready"]);
@@ -147,6 +149,7 @@ app.MapBffHealthEndpoints();
 app.MapBffAuthFlowEndpoints();
 app.MapBffCsrfEndpoints();
 app.MapBffAuthSessionEndpoints();
+app.MapBffAccountSecurityEndpoints();
 app.MapBffCustomerEndpoints();
 app.MapBffApplicationEndpoints();
 app.MapBffDiagnosticsEndpoints();

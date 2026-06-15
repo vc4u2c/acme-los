@@ -26,6 +26,11 @@
   --acme-brand-shadow: rgba(24, 122, 83, 0.22);
   --acme-accent: %%ACCENT_COLOR%%;
   --acme-accent-ink: #5a4212;
+  --acme-alert-bg: #fff7d8;
+  --acme-alert-border: #c98912;
+  --acme-alert-text: #4f3908;
+  --acme-alert-link: #0d5338;
+  --acme-alert-icon: #bd7a0a;
   --acme-critical-border: rgba(178, 74, 61, 0.22);
   --acme-critical-bg: rgba(178, 74, 61, 0.08);
   --acme-critical-text: #8f352b;
@@ -66,6 +71,11 @@
   --acme-brand-shadow: rgba(80, 152, 116, 0.2);
   --acme-accent: #e0bd67;
   --acme-accent-ink: #2d2414;
+  --acme-alert-bg: #332916;
+  --acme-alert-border: #d4a64b;
+  --acme-alert-text: #f8e7bc;
+  --acme-alert-link: #9ee6ba;
+  --acme-alert-icon: #f0c567;
   --acme-critical-border: rgba(255, 136, 121, 0.34);
   --acme-critical-bg: rgba(255, 136, 121, 0.1);
   --acme-critical-text: #ffb0a4;

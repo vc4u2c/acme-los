@@ -203,7 +203,7 @@ After DNS verification succeeds:
    configuration matches the active customer URL.
 6. Deploy the web runtime again so its browser and server configuration use the
    branded origin and theme-cookie domain.
-7. Verify sign-in, sign-out, funding email step-up, and light/dark continuity
+7. Verify sign-in, sign-out, funding phone/SMS step-up, and light/dark continuity
    across the app-to-Okta round trip.
 
 The DNS verification helper is source-owned because the managed certificate
@@ -328,10 +328,11 @@ Okta API Service app, grant it `okta.users.manage`, set
 `clientId`, optional `privateKeyId`, and `scopes` in
 `infra/azure/config/platform.json`. Set
 `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` from the private key file in the deploy
-shell and redeploy the web
-environment. The deployment stores the private key in Key Vault as
+shell for first-time setup or key rotation, then redeploy the web environment.
+The deployment stores the private key in Key Vault as
 `sec-acme-los-okta-management-private-key` and injects it into the internal BFF
-ACA only while sample mode is enabled. The BFF reads Okta first and will not
+ACA only while sample mode is enabled. Later redeploys can omit the env var and
+reuse the existing Key Vault secret. The BFF reads Okta first and will not
 overwrite an existing `profile.customerId`.
 
 If the runtime image changes and you want to force a new image build instead of

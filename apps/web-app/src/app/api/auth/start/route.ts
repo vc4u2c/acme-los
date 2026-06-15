@@ -32,6 +32,7 @@ const authStartQuerySchema = z.object({
   aal: z.enum(['aal1', 'aal2']).optional(),
   leadId: z.string().trim().min(1).optional(),
   lead_id: z.string().trim().min(1).optional(),
+  widgetFlow: z.enum(['resetPassword', 'unlockAccount', 'signup']).optional(),
 });
 
 function buildErrorRedirect(
@@ -117,6 +118,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         expectedUserId,
         leadId,
         stepUp,
+        widgetFlow: payload.widgetFlow,
       });
       const response = NextResponse.redirect(transaction.authorizeUrl);
 
@@ -146,6 +148,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       expectedUserId,
       leadId,
       stepUp,
+      widgetFlow: payload.widgetFlow,
     });
     const response = NextResponse.redirect(transaction.authorizeUrl);
 

@@ -7,6 +7,21 @@ internal static class AuthAssurance
     "urn:okta:loa:2fa:any",
   };
 
+  private static readonly string[] SmsFundingAuthenticationMethods = new[]
+  {
+    "sms",
+    "phone",
+    "phone:sms",
+    "phone_number",
+    "phone_number:sms",
+  };
+  private static readonly string[] EmailAuthenticationMethods = new[]
+  {
+    "email",
+    "okta_email",
+    "okta_email:email",
+  };
+
   public static string GetAssuranceLevel(
     IEnumerable<string>? authenticationMethods,
     string? acr = null,
@@ -42,6 +57,57 @@ internal static class AuthAssurance
       acceptedHighAssuranceAcrValues ?? DefaultHighAssuranceAcrValues)
       ? "aal2"
       : "aal1";
+  }
+
+  public static bool IsFundingStepUpMethodSatisfied(
+    string? fundingStepUpMethod,
+    IEnumerable<string>? authenticationMethods)
+  {
+    if (!string.Equals(
+      fundingStepUpMethod?.Trim(),
+      "sms",
+      StringComparison.OrdinalIgnoreCase))
+    {
+      return true;
+    }
+
+    var normalizedMethods = authenticationMethods?
+      .Where(value => !string.IsNullOrWhiteSpace(value))
+      .Select(value => value.Trim().ToLowerInvariant())
+      .ToArray() ?? Array.Empty<string>();
+
+    return normalizedMethods.Any(method =>
+      SmsFundingAuthenticationMethods.Contains(
+        method,
+        StringComparer.OrdinalIgnoreCase));
+  }
+
+  public static bool IsSmsAuthenticationMethodSatisfied(
+    IEnumerable<string>? authenticationMethods)
+  {
+    var normalizedMethods = authenticationMethods?
+      .Where(value => !string.IsNullOrWhiteSpace(value))
+      .Select(value => value.Trim().ToLowerInvariant())
+      .ToArray() ?? Array.Empty<string>();
+
+    return normalizedMethods.Any(method =>
+      SmsFundingAuthenticationMethods.Contains(
+        method,
+        StringComparer.OrdinalIgnoreCase));
+  }
+
+  public static bool IsEmailAuthenticationMethodSatisfied(
+    IEnumerable<string>? authenticationMethods)
+  {
+    var normalizedMethods = authenticationMethods?
+      .Where(value => !string.IsNullOrWhiteSpace(value))
+      .Select(value => value.Trim().ToLowerInvariant())
+      .ToArray() ?? Array.Empty<string>();
+
+    return normalizedMethods.Any(method =>
+      EmailAuthenticationMethods.Contains(
+        method,
+        StringComparer.OrdinalIgnoreCase));
   }
 
   private static bool IsHighAssuranceAcr(

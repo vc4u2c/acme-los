@@ -7,7 +7,7 @@ export type AuthStatus =
   | 'error';
 
 export type AuthAssuranceLevel = 'anonymous' | 'aal1' | 'aal2';
-export type AuthStepUpReason = 'funding';
+export type AuthStepUpReason = 'funding' | 'account-email' | 'account-phone';
 
 export interface AuthStepUpRequirement {
   reason: AuthStepUpReason;

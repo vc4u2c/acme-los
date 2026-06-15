@@ -11,10 +11,16 @@ param appBuildId string
 param authProvider string = 'okta'
 param oktaEnvironmentName string = appEnvironmentName
 param oktaIssuer string
+param oktaOrgUrl string = ''
 param oktaClientId string
 param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
 param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
+@allowed([
+  'email'
+  'sms'
+])
+param oktaFundingStepUpMethod string = 'email'
 param themeCookieDomain string = ''
 param customDomains array = []
 param analyticsEnabled bool = false
@@ -226,6 +232,10 @@ var environmentVariables = concat(
       value: oktaFundingAcrValues
     }
     {
+      name: 'ACME_OKTA_FUNDING_STEP_UP_METHOD'
+      value: oktaFundingStepUpMethod
+    }
+    {
       name: 'NEXT_PUBLIC_AUTH_PROVIDER'
       value: authProvider
     }
@@ -236,6 +246,10 @@ var environmentVariables = concat(
     {
       name: 'NEXT_PUBLIC_OKTA_ISSUER'
       value: oktaIssuer
+    }
+    {
+      name: 'NEXT_PUBLIC_OKTA_ORG_URL'
+      value: oktaOrgUrl
     }
     {
       name: 'NEXT_PUBLIC_OKTA_CLIENT_ID'
@@ -252,6 +266,10 @@ var environmentVariables = concat(
     {
       name: 'NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES'
       value: oktaFundingAcrValues
+    }
+    {
+      name: 'NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD'
+      value: oktaFundingStepUpMethod
     }
     {
       name: 'NEXT_PUBLIC_ACME_THEME_COOKIE_DOMAIN'

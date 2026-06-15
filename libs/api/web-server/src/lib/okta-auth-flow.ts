@@ -17,7 +17,7 @@ import {
 } from './state-store';
 
 const AUTH_TRANSACTION_NAMESPACE = 'auth-transaction';
-const AUTH_TRANSACTION_MAX_AGE_SECONDS = 10 * 60;
+const AUTH_TRANSACTION_MAX_AGE_SECONDS = 30 * 60;
 
 export type StoredWebAuthTransaction = {
   transactionId: string;
@@ -59,6 +59,8 @@ export type StartedBffWebAuthTransaction = {
   maxAge: number;
 };
 
+export type OktaHostedWidgetFlow = 'resetPassword' | 'unlockAccount' | 'signup';
+
 export type OktaTokenResponse = {
   access_token?: string;
   expires_in?: number;
@@ -98,12 +100,14 @@ export function startOktaAuthTransaction({
   expectedUserId,
   leadId,
   stepUp,
+  widgetFlow,
 }: {
   returnTo?: string;
   minimumAssuranceLevel?: 'aal1' | 'aal2';
   expectedUserId?: string;
   leadId?: string;
   stepUp?: StoredWebAuthStepUpRequirement;
+  widgetFlow?: OktaHostedWidgetFlow;
 }): StartedWebAuthTransaction {
   const config = getServerWebAuthConfig();
   if (config.provider !== 'okta' || !config.okta) {
@@ -134,6 +138,14 @@ export function startOktaAuthTransaction({
       'acr_values',
       config.okta.fundingStepUpAcrValues,
     );
+  }
+
+  if (minimumAssuranceLevel === 'aal2' && stepUp) {
+    authorizeUrl.searchParams.set('max_age', '0');
+  }
+
+  if (widgetFlow) {
+    authorizeUrl.searchParams.set('acme_widget_flow', widgetFlow);
   }
 
   const transactionId = createRandomToken();

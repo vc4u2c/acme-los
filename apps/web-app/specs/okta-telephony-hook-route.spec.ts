@@ -14,9 +14,11 @@ let requestAddressSuffix = 0;
 function createTelephonyHookRequest({
   authorization = 'Basic dGVzdDp0ZXN0',
   deliveryChannel = 'SMS',
+  phoneNumber = '+15555550123',
 }: {
   authorization?: string;
   deliveryChannel?: string;
+  phoneNumber?: string;
 } = {}): NextRequest {
   const now = Date.now();
 
@@ -37,7 +39,7 @@ function createTelephonyHookRequest({
           deliveryChannel,
           otpCode: 123456,
           otpExpires: new Date(now + 5 * 60 * 1000).toISOString(),
-          phoneNumber: '+15555550123',
+          phoneNumber,
         },
       },
     }),
@@ -193,6 +195,21 @@ describe('Okta telephony hook route', () => {
   it('returns the Okta error contract without sending unsupported voice requests', async () => {
     const response = await POST(
       createTelephonyHookRequest({ deliveryChannel: 'VOICE' }),
+    );
+    const payload = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(send).not.toHaveBeenCalled();
+    expect(payload).toEqual({
+      error: {
+        errorSummary: 'Unable to deliver the verification code.',
+      },
+    });
+  });
+
+  it('returns the Okta error contract without sending non-US phone numbers', async () => {
+    const response = await POST(
+      createTelephonyHookRequest({ phoneNumber: '+442071838750' }),
     );
     const payload = await response.json();
 

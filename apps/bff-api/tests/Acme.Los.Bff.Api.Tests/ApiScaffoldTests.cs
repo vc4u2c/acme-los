@@ -1080,7 +1080,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       });
     using var client = _factory.CreateClient();
     using var response = await client.GetAsync(
-      "/bff/auth/login?returnTo=/apply&aal=aal2&leadId=lead-123");
+      "/bff/auth/login?returnTo=/apply&aal=aal2&leadId=lead-123&widgetFlow=resetPassword");
 
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -1090,7 +1090,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.NotNull(payload);
     Assert.Equal("/apply/personal-info", payload!.ReturnTo);
     Assert.False(string.IsNullOrWhiteSpace(payload.TransactionId));
-    Assert.True(payload.MaxAge > 0);
+    Assert.Equal(30 * 60, payload.MaxAge);
 
     var authorizeUrl = new Uri(payload.AuthorizeUrl);
     var query = QueryHelpers.ParseQuery(authorizeUrl.Query);
@@ -1104,8 +1104,41 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal("code", query["response_type"].ToString());
     Assert.Equal("S256", query["code_challenge_method"].ToString());
     Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
+    Assert.Equal("resetPassword", query["acme_widget_flow"].ToString());
     Assert.False(query.ContainsKey("prompt"));
     Assert.False(query.ContainsKey("max_age"));
+  }
+
+  [Fact]
+  public async Task GetBffAuthLogin_WithStepUp_ForcesFreshOktaAuthentication()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var client = _factory.CreateClient();
+    using var response = await client.GetAsync(
+      "/bff/auth/login?returnTo=/apply/funding&aal=aal2&stepUpReason=funding&stepUpMaxAgeSeconds=600&stepUpConsumeOnSatisfied=true");
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var payload =
+      await response.Content.ReadFromJsonAsync<StartAuthFlowResponse>();
+
+    Assert.NotNull(payload);
+    Assert.Equal(30 * 60, payload!.MaxAge);
+
+    var authorizeUrl = new Uri(payload.AuthorizeUrl);
+    var query = QueryHelpers.ParseQuery(authorizeUrl.Query);
+
+    Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
+    Assert.Equal("0", query["max_age"].ToString());
+    Assert.False(query.ContainsKey("prompt"));
   }
 
   [Fact]
@@ -1124,6 +1157,30 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         new[] { "pwd" },
         "urn:okta:loa:1fa:any",
         new[] { "urn:okta:loa:2fa:any" }));
+  }
+
+  [Fact]
+  public void AuthAssurance_WithSmsFundingMethod_RequiresPhoneEvidence()
+  {
+    Assert.True(
+      AuthAssurance.IsFundingStepUpMethodSatisfied(
+        "sms",
+        new[] { "pwd", "sms" }));
+
+    Assert.True(
+      AuthAssurance.IsFundingStepUpMethodSatisfied(
+        "sms",
+        new[] { "pwd", "phone" }));
+
+    Assert.False(
+      AuthAssurance.IsFundingStepUpMethodSatisfied(
+        "sms",
+        new[] { "pwd", "email" }));
+
+    Assert.True(
+      AuthAssurance.IsFundingStepUpMethodSatisfied(
+        "email",
+        new[] { "pwd", "email" }));
   }
 
   [Fact]

@@ -23,7 +23,10 @@ export type StoredWebAuthTokenSet = {
   expiresIn?: number;
 };
 
-export type StoredWebAuthStepUpReason = 'funding';
+export type StoredWebAuthStepUpReason =
+  | 'funding'
+  | 'account-email'
+  | 'account-phone';
 
 export type StoredWebAuthStepUpRequirement = {
   reason: StoredWebAuthStepUpReason;
@@ -307,5 +310,6 @@ export function getStoredWebAuthSessionTiming(
   return buildWebAuthSessionTiming({
     absoluteExpiresAt: storedSession.expiresAt,
     idleExpiresAt: storedSession.idleExpiresAt,
+    stepUp: storedSession.stepUp,
   });
 }

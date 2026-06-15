@@ -28,10 +28,16 @@ param appBuildId string
 param authProvider string = 'okta'
 param oktaEnvironmentName string = environmentName
 param oktaIssuer string
+param oktaOrgUrl string = ''
 param oktaClientId string
 param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
 param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
+@allowed([
+  'email'
+  'sms'
+])
+param oktaFundingStepUpMethod string = 'email'
 param themeCookieDomain string = ''
 param customDomainEnabled bool = false
 param customDomainHostname string = ''
@@ -168,7 +174,7 @@ resource oktaTelephonyHookAuthorizationSecret 'Microsoft.KeyVault/vaults/secrets
   }
 }
 
-resource oktaManagementPrivateKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (oktaCustomerIdWritebackEnabled) {
+resource oktaManagementPrivateKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (oktaCustomerIdWritebackEnabled && !empty(oktaManagementPrivateKeySecretValue)) {
   parent: keyVaultResource
   name: oktaManagementPrivateKeySecretName
   properties: {
@@ -203,10 +209,12 @@ module containerApp './modules/web/container-app.bicep' = {
     authProvider: authProvider
     oktaEnvironmentName: oktaEnvironmentName
     oktaIssuer: oktaIssuer
+    oktaOrgUrl: oktaOrgUrl
     oktaClientId: oktaClientId
     oktaRedirectUri: oktaRedirectUri
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
     oktaFundingAcrValues: oktaFundingAcrValues
+    oktaFundingStepUpMethod: oktaFundingStepUpMethod
     themeCookieDomain: themeCookieDomain
     customDomains: customDomainEnabled
       ? [
@@ -287,6 +295,7 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     oktaRedirectUri: oktaRedirectUri
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
     oktaFundingAcrValues: oktaFundingAcrValues
+    oktaFundingStepUpMethod: oktaFundingStepUpMethod
     oktaCustomerIdWritebackMode: oktaCustomerIdWritebackMode
     oktaManagementClientId: oktaManagementClientId
     oktaManagementPrivateKeySecretName: oktaManagementPrivateKeySecretName

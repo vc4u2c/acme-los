@@ -877,6 +877,7 @@ $oktaManagementPrivateKeyId = Get-StringOrDefault -Value (
 $oktaManagementScopes = Get-StringOrDefault -Value (
   Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'scopes'
 ) -DefaultValue 'okta.users.manage'
+$oktaManagementPrivateKeySecretName = 'sec-acme-los-okta-management-private-key'
 $oktaManagementPrivateKeySecretValue = Get-OptionalString $env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM
 $bffRuntimeConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'bffRuntime'
 $bffRuntimeMinReplicaConfiguration = Get-OptionalPropertyValue -InputObject $bffRuntimeConfiguration -Name 'minReplicas'
@@ -1146,7 +1147,7 @@ if ($oktaCustomerIdWritebackMode -eq 'sample') {
   }
 
   if (-not $oktaManagementPrivateKeySecretValue) {
-    throw "Environment '$EnvironmentName' enables sample Okta customer id write-back. Set ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM before deploying."
+    Write-Warning "Environment '$EnvironmentName' enables sample Okta customer id write-back but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set. Deployment will reuse the existing Key Vault secret '$oktaManagementPrivateKeySecretName'. Set the env var for first-time setup or key rotation."
   }
 
   if ($oktaManagementScopes -notmatch '(^|[\s,;])okta\.users\.manage($|[\s,;])') {
@@ -1314,14 +1315,20 @@ if (
 }
 
 $oktaIssuer = Get-OptionalString $oktaEnvironment.okta.issuer
+$oktaOrgUrl = Get-StringOrDefault -Value $oktaEnvironment.okta.orgUrl
 $oktaClientId = Get-OptionalString $oktaEnvironment.okta.webClientId
 $oktaFundingAcrValues = Get-OptionalString $oktaEnvironment.okta.fundingStepUpAcrValues
+$oktaFundingStepUpMethod = Get-StringOrDefault -Value $oktaEnvironment.okta.hostedExperience.fundingStepUpMethod -DefaultValue 'email'
 $themeCookieDomain = Get-StringOrDefault -Value $oktaEnvironment.okta.hostedExperience.themeCookieDomain
 $oktaRedirectPath = Get-OptionalString $oktaEnvironment.web.redirectPath
 $oktaPostLogoutRedirectPath = Get-OptionalString $oktaEnvironment.web.postLogoutRedirectPath
 
 if (-not $oktaIssuer -or -not $oktaClientId -or -not $oktaRedirectPath -or -not $oktaPostLogoutRedirectPath) {
   throw "Okta environment '$oktaEnvironmentName' is missing required web auth settings."
+}
+
+if (-not $oktaOrgUrl) {
+  $oktaOrgUrl = ([System.Uri]::new($oktaIssuer)).GetLeftPart([System.UriPartial]::Authority)
 }
 
 $resolvedOktaRedirectUri = Join-AbsoluteUrl -BaseUrl $resolvedPublicWebBaseUrl -Path $oktaRedirectPath
@@ -1351,10 +1358,12 @@ if (-not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionI
       --build-arg 'NEXT_PUBLIC_AUTH_PROVIDER=okta' `
       --build-arg "NEXT_PUBLIC_OKTA_ENVIRONMENT=$oktaEnvironmentName" `
       --build-arg "NEXT_PUBLIC_OKTA_ISSUER=$oktaIssuer" `
+      --build-arg "NEXT_PUBLIC_OKTA_ORG_URL=$oktaOrgUrl" `
       --build-arg "NEXT_PUBLIC_OKTA_CLIENT_ID=$oktaClientId" `
       --build-arg "NEXT_PUBLIC_OKTA_REDIRECT_URI=$resolvedOktaRedirectUri" `
       --build-arg "NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI=$resolvedOktaPostLogoutRedirectUri" `
       --build-arg "NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES=$oktaFundingAcrValues" `
+      --build-arg "NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD=$oktaFundingStepUpMethod" `
       --build-arg "NEXT_PUBLIC_ACME_THEME_COOKIE_DOMAIN=$themeCookieDomain" `
       --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_ENABLED=$analyticsEnabledEnvValue" `
       --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_ENVIRONMENT=$analyticsRuntimeEnvironmentName" `
@@ -1442,10 +1451,12 @@ $runtimeDeploymentArguments = @(
   '--parameters', "authProvider=okta",
   '--parameters', "oktaEnvironmentName=$oktaEnvironmentName",
   '--parameters', "oktaIssuer=$oktaIssuer",
+  '--parameters', "oktaOrgUrl=$oktaOrgUrl",
   '--parameters', "oktaClientId=$oktaClientId",
   '--parameters', "oktaRedirectUri=$resolvedOktaRedirectUri",
   '--parameters', "oktaPostLogoutRedirectUri=$resolvedOktaPostLogoutRedirectUri",
   '--parameters', "oktaFundingAcrValues=$oktaFundingAcrValues",
+  '--parameters', "oktaFundingStepUpMethod=$oktaFundingStepUpMethod",
   '--parameters', "themeCookieDomain=$themeCookieDomain",
   '--parameters', "customDomainEnabled=$customDomainEnabledEnvValue",
   '--parameters', "customDomainHostname=$customDomainHostname",
@@ -1485,7 +1496,7 @@ if ($smsMfaEnabled) {
   )
 }
 
-if ($oktaCustomerIdWritebackMode -eq 'sample') {
+if ($oktaCustomerIdWritebackMode -eq 'sample' -and $oktaManagementPrivateKeySecretValue) {
   $runtimeDeploymentArguments += @(
     '--parameters',
     "oktaManagementPrivateKeySecretValue=$oktaManagementPrivateKeySecretValue"

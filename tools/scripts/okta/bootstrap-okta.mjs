@@ -134,6 +134,35 @@ function resolveSignInWidgetGeneration(value) {
   return normalized;
 }
 
+function resolveSignInWidgetVersion(value) {
+  const version = optionalString(value);
+  if (!version) {
+    throw new Error(
+      'Expected okta.hostedExperience.signInWidgetVersion to be an exact Okta-supported version like "7.46".',
+    );
+  }
+
+  if (!/^\d+\.\d+$/.test(version)) {
+    throw new Error(
+      'Expected okta.hostedExperience.signInWidgetVersion to be pinned to an exact Okta hosted-widget version, not a floating range.',
+    );
+  }
+
+  return version;
+}
+
+function resolveFundingStepUpMethod(value) {
+  const method = optionalString(value)?.toLowerCase() ?? 'email';
+
+  if (!['email', 'sms'].includes(method)) {
+    throw new Error(
+      'Expected okta.hostedExperience.fundingStepUpMethod to be "email" or "sms".',
+    );
+  }
+
+  return method;
+}
+
 function getUniqueValues(values) {
   return [...new Set(values.filter((value) => typeof value === 'string'))];
 }
@@ -232,6 +261,19 @@ const registrationProfileAttributes = [
 ];
 
 const registrationEnrollmentAuthenticatorTypes = ['password'];
+const customerMyAccountOauthScopes = [
+  'okta.myAccount.email.read',
+  'okta.myAccount.email.manage',
+  'okta.myAccount.phone.read',
+  'okta.myAccount.phone.manage',
+];
+const customerWebOauthScopes = [
+  'openid',
+  'profile',
+  'email',
+  'offline_access',
+  ...customerMyAccountOauthScopes,
+];
 
 const supportedStateOptions = [
   ['MO', 'Missouri'],
@@ -561,6 +603,7 @@ function assertCustomizedPagePersisted({
   expectedPageContent,
   label,
   markers,
+  expectedWidgetVersion,
   expectedWidgetGeneration,
 }) {
   const actualPageContent = actualPage?.pageContent ?? '';
@@ -595,6 +638,15 @@ function assertCustomizedPagePersisted({
       );
     }
   }
+
+  if (expectedWidgetVersion) {
+    const actualWidgetVersion = actualPage?.widgetVersion ?? '';
+    if (actualWidgetVersion !== expectedWidgetVersion) {
+      throw new Error(
+        `Okta persisted the ${label} page with widgetVersion="${actualWidgetVersion || 'missing'}", expected "${expectedWidgetVersion}".`,
+      );
+    }
+  }
 }
 
 async function putAndVerifyCustomizedSignInPage(brandId, payload) {
@@ -605,6 +657,7 @@ async function putAndVerifyCustomizedSignInPage(brandId, payload) {
     expectedPageContent: payload.pageContent,
     label: 'hosted sign-in',
     markers: ['okta-login-container', 'OktaUtil.getSignInWidgetConfig'],
+    expectedWidgetVersion: payload.widgetVersion,
     expectedWidgetGeneration: payload.widgetCustomizations?.widgetGeneration,
   });
   return persistedPage;
@@ -965,11 +1018,89 @@ async function updateAuthorizationServerRule(
   );
 }
 
+async function listAuthorizationServerScopes(authServerId) {
+  return oktaRequest(
+    'GET',
+    `/api/v1/authorizationServers/${authServerId}/scopes`,
+  );
+}
+
+async function createAuthorizationServerScope(authServerId, payload) {
+  return oktaRequest(
+    'POST',
+    `/api/v1/authorizationServers/${authServerId}/scopes`,
+    payload,
+  );
+}
+
+async function updateAuthorizationServerScope(authServerId, scopeId, payload) {
+  return oktaRequest(
+    'PUT',
+    `/api/v1/authorizationServers/${authServerId}/scopes/${scopeId}`,
+    payload,
+  );
+}
+
 async function listAuthorizationServerClaims(authServerId) {
   return oktaRequest(
     'GET',
     `/api/v1/authorizationServers/${authServerId}/claims`,
   );
+}
+
+function buildAuthorizationServerScopePayload(scopeName) {
+  return {
+    name: scopeName,
+    displayName: scopeName,
+    description:
+      'Reserved Okta MyAccount scope used by ACME account-security flows.',
+    consent: 'IMPLICIT',
+    default: false,
+    metadataPublish: 'NO_CLIENTS',
+  };
+}
+
+function authorizationServerScopeMatches(existingScope, expectedScope) {
+  return (
+    existingScope?.name === expectedScope.name &&
+    existingScope?.displayName === expectedScope.displayName &&
+    existingScope?.description === expectedScope.description &&
+    existingScope?.consent === expectedScope.consent &&
+    Boolean(existingScope?.default) === Boolean(expectedScope.default)
+  );
+}
+
+async function ensureAuthorizationServerScope(authServerId, scopeName) {
+  const scopes = await listAuthorizationServerScopes(authServerId);
+  const existingScope =
+    scopes.find((scope) => scope.name === scopeName) ?? null;
+  const payload = buildAuthorizationServerScopePayload(scopeName);
+
+  if (
+    existingScope &&
+    authorizationServerScopeMatches(existingScope, payload)
+  ) {
+    return {
+      mode: 'existing',
+      scope: existingScope,
+    };
+  }
+
+  if (existingScope) {
+    return {
+      mode: 'updated',
+      scope: await updateAuthorizationServerScope(
+        authServerId,
+        existingScope.id,
+        payload,
+      ),
+    };
+  }
+
+  return {
+    mode: 'created',
+    scope: await createAuthorizationServerScope(authServerId, payload),
+  };
 }
 
 async function createAuthorizationServerClaim(authServerId, payload) {
@@ -1036,7 +1167,7 @@ function buildAuthorizationServerRulePayload({
         include: ['authorization_code'],
       },
       scopes: {
-        include: ['openid', 'profile', 'email', 'offline_access'],
+        include: customerWebOauthScopes,
       },
     },
     actions: {
@@ -1445,7 +1576,7 @@ function buildPasswordPolicyRulePayload(existingRule, ruleName) {
         access: 'ALLOW',
         requirement: {
           primary: {
-            methods: ['email'],
+            methods: telephonyEnabled ? ['sms'] : ['email'],
           },
           stepUp: {
             required: false,
@@ -1955,6 +2086,9 @@ const telephonyEnabled = telephony.enabled === true;
 const signInWidgetGeneration = resolveSignInWidgetGeneration(
   hostedExperience.signInWidgetGeneration,
 );
+const signInWidgetVersion = resolveSignInWidgetVersion(
+  hostedExperience.signInWidgetVersion,
+);
 const mapPrimaryEmailToLogin =
   hostedExperience.mapPrimaryEmailToLogin !== false;
 const customerSessionMaxLifetimeDays =
@@ -1972,8 +2106,9 @@ const telephonyHookAuthorization =
         'ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION',
       )
     : '';
-const fundingStepUpMethod =
-  optionalString(hostedExperience.fundingStepUpMethod) ?? 'email';
+const fundingStepUpMethod = resolveFundingStepUpMethod(
+  hostedExperience.fundingStepUpMethod,
+);
 const fundingStepUpRequiresPassword =
   hostedExperience.fundingStepUpRequiresPassword === true;
 const themeCookieDomain =
@@ -2041,27 +2176,22 @@ const accountSecurityPolicyIntent = {
   oktaHostedAccountManagement: [
     {
       action: 'forgot_email',
-      requiredProofs: [
-        'phone_or_other_non_email_possession_factor_otp',
-        'security_question_challenge',
-      ],
+      requiredProofs: ['phone_sms_otp', 'security_question_challenge'],
       postCondition: 'fresh_acme_sign_in',
       backendSync:
         'Treat the recovered Okta email claim as the source of truth only after a fresh ACME sign-in.',
     },
     {
       action: 'change_email',
-      requiredProofs: [
-        'phone_or_other_non_email_possession_factor_otp',
-        'security_question_challenge',
-      ],
-      postCondition: 'sign_out_then_fresh_acme_sign_in',
+      requiredProofs: ['phone_sms_otp', 'security_question_challenge'],
+      postCondition:
+        'sign_out_then_fresh_acme_sign_in_with_new_email_and_email_otp',
       backendSync:
-        'After a fresh ACME sign-in, sync the backend email from the current Okta email claim when the Okta subject is unchanged.',
+        'After a fresh ACME sign-in with the new email and email OTP, sync the backend email from the current Okta email claim when the Okta subject is unchanged.',
     },
     {
       action: 'forgot_password',
-      requiredProofs: ['security_question_challenge', 'okta_email_otp'],
+      requiredProofs: ['security_question_challenge', 'phone_sms_otp'],
       postCondition: 'sign_out_then_fresh_acme_sign_in_with_new_password',
       backendSync:
         'Do not sync or store password material. Log only non-sensitive password-change metadata if an Okta event hook is enabled.',
@@ -2070,7 +2200,7 @@ const accountSecurityPolicyIntent = {
       action: 'change_password',
       requiredProofs: [
         'current_password',
-        'factor_otp',
+        'phone_sms_otp',
         'security_question_challenge',
       ],
       postCondition: 'sign_out_then_fresh_acme_sign_in_with_new_password',
@@ -2080,16 +2210,17 @@ const accountSecurityPolicyIntent = {
     {
       action: 'lost_phone_or_sms_factor_replacement',
       requiredProofs: ['okta_email_otp', 'security_question_challenge'],
-      postCondition: 'fresh_acme_sign_in_before_phone_replacement',
+      postCondition:
+        'replace_phone_then_fresh_acme_sign_in_with_new_phone_sms_otp',
       backendSync:
-        'Sync verified phone metadata only when Okta exposes it through a profile claim, Management API lookup, or event hook.',
+        'After replacing the phone/SMS factor, require a fresh ACME sign-in with the unchanged email and the new phone/SMS OTP before syncing verified phone metadata from a trusted Okta profile claim, Management API lookup, or event hook.',
     },
     {
       action: 'change_phone_or_sms_factor',
       requiredProofs: ['okta_email_otp', 'security_question_challenge'],
-      postCondition: 'sign_out_then_fresh_acme_sign_in',
+      postCondition: 'sign_out_then_fresh_acme_sign_in_with_new_phone_sms_otp',
       backendSync:
-        'Sync verified phone metadata only when Okta exposes it through a profile claim, Management API lookup, or event hook.',
+        'After a fresh ACME sign-in with the unchanged email and the new phone/SMS OTP, sync verified phone metadata only when Okta exposes it through a profile claim, Management API lookup, or event hook.',
     },
   ],
   oktaOnlySecrets: [
@@ -2361,6 +2492,7 @@ if (dryRun) {
     },
     hostedPages: {
       signIn: {
+        widgetVersion: signInWidgetVersion,
         widgetCustomizations: {
           widgetGeneration: signInWidgetGeneration,
         },
@@ -2380,6 +2512,9 @@ if (dryRun) {
       passwordPolicyName,
       accessPolicyName,
     },
+    authorizationServerScopes: customerMyAccountOauthScopes.map(
+      buildAuthorizationServerScopePayload,
+    ),
     policyPlan: oktaPolicyPlan,
     orgLevelSettingsIntent: accountSecurityPolicyIntent.orgLevelSettings,
     accountManagementPolicyRules: summarizeAccountManagementPolicyRules(
@@ -2689,7 +2824,7 @@ if (hasActiveCustomDomain) {
       pageContent: customizedSignInPageContent,
       contentSecurityPolicySetting:
         defaultSignInPage.contentSecurityPolicySetting ?? { mode: 'enforced' },
-      widgetVersion: defaultSignInPage.widgetVersion ?? '^7',
+      widgetVersion: signInWidgetVersion,
       widgetCustomizations: {
         ...(defaultSignInPage.widgetCustomizations ?? {}),
         widgetGeneration: signInWidgetGeneration,
@@ -2699,6 +2834,7 @@ if (hasActiveCustomDomain) {
   results.customizedSignInPage = {
     mode: 'applied',
     presentation: 'okta-gen3-shell',
+    widgetVersion: persistedSignInPage.widgetVersion ?? 'unknown',
     widgetGeneration:
       persistedSignInPage.widgetCustomizations?.widgetGeneration ?? 'unknown',
     pageContentLength: persistedSignInPage.pageContent?.length ?? 0,
@@ -2865,6 +3001,20 @@ results.passwordPolicyRule = {
   id: passwordPolicyRuleResult.rule.id,
   actions: passwordPolicyRuleResult.rule.actions,
 };
+
+results.authorizationServerScopes = [];
+for (const scopeName of customerMyAccountOauthScopes) {
+  const scopeResult = await ensureAuthorizationServerScope(
+    authorizationServerId,
+    scopeName,
+  );
+
+  results.authorizationServerScopes.push({
+    mode: scopeResult.mode,
+    id: scopeResult.scope.id,
+    name: scopeResult.scope.name,
+  });
+}
 
 const authorizationServerPolicyResult = await ensureAuthorizationServerPolicy(
   authorizationServerId,
@@ -3367,7 +3517,7 @@ if (mapPrimaryEmailToLogin) {
 
 if (hostedExperience.fundingRouteStepUp) {
   warnings.push(
-    `Funding step-up remains enforced in application code through acr_values on the guarded funding step. The runtime request does not force prompt=login/max_age=0, so an existing password session can proceed directly to the configured ${fundingStepUpMethod} OTP step-up factor. Verify this behavior once after publishing the hosted page and policy changes.`,
+    `Funding step-up remains enforced in application code through acr_values plus max_age=0 on the guarded funding step. Existing Okta SSO alone should not satisfy the configured ${fundingStepUpMethod} OTP step-up factor. Verify this behavior once after publishing the hosted page and policy changes.`,
   );
 }
 

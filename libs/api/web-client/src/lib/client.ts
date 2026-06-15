@@ -7,6 +7,10 @@ import type {
   IssueCsrfTokenResponse,
   SaveApplicationStepRequest,
   SaveApplicationStepResponse,
+  StartEmailChangeRequest,
+  StartEmailChangeResponse,
+  StartPhoneChangeRequest,
+  StartPhoneChangeResponse,
   SubmitApplicationRequest,
   SubmitApplicationResponse,
   SyncWebAuthSessionRequest,
@@ -14,6 +18,10 @@ import type {
   TouchWebAuthSessionResponse,
   UpdateCustomerProfileRequest,
   UpdateCustomerProfileResponse,
+  VerifyEmailChangeRequest,
+  VerifyEmailChangeResponse,
+  VerifyPhoneChangeRequest,
+  VerifyPhoneChangeResponse,
 } from '@acme-los/api/contracts';
 
 export interface WebApiClientOptions {
@@ -45,7 +53,22 @@ async function requestJson<TResponse>(
   });
 
   if (!response.ok) {
-    throw new Error(`Request failed with status ${response.status}`);
+    let errorMessage = `Request failed with status ${response.status}`;
+
+    try {
+      const errorPayload = (await response.json()) as { error?: unknown };
+
+      if (
+        typeof errorPayload.error === 'string' &&
+        errorPayload.error.trim().length > 0
+      ) {
+        errorMessage = errorPayload.error;
+      }
+    } catch {
+      // Keep the status-based fallback for non-JSON error responses.
+    }
+
+    throw new Error(errorMessage);
   }
 
   return (await response.json()) as TResponse;
@@ -59,6 +82,7 @@ export function createWebApiClient({
   const authSessionTouchUrl = `${authSessionUrl}/touch`;
   const csrfUrl = `${baseUrl}/api/security/csrf`;
   const customerProfileUrl = `${baseUrl}/api/customer/profile`;
+  const accountSecurityUrl = `${baseUrl}/api/account/security`;
   const applicationBaseUrl = `${baseUrl}/api/application`;
   let csrfTokenPromise: Promise<string> | null = null;
 
@@ -141,6 +165,52 @@ export function createWebApiClient({
           customerProfileUrl,
           {
             method: 'PUT',
+            body: JSON.stringify(payload),
+          },
+        );
+      },
+    },
+    accountSecurity: {
+      startEmailChange(
+        payload: StartEmailChangeRequest,
+      ): Promise<StartEmailChangeResponse> {
+        return requestWithCsrf<StartEmailChangeResponse>(
+          `${accountSecurityUrl}/email`,
+          {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          },
+        );
+      },
+      verifyEmailChange(
+        payload: VerifyEmailChangeRequest,
+      ): Promise<VerifyEmailChangeResponse> {
+        return requestWithCsrf<VerifyEmailChangeResponse>(
+          `${accountSecurityUrl}/email/verify`,
+          {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          },
+        );
+      },
+      startPhoneChange(
+        payload: StartPhoneChangeRequest,
+      ): Promise<StartPhoneChangeResponse> {
+        return requestWithCsrf<StartPhoneChangeResponse>(
+          `${accountSecurityUrl}/phone`,
+          {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          },
+        );
+      },
+      verifyPhoneChange(
+        payload: VerifyPhoneChangeRequest,
+      ): Promise<VerifyPhoneChangeResponse> {
+        return requestWithCsrf<VerifyPhoneChangeResponse>(
+          `${accountSecurityUrl}/phone/verify`,
+          {
+            method: 'POST',
             body: JSON.stringify(payload),
           },
         );

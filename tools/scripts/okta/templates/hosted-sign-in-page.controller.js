@@ -41,6 +41,80 @@ function buildPrimaryCustomHelpLink(requestedFlow) {
   };
 }
 
+function readCssVariable(name, fallbackValue) {
+  const value = window
+    .getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+
+  return value || fallbackValue;
+}
+
+function applyWidgetThemeTokens(config) {
+  config.theme = {
+    ...(config.theme || {}),
+    tokens: {
+      ...(config.theme?.tokens || {}),
+      BorderColorDisplay: readCssVariable('--acme-border', '#cbd8ce'),
+      BorderColorPrimaryControl: readCssVariable('--acme-focus', '#116243'),
+      BorderRadiusMain: '6px',
+      BorderRadiusTight: '4px',
+      BorderWidthMain: '1px',
+      FocusOutlineColorPrimary: readCssVariable('--acme-focus', '#116243'),
+      FocusOutlineOffsetMain: '2px',
+      FocusOutlineWidthMain: '2px',
+      HueNeutralWhite: readCssVariable('--acme-card', '#fffdf8'),
+      HueNeutral50: readCssVariable('--acme-surface', '#f4f6f1'),
+      HueNeutral100: readCssVariable('--acme-surface-strong', '#e8eee7'),
+      HueNeutral200: readCssVariable('--acme-border', '#cbd8ce'),
+      HueNeutral300: readCssVariable('--acme-border-strong', '#9fb1a4'),
+      HueNeutral700: readCssVariable('--acme-muted-text', '#52625a'),
+      HueNeutral900: readCssVariable('--acme-text', '#17211d'),
+      PalettePrimaryMain: readCssVariable('--acme-brand', '#116243'),
+      PalettePrimaryText: readCssVariable('--acme-link', '#116243'),
+      PalettePrimaryDark: readCssVariable('--acme-brand-strong', '#0d5338'),
+      Spacing3: '0.55rem',
+      Spacing4: '0.75rem',
+      Spacing5: '1rem',
+      TypographyColorAction: readCssVariable('--acme-link', '#116243'),
+      TypographyColorBody: readCssVariable('--acme-text', '#17211d'),
+      TypographyColorHeading: readCssVariable('--acme-text', '#17211d'),
+      TypographyColorInverse: readCssVariable(
+        '--acme-brand-contrast',
+        '#ffffff',
+      ),
+      TypographyColorSupport: readCssVariable('--acme-muted-text', '#52625a'),
+      TypographyFamilyBody: readCssVariable(
+        '--acme-font-body',
+        "Aptos, 'Segoe UI Variable Display', 'Segoe UI', sans-serif",
+      ),
+      TypographyFamilyHeading: readCssVariable(
+        '--acme-font-display',
+        "'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', Georgia, serif",
+      ),
+      TypographyWeightHeading: 650,
+    },
+  };
+}
+
+function applyWidgetCopyOverrides(config) {
+  config.i18n = {
+    ...(config.i18n || {}),
+    en: {
+      ...(config.i18n?.en || {}),
+      'oie.select.authenticators.enroll.title': 'Protect your account',
+      'oie.select.authenticators.enroll.subtitle':
+        "Choose the verification methods we'll use to confirm it's you during sign-in and sensitive account changes.",
+      'oie.setup.required.now': 'Required to continue',
+      'oie.phone.authenticator.description':
+        'Verify with a code sent to your US mobile phone',
+      'oie.phone.enroll.title': 'Verify your US mobile phone',
+      'oie.phone.enroll.subtitle':
+        'Use a US mobile number that can receive text messages.',
+    },
+  };
+}
+
 function readRequestedWidgetFlow() {
   const requestedFlow = new URL(window.location.href).searchParams.get(
     'acme_widget_flow',
@@ -57,56 +131,42 @@ const authContextByState = {
     title: 'Continue your application',
     subtitle:
       'Resume your secure application, review disclosures, and check funding updates in one place.',
-    trust:
-      'Secure account access for application progress, disclosures, and funding updates.',
   },
   signup: {
     eyebrow: 'Create account',
     title: 'Start your secure profile',
     subtitle:
       'Create your ACME LOS account with your email, phone, state, and password before verification.',
-    trust:
-      'We use these details to protect your application access and prepare the verification steps.',
   },
   resetPassword: {
     eyebrow: 'Password recovery',
     title: 'Reset your password',
     subtitle:
       'Confirm your email, complete the required proof step, and sign in again with your new password.',
-    trust:
-      'Recovery keeps your application protected while restoring access to your account.',
   },
   unlockAccount: {
     eyebrow: 'Account unlock',
     title: 'Unlock your account',
     subtitle:
       'Verify your identity and regain access without changing your application details.',
-    trust:
-      'Unlocking may require your configured recovery proof before you return to sign in.',
   },
   accountProtection: {
     eyebrow: 'Account protection',
-    title: 'Secure your account',
+    title: 'Protect your account',
     subtitle:
-      'Set up the required security methods so later sign-in and funding confirmation stay protected.',
-    trust:
-      'Email and security-question setup help protect sensitive account and application changes.',
+      "Choose the verification methods we'll use to confirm it's you during sign-in and sensitive account changes.",
   },
   emailVerification: {
     eyebrow: 'Email verification',
     title: 'Verify your email',
     subtitle:
       'Use the verification link or code sent to your email to continue securely.',
-    trust:
-      'Email verification confirms that account recovery and application notices reach you.',
   },
   phoneVerification: {
     eyebrow: 'Phone verification',
     title: 'Verify your phone',
     subtitle:
       'Confirm your mobile number with the one-time code before continuing.',
-    trust:
-      'Phone verification supports stronger proof for profile changes and funding actions.',
   },
 };
 
@@ -160,6 +220,47 @@ function setAuthContext(stateName) {
   }
 }
 
+function setShellLinks() {
+  document
+    .querySelectorAll('[data-acme-auth-sign-in-link]')
+    .forEach((element) => {
+      wireSignInLink(element);
+    });
+}
+
+function isSignInLink(element) {
+  const text = String(element?.textContent || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  return text === 'sign in' || text === 'back to sign in';
+}
+
+function wireSignInLink(element) {
+  const signInUrl = buildWidgetSignInUrl();
+
+  element.setAttribute('href', signInUrl);
+
+  if (element.getAttribute('data-acme-auth-sign-in-bound') === 'true') {
+    return;
+  }
+
+  element.setAttribute('data-acme-auth-sign-in-bound', 'true');
+  element.addEventListener('click', function routeToSignIn(event) {
+    event.preventDefault();
+    window.location.assign(buildWidgetSignInUrl());
+  });
+}
+
+function setWidgetSignInLinks() {
+  document.querySelectorAll('#okta-login-container a').forEach((element) => {
+    if (isSignInLink(element)) {
+      wireSignInLink(element);
+    }
+  });
+}
+
 function resolveAuthStateFromRenderContext(context, requestedFlow) {
   const requestedFlowState = authStateByWidgetFlow[requestedFlow];
   const authenticatorKey =
@@ -202,22 +303,29 @@ widgetConfig.helpLinks = {
   custom: [buildPrimaryCustomHelpLink(requestedWidgetFlow), ...customHelpLinks],
 };
 delete widgetConfig.helpLinks.help;
+applyWidgetThemeTokens(widgetConfig);
+applyWidgetCopyOverrides(widgetConfig);
 
 if (requestedWidgetFlow) {
   widgetConfig.flow = requestedWidgetFlow;
 }
 
+setShellLinks();
 setAuthContext(authStateByWidgetFlow[requestedWidgetFlow] || 'signIn');
+setWidgetSignInLinks();
 
-const signIn = new OktaSignIn(widgetConfig);
+// Okta's hosted wrapper probes this exact global variable name after our script.
+const oktaSignIn = new OktaSignIn(widgetConfig);
 
-signIn.on('afterRender', function onAfterRender(context) {
+oktaSignIn.on('afterRender', function onAfterRender(context) {
   setAuthContext(
     resolveAuthStateFromRenderContext(context, requestedWidgetFlow),
   );
+  setShellLinks();
+  setWidgetSignInLinks();
 });
 
-signIn.renderEl(
+oktaSignIn.renderEl(
   { el: '#okta-login-container' },
   function onSuccess(response) {
     OktaUtil.completeLogin(response);

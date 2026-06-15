@@ -9,6 +9,10 @@ authenticator enrollment fields.
 - The hosted template renders the ACME brand header, auth context copy, support
   footer, theme toggle, Okta's standard background element,
   `#okta-login-container`, `{{{OktaUtil}}}`, and the Sign-In Widget resources.
+- The hosted page is pinned through
+  `okta.hostedExperience.signInWidgetVersion` in the environment manifest.
+  Bootstrap writes that exact version to Okta, and the live audit fails if the
+  tenant drifts back to a floating widget range.
 - The controller uses `OktaUtil.getSignInWidgetConfig()` and calls
   `signIn.renderEl(...)` without `afterTransform`, custom labels, replacement
   controls, or internal Okta DOM rewrites.
@@ -35,6 +39,8 @@ authenticator enrollment fields.
 - Set up the security question using Okta's native screen.
 - Use native forgot-password recovery and confirm the configured policy path.
 - Use native unlock-account recovery and confirm the configured policy path.
+- Open the ACME account-security email and phone routes from the dashboard and
+  confirm they use hosted step-up first, then MyAccount verification.
 - Return to sign-in after recovery or sensitive account-management changes.
 
 ## Styling Notes To Capture Before Rework

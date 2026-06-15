@@ -31,6 +31,7 @@ export interface WebAuthSessionTiming {
   idleExpiresAt: number;
   idleTimeoutSeconds: number;
   warningSeconds: number;
+  stepUp?: WebAuthSessionStepUpTiming;
 }
 
 export interface WebAuthSessionDebugSnapshot {
@@ -79,12 +80,19 @@ export interface WebAuthSessionTokenSet {
   expiresIn?: number;
 }
 
-export type WebAuthStepUpReason = 'funding';
+export type WebAuthStepUpReason = 'funding' | 'account-email' | 'account-phone';
 
 export interface WebAuthStepUpRequirement {
   reason: WebAuthStepUpReason;
   maxAgeSeconds: number;
   consumeOnSatisfied?: boolean;
+}
+
+export interface WebAuthSessionStepUpTiming {
+  reason: WebAuthStepUpReason;
+  completedAt: number;
+  expiresAt: number;
+  consumedAt?: number;
 }
 
 export interface StartAuthFlowResponse {

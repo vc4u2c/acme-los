@@ -20,7 +20,7 @@ const scenarios = [
     expectedContextTexts: [
       'Customer sign in',
       'Continue your application',
-      'Secure account access for application progress',
+      'Resume your secure application',
     ],
     expectedCustomHelpLink: {
       text: 'Forgot password?',
@@ -36,7 +36,7 @@ const scenarios = [
     expectedContextTexts: [
       'Create account',
       'Start your secure profile',
-      'protect your application access',
+      'email, phone, state, and password',
     ],
     expectedCustomHelpLink: {
       text: 'Forgot password?',
@@ -52,7 +52,7 @@ const scenarios = [
     expectedContextTexts: [
       'Password recovery',
       'Reset your password',
-      'restoring access',
+      'required proof step',
     ],
     expectedCustomHelpLink: {
       text: 'Back to sign in',
@@ -199,6 +199,18 @@ async function auditScenario(
       href: link.getAttribute('href') || '',
       dataSe: link.getAttribute('data-se') || '',
     }));
+    const shellSignInCue = document.querySelector(
+      '.acme-auth-existing-account',
+    );
+    const shellSignInLink = shellSignInCue?.querySelector(
+      '[data-acme-auth-sign-in-link]',
+    );
+    const shellSignInCueStyle = shellSignInCue
+      ? window.getComputedStyle(shellSignInCue)
+      : null;
+    const shellSignInLinkStyle = shellSignInLink
+      ? window.getComputedStyle(shellSignInLink)
+      : null;
     const configuredCustomHelpLinks = Array.isArray(
       widgetConfig.helpLinks?.custom,
     )
@@ -217,6 +229,24 @@ async function auditScenario(
       configuredUnlockHref: widgetConfig.helpLinks?.unlock,
       configuredCustomHelpLinks,
       visibleLinks: links,
+      shellSignInLink: shellSignInLink
+        ? {
+            text: (shellSignInCue?.textContent || '')
+              .replace(/\s+/g, ' ')
+              .trim(),
+            href: shellSignInLink.getAttribute('href') || '',
+            visible:
+              shellSignInCueStyle?.display !== 'none' &&
+              shellSignInCueStyle?.visibility !== 'hidden' &&
+              shellSignInLinkStyle?.display !== 'none' &&
+              shellSignInLinkStyle?.visibility !== 'hidden' &&
+              Boolean(
+                shellSignInCue.offsetWidth ||
+                shellSignInCue.offsetHeight ||
+                shellSignInCue.getClientRects().length,
+              ),
+          }
+        : null,
       authState,
       contextText,
       widgetRect: widgetRect
@@ -316,6 +346,37 @@ async function auditScenario(
   ) {
     failures.push('visible recovery link points to a dead hosted/help route');
   }
+  if (scenario.key === 'signup') {
+    if (
+      !metrics.shellSignInLink?.visible ||
+      !/already have an account\? sign in/i.test(metrics.shellSignInLink.text)
+    ) {
+      failures.push('signup shell is missing the existing-account sign-in cue');
+    }
+    if (hasAnyWidgetFlow(metrics.shellSignInLink?.href)) {
+      failures.push(
+        'signup shell sign-in cue should return to default sign-in',
+      );
+    }
+    const brokenSignInLinks = metrics.visibleLinks.filter((link) => {
+      const text = link.text.trim().toLowerCase();
+
+      return (
+        (text === 'sign in' || text === 'back to sign in') &&
+        (link.href === '#' || hasAnyWidgetFlow(link.href))
+      );
+    });
+
+    if (brokenSignInLinks.length > 0) {
+      failures.push(
+        `signup sign-in link should return to default sign-in: ${brokenSignInLinks
+          .map((link) => link.href)
+          .join(', ')}`,
+      );
+    }
+  } else if (metrics.shellSignInLink?.visible) {
+    failures.push('existing-account sign-in cue should only show on signup');
+  }
 
   return {
     viewport: viewport.key,
@@ -327,6 +388,7 @@ async function auditScenario(
     configuredUnlockHref: metrics.configuredUnlockHref,
     configuredCustomHelpLinks: metrics.configuredCustomHelpLinks,
     visibleLinks: metrics.visibleLinks,
+    shellSignInLink: metrics.shellSignInLink,
     authState: metrics.authState,
     contextText: metrics.contextText,
     widgetRect: metrics.widgetRect,

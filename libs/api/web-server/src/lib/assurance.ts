@@ -6,7 +6,7 @@ export type WebAuthRequirement = {
   requiredStepUp?: WebAuthStepUpRequirement;
 };
 
-export type WebAuthStepUpReason = 'funding';
+export type WebAuthStepUpReason = 'funding' | 'account-email' | 'account-phone';
 
 export type WebAuthStepUpRequirement = {
   reason: WebAuthStepUpReason;
@@ -17,6 +17,18 @@ export type WebAuthStepUpRequirement = {
 export const MOCK_AUTH_STORAGE_KEY = 'acme-los-auth-mock-session';
 
 const DEFAULT_HIGH_ASSURANCE_ACR_VALUES = ['urn:okta:loa:2fa:any'];
+const SMS_FUNDING_AUTHENTICATION_METHODS = new Set([
+  'sms',
+  'phone',
+  'phone:sms',
+  'phone_number',
+  'phone_number:sms',
+]);
+const EMAIL_AUTHENTICATION_METHODS = new Set([
+  'email',
+  'okta_email',
+  'okta_email:email',
+]);
 
 function normalizeClaimValues(value?: unknown): string[] {
   if (Array.isArray(value)) {
@@ -33,6 +45,42 @@ function normalizeClaimValues(value?: unknown): string[] {
   }
 
   return [];
+}
+
+export function isFundingStepUpMethodSatisfied({
+  fundingStepUpMethod,
+  authenticationMethods,
+}: {
+  fundingStepUpMethod?: string;
+  authenticationMethods?: string[];
+}): boolean {
+  const normalizedFundingStepUpMethod = fundingStepUpMethod
+    ?.trim()
+    .toLowerCase();
+
+  if (normalizedFundingStepUpMethod !== 'sms') {
+    return true;
+  }
+
+  return normalizeClaimValues(authenticationMethods).some((method) =>
+    SMS_FUNDING_AUTHENTICATION_METHODS.has(method),
+  );
+}
+
+export function isSmsAuthenticationMethodSatisfied(
+  authenticationMethods?: string[],
+): boolean {
+  return normalizeClaimValues(authenticationMethods).some((method) =>
+    SMS_FUNDING_AUTHENTICATION_METHODS.has(method),
+  );
+}
+
+export function isEmailAuthenticationMethodSatisfied(
+  authenticationMethods?: string[],
+): boolean {
+  return normalizeClaimValues(authenticationMethods).some((method) =>
+    EMAIL_AUTHENTICATION_METHODS.has(method),
+  );
 }
 
 export function getAssuranceLevelFromAuthenticationMethods(

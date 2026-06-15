@@ -2,7 +2,8 @@
 
 import * as React from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import type { AuthRequirement } from '@acme-los/auth/contracts';
+import type { AuthRequirement, AuthSession } from '@acme-los/auth/contracts';
+import type { WebAuthSessionTiming } from '@acme-los/api/contracts';
 import { isAssuranceSatisfied } from '@acme-los/auth/core';
 import { useAuthSession } from './provider';
 
@@ -12,6 +13,39 @@ function getReturnTo(
 ): string {
   const search = searchParams.toString();
   return search ? `${pathname}?${search}` : pathname;
+}
+
+export function isRequiredStepUpFresh({
+  requirement,
+  session,
+  sessionTiming,
+}: {
+  requirement: AuthRequirement;
+  session: AuthSession;
+  sessionTiming: WebAuthSessionTiming | null;
+}): boolean {
+  if (!requirement.requiredStepUp) {
+    return true;
+  }
+
+  if (session.provider === 'mock') {
+    return true;
+  }
+
+  const stepUp = sessionTiming?.stepUp;
+  if (!stepUp || stepUp.reason !== requirement.requiredStepUp.reason) {
+    return false;
+  }
+
+  if (stepUp.expiresAt <= Math.floor(Date.now() / 1000)) {
+    return false;
+  }
+
+  return !(
+    requirement.requiredStepUp.consumeOnSatisfied &&
+    typeof stepUp.consumedAt === 'number' &&
+    stepUp.consumedAt >= stepUp.completedAt
+  );
 }
 
 export function RequireAuth({
@@ -41,12 +75,17 @@ function RequireAuthContent({
 }): React.ReactElement {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const { session, signIn } = useAuthSession();
+  const { session, sessionTiming, signIn } = useAuthSession();
   const hasTriggeredRedirectRef = React.useRef(false);
   const minimumAssuranceLevel = requirement.minimumAssuranceLevel ?? 'aal1';
   const isSatisfied =
     session.status === 'authenticated' &&
-    isAssuranceSatisfied(session.assuranceLevel, minimumAssuranceLevel);
+    isAssuranceSatisfied(session.assuranceLevel, minimumAssuranceLevel) &&
+    isRequiredStepUpFresh({
+      requirement,
+      session,
+      sessionTiming,
+    });
 
   React.useEffect(() => {
     if (
@@ -70,8 +109,11 @@ function RequireAuthContent({
     minimumAssuranceLevel,
     pathname,
     requirement.requiresAuthentication,
+    requirement.requiredStepUp,
     searchParams,
+    session.provider,
     session.status,
+    sessionTiming,
     signIn,
   ]);
 

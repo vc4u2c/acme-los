@@ -160,7 +160,8 @@ public static class AuthFlowEndpoints
         : minimumAssuranceLevel,
       request.Query["expectedUserId"].ToString(),
       request.Query["leadId"].ToString(),
-      stepUp);
+      stepUp,
+      request.Query["widgetFlow"].ToString());
   }
 
   private static void WriteAuthSessionHeaders(
