@@ -266,18 +266,6 @@ function setShellLinks() {
     });
 }
 
-function isSignInLink(element) {
-  const text = normalizeActionText(element?.textContent);
-
-  return (
-    signInLinkTexts.has(text) ||
-    (unsafeHostedLinkPattern.test(
-      String(element?.getAttribute('href') || ''),
-    ) &&
-      /\b(?:sign|log|home)\b/i.test(text))
-  );
-}
-
 function wireSignInLink(element) {
   const signInUrl = buildWidgetSignInUrl();
 
@@ -305,51 +293,6 @@ function wireSignInLink(element) {
   });
 }
 
-function setWidgetSignInLinks() {
-  document
-    .querySelectorAll('#okta-login-container a, #okta-login-container button')
-    .forEach((element) => {
-      if (isSignInLink(element)) {
-        wireSignInLink(element);
-      }
-    });
-}
-
-let isRefreshingSignInLinks = false;
-
-function refreshSignInLinks() {
-  if (isRefreshingSignInLinks) {
-    return;
-  }
-
-  isRefreshingSignInLinks = true;
-
-  try {
-    setShellLinks();
-    setWidgetSignInLinks();
-  } finally {
-    isRefreshingSignInLinks = false;
-  }
-}
-
-function startWidgetLinkObserver() {
-  const widgetRoot = document.querySelector('#okta-login-container');
-
-  if (!widgetRoot || typeof window.MutationObserver !== 'function') {
-    return;
-  }
-
-  const observer = new window.MutationObserver(refreshSignInLinks);
-
-  observer.observe(widgetRoot, {
-    subtree: true,
-    childList: true,
-    attributes: true,
-    attributeFilter: ['href'],
-    characterData: true,
-  });
-}
-
 function resolveAuthStateFromRenderContext(context, requestedFlow) {
   const requestedFlowState = authStateByWidgetFlow[requestedFlow];
   const authenticatorKey =
@@ -373,6 +316,98 @@ function resolveAuthStateFromRenderContext(context, requestedFlow) {
   }
 
   return requestedFlowState || 'signIn';
+}
+
+function readFormElementText(element) {
+  return normalizeActionText(
+    element?.label ||
+      element?.options?.label ||
+      element?.options?.text ||
+      element?.options?.content ||
+      element?.content,
+  );
+}
+
+function readFormElementHref(element) {
+  return String(element?.options?.href || element?.href || '');
+}
+
+function setFormElementHref(element, href) {
+  element.options = {
+    ...(element.options || {}),
+    href,
+  };
+
+  if (Object.prototype.hasOwnProperty.call(element, 'href')) {
+    element.href = href;
+  }
+}
+
+function isNativeHelpElement(element) {
+  return (
+    element?.type === 'Link' &&
+    (element?.options?.dataSe === 'help' ||
+      (readFormElementText(element) === 'help' &&
+        unsafeHostedLinkPattern.test(readFormElementHref(element))))
+  );
+}
+
+function isWidgetSignInReturnElement(element) {
+  const text = readFormElementText(element);
+  const href = readFormElementHref(element);
+  const dataSe = String(element?.options?.dataSe || '');
+
+  return (
+    dataSe === 'sign-in' ||
+    dataSe === 'sign-on' ||
+    dataSe === 'delayed-sign-on' ||
+    signInLinkTexts.has(text) ||
+    (unsafeHostedLinkPattern.test(href) && /\b(?:sign|log|home)\b/i.test(text))
+  );
+}
+
+function transformFormElements(elements, signInUrl) {
+  if (!Array.isArray(elements)) {
+    return elements;
+  }
+
+  return elements
+    .filter((element) => !isNativeHelpElement(element))
+    .map((element) => {
+      if (isWidgetSignInReturnElement(element)) {
+        setFormElementHref(element, signInUrl);
+      }
+
+      if (Array.isArray(element?.elements)) {
+        element.elements = transformFormElements(element.elements, signInUrl);
+      }
+
+      if (Array.isArray(element?.options?.elements)) {
+        element.options = {
+          ...(element.options || {}),
+          elements: transformFormElements(element.options.elements, signInUrl),
+        };
+      }
+
+      return element;
+    });
+}
+
+function registerWidgetTransforms(oktaSignIn) {
+  if (typeof oktaSignIn.afterTransform !== 'function') {
+    return;
+  }
+
+  oktaSignIn.afterTransform('*', function transformWidgetForm({ formBag }) {
+    const elements = formBag?.uischema?.elements;
+
+    if (Array.isArray(elements)) {
+      formBag.uischema.elements = transformFormElements(
+        elements,
+        buildWidgetSignInUrl(),
+      );
+    }
+  });
 }
 
 const widgetConfig = OktaUtil.getSignInWidgetConfig();
@@ -405,18 +440,18 @@ if (requestedWidgetFlow) {
   widgetConfig.flow = requestedWidgetFlow;
 }
 
-startWidgetLinkObserver();
-refreshSignInLinks();
+setShellLinks();
 setAuthContext(authStateByWidgetFlow[requestedWidgetFlow] || 'signIn');
 
 // Okta's hosted wrapper probes this exact global variable name after our script.
 const oktaSignIn = new OktaSignIn(widgetConfig);
+registerWidgetTransforms(oktaSignIn);
 
 oktaSignIn.on('afterRender', function onAfterRender(context) {
   setAuthContext(
     resolveAuthStateFromRenderContext(context, requestedWidgetFlow),
   );
-  refreshSignInLinks();
+  setShellLinks();
 });
 
 oktaSignIn.renderEl(

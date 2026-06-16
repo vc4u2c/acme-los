@@ -2,7 +2,9 @@
   window.OktaSignIn = function OktaSignIn(config) {
     this.config = config;
     this.handlers = {};
+    this.transforms = [];
     window.__ACME_LAST_WIDGET_CONFIG__ = config;
+    window.__ACME_AFTER_TRANSFORM_REGISTRATIONS__ = [];
   };
 
   window.OktaSignIn.prototype.on = function on(eventName, handler) {
@@ -14,6 +16,14 @@
     (this.handlers[eventName] || []).forEach(function callHandler(handler) {
       handler(context);
     });
+  };
+
+  window.OktaSignIn.prototype.afterTransform = function afterTransform(
+    formName,
+    handler,
+  ) {
+    this.transforms.push({ formName: formName, handler: handler });
+    window.__ACME_AFTER_TRANSFORM_REGISTRATIONS__.push(formName);
   };
 
   window.OktaSignIn.prototype.renderEl = function renderEl(target) {
@@ -34,6 +44,28 @@
       resetPassword: { formName: 'identify' },
       unlockAccount: { formName: 'unlock-account' },
     };
+
+    function applyTransforms(formName, elements) {
+      var formBag = {
+        uischema: {
+          elements: elements.slice(),
+        },
+      };
+
+      this.transforms.forEach(function applyTransform(registration) {
+        if (
+          registration.formName === '*' ||
+          registration.formName === formName
+        ) {
+          registration.handler({
+            formBag: formBag,
+            formName: formName,
+          });
+        }
+      });
+
+      return formBag.uischema.elements || [];
+    }
 
     function field(label, type) {
       return [
@@ -78,18 +110,44 @@
       );
     }
 
-    function customHelpLinks() {
-      return customLinks
-        .map(function toLink(link) {
-          return (
-            '<a data-se="custom" href="' +
-            String(link.href || '#') +
-            '">' +
-            String(link.text || '') +
-            '</a>'
-          );
-        })
+    function linkElement(text, href, dataSe) {
+      return {
+        type: 'Link',
+        label: text,
+        options: {
+          dataSe: dataSe,
+          href: href,
+        },
+      };
+    }
+
+    function linkHtml(element) {
+      return (
+        '<a data-se="' +
+        String(element.options.dataSe || '') +
+        '" href="' +
+        String(element.options.href || '#') +
+        '">' +
+        String(element.label || '') +
+        '</a>'
+      );
+    }
+
+    function linksHtml(formName, elements) {
+      return applyTransforms
+        .call(this, formName, elements)
+        .map(linkHtml)
         .join('');
+    }
+
+    function customHelpLinks() {
+      return customLinks.map(function toLink(link) {
+        return linkElement(
+          String(link.text || ''),
+          String(link.href || '#'),
+          'custom',
+        );
+      });
     }
 
     function shell(flowName, title, body, footer) {
@@ -109,32 +167,17 @@
       ].join('');
     }
 
-    function appendDelayedSignOnLink() {
-      window.setTimeout(function appendLinkAfterRender() {
-        var footer = container.querySelector('.siw-main-footer');
-
-        if (!footer || footer.querySelector('[data-se="delayed-sign-on"]')) {
-          return;
-        }
-
-        footer.insertAdjacentHTML(
-          'beforeend',
-          '<a data-se="delayed-sign-on" href="/app/UserHome">Continue to login</a>',
-        );
-      }, 0);
-    }
-
     var contentByFlow = {
       signIn: shell(
         'signIn',
         'Sign in',
         field('Email', 'email') + button('Continue'),
-        [
-          '<a data-se="forgot-password" href="' +
-            forgotHref +
-            '">Forgot password?</a>',
-          '<a data-se="unlock" href="' + unlockHref + '">Unlock account</a>',
-        ].join(''),
+        linksHtml.call(this, 'identify', [
+          linkElement('Forgot password?', forgotHref, 'forgot-password'),
+          linkElement('Unlock account', unlockHref, 'unlock'),
+          linkElement('Help', '/help/login', 'help'),
+          linkElement('Continue to login', '/app/UserHome', 'delayed-sign-on'),
+        ]),
       ),
       signup: shell(
         'signup',
@@ -145,27 +188,47 @@
           field('Mobile phone', 'tel') +
           selectField('State') +
           button('Continue'),
-        [
-          '<a data-se="sign-in" href="#">Sign in</a>',
-          '<a data-se="sign-on" href="/app/UserHome">Go back to sign on</a>',
-        ].join(''),
+        linksHtml.call(this, 'enroll-profile', [
+          linkElement('Sign in', '#', 'sign-in'),
+          linkElement('Go back to sign on', '/app/UserHome', 'sign-on'),
+          linkElement('Continue to login', '/app/UserHome', 'delayed-sign-on'),
+        ]),
       ),
       resetPassword: shell(
         'resetPassword',
         'Forgot password',
         field('Email', 'email') + button('Send recovery code'),
-        customHelpLinks(),
+        linksHtml.call(
+          this,
+          'identify',
+          customHelpLinks().concat([
+            linkElement(
+              'Continue to login',
+              '/app/UserHome',
+              'delayed-sign-on',
+            ),
+          ]),
+        ),
       ),
       unlockAccount: shell(
         'unlockAccount',
         'Unlock account',
         field('Email', 'email') + button('Send unlock code'),
-        customHelpLinks(),
+        linksHtml.call(
+          this,
+          'unlock-account',
+          customHelpLinks().concat([
+            linkElement(
+              'Continue to login',
+              '/app/UserHome',
+              'delayed-sign-on',
+            ),
+          ]),
+        ),
       ),
     };
 
     container.innerHTML = contentByFlow[flow] || contentByFlow.signIn;
     this.emit('afterRender', contextByFlow[flow] || contextByFlow.signIn);
-    appendDelayedSignOnLink();
   };
 </script>

@@ -107,7 +107,7 @@ async function main() {
   fs.mkdirSync(outputDirectory, { recursive: true });
 
   const browser = await chromium.launch();
-  const results = [];
+  const results = [auditHostedSourceConventions()];
 
   try {
     for (const viewport of viewports) {
@@ -172,6 +172,40 @@ async function main() {
     }
     process.exit(1);
   }
+}
+
+function auditHostedSourceConventions() {
+  const controller = readHostedPageTemplate(
+    'hosted-sign-in-page.controller.js',
+  );
+  const shellCss = readHostedPageTemplate('hosted-sign-in-page.css');
+  const failures = [];
+
+  if (/\bMutationObserver\b/.test(controller)) {
+    failures.push('hosted sign-in controller uses MutationObserver');
+  }
+  if (!/\.afterTransform\(\s*['"]\*['"]/.test(controller)) {
+    failures.push('hosted sign-in controller does not register afterTransform');
+  }
+  if (/#okta-login-container\s+[^,{]*:where\(/.test(shellCss)) {
+    failures.push(
+      'hosted sign-in CSS styles Okta widget internals with :where',
+    );
+  }
+  if (/\[(?:data-se|data-type)[~|^$*]?=/.test(shellCss)) {
+    failures.push('hosted sign-in CSS targets Okta data attributes');
+  }
+  if (/#okta-sign-in|\.Mui|\.o-form|\.button-primary/.test(shellCss)) {
+    failures.push('hosted sign-in CSS targets Okta/MUI internal classes');
+  }
+
+  return {
+    viewport: 'source',
+    theme: 'source',
+    scenario: 'sourceConventions',
+    failures,
+    ok: failures.length === 0,
+  };
 }
 
 async function auditHostedErrorPage(
@@ -277,8 +311,7 @@ async function auditScenario(
     const href = delayedLink?.getAttribute('href') || '';
 
     return (
-      delayedLink?.getAttribute('data-acme-auth-sign-in-bound') === 'true' &&
-      !/\/app\/UserHome|\/enduser\/|\/userhome/i.test(href)
+      href !== '#' && !/\/app\/UserHome|\/enduser\/|\/userhome/i.test(href)
     );
   });
 
@@ -290,6 +323,8 @@ async function auditScenario(
 
   const metrics = await page.evaluate((scenarioExpectations) => {
     const widgetConfig = window.__ACME_LAST_WIDGET_CONFIG__ || {};
+    const afterTransformRegistrations =
+      window.__ACME_AFTER_TRANSFORM_REGISTRATIONS__ || [];
     const bodyText = document.body.innerText.replace(/\s+/g, ' ').trim();
     const normalizedBodyText = bodyText.toLowerCase();
     const authState = document.documentElement.getAttribute(
@@ -338,6 +373,7 @@ async function auditScenario(
       documentWidth: document.documentElement.scrollWidth,
       viewportWidth: window.innerWidth,
       configuredFlow: widgetConfig.flow,
+      afterTransformRegistrations,
       configuredForgotPasswordHref: widgetConfig.helpLinks?.forgotPassword,
       configuredUnlockHref: widgetConfig.helpLinks?.unlock,
       configuredCustomHelpLinks,
@@ -408,6 +444,11 @@ async function auditScenario(
   if (metrics.missingContextTexts.length > 0) {
     failures.push(
       `missing context text: ${metrics.missingContextTexts.join(', ')}`,
+    );
+  }
+  if (!metrics.afterTransformRegistrations.includes('*')) {
+    failures.push(
+      'widget form customization is not registered with afterTransform',
     );
   }
   if (
@@ -516,6 +557,7 @@ async function auditScenario(
     scenario: scenario.key,
     screenshotPath: path.relative(repoRoot, screenshotPath),
     configuredFlow: metrics.configuredFlow,
+    afterTransformRegistrations: metrics.afterTransformRegistrations,
     configuredForgotPasswordHref: metrics.configuredForgotPasswordHref,
     configuredUnlockHref: metrics.configuredUnlockHref,
     configuredCustomHelpLinks: metrics.configuredCustomHelpLinks,
