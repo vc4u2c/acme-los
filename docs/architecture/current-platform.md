@@ -117,11 +117,11 @@ calling client id or object id before `/bff/*` routes run.
 - funding route access always starts a fresh application-owned step-up check:
   the Okta authorize request carries the configured `acr_values` and
   `max_age=0`, so an active Okta SSO session is not enough to bypass the
-  configured OTP factor; in `dev`, that factor is phone/SMS, and the callback
-  must include matching Okta `amr` evidence before the latest funding step-up
-  marker is written; each funding page entry consumes the marker, while funding
-  save/submit APIs can use it during the bounded 10-minute funding API window
-  created by the latest Okta callback
+  configured OTP policy; the callback must include Okta `amr` evidence for
+  email or phone/SMS OTP before the latest funding step-up marker is written;
+  each funding page entry consumes the marker, while funding save/submit APIs
+  can use it during the bounded 10-minute funding API window created by the
+  latest Okta callback
 
 ## Current API Boundary
 

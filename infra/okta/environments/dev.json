@@ -28,7 +28,7 @@
       "registrationRequiresPhoneVerification": true,
       "adaptiveMfaOnSignIn": true,
       "fundingRouteStepUp": true,
-      "fundingStepUpMethod": "sms",
+      "fundingStepUpMethod": "email_or_sms",
       "fundingStepUpRequiresPassword": false,
       "recoveryContactHints": true,
       "themeToggle": true,

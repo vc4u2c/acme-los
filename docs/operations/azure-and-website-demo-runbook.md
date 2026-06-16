@@ -202,10 +202,10 @@ to show the full platform surface, not just the visible web pages.
 - funding route requires stronger assurance than ordinary application steps
 - funding access starts a fresh Okta authorize request with MFA-oriented
   `acr_values` and `max_age=0`; an active Okta SSO session should not bypass
-  the configured OTP factor, and in `dev`, that configured factor is phone/SMS
+  the configured OTP policy, which accepts email or phone/SMS for funding
 - each funding page entry consumes the latest funding step-up marker
-- the callback must include Okta `amr` evidence for the configured funding
-  method before the marker is written
+- the callback must include Okta `amr` evidence for email or phone/SMS OTP
+  before the marker is written
 - funding save/submit APIs can use the bounded 10-minute funding API window
   after callback
 - assurance checks are part of route and API enforcement, not only UI state
@@ -699,7 +699,7 @@ What to prove:
   `/account/sign-in?returnTo=%2Fapply%2Ffunding&aal=aal2`
 - the funding sign-in start asks Okta for stronger assurance with
   `acr_values` and `max_age=0`, so an existing Okta SSO session is not enough
-  to bypass the configured phone/SMS OTP step-up factor in `dev`
+  to bypass the configured email-or-phone OTP step-up policy in `dev`
 - an existing `aal2` session is not enough by itself; each funding page entry
   consumes the funding step-up marker written by the latest Okta callback
 - after the Okta challenge completes, funding save/submit APIs can use that

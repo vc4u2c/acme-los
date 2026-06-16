@@ -485,11 +485,12 @@ Current auth shape in this repo:
   does not use security-question challenge/hint during sign-in
 - the funding step is still enforced in application runtime with `acr_values`
   and `max_age=0`, so Okta must ignore the existing SSO session for the fresh
-  step-up transaction; in `dev`, the configured factor is phone/SMS
+  step-up transaction; the configured funding policy accepts one Okta possession
+  OTP factor: email or phone/SMS
 - an existing `aal2` web session does not by itself unlock funding; the current
   server-side session needs the latest funding step-up marker, the callback
-  must include Okta `amr` evidence for the configured method, funding page entry
-  consumes that marker, and funding APIs can use it during the bounded
+  must include Okta `amr` evidence for email or phone/SMS OTP, funding page
+  entry consumes that marker, and funding APIs can use it during the bounded
   10-minute API window written by the latest Okta callback
 
 ## Current Admin Auth Path

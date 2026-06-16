@@ -153,11 +153,11 @@ function resolveSignInWidgetVersion(value) {
 }
 
 function resolveFundingStepUpMethod(value) {
-  const method = optionalString(value)?.toLowerCase() ?? 'email';
+  const method = optionalString(value)?.toLowerCase() ?? 'email_or_sms';
 
-  if (!['email', 'sms'].includes(method)) {
+  if (!['email', 'sms', 'email_or_sms'].includes(method)) {
     throw new Error(
-      'Expected okta.hostedExperience.fundingStepUpMethod to be "email" or "sms".',
+      'Expected okta.hostedExperience.fundingStepUpMethod to be "email", "sms", or "email_or_sms".',
     );
   }
 
@@ -3520,7 +3520,7 @@ if (mapPrimaryEmailToLogin) {
 
 if (hostedExperience.fundingRouteStepUp) {
   warnings.push(
-    `Funding step-up remains enforced in application code through acr_values plus max_age=0 on the guarded funding step. Existing Okta SSO alone should not satisfy the configured ${fundingStepUpMethod} OTP step-up factor. Verify this behavior once after publishing the hosted page and policy changes.`,
+    `Funding step-up remains enforced in application code through acr_values plus max_age=0 on the guarded funding step. Existing Okta SSO alone should not satisfy the configured ${fundingStepUpMethod} OTP step-up policy. Verify this behavior once after publishing the hosted page and policy changes.`,
   );
 }
 

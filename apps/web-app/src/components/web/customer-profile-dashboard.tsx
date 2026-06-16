@@ -82,7 +82,7 @@ const accountSecurityActionCompletionMessages: Record<
   'change-email':
     'Email change completed. Sign in again with the new email so ACME can sync the verified value.',
   'change-phone':
-    'Phone change completed. Sign in again and satisfy the new phone/SMS OTP before funding.',
+    'Phone change completed. Sign in again so ACME can refresh the verified session before funding.',
 };
 
 function isAccountSecurityActionId(

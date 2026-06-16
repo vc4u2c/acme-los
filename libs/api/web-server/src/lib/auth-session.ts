@@ -232,8 +232,8 @@ function getConfiguredFundingStepUpMethod(): string {
   const config = getServerWebAuthConfig();
 
   return config.provider === 'okta'
-    ? (config.okta?.fundingStepUpMethod ?? 'email')
-    : 'email';
+    ? (config.okta?.fundingStepUpMethod ?? 'email_or_sms')
+    : 'email_or_sms';
 }
 
 function enforceStepUpAuthenticationMethod(
@@ -251,7 +251,9 @@ function enforceStepUpAuthenticationMethod(
         authenticationMethods: session.user?.authenticationMethods,
       })
     ) {
-      throw new Error('Funding step-up must be completed with phone/SMS OTP.');
+      throw new Error(
+        'Funding step-up must be completed with email or phone OTP.',
+      );
     }
     return;
   }

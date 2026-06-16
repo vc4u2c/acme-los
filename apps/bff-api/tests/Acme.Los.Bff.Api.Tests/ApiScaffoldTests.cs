@@ -1160,27 +1160,37 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
-  public void AuthAssurance_WithSmsFundingMethod_RequiresPhoneEvidence()
+  public void AuthAssurance_WithEmailOrSmsFundingMethod_AcceptsEitherEvidence()
   {
     Assert.True(
       AuthAssurance.IsFundingStepUpMethodSatisfied(
-        "sms",
+        "email_or_sms",
         new[] { "pwd", "sms" }));
 
     Assert.True(
       AuthAssurance.IsFundingStepUpMethodSatisfied(
-        "sms",
+        "email_or_sms",
         new[] { "pwd", "phone" }));
 
-    Assert.False(
+    Assert.True(
       AuthAssurance.IsFundingStepUpMethodSatisfied(
-        "sms",
+        "email_or_sms",
         new[] { "pwd", "email" }));
 
     Assert.True(
       AuthAssurance.IsFundingStepUpMethodSatisfied(
         "email",
         new[] { "pwd", "email" }));
+
+    Assert.False(
+      AuthAssurance.IsFundingStepUpMethodSatisfied(
+        "sms",
+        new[] { "pwd", "email" }));
+
+    Assert.False(
+      AuthAssurance.IsFundingStepUpMethodSatisfied(
+        "email_or_sms",
+        new[] { "pwd", "totp" }));
   }
 
   [Fact]

@@ -29,6 +29,7 @@ const EMAIL_AUTHENTICATION_METHODS = new Set([
   'okta_email',
   'okta_email:email',
 ]);
+const FUNDING_EMAIL_OR_SMS_METHOD = 'email_or_sms';
 
 function normalizeClaimValues(value?: unknown): string[] {
   if (Array.isArray(value)) {
@@ -57,14 +58,34 @@ export function isFundingStepUpMethodSatisfied({
   const normalizedFundingStepUpMethod = fundingStepUpMethod
     ?.trim()
     .toLowerCase();
+  const normalizedAuthenticationMethods = normalizeClaimValues(
+    authenticationMethods,
+  );
 
-  if (normalizedFundingStepUpMethod !== 'sms') {
-    return true;
+  if (
+    !normalizedFundingStepUpMethod ||
+    normalizedFundingStepUpMethod === FUNDING_EMAIL_OR_SMS_METHOD
+  ) {
+    return normalizedAuthenticationMethods.some(
+      (method) =>
+        EMAIL_AUTHENTICATION_METHODS.has(method) ||
+        SMS_FUNDING_AUTHENTICATION_METHODS.has(method),
+    );
   }
 
-  return normalizeClaimValues(authenticationMethods).some((method) =>
-    SMS_FUNDING_AUTHENTICATION_METHODS.has(method),
-  );
+  if (normalizedFundingStepUpMethod === 'email') {
+    return normalizedAuthenticationMethods.some((method) =>
+      EMAIL_AUTHENTICATION_METHODS.has(method),
+    );
+  }
+
+  if (normalizedFundingStepUpMethod === 'sms') {
+    return normalizedAuthenticationMethods.some((method) =>
+      SMS_FUNDING_AUTHENTICATION_METHODS.has(method),
+    );
+  }
+
+  return false;
 }
 
 export function isSmsAuthenticationMethodSatisfied(

@@ -21,6 +21,7 @@ internal static class AuthAssurance
     "okta_email",
     "okta_email:email",
   };
+  private const string FundingEmailOrSmsMethod = "email_or_sms";
 
   public static string GetAssuranceLevel(
     IEnumerable<string>? authenticationMethods,
@@ -63,23 +64,51 @@ internal static class AuthAssurance
     string? fundingStepUpMethod,
     IEnumerable<string>? authenticationMethods)
   {
-    if (!string.Equals(
-      fundingStepUpMethod?.Trim(),
-      "sms",
-      StringComparison.OrdinalIgnoreCase))
-    {
-      return true;
-    }
-
     var normalizedMethods = authenticationMethods?
       .Where(value => !string.IsNullOrWhiteSpace(value))
       .Select(value => value.Trim().ToLowerInvariant())
       .ToArray() ?? Array.Empty<string>();
+    var normalizedFundingStepUpMethod =
+      fundingStepUpMethod?.Trim().ToLowerInvariant();
 
-    return normalizedMethods.Any(method =>
-      SmsFundingAuthenticationMethods.Contains(
-        method,
-        StringComparer.OrdinalIgnoreCase));
+    if (string.IsNullOrWhiteSpace(normalizedFundingStepUpMethod)
+      || string.Equals(
+        normalizedFundingStepUpMethod,
+        FundingEmailOrSmsMethod,
+        StringComparison.Ordinal))
+    {
+      return normalizedMethods.Any(method =>
+        SmsFundingAuthenticationMethods.Contains(
+          method,
+          StringComparer.OrdinalIgnoreCase)
+        || EmailAuthenticationMethods.Contains(
+          method,
+          StringComparer.OrdinalIgnoreCase));
+    }
+
+    if (string.Equals(
+      normalizedFundingStepUpMethod,
+      "email",
+      StringComparison.Ordinal))
+    {
+      return normalizedMethods.Any(method =>
+        EmailAuthenticationMethods.Contains(
+          method,
+          StringComparer.OrdinalIgnoreCase));
+    }
+
+    if (string.Equals(
+      normalizedFundingStepUpMethod,
+      "sms",
+      StringComparison.Ordinal))
+    {
+      return normalizedMethods.Any(method =>
+        SmsFundingAuthenticationMethods.Contains(
+          method,
+          StringComparer.OrdinalIgnoreCase));
+    }
+
+    return false;
   }
 
   public static bool IsSmsAuthenticationMethodSatisfied(

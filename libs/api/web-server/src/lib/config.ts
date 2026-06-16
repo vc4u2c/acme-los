@@ -106,7 +106,7 @@ export function getServerWebAuthConfig(): ServerWebAuthConfig {
         getServerConfigValue(
           'ACME_OKTA_FUNDING_STEP_UP_METHOD',
           'NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD',
-        ) ?? 'email',
+        ) ?? 'email_or_sms',
     },
   };
 }

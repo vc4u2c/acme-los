@@ -19,8 +19,9 @@ param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
 @allowed([
   'email'
   'sms'
+  'email_or_sms'
 ])
-param oktaFundingStepUpMethod string = 'email'
+param oktaFundingStepUpMethod string = 'email_or_sms'
 param themeCookieDomain string = ''
 param customDomains array = []
 param analyticsEnabled bool = false

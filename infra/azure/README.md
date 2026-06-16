@@ -203,7 +203,7 @@ After DNS verification succeeds:
    configuration matches the active customer URL.
 6. Deploy the web runtime again so its browser and server configuration use the
    branded origin and theme-cookie domain.
-7. Verify sign-in, sign-out, funding phone/SMS step-up, and light/dark continuity
+7. Verify sign-in, sign-out, funding email-or-phone step-up, and light/dark continuity
    across the app-to-Okta round trip.
 
 The DNS verification helper is source-owned because the managed certificate

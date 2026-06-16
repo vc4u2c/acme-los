@@ -91,11 +91,11 @@ function resolveSignInWidgetVersion(value) {
 }
 
 function resolveFundingStepUpMethod(value) {
-  const method = optionalString(value)?.toLowerCase() ?? 'email';
+  const method = optionalString(value)?.toLowerCase() ?? 'email_or_sms';
 
-  if (!['email', 'sms'].includes(method)) {
+  if (!['email', 'sms', 'email_or_sms'].includes(method)) {
     throw new Error(
-      'Expected okta.hostedExperience.fundingStepUpMethod to be "email" or "sms".',
+      'Expected okta.hostedExperience.fundingStepUpMethod to be "email", "sms", or "email_or_sms".',
     );
   }
 

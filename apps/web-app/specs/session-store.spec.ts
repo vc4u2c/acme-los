@@ -145,18 +145,32 @@ describe('web auth session store idle expiry', () => {
     ).toBe('aal1');
   });
 
-  it('requires SMS or phone evidence for SMS-backed funding step-up', () => {
+  it('accepts email or phone evidence for funding step-up', () => {
     expect(
       isFundingStepUpMethodSatisfied({
-        fundingStepUpMethod: 'sms',
+        fundingStepUpMethod: 'email_or_sms',
         authenticationMethods: ['pwd', 'sms'],
       }),
     ).toBe(true);
 
     expect(
       isFundingStepUpMethodSatisfied({
-        fundingStepUpMethod: 'sms',
+        fundingStepUpMethod: 'email_or_sms',
         authenticationMethods: ['pwd', 'phone'],
+      }),
+    ).toBe(true);
+
+    expect(
+      isFundingStepUpMethodSatisfied({
+        fundingStepUpMethod: 'email_or_sms',
+        authenticationMethods: ['pwd', 'email'],
+      }),
+    ).toBe(true);
+
+    expect(
+      isFundingStepUpMethodSatisfied({
+        fundingStepUpMethod: 'email',
+        authenticationMethods: ['pwd', 'email'],
       }),
     ).toBe(true);
 
@@ -169,10 +183,10 @@ describe('web auth session store idle expiry', () => {
 
     expect(
       isFundingStepUpMethodSatisfied({
-        fundingStepUpMethod: 'email',
-        authenticationMethods: ['pwd', 'email'],
+        fundingStepUpMethod: 'email_or_sms',
+        authenticationMethods: ['pwd', 'totp'],
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('rejects a stored session after its idle expiry', async () => {

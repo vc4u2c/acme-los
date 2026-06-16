@@ -443,7 +443,7 @@ public sealed class BffAuthFlowService : IAuthFlowService
         session.User?.AuthenticationMethods))
     {
       throw new InvalidOperationException(
-        "Funding step-up must be completed with phone/SMS OTP.");
+        "Funding step-up must be completed with email or phone OTP.");
     }
 
     if (string.Equals(transaction.StepUp?.Reason, "account-email", StringComparison.Ordinal)
@@ -697,7 +697,7 @@ internal sealed record OktaAuthOptions(
           ReadConfigValue(
             "ACME_OKTA_FUNDING_STEP_UP_METHOD",
             "NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD")
-          ?? "email");
+          ?? "email_or_sms");
   }
 
   private static string? ReadConfigValue(

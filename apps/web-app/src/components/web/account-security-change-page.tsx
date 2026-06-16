@@ -89,7 +89,7 @@ function actionCopy(action: AccountSecurityChangeAction) {
         verifyLabel: 'Verify phone change',
         successTitle: 'Phone changed',
         successDescription:
-          'Sign in again and use the new phone/SMS OTP before funding.',
+          'Sign in again so ACME can refresh the verified session before funding.',
         icon: Phone,
       };
 }
