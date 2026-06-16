@@ -78,6 +78,16 @@ function requiredString(value, fieldName) {
   return value.trim();
 }
 
+function requiredAbsoluteHttpUrl(value, fieldName) {
+  const url = new URL(requiredString(value, fieldName));
+
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error(`Expected "${fieldName}" to be an HTTP(S) URL.`);
+  }
+
+  return url.toString();
+}
+
 function resolveThemeCookieDomain(branding) {
   const value =
     typeof branding.ThemeCookieDomain === 'string'
@@ -258,6 +268,12 @@ export function buildHostedErrorPageContent(branding) {
       ),
     }),
     PRODUCT_NAME: common.productLabel,
+    SIGN_IN_START_URL: escapeHtml(
+      requiredAbsoluteHttpUrl(
+        branding.SignInStartUrl,
+        'Branding.SignInStartUrl',
+      ),
+    ),
     SUPPORT_FOOTER_MARKUP: common.supportFooterMarkup,
     THEME_CONTROLLER_SCRIPT: common.themeControllerScript,
   });

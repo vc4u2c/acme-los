@@ -2,7 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { buildHostedSignInPageContent } from './hosted-sign-in-page.mjs';
+import {
+  buildHostedErrorPageContent,
+  buildHostedSignInPageContent,
+} from './hosted-sign-in-page.mjs';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDirectory, '..', '..', '..');
@@ -32,7 +35,12 @@ const scenarios = [
     query: '?acme_widget_flow=signup',
     expectedFlow: 'signup',
     expectedAuthState: 'signup',
-    expectedTexts: ['Create account', 'Email', 'Continue'],
+    expectedTexts: [
+      'Create account',
+      'Email',
+      'Continue',
+      'Go back to sign on',
+    ],
     expectedContextTexts: [
       'Create account',
       'Start your secure profile',
@@ -91,6 +99,9 @@ main().catch((error) => {
 async function main() {
   const branding = loadHostedBranding(environmentName);
   const hostedPageContent = toAuditHtml(buildHostedSignInPageContent(branding));
+  const hostedErrorPageContent = toAuditErrorHtml(
+    buildHostedErrorPageContent(branding),
+  );
 
   fs.mkdirSync(outputDirectory, { recursive: true });
 
@@ -113,6 +124,19 @@ async function main() {
           } finally {
             await page.close();
           }
+        }
+
+        const errorPage = await browser.newPage({ viewport });
+        try {
+          results.push(
+            await auditHostedErrorPage(errorPage, hostedErrorPageContent, {
+              theme,
+              viewport,
+              expectedSignInStartUrl: branding.SignInStartUrl,
+            }),
+          );
+        } finally {
+          await errorPage.close();
         }
       }
     }
@@ -147,6 +171,80 @@ async function main() {
     }
     process.exit(1);
   }
+}
+
+async function auditHostedErrorPage(
+  page,
+  hostedErrorPageContent,
+  { theme, viewport, expectedSignInStartUrl },
+) {
+  const url = 'https://auth.audit.local/error';
+  await page.route('**/*', (route) => route.fulfill({ body: '' }));
+  await page.goto(url);
+  await page.setContent(hostedErrorPageContent, { waitUntil: 'load' });
+  await page.evaluate((themeName) => {
+    document.documentElement.setAttribute('data-acme-theme', themeName);
+  }, theme);
+  await page.waitForSelector('[data-acme-error-sign-in-link]');
+
+  const screenshotPath = path.join(
+    outputDirectory,
+    `${viewport.key}-${theme}-hosted-error.png`,
+  );
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+
+  const metrics = await page.evaluate(() => {
+    const actionLink = document.querySelector('[data-acme-error-sign-in-link]');
+    const actionHref = actionLink?.getAttribute('href') || '';
+    const actionText = (actionLink?.textContent || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const documentHtml = document.documentElement.outerHTML;
+
+    return {
+      actionHref,
+      actionText,
+      containsOktaButtonHref: documentHtml.includes('{{buttonHref}}'),
+      containsOktaButtonText: documentHtml.includes('{{buttonText}}'),
+      containsDashboardTarget: /\/app\/UserHome|\/enduser\/|\/userhome/i.test(
+        actionHref,
+      ),
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    };
+  });
+
+  const failures = [];
+  if (metrics.actionHref !== expectedSignInStartUrl) {
+    failures.push(
+      `hosted error action should restart app auth flow: ${metrics.actionHref}`,
+    );
+  }
+  if (metrics.actionText !== 'Back to secure sign in') {
+    failures.push(`unexpected hosted error action text: ${metrics.actionText}`);
+  }
+  if (metrics.containsOktaButtonHref || metrics.containsOktaButtonText) {
+    failures.push('hosted error page still depends on Okta button variables');
+  }
+  if (metrics.containsDashboardTarget) {
+    failures.push('hosted error action points at an Okta dashboard/home route');
+  }
+  if (metrics.documentWidth > metrics.viewportWidth + 1) {
+    failures.push(
+      `document overflows viewport (${metrics.documentWidth}px > ${metrics.viewportWidth}px)`,
+    );
+  }
+
+  return {
+    viewport: viewport.key,
+    theme,
+    scenario: 'hostedError',
+    screenshotPath: path.relative(repoRoot, screenshotPath),
+    actionHref: metrics.actionHref,
+    actionText: metrics.actionText,
+    failures,
+    ok: failures.length === 0,
+  };
 }
 
 async function auditScenario(
@@ -346,6 +444,16 @@ async function auditScenario(
   ) {
     failures.push('visible recovery link points to a dead hosted/help route');
   }
+  const dashboardLinks = metrics.visibleLinks.filter((link) =>
+    /\/app\/UserHome|\/enduser\/|\/userhome/i.test(link.href),
+  );
+  if (dashboardLinks.length > 0) {
+    failures.push(
+      `visible link points at an Okta dashboard/home route: ${dashboardLinks
+        .map((link) => link.href)
+        .join(', ')}`,
+    );
+  }
   if (scenario.key === 'signup') {
     if (
       !metrics.shellSignInLink?.visible ||
@@ -359,10 +467,8 @@ async function auditScenario(
       );
     }
     const brokenSignInLinks = metrics.visibleLinks.filter((link) => {
-      const text = link.text.trim().toLowerCase();
-
       return (
-        (text === 'sign in' || text === 'back to sign in') &&
+        isWidgetSignInReturnText(link.text) &&
         (link.href === '#' || hasAnyWidgetFlow(link.href))
       );
     });
@@ -395,6 +501,30 @@ async function auditScenario(
     failures,
     ok: failures.length === 0,
   };
+}
+
+function isWidgetSignInReturnText(text) {
+  const normalizedText = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  return [
+    'sign in',
+    'sign on',
+    'back to sign in',
+    'back to sign on',
+    'go back to sign in',
+    'go back to sign on',
+    'return to sign in',
+    'return to sign on',
+    'go to sign in',
+    'go to sign on',
+    'continue to sign in',
+    'continue to sign on',
+    'go to homepage',
+    'go to home page',
+  ].includes(normalizedText);
 }
 
 function hasWidgetFlow(href, expectedFlow) {
@@ -434,6 +564,17 @@ function toAuditHtml(pageContent) {
     .replaceAll('{{nonceValue}}', '')
     .replace('{{{SignInWidgetResources}}}', widgetResources)
     .replace('{{{OktaUtil}}}', oktaUtil);
+}
+
+function toAuditErrorHtml(pageContent) {
+  return pageContent
+    .replaceAll('{{themedStylesUrl}}', 'data:text/css,')
+    .replaceAll('{{faviconUrl}}', 'data:image/x-icon;base64,')
+    .replaceAll('{{orgName}}', 'ACME LOS')
+    .replaceAll('{{errorSummary}}', 'Page Not Found')
+    .replaceAll('{{nonceValue}}', '')
+    .replace('{{{errorDescription}}}', 'The secure session expired.')
+    .replace('{{{ErrorPageResources}}}', '');
 }
 
 function readHostedPageTemplate(templateFileName) {
@@ -528,6 +669,10 @@ function loadHostedBranding(name) {
     HelpUrl: toAbsoluteUrl(
       deployedWebBaseUrl,
       requiredString(brand.helpPath, 'brand.helpPath'),
+    ),
+    SignInStartUrl: toAbsoluteUrl(
+      deployedWebBaseUrl,
+      '/api/auth/start?returnTo=/account/profile',
     ),
     SignInTitle: requiredString(brand.signInTitle, 'brand.signInTitle'),
     SignInSubtitle: requiredString(

@@ -224,6 +224,10 @@ const webPostLogoutRedirectUri = toAbsoluteUrl(
   webPostLogoutRedirectPath,
 );
 const mobileRedirectUri = toMobileRedirectUri(mobileScheme, mobileRedirectPath);
+const signInStartUrl = toAbsoluteUrl(
+  deployedWebBaseUrl,
+  '/api/auth/start?returnTo=/account/profile',
+);
 
 const hostedExperience = environment.okta?.hostedExperience ?? {};
 const signInWidgetGeneration = resolveSignInWidgetGeneration(
@@ -310,6 +314,7 @@ const hostedBranding = {
     deployedWebBaseUrl,
     requiredString(brandProfile.helpPath, 'brand.helpPath'),
   ),
+  SignInStartUrl: signInStartUrl,
   SignInTitle: requiredString(brandProfile.signInTitle, 'brand.signInTitle'),
   SignInSubtitle: requiredString(
     brandProfile.signInSubtitle,

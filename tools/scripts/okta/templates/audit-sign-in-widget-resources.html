@@ -130,7 +130,10 @@
           field('Mobile phone', 'tel') +
           selectField('State') +
           button('Continue'),
-        '<a data-se="sign-in" href="#">Sign in</a>',
+        [
+          '<a data-se="sign-in" href="#">Sign in</a>',
+          '<a data-se="sign-on" href="/app/UserHome">Go back to sign on</a>',
+        ].join(''),
       ),
       resetPassword: shell(
         'resetPassword',

@@ -205,6 +205,23 @@ const authStateByAuthenticatorKey = {
   phone: 'phoneVerification',
 };
 
+const signInLinkTexts = new Set([
+  'sign in',
+  'sign on',
+  'back to sign in',
+  'back to sign on',
+  'go back to sign in',
+  'go back to sign on',
+  'return to sign in',
+  'return to sign on',
+  'go to sign in',
+  'go to sign on',
+  'continue to sign in',
+  'continue to sign on',
+  'go to homepage',
+  'go to home page',
+]);
+
 function setAuthContext(stateName) {
   const state = authContextByState[stateName] ? stateName : 'signIn';
   const copy = authContextByState[state];
@@ -234,7 +251,7 @@ function isSignInLink(element) {
     .trim()
     .toLowerCase();
 
-  return text === 'sign in' || text === 'back to sign in';
+  return signInLinkTexts.has(text);
 }
 
 function wireSignInLink(element) {
@@ -293,7 +310,9 @@ const existingCustomHelpLinks = Array.isArray(widgetConfig.helpLinks?.custom)
   : [];
 const customHelpLinks = existingCustomHelpLinks.filter(
   (link) =>
-    !/forgot password|back to sign in|help/i.test(String(link?.text || '')),
+    !/forgot password|(?:go\s+)?back to sign (?:in|on)|help/i.test(
+      String(link?.text || ''),
+    ),
 );
 
 widgetConfig.helpLinks = {

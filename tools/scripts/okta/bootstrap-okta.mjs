@@ -2079,6 +2079,10 @@ const helpUrl = toAbsoluteUrl(
   deployedWebBaseUrl,
   requiredString(brandProfile.helpPath, 'brand.helpPath'),
 );
+const signInStartUrl = toAbsoluteUrl(
+  deployedWebBaseUrl,
+  '/api/auth/start?returnTo=/account/profile',
+);
 const hostedExperience = environment.okta?.hostedExperience ?? {};
 const telephony = environment.okta?.telephony ?? {};
 const userPrune = environment.okta?.userPrune ?? {};
@@ -2285,6 +2289,7 @@ const hostedBranding = {
   PrivacyPolicyUrl: privacyPolicyUrl,
   TermsUrl: termsUrl,
   HelpUrl: helpUrl,
+  SignInStartUrl: signInStartUrl,
   SignInTitle: requiredString(brandProfile.signInTitle, 'brand.signInTitle'),
   SignInSubtitle: requiredString(
     brandProfile.signInSubtitle,
