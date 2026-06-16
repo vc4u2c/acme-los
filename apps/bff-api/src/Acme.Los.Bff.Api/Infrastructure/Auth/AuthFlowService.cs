@@ -118,7 +118,8 @@ public sealed class BffAuthFlowService : IAuthFlowService
       authorizeQuery["acr_values"] = options.FundingAcrValues;
     }
 
-    if (minimumAssuranceLevel == "aal2" && parameters.StepUp is not null)
+    if (minimumAssuranceLevel == "aal2"
+      && ShouldForcePrimaryReauthentication(options, parameters.StepUp))
     {
       authorizeQuery["max_age"] = "0";
     }
@@ -541,6 +542,23 @@ public sealed class BffAuthFlowService : IAuthFlowService
     };
   }
 
+  private static bool ShouldForcePrimaryReauthentication(
+    OktaAuthOptions options,
+    WebAuthStepUpRequirement? stepUp)
+  {
+    if (stepUp is null)
+    {
+      return false;
+    }
+
+    if (string.Equals(stepUp.Reason, "funding", StringComparison.Ordinal))
+    {
+      return options.FundingStepUpRequiresPassword;
+    }
+
+    return true;
+  }
+
   private static string GetSafeReturnTo(string? returnTo)
   {
     if (string.IsNullOrWhiteSpace(returnTo)
@@ -640,7 +658,8 @@ internal sealed record OktaAuthOptions(
   string PostLogoutRedirectUri,
   string[] Scopes,
   string FundingAcrValues,
-  string FundingStepUpMethod)
+  string FundingStepUpMethod,
+  bool FundingStepUpRequiresPassword)
 {
   internal static OktaAuthOptions FromEnvironment()
   {
@@ -697,7 +716,11 @@ internal sealed record OktaAuthOptions(
           ReadConfigValue(
             "ACME_OKTA_FUNDING_STEP_UP_METHOD",
             "NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD")
-          ?? "email_or_sms");
+          ?? "email_or_sms",
+          ReadBooleanConfigValue(
+            "ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD",
+            "NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD",
+            false));
   }
 
   private static string? ReadConfigValue(
@@ -713,6 +736,20 @@ internal sealed record OktaAuthOptions(
       : string.IsNullOrWhiteSpace(legacyPublicValue)
         ? null
         : legacyPublicValue;
+  }
+
+  private static bool ReadBooleanConfigValue(
+    string runtimeName,
+    string legacyPublicName,
+    bool defaultValue)
+  {
+    var value = ReadConfigValue(runtimeName, legacyPublicName);
+
+    return string.IsNullOrWhiteSpace(value)
+      ? defaultValue
+      : bool.TryParse(value, out var parsed)
+        ? parsed
+        : defaultValue;
   }
 }
 

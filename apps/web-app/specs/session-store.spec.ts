@@ -46,6 +46,7 @@ const ENVIRONMENT_KEYS = [
   'ACME_OKTA_POST_LOGOUT_REDIRECT_URI',
   'ACME_OKTA_FUNDING_ACR_VALUES',
   'ACME_OKTA_FUNDING_STEP_UP_METHOD',
+  'ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD',
   'NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD',
   'ACME_BFF_BASE_URL',
   'ACME_BFF_URL',
@@ -468,7 +469,7 @@ describe('web auth session store idle expiry', () => {
     ).toBeTruthy();
   });
 
-  it('binds step-up auth transactions to the current user and requests stronger Okta assurance', () => {
+  it('binds funding step-up auth transactions without forcing password re-entry', () => {
     process.env.ACME_AUTH_PROVIDER = 'okta';
     process.env.ACME_OKTA_ISSUER = 'https://example.okta.com/oauth2/default';
     process.env.ACME_OKTA_CLIENT_ID = 'client-id';
@@ -505,11 +506,39 @@ describe('web auth session store idle expiry', () => {
       'urn:okta:loa:2fa:any',
     );
     expect(authorizeUrl.searchParams.has('prompt')).toBe(false);
-    expect(authorizeUrl.searchParams.get('max_age')).toBe('0');
+    expect(authorizeUrl.searchParams.has('max_age')).toBe(false);
     expect(transaction.storedTransaction.stepUp).toEqual({
       reason: 'funding',
       maxAgeSeconds: 10 * 60,
     });
+  });
+
+  it('can explicitly force password re-entry for funding step-up when configured', () => {
+    process.env.ACME_AUTH_PROVIDER = 'okta';
+    process.env.ACME_OKTA_ISSUER = 'https://example.okta.com/oauth2/default';
+    process.env.ACME_OKTA_CLIENT_ID = 'client-id';
+    process.env.ACME_OKTA_REDIRECT_URI =
+      'https://los.example.test/api/auth/callback';
+    process.env.ACME_OKTA_POST_LOGOUT_REDIRECT_URI =
+      'https://los.example.test/';
+    process.env.ACME_OKTA_FUNDING_ACR_VALUES = 'urn:okta:loa:2fa:any';
+    process.env.ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD = 'true';
+
+    const transaction = startOktaAuthTransaction({
+      returnTo: '/apply/funding',
+      minimumAssuranceLevel: 'aal2',
+      expectedUserId: 'customer-1',
+      stepUp: {
+        reason: 'funding',
+        maxAgeSeconds: 10 * 60,
+      },
+    });
+    const authorizeUrl = new URL(transaction.authorizeUrl);
+
+    expect(authorizeUrl.searchParams.get('acr_values')).toBe(
+      'urn:okta:loa:2fa:any',
+    );
+    expect(authorizeUrl.searchParams.get('max_age')).toBe('0');
   });
 
   it('passes supported hosted widget flow selectors to Okta authorize', () => {

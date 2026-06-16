@@ -3520,7 +3520,7 @@ if (mapPrimaryEmailToLogin) {
 
 if (hostedExperience.fundingRouteStepUp) {
   warnings.push(
-    `Funding step-up remains enforced in application code through acr_values plus max_age=0 on the guarded funding step. Existing Okta SSO alone should not satisfy the configured ${fundingStepUpMethod} OTP step-up policy. Verify this behavior once after publishing the hosted page and policy changes.`,
+    `Funding step-up remains enforced in application code through acr_values on the guarded funding step. fundingStepUpRequiresPassword=${fundingStepUpRequiresPassword}; when false, the app omits max_age=0 so Okta can use email or phone/SMS OTP without asking for the password again. Verify this behavior once after publishing the hosted page and policy changes.`,
   );
 }
 

@@ -22,6 +22,7 @@ param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
   'email_or_sms'
 ])
 param oktaFundingStepUpMethod string = 'email_or_sms'
+param oktaFundingStepUpRequiresPassword bool = false
 param themeCookieDomain string = ''
 param customDomains array = []
 param analyticsEnabled bool = false
@@ -235,6 +236,10 @@ var environmentVariables = concat(
     {
       name: 'ACME_OKTA_FUNDING_STEP_UP_METHOD'
       value: oktaFundingStepUpMethod
+    }
+    {
+      name: 'ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD'
+      value: oktaFundingStepUpRequiresPassword ? 'true' : 'false'
     }
     {
       name: 'NEXT_PUBLIC_AUTH_PROVIDER'

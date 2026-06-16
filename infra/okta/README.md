@@ -483,10 +483,11 @@ Current auth shape in this repo:
 - adaptive sign-in, when the high-risk/new-device rule is supported and
   triggered, steps up to 2FA with password required as the first factor; it
   does not use security-question challenge/hint during sign-in
-- the funding step is still enforced in application runtime with `acr_values`
-  and `max_age=0`, so Okta must ignore the existing SSO session for the fresh
-  step-up transaction; the configured funding policy accepts one Okta possession
-  OTP factor: email or phone/SMS
+- the funding step is still enforced in application runtime with `acr_values`;
+  when `hostedExperience.fundingStepUpRequiresPassword=false`, the app does not
+  send `max_age=0`, so Okta can step up the existing SSO session with a
+  possession OTP instead of asking for the password again. The configured
+  funding policy accepts one Okta possession OTP factor: email or phone/SMS
 - an existing `aal2` web session does not by itself unlock funding; the current
   server-side session needs the latest funding step-up marker, the callback
   must include Okta `amr` evidence for email or phone/SMS OTP, funding page

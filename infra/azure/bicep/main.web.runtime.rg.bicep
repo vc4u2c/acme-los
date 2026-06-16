@@ -39,6 +39,7 @@ param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
   'email_or_sms'
 ])
 param oktaFundingStepUpMethod string = 'email_or_sms'
+param oktaFundingStepUpRequiresPassword bool = false
 param themeCookieDomain string = ''
 param customDomainEnabled bool = false
 param customDomainHostname string = ''
@@ -196,6 +197,7 @@ module containerApp './modules/web/container-app.bicep' = {
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
     oktaFundingAcrValues: oktaFundingAcrValues
     oktaFundingStepUpMethod: oktaFundingStepUpMethod
+    oktaFundingStepUpRequiresPassword: oktaFundingStepUpRequiresPassword
     themeCookieDomain: themeCookieDomain
     customDomains: customDomainEnabled
       ? [
@@ -280,6 +282,7 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
     oktaFundingAcrValues: oktaFundingAcrValues
     oktaFundingStepUpMethod: oktaFundingStepUpMethod
+    oktaFundingStepUpRequiresPassword: oktaFundingStepUpRequiresPassword
     oktaCustomerIdWritebackMode: oktaCustomerIdWritebackMode
     oktaManagementClientId: oktaManagementClientId
     oktaManagementPrivateKeySecretName: oktaManagementPrivateKeySecretName

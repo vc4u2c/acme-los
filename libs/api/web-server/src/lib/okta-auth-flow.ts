@@ -8,7 +8,7 @@ import {
   clearCookie,
 } from './cookies';
 import { getSafeServerAuthReturnTo } from './auth-routing';
-import { getServerWebAuthConfig } from './config';
+import { getServerWebAuthConfig, type OktaServerAuthConfig } from './config';
 import type { StoredWebAuthStepUpRequirement } from './session-store';
 import {
   deleteStateValue,
@@ -94,6 +94,21 @@ function buildCodeChallenge(codeVerifier: string): string {
   return toBase64Url(createHash('sha256').update(codeVerifier).digest());
 }
 
+function shouldForcePrimaryReauthentication(
+  config: OktaServerAuthConfig,
+  stepUp?: StoredWebAuthStepUpRequirement,
+): boolean {
+  if (!stepUp) {
+    return false;
+  }
+
+  if (stepUp.reason === 'funding') {
+    return config.fundingStepUpRequiresPassword;
+  }
+
+  return true;
+}
+
 export function startOktaAuthTransaction({
   returnTo,
   minimumAssuranceLevel = 'aal1',
@@ -140,7 +155,10 @@ export function startOktaAuthTransaction({
     );
   }
 
-  if (minimumAssuranceLevel === 'aal2' && stepUp) {
+  if (
+    minimumAssuranceLevel === 'aal2' &&
+    shouldForcePrimaryReauthentication(config.okta, stepUp)
+  ) {
     authorizeUrl.searchParams.set('max_age', '0');
   }
 

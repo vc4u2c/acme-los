@@ -340,6 +340,7 @@ const webEnvContents = [
   `NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES=${fundingStepUpAcrValues}`,
   `ACME_OKTA_FUNDING_STEP_UP_METHOD=${fundingStepUpMethod}`,
   `NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD=${fundingStepUpMethod}`,
+  `ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD=${fundingStepUpRequiresPassword}`,
   `NEXT_PUBLIC_ACME_THEME_COOKIE_DOMAIN=${themeCookieDomain}`,
   '',
 ].join('\n');
