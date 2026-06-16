@@ -70,6 +70,25 @@ Use separate callback URLs per environment even when environments share the same
 - Local and Azure `dev` can share Okta `dev`, but callback and logout URLs must be environment-correct.
 - Prefer runtime-aware server config for auth URLs over build-time-only assumptions.
 
+### Hosted Sign-In Widget Gen3
+
+- Treat `tools/scripts/okta/templates/hosted-sign-in-page.controller.js` as an
+  inline hosted-page partial. It is source-controlled as a `.js` file, but
+  `hosted-sign-in-page.html` inlines it inside the nonce-bearing `<script>` tag.
+- Use Okta Gen3 `theme.tokens` for widget colors, typography, borders, focus,
+  spacing, and radius. Do not style widget internals with Okta/MUI classes,
+  `data-se` selectors, or post-render DOM rewrites.
+- Keep shell theme and widget theme separate unless the widget surface itself is
+  also proven dark. The ACME shell may be dark while Okta renders a light widget
+  card; in that case use an accessible light widget token palette and set only
+  the stable `#okta-login-container` wrapper to `color-scheme: light`.
+- Use `oktaSignIn.afterTransform('*', ({ formBag }) => ...)` for Gen3 widget
+  render customizations such as safe link shaping. Use `afterRender` only for
+  shell context updates that do not mutate widget DOM.
+- Run `npm run okta:audit-hosted-pages -- <env>` after hosted-widget changes;
+  the audit must cover source conventions, route safety, and widget token
+  contrast before publishing to Okta.
+
 ### Security Demo
 
 - The security inspector is a diagnostic aid, not a permanent product surface.

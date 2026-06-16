@@ -192,6 +192,10 @@ html[data-acme-auth-state='signup'] .acme-auth-existing-account {
 }
 
 /* Okta Gen3 widget internals are styled through design tokens in the inline controller. */
+#okta-login-container {
+  color-scheme: light;
+}
+
 #okta-login-container > div {
   width: 100%;
   max-width: 100%;

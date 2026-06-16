@@ -198,6 +198,13 @@ function auditHostedSourceConventions() {
   if (/#okta-sign-in|\.Mui|\.o-form|\.button-primary/.test(shellCss)) {
     failures.push('hosted sign-in CSS targets Okta/MUI internal classes');
   }
+  if (
+    !/#okta-login-container\s*{[^}]*color-scheme:\s*light\b/s.test(shellCss)
+  ) {
+    failures.push(
+      'hosted sign-in CSS does not pin widget color-scheme to light',
+    );
+  }
 
   return {
     viewport: 'source',
@@ -325,6 +332,7 @@ async function auditScenario(
     const widgetConfig = window.__ACME_LAST_WIDGET_CONFIG__ || {};
     const afterTransformRegistrations =
       window.__ACME_AFTER_TRANSFORM_REGISTRATIONS__ || [];
+    const widgetThemeTokens = widgetConfig.theme?.tokens || {};
     const bodyText = document.body.innerText.replace(/\s+/g, ' ').trim();
     const normalizedBodyText = bodyText.toLowerCase();
     const authState = document.documentElement.getAttribute(
@@ -374,6 +382,7 @@ async function auditScenario(
       viewportWidth: window.innerWidth,
       configuredFlow: widgetConfig.flow,
       afterTransformRegistrations,
+      widgetThemeTokens,
       configuredForgotPasswordHref: widgetConfig.helpLinks?.forgotPassword,
       configuredUnlockHref: widgetConfig.helpLinks?.unlock,
       configuredCustomHelpLinks,
@@ -451,6 +460,7 @@ async function auditScenario(
       'widget form customization is not registered with afterTransform',
     );
   }
+  failures.push(...getWidgetTokenContrastFailures(metrics.widgetThemeTokens));
   if (
     !hasWidgetFlow(metrics.configuredForgotPasswordHref, 'resetPassword') ||
     !hasWidgetFlow(metrics.configuredUnlockHref, 'unlockAccount')
@@ -558,6 +568,9 @@ async function auditScenario(
     screenshotPath: path.relative(repoRoot, screenshotPath),
     configuredFlow: metrics.configuredFlow,
     afterTransformRegistrations: metrics.afterTransformRegistrations,
+    widgetTokenContrast: getWidgetTokenContrastReport(
+      metrics.widgetThemeTokens,
+    ),
     configuredForgotPasswordHref: metrics.configuredForgotPasswordHref,
     configuredUnlockHref: metrics.configuredUnlockHref,
     configuredCustomHelpLinks: metrics.configuredCustomHelpLinks,
@@ -640,6 +653,120 @@ function hasAnyWidgetFlow(href) {
   } catch {
     return false;
   }
+}
+
+function getWidgetTokenContrastReport(tokens) {
+  return [
+    {
+      foreground: 'TypographyColorBody',
+      background: 'HueNeutralWhite',
+      ratio: getContrastRatio(
+        tokens.TypographyColorBody,
+        tokens.HueNeutralWhite,
+      ),
+      minimum: 4.5,
+    },
+    {
+      foreground: 'TypographyColorHeading',
+      background: 'HueNeutralWhite',
+      ratio: getContrastRatio(
+        tokens.TypographyColorHeading,
+        tokens.HueNeutralWhite,
+      ),
+      minimum: 4.5,
+    },
+    {
+      foreground: 'TypographyColorSupport',
+      background: 'HueNeutralWhite',
+      ratio: getContrastRatio(
+        tokens.TypographyColorSupport,
+        tokens.HueNeutralWhite,
+      ),
+      minimum: 4.5,
+    },
+    {
+      foreground: 'TypographyColorAction',
+      background: 'HueNeutralWhite',
+      ratio: getContrastRatio(
+        tokens.TypographyColorAction,
+        tokens.HueNeutralWhite,
+      ),
+      minimum: 4.5,
+    },
+    {
+      foreground: 'TypographyColorInverse',
+      background: 'PalettePrimaryMain',
+      ratio: getContrastRatio(
+        tokens.TypographyColorInverse,
+        tokens.PalettePrimaryMain,
+      ),
+      minimum: 4.5,
+    },
+  ];
+}
+
+function getWidgetTokenContrastFailures(tokens) {
+  return getWidgetTokenContrastReport(tokens)
+    .filter((check) => check.ratio === null || check.ratio < check.minimum)
+    .map((check) => {
+      const ratio =
+        check.ratio === null ? 'unreadable' : check.ratio.toFixed(2);
+
+      return `widget token contrast ${check.foreground} on ${check.background} is ${ratio}; expected >= ${check.minimum}`;
+    });
+}
+
+function getContrastRatio(foreground, background) {
+  const foregroundRgb = parseHexColor(foreground);
+  const backgroundRgb = parseHexColor(background);
+
+  if (!foregroundRgb || !backgroundRgb) {
+    return null;
+  }
+
+  const foregroundLuminance = getRelativeLuminance(foregroundRgb);
+  const backgroundLuminance = getRelativeLuminance(backgroundRgb);
+  const lightest = Math.max(foregroundLuminance, backgroundLuminance);
+  const darkest = Math.min(foregroundLuminance, backgroundLuminance);
+
+  return (lightest + 0.05) / (darkest + 0.05);
+}
+
+function parseHexColor(value) {
+  const normalized = String(value || '').trim();
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(normalized);
+
+  if (!match) {
+    return null;
+  }
+
+  const hex =
+    match[1].length === 3
+      ? match[1]
+          .split('')
+          .map((character) => `${character}${character}`)
+          .join('')
+      : match[1];
+
+  return {
+    red: Number.parseInt(hex.slice(0, 2), 16),
+    green: Number.parseInt(hex.slice(2, 4), 16),
+    blue: Number.parseInt(hex.slice(4, 6), 16),
+  };
+}
+
+function getRelativeLuminance({ red, green, blue }) {
+  const [linearRed, linearGreen, linearBlue] = [red, green, blue].map(
+    (channel) => {
+      const value = channel / 255;
+
+      return value <= 0.03928
+        ? value / 12.92
+        : ((value + 0.055) / 1.055) ** 2.4;
+    },
+  );
+
+  return 0.2126 * linearRed + 0.7152 * linearGreen + 0.0722 * linearBlue;
 }
 
 function toAuditHtml(pageContent) {
