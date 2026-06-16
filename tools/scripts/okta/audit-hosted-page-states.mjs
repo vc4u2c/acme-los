@@ -36,12 +36,7 @@ const scenarios = [
     query: '?acme_widget_flow=signup',
     expectedFlow: 'signup',
     expectedAuthState: 'signup',
-    expectedTexts: [
-      'Create account',
-      'Email',
-      'Continue',
-      'Back to secure sign in',
-    ],
+    expectedTexts: ['Create account', 'Email', 'Continue', 'Sign in'],
     expectedContextTexts: [
       'Create account',
       'Start your secure profile',
@@ -61,7 +56,7 @@ const scenarios = [
     expectedTexts: [
       'Create account',
       'An account already exists for this email.',
-      'Back to secure sign in',
+      'Sign in',
       'Choose another verification method',
     ],
     expectedContextTexts: [
@@ -86,7 +81,7 @@ const scenarios = [
       'required proof step',
     ],
     expectedCustomHelpLink: {
-      text: 'Back to secure sign in',
+      text: 'Sign in',
       widgetFlow: null,
     },
   },
@@ -102,7 +97,7 @@ const scenarios = [
       'regain access',
     ],
     expectedCustomHelpLink: {
-      text: 'Back to secure sign in',
+      text: 'Sign in',
       widgetFlow: null,
     },
   },
@@ -285,7 +280,7 @@ async function auditHostedErrorPage(
       `hosted error action should restart app auth flow: ${metrics.actionHref}`,
     );
   }
-  if (metrics.actionText !== 'Back to secure sign in') {
+  if (metrics.actionText !== 'Sign in') {
     failures.push(`unexpected hosted error action text: ${metrics.actionText}`);
   }
   if (metrics.containsOktaButtonHref || metrics.containsOktaButtonText) {
@@ -413,6 +408,9 @@ async function auditScenario(
       shellSignInLink: shellSignInLink
         ? {
             text: (shellSignInCue?.textContent || '')
+              .replace(/\s+/g, ' ')
+              .trim(),
+            linkText: (shellSignInLink.textContent || '')
               .replace(/\s+/g, ' ')
               .trim(),
             href: shellSignInLink.getAttribute('href') || '',
@@ -577,6 +575,7 @@ async function auditScenario(
   if (isSignupScenario) {
     if (
       !metrics.shellSignInLink?.visible ||
+      metrics.shellSignInLink.linkText !== 'Sign in' ||
       !/already have an account\? sign in/i.test(metrics.shellSignInLink.text)
     ) {
       failures.push('signup shell is missing the existing-account sign-in cue');
@@ -598,6 +597,40 @@ async function auditScenario(
         `signup sign-in link should return to default sign-in: ${brokenSignInLinks
           .map((link) => link.href)
           .join(', ')}`,
+      );
+    }
+    const primaryWidgetSignInLinks = metrics.visibleLinks.filter(
+      (link) => link.dataSe === 'sign-in',
+    );
+
+    if (primaryWidgetSignInLinks.length === 0) {
+      failures.push('signup widget is missing its primary sign-in link');
+    }
+    if (primaryWidgetSignInLinks.some((link) => link.text !== 'Sign in')) {
+      failures.push(
+        `signup widget primary sign-in link should be labeled Sign in: ${primaryWidgetSignInLinks
+          .map((link) => link.text)
+          .join(', ')}`,
+      );
+    }
+    if (
+      primaryWidgetSignInLinks.some(
+        (link) => link.href !== expectedSignInStartUrl,
+      )
+    ) {
+      failures.push(
+        `signup widget primary sign-in link should restart app sign-in: ${primaryWidgetSignInLinks
+          .map((link) => link.href)
+          .join(', ')}`,
+      );
+    }
+    const legacySignInLinks = metrics.visibleLinks.filter((link) =>
+      /^back to secure sign in$/i.test(link.text),
+    );
+
+    if (legacySignInLinks.length > 0) {
+      failures.push(
+        'signup widget still uses legacy Back to secure sign in text',
       );
     }
   } else if (metrics.shellSignInLink?.visible) {
