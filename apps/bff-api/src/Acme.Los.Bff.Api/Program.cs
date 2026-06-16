@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Acme.Los.Bff.Api.Features.Diagnostics;
 using Acme.Los.Bff.Api.Features.AccountSecurity;
 using Acme.Los.Bff.Api.Features.Application;
@@ -43,6 +44,11 @@ builder.Services.AddProblemDetails(options =>
     context.ProblemDetails.Extensions["requestId"] =
       context.HttpContext.TraceIdentifier;
   };
+});
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+  options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+  options.SerializerOptions.PropertyNameCaseInsensitive = true;
 });
 
 builder.Services.AddOpenApi();

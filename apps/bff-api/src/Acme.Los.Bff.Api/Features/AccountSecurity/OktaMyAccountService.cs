@@ -69,30 +69,23 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
       },
       cancellationToken);
 
-    if (string.IsNullOrWhiteSpace(emailTransaction.Id))
-    {
-      throw new OktaMyAccountException(
-        "Okta did not return an email transaction id.",
-        StatusCodes.Status502BadGateway);
-    }
+    var emailId = NormalizeOktaResponseId(
+      emailTransaction.Id,
+      "email transaction id");
 
     var challenge = await SendAsync<OktaEmailChallengeTransaction>(
       accessToken,
       HttpMethod.Post,
-      $"/idp/myaccount/emails/{Uri.EscapeDataString(emailTransaction.Id)}/challenge",
+      $"/idp/myaccount/emails/{Uri.EscapeDataString(emailId)}/challenge",
       null,
       cancellationToken);
-
-    if (string.IsNullOrWhiteSpace(challenge.Id))
-    {
-      throw new OktaMyAccountException(
-        "Okta did not return an email challenge id.",
-        StatusCodes.Status502BadGateway);
-    }
+    var challengeId = NormalizeOktaResponseId(
+      challenge.ChallengeId ?? challenge.Id,
+      "email challenge id");
 
     return new StartEmailChangeResponse(
-      emailTransaction.Id,
-      challenge.Id,
+      emailId,
+      challengeId,
       emailTransaction.Profile?.Email ?? email,
       "pending_verification");
   }
@@ -135,15 +128,12 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
       },
       cancellationToken);
 
-    if (string.IsNullOrWhiteSpace(phoneTransaction.Id))
-    {
-      throw new OktaMyAccountException(
-        "Okta did not return a phone transaction id.",
-        StatusCodes.Status502BadGateway);
-    }
+    var phoneId = NormalizeOktaResponseId(
+      phoneTransaction.Id,
+      "phone transaction id");
 
     return new StartPhoneChangeResponse(
-      phoneTransaction.Id,
+      phoneId,
       phoneTransaction.Profile?.PhoneNumber ?? phoneNumber,
       "pending_verification");
   }
@@ -446,6 +436,20 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
 
     return normalizedValue;
   }
+
+  private static string NormalizeOktaResponseId(string? value, string label)
+  {
+    var normalizedValue = value?.Trim() ?? string.Empty;
+
+    if (!SafeOktaIdPattern.IsMatch(normalizedValue))
+    {
+      throw new OktaMyAccountException(
+        $"Okta did not return a valid {label}.",
+        StatusCodes.Status502BadGateway);
+    }
+
+    return normalizedValue;
+  }
 }
 
 public sealed class OktaMyAccountException : Exception
@@ -473,6 +477,8 @@ internal sealed record OktaEmailTransaction(
   OktaEmailProfile? Profile);
 
 internal sealed record OktaEmailChallengeTransaction(
+  [property: JsonPropertyName("challengeId")]
+  string? ChallengeId,
   string? Id,
   string? Status,
   DateTimeOffset? ExpiresAt);

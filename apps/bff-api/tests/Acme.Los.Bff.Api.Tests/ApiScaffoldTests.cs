@@ -90,6 +90,31 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public void BffJsonOptions_SerializeApiContractsAsCamelCase()
+  {
+    using var scope = _factory.Services.CreateScope();
+    var options = scope.ServiceProvider
+      .GetRequiredService<
+        Microsoft.Extensions.Options.IOptions<
+          Microsoft.AspNetCore.Http.Json.JsonOptions>>()
+      .Value
+      .SerializerOptions;
+
+    var body = JsonSerializer.Serialize(
+      new StartEmailChangeResponse(
+        "email-change-123",
+        "email-challenge-456",
+        "new-user@example.com",
+        "pending_verification"),
+      options);
+
+    Assert.Contains("\"emailId\":\"email-change-123\"", body);
+    Assert.Contains("\"challengeId\":\"email-challenge-456\"", body);
+    Assert.DoesNotContain("\"EmailId\"", body);
+    Assert.DoesNotContain("\"ChallengeId\"", body);
+  }
+
+  [Fact]
   public async Task GetBffCsrf_IssuesTokenAndCookie()
   {
     using var client = _factory.CreateClient();
@@ -1262,6 +1287,78 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal(
       "new-password-456",
       profile.GetProperty("password").GetString());
+  }
+
+  [Fact]
+  public async Task OktaMyAccountService_StartEmailChange_UsesEmailChallengeIdFromOkta()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var handler = new CapturingHttpMessageHandler(
+      request =>
+      {
+        return request.RequestUri?.AbsolutePath switch
+        {
+          "/idp/myaccount/emails" => new HttpResponseMessage(HttpStatusCode.OK)
+          {
+            Content = JsonContent.Create(new
+            {
+              id = "email-change-123",
+              status = "UNVERIFIED",
+              profile = new { email = "new-user@example.com" },
+            }),
+          },
+          "/idp/myaccount/emails/email-change-123/challenge" =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+              Content = JsonContent.Create(new
+              {
+                challengeId = "email-challenge-456",
+                status = "PENDING",
+                expiresAt = "2030-01-01T00:00:00Z",
+              }),
+            },
+          _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        };
+      });
+    using var httpClient = new HttpClient(handler);
+    var service = new OktaMyAccountService(
+      new StaticHttpClientFactory(httpClient));
+
+    var result = await service.StartEmailChangeAsync(
+      "access-token-123",
+      new StartEmailChangeRequest("new-user@example.com"),
+      CancellationToken.None);
+
+    Assert.Equal("email-change-123", result.EmailId);
+    Assert.Equal("email-challenge-456", result.ChallengeId);
+    Assert.Equal("new-user@example.com", result.Email);
+    Assert.Equal("pending_verification", result.Status);
+
+    Assert.Equal(2, handler.Requests.Count);
+    Assert.Equal(HttpMethod.Post, handler.Requests[0].Method);
+    Assert.Equal(
+      "https://dev-123456.okta.com/idp/myaccount/emails",
+      handler.Requests[0].RequestUri?.ToString());
+    Assert.Equal(HttpMethod.Post, handler.Requests[1].Method);
+    Assert.Equal(
+      "https://dev-123456.okta.com/idp/myaccount/emails/email-change-123/challenge",
+      handler.Requests[1].RequestUri?.ToString());
+
+    var body = await handler.Requests[0].Content!.ReadAsStringAsync();
+    using var json = JsonDocument.Parse(body);
+    var profile = json.RootElement.GetProperty("profile");
+
+    Assert.Equal("new-user@example.com", profile.GetProperty("email").GetString());
+    Assert.False(json.RootElement.GetProperty("sendEmail").GetBoolean());
+    Assert.Equal("PRIMARY", json.RootElement.GetProperty("role").GetString());
   }
 
   [Fact]
