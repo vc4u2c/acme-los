@@ -80,7 +80,11 @@ export interface WebAuthSessionTokenSet {
   expiresIn?: number;
 }
 
-export type WebAuthStepUpReason = 'funding' | 'account-email' | 'account-phone';
+export type WebAuthStepUpReason =
+  | 'funding'
+  | 'account-email'
+  | 'account-phone'
+  | 'account-password';
 
 export interface WebAuthStepUpRequirement {
   reason: WebAuthStepUpReason;

@@ -259,6 +259,12 @@ export function buildHostedSignInPageContent(branding) {
     BRAND_HEADER_MARKUP: common.brandHeaderMarkup,
     SIGN_IN_TITLE: signInTitle,
     SIGN_IN_SUBTITLE: signInSubtitle,
+    SIGN_IN_START_URL: escapeHtml(
+      requiredAbsoluteHttpUrl(
+        branding.SignInStartUrl,
+        'Branding.SignInStartUrl',
+      ),
+    ),
     SUPPORT_FOOTER_MARKUP: common.supportFooterMarkup,
     THEME_CONTROLLER_SCRIPT: common.themeControllerScript,
     HOSTED_SIGN_IN_CONTROLLER: readHostedPagePartial(

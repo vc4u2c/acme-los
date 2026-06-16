@@ -46,6 +46,15 @@ const accountPhonePageRequirement: AuthRequirement = {
   },
 };
 
+const accountPasswordPageRequirement: AuthRequirement = {
+  requiresAuthentication: true,
+  minimumAssuranceLevel: 'aal2',
+  requiredStepUp: {
+    reason: 'account-password',
+    maxAgeSeconds: ACCOUNT_SECURITY_STEP_UP_MAX_AGE_SECONDS,
+  },
+};
+
 export function getApplicationAuthRequirement(
   step: ApplicationStepSlug,
 ): AuthRequirement {
@@ -87,15 +96,25 @@ export function getApplicationAuthRequirementForPath(
     return accountPhonePageRequirement;
   }
 
+  if (pathname === '/account/security/password') {
+    return accountPasswordPageRequirement;
+  }
+
   return null;
 }
 
 export function getAccountSecurityAuthRequirement(
-  action: 'email' | 'phone',
+  action: 'email' | 'phone' | 'password',
 ): AuthRequirement {
-  return action === 'email'
-    ? accountEmailPageRequirement
-    : accountPhonePageRequirement;
+  if (action === 'email') {
+    return accountEmailPageRequirement;
+  }
+
+  if (action === 'phone') {
+    return accountPhonePageRequirement;
+  }
+
+  return accountPasswordPageRequirement;
 }
 
 export function getMinimumAssuranceLevelForApplicationPath(

@@ -40,7 +40,29 @@ const scenarios = [
       'Create account',
       'Email',
       'Continue',
-      'Go back to sign on',
+      'Back to secure sign in',
+    ],
+    expectedContextTexts: [
+      'Create account',
+      'Start your secure profile',
+      'email, phone, state, and password',
+    ],
+    expectedCustomHelpLink: {
+      text: 'Forgot password?',
+      widgetFlow: 'resetPassword',
+    },
+  },
+  {
+    key: 'signupValidationError',
+    query:
+      '?acme_widget_flow=signup&acme_audit_signup_error=1&acme_audit_authenticator_link=1',
+    expectedFlow: 'signup',
+    expectedAuthState: 'signup',
+    expectedTexts: [
+      'Create account',
+      'An account already exists for this email.',
+      'Back to secure sign in',
+      'Choose another verification method',
     ],
     expectedContextTexts: [
       'Create account',
@@ -64,7 +86,7 @@ const scenarios = [
       'required proof step',
     ],
     expectedCustomHelpLink: {
-      text: 'Back to sign in',
+      text: 'Back to secure sign in',
       widgetFlow: null,
     },
   },
@@ -80,7 +102,7 @@ const scenarios = [
       'regain access',
     ],
     expectedCustomHelpLink: {
-      text: 'Back to sign in',
+      text: 'Back to secure sign in',
       widgetFlow: null,
     },
   },
@@ -120,6 +142,7 @@ async function main() {
                 scenario,
                 theme,
                 viewport,
+                expectedSignInStartUrl: branding.SignInStartUrl,
               }),
             );
           } finally {
@@ -292,7 +315,7 @@ async function auditHostedErrorPage(
 async function auditScenario(
   page,
   hostedPageContent,
-  { scenario, theme, viewport },
+  { scenario, theme, viewport, expectedSignInStartUrl },
 ) {
   const url = `https://auth.audit.local/${scenario.query}`;
   await page.route('**/*', (route) => route.fulfill({ body: '' }));
@@ -500,6 +523,14 @@ async function auditScenario(
         `custom ${expectedCustomHelpLink.text} link should return to default sign-in`,
       );
     }
+    if (
+      expectedCustomHelpLink.widgetFlow === null &&
+      customHelpLink.href !== expectedSignInStartUrl
+    ) {
+      failures.push(
+        `custom ${expectedCustomHelpLink.text} link should restart app sign-in: ${customHelpLink.href}`,
+      );
+    }
   }
   if (
     metrics.visibleLinks.some((link) =>
@@ -531,22 +562,34 @@ async function auditScenario(
         .join(', ')}`,
     );
   }
-  if (scenario.key === 'signup') {
+  const technicalAuthenticatorLinks = metrics.visibleLinks.filter((link) =>
+    /\bauthenticator\b/i.test(link.text),
+  );
+  if (technicalAuthenticatorLinks.length > 0) {
+    failures.push(
+      `visible link uses technical authenticator wording: ${technicalAuthenticatorLinks
+        .map((link) => link.text)
+        .join(', ')}`,
+    );
+  }
+  const isSignupScenario =
+    scenario.key === 'signup' || scenario.key === 'signupValidationError';
+  if (isSignupScenario) {
     if (
       !metrics.shellSignInLink?.visible ||
       !/already have an account\? sign in/i.test(metrics.shellSignInLink.text)
     ) {
       failures.push('signup shell is missing the existing-account sign-in cue');
     }
-    if (hasAnyWidgetFlow(metrics.shellSignInLink?.href)) {
+    if (metrics.shellSignInLink?.href !== expectedSignInStartUrl) {
       failures.push(
-        'signup shell sign-in cue should return to default sign-in',
+        `signup shell sign-in cue should restart app sign-in: ${metrics.shellSignInLink?.href}`,
       );
     }
     const brokenSignInLinks = metrics.visibleLinks.filter((link) => {
       return (
         isWidgetSignInReturnText(link.text) &&
-        (link.href === '#' || hasAnyWidgetFlow(link.href))
+        link.href !== expectedSignInStartUrl
       );
     });
 
@@ -593,16 +636,22 @@ function isWidgetSignInReturnText(text) {
   return [
     'sign in',
     'sign on',
+    'secure sign in',
     'back to sign in',
     'back to sign on',
+    'back to secure sign in',
     'go back to sign in',
     'go back to sign on',
+    'go back to secure sign in',
     'return to sign in',
     'return to sign on',
+    'return to secure sign in',
     'go to sign in',
     'go to sign on',
+    'go to secure sign in',
     'continue to sign in',
     'continue to sign on',
+    'continue to secure sign in',
     'go to homepage',
     'go to home page',
     'log in',

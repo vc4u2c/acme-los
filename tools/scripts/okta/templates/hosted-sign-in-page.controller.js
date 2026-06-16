@@ -13,6 +13,8 @@ const supportedWidgetFlows = new Set([
 
 const unsafeHostedLinkPattern =
   /\/app\/UserHome|\/enduser\/|\/userhome|\/signin\/(?:forgot-password|unlock)(?:\/|$)|\/help\/login/i;
+const secureSignInReturnText = 'Back to secure sign in';
+const verificationMethodReturnText = 'Choose another verification method';
 
 function buildWidgetFlowUrl(flowName) {
   const url = new URL(window.location.href);
@@ -22,10 +24,37 @@ function buildWidgetFlowUrl(flowName) {
   return url.toString();
 }
 
+function readConfiguredSignInStartUrl() {
+  const configuredUrl = document
+    .querySelector('meta[name="acme-sign-in-start-url"]')
+    ?.getAttribute('content')
+    ?.trim();
+
+  if (!configuredUrl) {
+    return '';
+  }
+
+  try {
+    return new URL(configuredUrl).toString();
+  } catch {
+    return '';
+  }
+}
+
 function buildWidgetSignInUrl() {
+  const configuredSignInStartUrl = readConfiguredSignInStartUrl();
+
+  if (configuredSignInStartUrl) {
+    return configuredSignInStartUrl;
+  }
+
   const url = new URL(window.location.href);
 
-  url.searchParams.delete('acme_widget_flow');
+  for (const key of Array.from(url.searchParams.keys())) {
+    if (key.startsWith('acme_')) {
+      url.searchParams.delete(key);
+    }
+  }
 
   return url.toString();
 }
@@ -33,7 +62,7 @@ function buildWidgetSignInUrl() {
 function buildPrimaryCustomHelpLink(requestedFlow) {
   if (requestedFlow === 'resetPassword' || requestedFlow === 'unlockAccount') {
     return {
-      text: 'Back to sign in',
+      text: secureSignInReturnText,
       href: buildWidgetSignInUrl(),
     };
   }
@@ -255,16 +284,22 @@ const authStateByAuthenticatorKey = {
 const signInLinkTexts = new Set([
   'sign in',
   'sign on',
+  'secure sign in',
   'back to sign in',
   'back to sign on',
+  'back to secure sign in',
   'go back to sign in',
   'go back to sign on',
+  'go back to secure sign in',
   'return to sign in',
   'return to sign on',
+  'return to secure sign in',
   'go to sign in',
   'go to sign on',
+  'go to secure sign in',
   'continue to sign in',
   'continue to sign on',
+  'continue to secure sign in',
   'go to homepage',
   'go to home page',
   'log in',
@@ -277,6 +312,19 @@ const signInLinkTexts = new Set([
   'return to login',
   'continue to log in',
   'continue to login',
+]);
+
+const authenticatorReturnLinkTexts = new Set([
+  'back to authenticator',
+  'back to authenticators',
+  'go back to authenticator',
+  'go back to authenticators',
+  'return to authenticator',
+  'return to authenticators',
+  'choose another authenticator',
+  'select another authenticator',
+  'choose a different authenticator',
+  'select a different authenticator',
 ]);
 
 function normalizeActionText(value) {
@@ -387,12 +435,38 @@ function setFormElementHref(element, href) {
   }
 }
 
+function setFormElementText(element, text) {
+  element.label = text;
+  element.options = {
+    ...(element.options || {}),
+    label: text,
+    text,
+    content: text,
+  };
+
+  if (Object.prototype.hasOwnProperty.call(element, 'content')) {
+    element.content = text;
+  }
+}
+
 function isNativeHelpElement(element) {
   return (
     element?.type === 'Link' &&
     (element?.options?.dataSe === 'help' ||
       (readFormElementText(element) === 'help' &&
         unsafeHostedLinkPattern.test(readFormElementHref(element))))
+  );
+}
+
+function isAuthenticatorReturnElement(element) {
+  if (element?.type !== 'Link') {
+    return false;
+  }
+
+  const text = readFormElementText(element);
+
+  return (
+    authenticatorReturnLinkTexts.has(text) || /\bauthenticator\b/i.test(text)
   );
 }
 
@@ -420,6 +494,9 @@ function transformFormElements(elements, signInUrl) {
     .map((element) => {
       if (isWidgetSignInReturnElement(element)) {
         setFormElementHref(element, signInUrl);
+        setFormElementText(element, secureSignInReturnText);
+      } else if (isAuthenticatorReturnElement(element)) {
+        setFormElementText(element, verificationMethodReturnText);
       }
 
       if (Array.isArray(element?.elements)) {

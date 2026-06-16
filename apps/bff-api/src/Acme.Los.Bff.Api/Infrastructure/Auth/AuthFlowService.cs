@@ -447,12 +447,15 @@ public sealed class BffAuthFlowService : IAuthFlowService
         "Funding step-up must be completed with email or phone OTP.");
     }
 
-    if (string.Equals(transaction.StepUp?.Reason, "account-email", StringComparison.Ordinal)
+    if ((string.Equals(transaction.StepUp?.Reason, "account-email", StringComparison.Ordinal)
+        || string.Equals(transaction.StepUp?.Reason, "account-password", StringComparison.Ordinal))
       && !AuthAssurance.IsSmsAuthenticationMethodSatisfied(
         session.User?.AuthenticationMethods))
     {
       throw new InvalidOperationException(
-        "Email change step-up must be completed with phone/SMS OTP.");
+        string.Equals(transaction.StepUp?.Reason, "account-password", StringComparison.Ordinal)
+          ? "Password change step-up must be completed with phone/SMS OTP."
+          : "Email change step-up must be completed with phone/SMS OTP.");
     }
 
     if (string.Equals(transaction.StepUp?.Reason, "account-phone", StringComparison.Ordinal)

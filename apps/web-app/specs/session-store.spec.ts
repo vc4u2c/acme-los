@@ -541,6 +541,47 @@ describe('web auth session store idle expiry', () => {
     expect(authorizeUrl.searchParams.get('max_age')).toBe('0');
   });
 
+  it('forces password re-entry for sensitive account-management step-up', () => {
+    process.env.ACME_AUTH_PROVIDER = 'okta';
+    process.env.ACME_OKTA_ISSUER = 'https://example.okta.com/oauth2/default';
+    process.env.ACME_OKTA_CLIENT_ID = 'client-id';
+    process.env.ACME_OKTA_REDIRECT_URI =
+      'https://los.example.test/api/auth/callback';
+    process.env.ACME_OKTA_POST_LOGOUT_REDIRECT_URI =
+      'https://los.example.test/';
+    process.env.ACME_OKTA_FUNDING_ACR_VALUES = 'urn:okta:loa:2fa:any';
+
+    const passwordTransaction = startOktaAuthTransaction({
+      returnTo: '/account/security/password',
+      minimumAssuranceLevel: 'aal2',
+      expectedUserId: 'customer-1',
+      stepUp: {
+        reason: 'account-password',
+        maxAgeSeconds: 10 * 60,
+      },
+    });
+    const emailTransaction = startOktaAuthTransaction({
+      returnTo: '/account/security/email',
+      minimumAssuranceLevel: 'aal2',
+      expectedUserId: 'customer-1',
+      stepUp: {
+        reason: 'account-email',
+        maxAgeSeconds: 10 * 60,
+      },
+    });
+
+    expect(
+      new URL(passwordTransaction.authorizeUrl).searchParams.get('max_age'),
+    ).toBe('0');
+    expect(
+      new URL(emailTransaction.authorizeUrl).searchParams.get('max_age'),
+    ).toBe('0');
+    expect(passwordTransaction.storedTransaction.stepUp).toEqual({
+      reason: 'account-password',
+      maxAgeSeconds: 10 * 60,
+    });
+  });
+
   it('passes supported hosted widget flow selectors to Okta authorize', () => {
     process.env.ACME_AUTH_PROVIDER = 'okta';
     process.env.ACME_OKTA_ISSUER = 'https://example.okta.com/oauth2/default';

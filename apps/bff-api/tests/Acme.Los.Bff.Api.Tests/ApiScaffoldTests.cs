@@ -1174,6 +1174,37 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public async Task GetBffAuthLogin_WithAccountPasswordStepUp_ForcesFreshOktaAuthentication()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var client = _factory.CreateClient();
+    using var response = await client.GetAsync(
+      "/bff/auth/login?returnTo=/account/security/password&aal=aal2&stepUpReason=account-password&stepUpMaxAgeSeconds=600");
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var payload =
+      await response.Content.ReadFromJsonAsync<StartAuthFlowResponse>();
+
+    Assert.NotNull(payload);
+
+    var authorizeUrl = new Uri(payload!.AuthorizeUrl);
+    var query = QueryHelpers.ParseQuery(authorizeUrl.Query);
+
+    Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
+    Assert.Equal("0", query["max_age"].ToString());
+    Assert.False(query.ContainsKey("prompt"));
+  }
+
+  [Fact]
   public void AuthAssurance_WithConfiguredFundingAcr_ReturnsAal2()
   {
     Assert.Equal(

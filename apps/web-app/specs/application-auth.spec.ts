@@ -66,8 +66,24 @@ describe('application auth requirements', () => {
         maxAgeSeconds: ACCOUNT_SECURITY_STEP_UP_MAX_AGE_SECONDS,
       },
     });
+    expect(
+      getApplicationAuthRequirementForPath('/account/security/password'),
+    ).toEqual({
+      requiresAuthentication: true,
+      minimumAssuranceLevel: 'aal2',
+      requiredStepUp: {
+        reason: 'account-password',
+        maxAgeSeconds: ACCOUNT_SECURITY_STEP_UP_MAX_AGE_SECONDS,
+      },
+    });
     expect(getAccountSecurityAuthRequirement('email').requiredStepUp).toEqual({
       reason: 'account-email',
+      maxAgeSeconds: ACCOUNT_SECURITY_STEP_UP_MAX_AGE_SECONDS,
+    });
+    expect(
+      getAccountSecurityAuthRequirement('password').requiredStepUp,
+    ).toEqual({
+      reason: 'account-password',
       maxAgeSeconds: ACCOUNT_SECURITY_STEP_UP_MAX_AGE_SECONDS,
     });
   });
@@ -82,6 +98,12 @@ describe('application auth requirements', () => {
     expect(
       getMinimumAssuranceLevelForApplicationPath(
         '/account/security/phone',
+        'aal1',
+      ),
+    ).toBe('aal2');
+    expect(
+      getMinimumAssuranceLevelForApplicationPath(
+        '/account/security/password',
         'aal1',
       ),
     ).toBe('aal2');

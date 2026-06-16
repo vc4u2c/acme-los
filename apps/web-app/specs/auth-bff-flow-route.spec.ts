@@ -285,6 +285,92 @@ describe('BFF-backed auth flow routes', () => {
     );
   });
 
+  it('starts account password step-up through the BFF with a phone/SMS-specific marker', async () => {
+    process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
+    process.env.ACME_BFF_PROXY_MODE = 'bff';
+    process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
+    delete process.env.ACME_WEB_SESSION_SECRET;
+    const fetchSpy = jest
+      .fn<typeof fetch>()
+      .mockImplementation(async (input) => {
+        const targetUrl = input as URL;
+
+        if (targetUrl.pathname === '/bff/auth/session') {
+          return new Response(
+            JSON.stringify({
+              session: {
+                provider: 'okta',
+                status: 'authenticated',
+                isAuthenticated: true,
+                assuranceLevel: 'aal1',
+                user: {
+                  id: 'user-123',
+                  displayName: 'Account User',
+                  email: 'account@example.com',
+                },
+              },
+            }),
+            {
+              headers: {
+                'content-type': 'application/json',
+              },
+            },
+          );
+        }
+
+        if (targetUrl.pathname === '/bff/auth/login') {
+          return new Response(
+            JSON.stringify({
+              authorizeUrl:
+                'https://dev-123456.okta.com/oauth2/default/v1/authorize?state=account-password-state-123',
+              transactionId: 'bff-account-password-transaction-123',
+              maxAge: 600,
+              returnTo: '/account/security/password',
+            }),
+            {
+              headers: {
+                'content-type': 'application/json',
+              },
+            },
+          );
+        }
+
+        throw new Error(`Unexpected BFF request: ${targetUrl.toString()}`);
+      });
+
+    global.fetch = fetchSpy as typeof fetch;
+
+    const response = await startAuthFlow(
+      new NextRequest(
+        'https://los.example.test/api/auth/start?returnTo=/account/security/password&aal=aal1',
+        {
+          headers: {
+            cookie:
+              'acme-los.auth-session=session-cookie; acme-los.csrf-token=csrf-123',
+          },
+        },
+      ),
+    );
+    const loginCall = fetchSpy.mock.calls.find(
+      ([target]) => (target as URL).pathname === '/bff/auth/login',
+    );
+    const targetUrl = loginCall?.[0] as URL;
+
+    expect(response.headers.get('location')).toBe(
+      'https://dev-123456.okta.com/oauth2/default/v1/authorize?state=account-password-state-123',
+    );
+    expect(targetUrl.searchParams.get('returnTo')).toBe(
+      '/account/security/password',
+    );
+    expect(targetUrl.searchParams.get('aal')).toBe('aal2');
+    expect(targetUrl.searchParams.get('expectedUserId')).toBe('user-123');
+    expect(targetUrl.searchParams.get('stepUpReason')).toBe('account-password');
+    expect(targetUrl.searchParams.get('stepUpMaxAgeSeconds')).toBe('600');
+    expect(targetUrl.searchParams.get('stepUpConsumeOnSatisfied')).toBe(
+      'false',
+    );
+  });
+
   it('delegates callback exchange to the BFF before checking Next-owned state', async () => {
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
     process.env.ACME_BFF_PROXY_MODE = 'bff';

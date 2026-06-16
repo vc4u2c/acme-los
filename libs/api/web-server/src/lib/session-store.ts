@@ -26,7 +26,8 @@ export type StoredWebAuthTokenSet = {
 export type StoredWebAuthStepUpReason =
   | 'funding'
   | 'account-email'
-  | 'account-phone';
+  | 'account-phone'
+  | 'account-password';
 
 export type StoredWebAuthStepUpRequirement = {
   reason: StoredWebAuthStepUpReason;

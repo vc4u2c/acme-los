@@ -259,11 +259,14 @@ function enforceStepUpAuthenticationMethod(
   }
 
   if (
-    stepUp.reason === 'account-email' &&
+    (stepUp.reason === 'account-email' ||
+      stepUp.reason === 'account-password') &&
     !isSmsAuthenticationMethodSatisfied(session.user?.authenticationMethods)
   ) {
     throw new Error(
-      'Email change step-up must be completed with phone/SMS OTP.',
+      stepUp.reason === 'account-password'
+        ? 'Password change step-up must be completed with phone/SMS OTP.'
+        : 'Email change step-up must be completed with phone/SMS OTP.',
     );
   }
 

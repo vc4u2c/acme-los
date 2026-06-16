@@ -6,7 +6,11 @@ export type WebAuthRequirement = {
   requiredStepUp?: WebAuthStepUpRequirement;
 };
 
-export type WebAuthStepUpReason = 'funding' | 'account-email' | 'account-phone';
+export type WebAuthStepUpReason =
+  | 'funding'
+  | 'account-email'
+  | 'account-phone'
+  | 'account-password';
 
 export type WebAuthStepUpRequirement = {
   reason: WebAuthStepUpReason;

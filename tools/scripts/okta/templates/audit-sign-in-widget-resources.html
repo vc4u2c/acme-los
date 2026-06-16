@@ -38,6 +38,13 @@
     var forgotHref = links.forgotPassword || '#';
     var unlockHref = links.unlock || '#';
     var customLinks = Array.isArray(links.custom) ? links.custom : [];
+    var searchParams = new URL(window.location.href).searchParams;
+    var renderSignupValidationError = searchParams.has(
+      'acme_audit_signup_error',
+    );
+    var renderAuthenticatorReturnLink = searchParams.has(
+      'acme_audit_authenticator_link',
+    );
     var contextByFlow = {
       signIn: { formName: 'identify' },
       signup: { formName: 'enroll-profile' },
@@ -182,17 +189,39 @@
       signup: shell(
         'signup',
         'Create account',
-        field('Email', 'email') +
+        (renderSignupValidationError
+          ? '<div role="alert">An account already exists for this email.</div>'
+          : '') +
+          field('Email', 'email') +
           field('First name', 'text') +
           field('Last name', 'text') +
           field('Mobile phone', 'tel') +
           selectField('State') +
           button('Continue'),
-        linksHtml.call(this, 'enroll-profile', [
-          linkElement('Sign in', '#', 'sign-in'),
-          linkElement('Go back to sign on', '/app/UserHome', 'sign-on'),
-          linkElement('Continue to login', '/app/UserHome', 'delayed-sign-on'),
-        ]),
+        linksHtml.call(
+          this,
+          'enroll-profile',
+          [
+            linkElement(
+              'Sign in',
+              renderSignupValidationError ? window.location.href : '#',
+              'sign-in',
+            ),
+            linkElement('Go back to sign on', '/app/UserHome', 'sign-on'),
+            renderAuthenticatorReturnLink
+              ? linkElement(
+                  'Back to authenticator',
+                  '#',
+                  'select-authenticator',
+                )
+              : null,
+            linkElement(
+              'Continue to login',
+              '/app/UserHome',
+              'delayed-sign-on',
+            ),
+          ].filter(Boolean),
+        ),
       ),
       resetPassword: shell(
         'resetPassword',
