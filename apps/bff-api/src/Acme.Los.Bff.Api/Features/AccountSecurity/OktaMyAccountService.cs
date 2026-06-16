@@ -43,6 +43,8 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     new(JsonSerializerDefaults.Web);
   private static readonly Regex SafeOktaIdPattern =
     new("^[A-Za-z0-9_-]{1,128}$", RegexOptions.Compiled);
+  private static readonly Regex SafeOktaChallengeIdPattern =
+    new("^[A-Za-z0-9._-]{1,256}$", RegexOptions.Compiled);
 
   private readonly IHttpClientFactory _httpClientFactory;
 
@@ -79,8 +81,12 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
       $"/idp/myaccount/emails/{Uri.EscapeDataString(emailId)}/challenge",
       null,
       cancellationToken);
-    var challengeId = NormalizeOktaResponseId(
-      challenge.ChallengeId ?? challenge.Id,
+    var challengeId = NormalizeOktaResponseChallengeId(
+      challenge.ChallengeId
+        ?? challenge.Id
+        ?? TryExtractEmailChallengeIdFromVerifyLink(
+          challenge.Links?.Verify?.Href,
+          emailId),
       "email challenge id");
 
     return new StartEmailChangeResponse(
@@ -96,7 +102,9 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     CancellationToken cancellationToken)
   {
     var emailId = NormalizeOktaId(request?.EmailId, "email id");
-    var challengeId = NormalizeOktaId(request?.ChallengeId, "email challenge id");
+    var challengeId = NormalizeOktaChallengeId(
+      request?.ChallengeId,
+      "email challenge id");
     var verificationCode = NormalizeVerificationCode(request?.VerificationCode);
 
     await SendAsync<JsonElement?>(
@@ -450,6 +458,80 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
 
     return normalizedValue;
   }
+
+  private static string NormalizeOktaChallengeId(string? value, string label)
+  {
+    var normalizedValue = value?.Trim() ?? string.Empty;
+
+    if (!SafeOktaChallengeIdPattern.IsMatch(normalizedValue))
+    {
+      throw new OktaMyAccountException(
+        $"A valid {label} is required.",
+        StatusCodes.Status400BadRequest,
+        exposeMessageToClient: true);
+    }
+
+    return normalizedValue;
+  }
+
+  private static string NormalizeOktaResponseChallengeId(
+    string? value,
+    string label)
+  {
+    var normalizedValue = value?.Trim() ?? string.Empty;
+
+    if (!SafeOktaChallengeIdPattern.IsMatch(normalizedValue))
+    {
+      throw new OktaMyAccountException(
+        $"Okta did not return a valid {label}.",
+        StatusCodes.Status502BadGateway);
+    }
+
+    return normalizedValue;
+  }
+
+  private static string? TryExtractEmailChallengeIdFromVerifyLink(
+    string? href,
+    string emailId)
+  {
+    var trimmedHref = href?.Trim();
+
+    if (string.IsNullOrWhiteSpace(trimmedHref))
+    {
+      return null;
+    }
+
+    if (!Uri.TryCreate(trimmedHref, UriKind.Absolute, out var uri)
+      && !Uri.TryCreate(
+        $"https://okta.invalid{trimmedHref}",
+        UriKind.Absolute,
+        out uri))
+    {
+      return null;
+    }
+
+    var segments = uri.AbsolutePath
+      .Split('/', StringSplitOptions.RemoveEmptyEntries)
+      .Select(Uri.UnescapeDataString)
+      .ToArray();
+
+    for (var index = 0; index <= segments.Length - 7; index += 1)
+    {
+      if (!string.Equals(segments[index], "idp", StringComparison.Ordinal)
+        || !string.Equals(segments[index + 1], "myaccount", StringComparison.Ordinal)
+        || !string.Equals(segments[index + 2], "emails", StringComparison.Ordinal)
+        || !string.Equals(segments[index + 3], emailId, StringComparison.Ordinal)
+        || !string.Equals(segments[index + 4], "challenge", StringComparison.Ordinal)
+        || !string.Equals(segments[index + 6], "verify", StringComparison.Ordinal))
+      {
+        continue;
+      }
+
+      return segments[index + 5];
+    }
+
+    return null;
+  }
 }
 
 public sealed class OktaMyAccountException : Exception
@@ -481,7 +563,14 @@ internal sealed record OktaEmailChallengeTransaction(
   string? ChallengeId,
   string? Id,
   string? Status,
-  DateTimeOffset? ExpiresAt);
+  DateTimeOffset? ExpiresAt,
+  [property: JsonPropertyName("_links")]
+  OktaEmailChallengeLinks? Links);
+
+internal sealed record OktaEmailChallengeLinks(
+  OktaLink? Verify);
+
+internal sealed record OktaLink(string? Href);
 
 internal sealed record OktaEmailProfile(string? Email);
 
