@@ -1292,6 +1292,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   [Fact]
   public async Task OktaMyAccountService_StartEmailChange_UsesEmailChallengeIdFromOkta()
   {
+    const string challengeId = "myaccount.IDseIErVSEiFlLyAbzSp5Q";
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
@@ -1320,7 +1321,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
             {
               Content = JsonContent.Create(new
               {
-                challengeId = "email-challenge-456",
+                challengeId,
                 status = "PENDING",
                 expiresAt = "2030-01-01T00:00:00Z",
               }),
@@ -1338,7 +1339,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       CancellationToken.None);
 
     Assert.Equal("email-change-123", result.EmailId);
-    Assert.Equal("email-challenge-456", result.ChallengeId);
+    Assert.Equal(challengeId, result.ChallengeId);
     Assert.Equal("new-user@example.com", result.Email);
     Assert.Equal("pending_verification", result.Status);
 
@@ -1359,6 +1360,103 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal("new-user@example.com", profile.GetProperty("email").GetString());
     Assert.False(json.RootElement.GetProperty("sendEmail").GetBoolean());
     Assert.Equal("PRIMARY", json.RootElement.GetProperty("role").GetString());
+  }
+
+  [Fact]
+  public async Task OktaMyAccountService_StartEmailChange_CanReadChallengeIdFromVerifyLink()
+  {
+    const string challengeId = "myaccount.IDseIErVSEiFlLyAbzSp5Q";
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var handler = new CapturingHttpMessageHandler(
+      request =>
+      {
+        return request.RequestUri?.AbsolutePath switch
+        {
+          "/idp/myaccount/emails" => new HttpResponseMessage(HttpStatusCode.OK)
+          {
+            Content = JsonContent.Create(new
+            {
+              id = "email-change-123",
+              status = "UNVERIFIED",
+              profile = new { email = "new-user@example.com" },
+            }),
+          },
+          "/idp/myaccount/emails/email-change-123/challenge" =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+              Content = JsonContent.Create(new
+              {
+                status = "PENDING",
+                expiresAt = "2030-01-01T00:00:00Z",
+                _links = new
+                {
+                  verify = new
+                  {
+                    href =
+                      $"https://dev-123456.okta.com/idp/myaccount/emails/email-change-123/challenge/{challengeId}/verify",
+                  },
+                },
+              }),
+            },
+          _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        };
+      });
+    using var httpClient = new HttpClient(handler);
+    var service = new OktaMyAccountService(
+      new StaticHttpClientFactory(httpClient));
+
+    var result = await service.StartEmailChangeAsync(
+      "access-token-123",
+      new StartEmailChangeRequest("new-user@example.com"),
+      CancellationToken.None);
+
+    Assert.Equal("email-change-123", result.EmailId);
+    Assert.Equal(challengeId, result.ChallengeId);
+  }
+
+  [Fact]
+  public async Task OktaMyAccountService_VerifyEmailChange_AllowsDottedChallengeId()
+  {
+    const string challengeId = "myaccount.IDseIErVSEiFlLyAbzSp5Q";
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.NoContent));
+    using var httpClient = new HttpClient(handler);
+    var service = new OktaMyAccountService(
+      new StaticHttpClientFactory(httpClient));
+
+    var result = await service.VerifyEmailChangeAsync(
+      "access-token-123",
+      new VerifyEmailChangeRequest(
+        "email-change-123",
+        challengeId,
+        "278964"),
+      CancellationToken.None);
+
+    Assert.Equal("verified", result.Status);
+
+    var request = Assert.Single(handler.Requests);
+
+    Assert.Equal(HttpMethod.Post, request.Method);
+    Assert.Equal(
+      $"https://dev-123456.okta.com/idp/myaccount/emails/email-change-123/challenge/{challengeId}/verify",
+      request.RequestUri?.ToString());
   }
 
   [Fact]
