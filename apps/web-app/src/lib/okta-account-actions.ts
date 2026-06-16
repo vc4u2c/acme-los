@@ -20,7 +20,6 @@ export function buildHostedPasswordRecoveryUrl(
 ): string {
   const searchParams = new URLSearchParams({
     returnTo,
-    aal: 'aal2',
     widgetFlow: 'resetPassword',
   });
 

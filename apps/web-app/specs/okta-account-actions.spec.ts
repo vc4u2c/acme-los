@@ -18,10 +18,10 @@ describe('Okta account action links', () => {
 
   it('builds the hosted widget password recovery path', () => {
     expect(buildHostedPasswordRecoveryUrl()).toBe(
-      '/api/auth/start?returnTo=%2Faccount%2Fprofile%3Faccount_action%3Dpassword&aal=aal2&widgetFlow=resetPassword',
+      '/api/auth/start?returnTo=%2Faccount%2Fprofile%3Faccount_action%3Dpassword&widgetFlow=resetPassword',
     );
     expect(buildHostedPasswordRecoveryUrl('/account/security/password')).toBe(
-      '/api/auth/start?returnTo=%2Faccount%2Fsecurity%2Fpassword&aal=aal2&widgetFlow=resetPassword',
+      '/api/auth/start?returnTo=%2Faccount%2Fsecurity%2Fpassword&widgetFlow=resetPassword',
     );
   });
 });

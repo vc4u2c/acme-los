@@ -39,17 +39,24 @@ function resolveFetchImpl(fetchImpl?: typeof fetch): typeof fetch {
   return resolvedFetchImpl;
 }
 
+function mergeJsonHeaders(headers?: HeadersInit): Headers {
+  const mergedHeaders = new Headers(headers);
+
+  if (!mergedHeaders.has('content-type')) {
+    mergedHeaders.set('content-type', 'application/json');
+  }
+
+  return mergedHeaders;
+}
+
 async function requestJson<TResponse>(
   fetchImpl: typeof fetch | undefined,
   input: string,
   init?: RequestInit,
 ): Promise<TResponse> {
   const response = await resolveFetchImpl(fetchImpl)(input, {
-    headers: {
-      'content-type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
     ...init,
+    headers: mergeJsonHeaders(init?.headers),
   });
 
   if (!response.ok) {
