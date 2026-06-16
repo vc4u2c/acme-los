@@ -7,6 +7,8 @@ export interface OktaServerAuthConfig {
   postLogoutRedirectUri: string;
   scopes: string[];
   fundingStepUpAcrValues: string;
+  fundingStepUpMethod: string;
+  fundingStepUpRequiresPassword: boolean;
 }
 
 export interface ServerWebAuthConfig {
@@ -32,6 +34,20 @@ function getServerConfigValue(
     trimValue(process.env[runtimeName]) ??
     trimValue(process.env[legacyPublicName])
   );
+}
+
+function getServerBooleanConfigValue(
+  runtimeName: string,
+  legacyPublicName: string,
+  defaultValue: boolean,
+): boolean {
+  const value = getServerConfigValue(runtimeName, legacyPublicName);
+
+  if (value === undefined) {
+    return defaultValue;
+  }
+
+  return value.toLowerCase() === 'true';
 }
 
 export function getServerWebAuthConfig(): ServerWebAuthConfig {
@@ -86,12 +102,33 @@ export function getServerWebAuthConfig(): ServerWebAuthConfig {
       clientId,
       redirectUri,
       postLogoutRedirectUri,
-      scopes: ['openid', 'profile', 'email', 'offline_access'],
+      scopes: [
+        'openid',
+        'profile',
+        'email',
+        'offline_access',
+        'okta.myAccount.email.read',
+        'okta.myAccount.email.manage',
+        'okta.myAccount.phone.read',
+        'okta.myAccount.phone.manage',
+        'okta.myAccount.password.read',
+        'okta.myAccount.password.manage',
+      ],
       fundingStepUpAcrValues:
         getServerConfigValue(
           'ACME_OKTA_FUNDING_ACR_VALUES',
           'NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES',
         ) ?? 'urn:okta:loa:2fa:any',
+      fundingStepUpMethod:
+        getServerConfigValue(
+          'ACME_OKTA_FUNDING_STEP_UP_METHOD',
+          'NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD',
+        ) ?? 'email_or_sms',
+      fundingStepUpRequiresPassword: getServerBooleanConfigValue(
+        'ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD',
+        'NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD',
+        false,
+      ),
     },
   };
 }

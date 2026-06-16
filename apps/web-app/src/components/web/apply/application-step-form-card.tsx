@@ -113,6 +113,11 @@ export function ApplicationStepFormCard({
             );
           }
 
+          if (nextStep === 'funding') {
+            window.location.assign('/apply/funding');
+            return;
+          }
+
           router.push(`/apply/${nextStep}`);
           return;
         }

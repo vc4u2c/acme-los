@@ -128,6 +128,23 @@ function resolveSignInWidgetGeneration(value) {
   return normalized;
 }
 
+function resolveSignInWidgetVersion(value) {
+  const version = optionalString(value);
+  if (!version) {
+    throw new Error(
+      'Expected okta.hostedExperience.signInWidgetVersion to be an exact Okta-supported version like "7.46".',
+    );
+  }
+
+  if (!/^\d+\.\d+$/.test(version)) {
+    throw new Error(
+      'Expected okta.hostedExperience.signInWidgetVersion to be pinned to an exact Okta hosted-widget version, not a floating range.',
+    );
+  }
+
+  return version;
+}
+
 function resolveAuthorizationServerId(issuerValue) {
   const issuerUrl = new URL(requiredString(issuerValue, 'okta.issuer'));
   const pathSegments = issuerUrl.pathname.split('/').filter(Boolean);
@@ -236,6 +253,54 @@ function hasOnlyExpectedAppIds(policyOrRule, expectedAppIds) {
   );
 }
 
+function valuesEqualAsSets(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right)) {
+    return false;
+  }
+
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  const leftSorted = [...left].sort();
+  const rightSorted = [...right].sort();
+
+  return leftSorted.every((value, index) => value === rightSorted[index]);
+}
+
+function summarizeAuthenticationMethods(authenticationMethods) {
+  if (!Array.isArray(authenticationMethods)) {
+    return [];
+  }
+
+  return authenticationMethods
+    .map((method) => {
+      const key = typeof method?.key === 'string' ? method.key : '';
+      const methodType =
+        typeof method?.method === 'string' ? method.method : '';
+
+      if (!key) {
+        return '';
+      }
+
+      return methodType ? `${key}:${methodType}` : key;
+    })
+    .filter(Boolean)
+    .sort();
+}
+
+function extractPossessionAuthenticationMethods(rule) {
+  const constraints =
+    rule?.actions?.appSignOn?.verificationMethod?.constraints ?? [];
+  const possessionConstraint = constraints
+    .map((constraint) => constraint?.possession)
+    .find(Boolean);
+
+  return summarizeAuthenticationMethods(
+    possessionConstraint?.authenticationMethods,
+  );
+}
+
 function objectLinkId(object, linkName) {
   const href = object?._links?.[linkName]?.href;
   if (typeof href !== 'string') {
@@ -325,6 +390,9 @@ const customerBrandName = requiredString(
 );
 const expectedSignInWidgetGeneration = resolveSignInWidgetGeneration(
   environment.okta?.hostedExperience?.signInWidgetGeneration,
+);
+const expectedSignInWidgetVersion = resolveSignInWidgetVersion(
+  environment.okta?.hostedExperience?.signInWidgetVersion,
 );
 const expectedTelephonyUri = environment.okta?.telephony?.enabled
   ? toAbsoluteUrl(
@@ -749,6 +817,16 @@ addCheck(
     ? `actual=${customizedSignInPage.widgetCustomizations?.widgetGeneration ?? 'missing'}`
     : 'missing',
 );
+addCheck(
+  customizedSignInPage?.widgetVersion === expectedSignInWidgetVersion
+    ? 'pass'
+    : 'fail',
+  'brand.sign-in.widget-version',
+  `${customerBrandName} sign-in page pins Sign-In Widget ${expectedSignInWidgetVersion}`,
+  customizedSignInPage
+    ? `actual=${customizedSignInPage.widgetVersion ?? 'missing'}`
+    : 'missing',
+);
 
 const authenticators = await listAll('/api/v1/authenticators', { limit: 200 });
 const authenticatorsByKey = new Map(
@@ -1006,6 +1084,20 @@ for (const expectedRule of expectedAccountManagementRules) {
       `${expectedRule.name} is customer-group scoped`,
     );
   }
+
+  const actualPossessionFactors =
+    extractPossessionAuthenticationMethods(liveRule);
+  addCheck(
+    valuesEqualAsSets(
+      actualPossessionFactors,
+      expectedRule.expectedPossessionFactors,
+    )
+      ? 'pass'
+      : 'fail',
+    `policies.account-management.${expectedRule.id}.possession-methods`,
+    `${expectedRule.name} requires expected possession method(s)`,
+    `expected=${expectedRule.expectedPossessionFactors.join(', ')} actual=${actualPossessionFactors.join(', ') || 'none'}`,
+  );
 }
 
 const authorizationServerPolicies = await listAuthorizationServerPolicies();

@@ -2,7 +2,9 @@
   window.OktaSignIn = function OktaSignIn(config) {
     this.config = config;
     this.handlers = {};
+    this.transforms = [];
     window.__ACME_LAST_WIDGET_CONFIG__ = config;
+    window.__ACME_AFTER_TRANSFORM_REGISTRATIONS__ = [];
   };
 
   window.OktaSignIn.prototype.on = function on(eventName, handler) {
@@ -14,6 +16,14 @@
     (this.handlers[eventName] || []).forEach(function callHandler(handler) {
       handler(context);
     });
+  };
+
+  window.OktaSignIn.prototype.afterTransform = function afterTransform(
+    formName,
+    handler,
+  ) {
+    this.transforms.push({ formName: formName, handler: handler });
+    window.__ACME_AFTER_TRANSFORM_REGISTRATIONS__.push(formName);
   };
 
   window.OktaSignIn.prototype.renderEl = function renderEl(target) {
@@ -28,12 +38,41 @@
     var forgotHref = links.forgotPassword || '#';
     var unlockHref = links.unlock || '#';
     var customLinks = Array.isArray(links.custom) ? links.custom : [];
+    var searchParams = new URL(window.location.href).searchParams;
+    var renderSignupValidationError = searchParams.has(
+      'acme_audit_signup_error',
+    );
+    var renderAuthenticatorReturnLink = searchParams.has(
+      'acme_audit_authenticator_link',
+    );
     var contextByFlow = {
       signIn: { formName: 'identify' },
       signup: { formName: 'enroll-profile' },
       resetPassword: { formName: 'identify' },
       unlockAccount: { formName: 'unlock-account' },
     };
+
+    function applyTransforms(formName, elements) {
+      var formBag = {
+        uischema: {
+          elements: elements.slice(),
+        },
+      };
+
+      this.transforms.forEach(function applyTransform(registration) {
+        if (
+          registration.formName === '*' ||
+          registration.formName === formName
+        ) {
+          registration.handler({
+            formBag: formBag,
+            formName: formName,
+          });
+        }
+      });
+
+      return formBag.uischema.elements || [];
+    }
 
     function field(label, type) {
       return [
@@ -78,18 +117,44 @@
       );
     }
 
-    function customHelpLinks() {
-      return customLinks
-        .map(function toLink(link) {
-          return (
-            '<a data-se="custom" href="' +
-            String(link.href || '#') +
-            '">' +
-            String(link.text || '') +
-            '</a>'
-          );
-        })
+    function linkElement(text, href, dataSe) {
+      return {
+        type: 'Link',
+        label: text,
+        options: {
+          dataSe: dataSe,
+          href: href,
+        },
+      };
+    }
+
+    function linkHtml(element) {
+      return (
+        '<a data-se="' +
+        String(element.options.dataSe || '') +
+        '" href="' +
+        String(element.options.href || '#') +
+        '">' +
+        String(element.label || '') +
+        '</a>'
+      );
+    }
+
+    function linksHtml(formName, elements) {
+      return applyTransforms
+        .call(this, formName, elements)
+        .map(linkHtml)
         .join('');
+    }
+
+    function customHelpLinks() {
+      return customLinks.map(function toLink(link) {
+        return linkElement(
+          String(link.text || ''),
+          String(link.href || '#'),
+          'custom',
+        );
+      });
     }
 
     function shell(flowName, title, body, footer) {
@@ -114,35 +179,81 @@
         'signIn',
         'Sign in',
         field('Email', 'email') + button('Continue'),
-        [
-          '<a data-se="forgot-password" href="' +
-            forgotHref +
-            '">Forgot password?</a>',
-          '<a data-se="unlock" href="' + unlockHref + '">Unlock account</a>',
-        ].join(''),
+        linksHtml.call(this, 'identify', [
+          linkElement('Forgot password?', forgotHref, 'forgot-password'),
+          linkElement('Unlock account', unlockHref, 'unlock'),
+          linkElement('Help', '/help/login', 'help'),
+          linkElement('Continue to login', '/app/UserHome', 'delayed-sign-on'),
+        ]),
       ),
       signup: shell(
         'signup',
         'Create account',
-        field('Email', 'email') +
+        (renderSignupValidationError
+          ? '<div role="alert">An account already exists for this email.</div>'
+          : '') +
+          field('Email', 'email') +
           field('First name', 'text') +
           field('Last name', 'text') +
           field('Mobile phone', 'tel') +
           selectField('State') +
           button('Continue'),
-        '',
+        linksHtml.call(
+          this,
+          'enroll-profile',
+          [
+            linkElement(
+              'Sign in',
+              renderSignupValidationError ? window.location.href : '#',
+              'sign-in',
+            ),
+            linkElement('Go back to sign on', '/app/UserHome', 'sign-on'),
+            renderAuthenticatorReturnLink
+              ? linkElement(
+                  'Back to authenticator',
+                  '#',
+                  'select-authenticator',
+                )
+              : null,
+            linkElement(
+              'Continue to login',
+              '/app/UserHome',
+              'delayed-sign-on',
+            ),
+          ].filter(Boolean),
+        ),
       ),
       resetPassword: shell(
         'resetPassword',
         'Forgot password',
         field('Email', 'email') + button('Send recovery code'),
-        customHelpLinks(),
+        linksHtml.call(
+          this,
+          'identify',
+          customHelpLinks().concat([
+            linkElement(
+              'Continue to login',
+              '/app/UserHome',
+              'delayed-sign-on',
+            ),
+          ]),
+        ),
       ),
       unlockAccount: shell(
         'unlockAccount',
         'Unlock account',
         field('Email', 'email') + button('Send unlock code'),
-        customHelpLinks(),
+        linksHtml.call(
+          this,
+          'unlock-account',
+          customHelpLinks().concat([
+            linkElement(
+              'Continue to login',
+              '/app/UserHome',
+              'delayed-sign-on',
+            ),
+          ]),
+        ),
       ),
     };
 

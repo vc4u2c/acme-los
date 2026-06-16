@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buildHostedErrorPageContent,
   buildHostedSignInPageContent,
+  buildHostedSignInStartUrl,
 } from './hosted-sign-in-page.mjs';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -70,6 +71,35 @@ function resolveSignInWidgetGeneration(value) {
   }
 
   return normalized;
+}
+
+function resolveSignInWidgetVersion(value) {
+  const version = optionalString(value);
+  if (!version) {
+    throw new Error(
+      'Expected okta.hostedExperience.signInWidgetVersion to be an exact Okta-supported version like "7.46".',
+    );
+  }
+
+  if (!/^\d+\.\d+$/.test(version)) {
+    throw new Error(
+      'Expected okta.hostedExperience.signInWidgetVersion to be pinned to an exact Okta hosted-widget version, not a floating range.',
+    );
+  }
+
+  return version;
+}
+
+function resolveFundingStepUpMethod(value) {
+  const method = optionalString(value)?.toLowerCase() ?? 'email_or_sms';
+
+  if (!['email', 'sms', 'email_or_sms'].includes(method)) {
+    throw new Error(
+      'Expected okta.hostedExperience.fundingStepUpMethod to be "email", "sms", or "email_or_sms".',
+    );
+  }
+
+  return method;
 }
 
 function optionalStringArray(values) {
@@ -154,6 +184,9 @@ function writeFile(relativePath, contents) {
 }
 
 const issuer = requiredString(environment.okta?.issuer, 'okta.issuer');
+const oktaOrgUrl =
+  optionalString(environment.okta?.orgUrl) ??
+  new URL('/', issuer).toString().replace(/\/$/, '');
 const webClientId = resolveClientId(
   environment.okta?.webClientId,
   'web-client-id',
@@ -192,19 +225,25 @@ const webPostLogoutRedirectUri = toAbsoluteUrl(
   webPostLogoutRedirectPath,
 );
 const mobileRedirectUri = toMobileRedirectUri(mobileScheme, mobileRedirectPath);
+const signInStartUrl = buildHostedSignInStartUrl(deployedWebBaseUrl);
 
 const hostedExperience = environment.okta?.hostedExperience ?? {};
 const signInWidgetGeneration = resolveSignInWidgetGeneration(
   hostedExperience.signInWidgetGeneration,
 );
-const fundingStepUpMethod =
-  optionalString(hostedExperience.fundingStepUpMethod) ?? 'email';
+const signInWidgetVersion = resolveSignInWidgetVersion(
+  hostedExperience.signInWidgetVersion,
+);
+const fundingStepUpMethod = resolveFundingStepUpMethod(
+  hostedExperience.fundingStepUpMethod,
+);
 const fundingStepUpRequiresPassword =
   hostedExperience.fundingStepUpRequiresPassword === true;
 const themeCookieDomain =
   optionalString(hostedExperience.themeCookieDomain) ?? '';
 const policySummary = [
   `sign-in-widget-generation=${signInWidgetGeneration}`,
+  `sign-in-widget-version=${signInWidgetVersion}`,
   `remember-user=${Boolean(hostedExperience.rememberUser)}`,
   `keep-me-signed-in=${Boolean(hostedExperience.keepMeSignedIn)}`,
   `registration-email-verification=${Boolean(hostedExperience.registrationRequiresEmailVerification)}`,
@@ -273,6 +312,7 @@ const hostedBranding = {
     deployedWebBaseUrl,
     requiredString(brandProfile.helpPath, 'brand.helpPath'),
   ),
+  SignInStartUrl: signInStartUrl,
   SignInTitle: requiredString(brandProfile.signInTitle, 'brand.signInTitle'),
   SignInSubtitle: requiredString(
     brandProfile.signInSubtitle,
@@ -293,10 +333,14 @@ const webEnvContents = [
   'NEXT_PUBLIC_AUTH_PROVIDER=okta',
   `NEXT_PUBLIC_OKTA_ENVIRONMENT=${environment.environment}`,
   `NEXT_PUBLIC_OKTA_ISSUER=${issuer}`,
+  `NEXT_PUBLIC_OKTA_ORG_URL=${oktaOrgUrl}`,
   `NEXT_PUBLIC_OKTA_CLIENT_ID=${webClientId}`,
   `NEXT_PUBLIC_OKTA_REDIRECT_URI=${webRedirectUri}`,
   `NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI=${webPostLogoutRedirectUri}`,
   `NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES=${fundingStepUpAcrValues}`,
+  `ACME_OKTA_FUNDING_STEP_UP_METHOD=${fundingStepUpMethod}`,
+  `NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD=${fundingStepUpMethod}`,
+  `ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD=${fundingStepUpRequiresPassword}`,
   `NEXT_PUBLIC_ACME_THEME_COOKIE_DOMAIN=${themeCookieDomain}`,
   '',
 ].join('\n');
@@ -311,6 +355,7 @@ const mobileEnvContents = [
   `EXPO_PUBLIC_OKTA_CLIENT_ID=${mobileClientId}`,
   `EXPO_PUBLIC_OKTA_REDIRECT_URI=${mobileRedirectUri}`,
   `EXPO_PUBLIC_OKTA_FUNDING_ACR_VALUES=${fundingStepUpAcrValues}`,
+  `EXPO_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD=${fundingStepUpMethod}`,
   '',
 ].join('\n');
 
@@ -334,6 +379,7 @@ const bffSettings = {
       BaseUrl: requiredString(environment.bff?.baseUrl, 'bff.baseUrl'),
       HostedExperience: {
         SignInWidgetGeneration: signInWidgetGeneration,
+        SignInWidgetVersion: signInWidgetVersion,
         RememberUser: Boolean(hostedExperience.rememberUser),
         KeepMeSignedIn: Boolean(hostedExperience.keepMeSignedIn),
         RegistrationRequiresEmailVerification: Boolean(

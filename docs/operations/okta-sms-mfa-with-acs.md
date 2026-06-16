@@ -183,6 +183,14 @@ hook authorization secret:
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev
 ```
 
+Set `ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION` only for first-time setup or
+rotation. The deploy script stores it in Key Vault through an ARM/Bicep secret
+deployment before the Bicep runtime deployment, and Bicep configures the
+Container App env var as a Key Vault secret reference. Later redeploys verify
+and reuse the existing Key Vault secret
+`sec-acme-los-okta-telephony-hook-authorization` through ARM metadata, so
+private-only Key Vault networking remains intact.
+
 Apply the Okta dev configuration after the deployment is live:
 
 ```powershell
@@ -193,10 +201,12 @@ npm run okta:bootstrap -- dev
 Watch mock OTP records while testing. The watcher polls the protected dev
 endpoint directly every 250 ms by default; it does not read Container App or Log
 Analytics logs. It accepts the hook authorization through `-Authorization`,
-`ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION`, or an authorization file.
+`ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION`, or an authorization file. If no
+authorization value is passed, it tries
+`C:\secure\acme-los-okta-telephony-hook-authorization.txt`.
 
 ```powershell
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/watch-okta-mock-sms-otp.ps1 -AuthorizationFile C:\secure\acme-los-okta-telephony-hook-authorization.txt
+npm run azure:okta-mock-sms:watch
 ```
 
 Expected watcher output:
@@ -280,7 +290,7 @@ In the Azure portal:
 5. Complete company/contact details for the ACME LOS business owner.
 6. Complete program details for transactional account-security OTP messages.
 7. Upload opt-in evidence. For this flow, use screenshots showing the
-   Okta-hosted phone/SMS factor enrollment or account-settings path where the
+   Okta-hosted phone/SMS factor enrollment or end-user settings path where the
    user chooses to receive a verification text.
 8. Enter expected monthly volume for dev/test usage.
 9. Add sample templates for every message type.

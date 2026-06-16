@@ -78,6 +78,30 @@ function requiredString(value, fieldName) {
   return value.trim();
 }
 
+function requiredAbsoluteHttpUrl(value, fieldName) {
+  const url = new URL(requiredString(value, fieldName));
+
+  if (!['http:', 'https:'].includes(url.protocol)) {
+    throw new Error(`Expected "${fieldName}" to be an HTTP(S) URL.`);
+  }
+
+  return url.toString();
+}
+
+export function buildHostedSignInStartUrl(
+  webBaseUrl,
+  fieldName = 'web.deployedBaseUrl',
+) {
+  const url = new URL(
+    '/api/auth/start',
+    requiredAbsoluteHttpUrl(webBaseUrl, fieldName),
+  );
+
+  url.searchParams.set('returnTo', '/account/profile');
+
+  return url.toString();
+}
+
 function resolveThemeCookieDomain(branding) {
   const value =
     typeof branding.ThemeCookieDomain === 'string'
@@ -235,6 +259,12 @@ export function buildHostedSignInPageContent(branding) {
     BRAND_HEADER_MARKUP: common.brandHeaderMarkup,
     SIGN_IN_TITLE: signInTitle,
     SIGN_IN_SUBTITLE: signInSubtitle,
+    SIGN_IN_START_URL: escapeHtml(
+      requiredAbsoluteHttpUrl(
+        branding.SignInStartUrl,
+        'Branding.SignInStartUrl',
+      ),
+    ),
     SUPPORT_FOOTER_MARKUP: common.supportFooterMarkup,
     THEME_CONTROLLER_SCRIPT: common.themeControllerScript,
     HOSTED_SIGN_IN_CONTROLLER: readHostedPagePartial(
@@ -258,6 +288,12 @@ export function buildHostedErrorPageContent(branding) {
       ),
     }),
     PRODUCT_NAME: common.productLabel,
+    SIGN_IN_START_URL: escapeHtml(
+      requiredAbsoluteHttpUrl(
+        branding.SignInStartUrl,
+        'Branding.SignInStartUrl',
+      ),
+    ),
     SUPPORT_FOOTER_MARKUP: common.supportFooterMarkup,
     THEME_CONTROLLER_SCRIPT: common.themeControllerScript,
   });

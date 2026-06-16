@@ -28,10 +28,18 @@ param appBuildId string
 param authProvider string = 'okta'
 param oktaEnvironmentName string = environmentName
 param oktaIssuer string
+param oktaOrgUrl string = ''
 param oktaClientId string
 param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
 param oktaFundingAcrValues string = 'urn:okta:loa:2fa:any'
+@allowed([
+  'email'
+  'sms'
+  'email_or_sms'
+])
+param oktaFundingStepUpMethod string = 'email_or_sms'
+param oktaFundingStepUpRequiresPassword bool = false
 param themeCookieDomain string = ''
 param customDomainEnabled bool = false
 param customDomainHostname string = ''
@@ -58,8 +66,6 @@ param mockSmsOtpEnabled bool = false
 param communicationServicesEndpoint string = ''
 param smsSenderPhoneNumber string = ''
 param oktaTelephonyHookAuthorizationSecretName string = 'sec-acme-los-okta-telephony-hook-authorization'
-@secure()
-param oktaTelephonyHookAuthorizationSecretValue string = ''
 @allowed([
   ''
   'disabled'
@@ -68,8 +74,6 @@ param oktaTelephonyHookAuthorizationSecretValue string = ''
 param oktaCustomerIdWritebackMode string = ''
 param oktaManagementClientId string = ''
 param oktaManagementPrivateKeySecretName string = 'sec-acme-los-okta-management-private-key'
-@secure()
-param oktaManagementPrivateKeySecretValue string = ''
 param oktaManagementPrivateKeyId string = ''
 param oktaManagementScopes string = 'okta.users.manage'
 param containerRegistryLoginServer string
@@ -160,22 +164,6 @@ resource bffTrustedProxySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = 
   }
 }
 
-resource oktaTelephonyHookAuthorizationSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (smsMfaEnabled) {
-  parent: keyVaultResource
-  name: oktaTelephonyHookAuthorizationSecretName
-  properties: {
-    value: oktaTelephonyHookAuthorizationSecretValue
-  }
-}
-
-resource oktaManagementPrivateKeySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (oktaCustomerIdWritebackEnabled) {
-  parent: keyVaultResource
-  name: oktaManagementPrivateKeySecretName
-  properties: {
-    value: oktaManagementPrivateKeySecretValue
-  }
-}
-
 module tags './modules/foundation/tags.bicep' = {
   name: 'runtime-tags-${environmentName}'
   params: {
@@ -203,10 +191,13 @@ module containerApp './modules/web/container-app.bicep' = {
     authProvider: authProvider
     oktaEnvironmentName: oktaEnvironmentName
     oktaIssuer: oktaIssuer
+    oktaOrgUrl: oktaOrgUrl
     oktaClientId: oktaClientId
     oktaRedirectUri: oktaRedirectUri
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
     oktaFundingAcrValues: oktaFundingAcrValues
+    oktaFundingStepUpMethod: oktaFundingStepUpMethod
+    oktaFundingStepUpRequiresPassword: oktaFundingStepUpRequiresPassword
     themeCookieDomain: themeCookieDomain
     customDomains: customDomainEnabled
       ? [
@@ -259,11 +250,14 @@ module containerApp './modules/web/container-app.bicep' = {
     sessionIdleTimeoutSeconds: sessionIdleTimeoutSeconds
     sessionWarningSeconds: sessionWarningSeconds
   }
-  dependsOn: [
-    sessionSecret
-    bffTrustedProxySecret
-    oktaTelephonyHookAuthorizationSecret
-  ]
+  dependsOn: deployBff
+    ? [
+        sessionSecret
+        bffTrustedProxySecret
+      ]
+    : [
+        sessionSecret
+      ]
 }
 
 module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
@@ -287,6 +281,8 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     oktaRedirectUri: oktaRedirectUri
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
     oktaFundingAcrValues: oktaFundingAcrValues
+    oktaFundingStepUpMethod: oktaFundingStepUpMethod
+    oktaFundingStepUpRequiresPassword: oktaFundingStepUpRequiresPassword
     oktaCustomerIdWritebackMode: oktaCustomerIdWritebackMode
     oktaManagementClientId: oktaManagementClientId
     oktaManagementPrivateKeySecretName: oktaManagementPrivateKeySecretName
@@ -319,7 +315,6 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
   dependsOn: [
     sessionSecret
     bffTrustedProxySecret
-    oktaManagementPrivateKeySecret
   ]
 }
 

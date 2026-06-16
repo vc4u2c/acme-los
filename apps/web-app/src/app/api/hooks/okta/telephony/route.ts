@@ -32,7 +32,7 @@ const mockSmsOtpInboxRateLimitPolicy = {
   windowSeconds: 60,
 } as const;
 
-const e164PhoneNumber = z.coerce.string().regex(/^\+[1-9]\d{7,14}$/);
+const usPhoneNumber = z.coerce.string().regex(/^\+1\d{10}$/);
 const isoDateTime = z.string().datetime({ offset: true });
 
 const telephonyHookRequestSchema = z.object({
@@ -44,7 +44,7 @@ const telephonyHookRequestSchema = z.object({
       deliveryChannel: z.enum(['SMS', 'sms']),
       otpCode: z.coerce.string().regex(/^\d{4,10}$/),
       otpExpires: isoDateTime,
-      phoneNumber: e164PhoneNumber,
+      phoneNumber: usPhoneNumber,
     }),
   }),
 });
@@ -117,9 +117,9 @@ function readSmsMfaConfiguration(): SmsMfaConfiguration {
     throw new Error('ACME_ACS_ENDPOINT must use HTTPS.');
   }
 
-  if (!e164PhoneNumber.safeParse(senderPhoneNumber).success) {
+  if (!usPhoneNumber.safeParse(senderPhoneNumber).success) {
     throw new Error(
-      'ACME_ACS_SMS_SENDER_PHONE_NUMBER must be an E.164 phone number.',
+      'ACME_ACS_SMS_SENDER_PHONE_NUMBER must be a US E.164 phone number.',
     );
   }
 

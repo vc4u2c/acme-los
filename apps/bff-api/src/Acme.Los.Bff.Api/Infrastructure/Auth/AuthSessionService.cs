@@ -38,6 +38,10 @@ public interface IAuthSessionService
     RequireWebAuthSessionRequest requirement,
     CancellationToken cancellationToken);
 
+  ValueTask<StoredWebAuthSession?> ReadActiveStoredSessionAsync(
+    HttpRequest request,
+    CancellationToken cancellationToken);
+
   ValueTask<GetWebAuthLogoutHintResponse> ReadLogoutHintAsync(
     HttpRequest request,
     CancellationToken cancellationToken);
@@ -285,7 +289,7 @@ public sealed class BffAuthSessionService : IAuthSessionService
         return BuildUnsatisfiedRequirementResponse(
           session,
           storedSession,
-          "Fresh funding step-up MFA is required for this request.");
+          "Fresh step-up MFA is required for this request.");
       }
     }
 
@@ -457,7 +461,21 @@ public sealed class BffAuthSessionService : IAuthSessionService
       storedSession.ExpiresAt,
       storedSession.IdleExpiresAt,
       timeoutConfig.IdleTimeoutSeconds,
-      timeoutConfig.WarningSeconds);
+      timeoutConfig.WarningSeconds,
+      storedSession.StepUp is null
+        ? null
+        : new WebAuthSessionStepUpTiming(
+          storedSession.StepUp.Reason,
+          storedSession.StepUp.CompletedAt,
+          storedSession.StepUp.ExpiresAt,
+          storedSession.StepUp.ConsumedAt));
+  }
+
+  public ValueTask<StoredWebAuthSession?> ReadActiveStoredSessionAsync(
+    HttpRequest request,
+    CancellationToken cancellationToken)
+  {
+    return ReadActiveSessionFromCookieAsync(request, cancellationToken);
   }
 
   private static WebSessionTimeoutConfig GetTimeoutConfig()

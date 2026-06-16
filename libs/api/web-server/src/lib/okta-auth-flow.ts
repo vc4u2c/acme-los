@@ -8,7 +8,7 @@ import {
   clearCookie,
 } from './cookies';
 import { getSafeServerAuthReturnTo } from './auth-routing';
-import { getServerWebAuthConfig } from './config';
+import { getServerWebAuthConfig, type OktaServerAuthConfig } from './config';
 import type { StoredWebAuthStepUpRequirement } from './session-store';
 import {
   deleteStateValue,
@@ -17,7 +17,7 @@ import {
 } from './state-store';
 
 const AUTH_TRANSACTION_NAMESPACE = 'auth-transaction';
-const AUTH_TRANSACTION_MAX_AGE_SECONDS = 10 * 60;
+const AUTH_TRANSACTION_MAX_AGE_SECONDS = 30 * 60;
 
 export type StoredWebAuthTransaction = {
   transactionId: string;
@@ -59,6 +59,8 @@ export type StartedBffWebAuthTransaction = {
   maxAge: number;
 };
 
+export type OktaHostedWidgetFlow = 'resetPassword' | 'unlockAccount' | 'signup';
+
 export type OktaTokenResponse = {
   access_token?: string;
   expires_in?: number;
@@ -92,18 +94,35 @@ function buildCodeChallenge(codeVerifier: string): string {
   return toBase64Url(createHash('sha256').update(codeVerifier).digest());
 }
 
+function shouldForcePrimaryReauthentication(
+  config: OktaServerAuthConfig,
+  stepUp?: StoredWebAuthStepUpRequirement,
+): boolean {
+  if (!stepUp) {
+    return false;
+  }
+
+  if (stepUp.reason === 'funding') {
+    return config.fundingStepUpRequiresPassword;
+  }
+
+  return true;
+}
+
 export function startOktaAuthTransaction({
   returnTo,
   minimumAssuranceLevel = 'aal1',
   expectedUserId,
   leadId,
   stepUp,
+  widgetFlow,
 }: {
   returnTo?: string;
   minimumAssuranceLevel?: 'aal1' | 'aal2';
   expectedUserId?: string;
   leadId?: string;
   stepUp?: StoredWebAuthStepUpRequirement;
+  widgetFlow?: OktaHostedWidgetFlow;
 }): StartedWebAuthTransaction {
   const config = getServerWebAuthConfig();
   if (config.provider !== 'okta' || !config.okta) {
@@ -134,6 +153,17 @@ export function startOktaAuthTransaction({
       'acr_values',
       config.okta.fundingStepUpAcrValues,
     );
+  }
+
+  if (
+    minimumAssuranceLevel === 'aal2' &&
+    shouldForcePrimaryReauthentication(config.okta, stepUp)
+  ) {
+    authorizeUrl.searchParams.set('max_age', '0');
+  }
+
+  if (widgetFlow) {
+    authorizeUrl.searchParams.set('acme_widget_flow', widgetFlow);
   }
 
   const transactionId = createRandomToken();

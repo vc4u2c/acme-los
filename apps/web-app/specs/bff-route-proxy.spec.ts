@@ -319,4 +319,111 @@ describe('BFF route proxy', () => {
       expect.any(Object),
     );
   });
+
+  it('sends account-security mutations with JSON and CSRF headers', async () => {
+    const fetchSpy = jest.fn<typeof fetch>().mockImplementation((input) => {
+      if (input === '/api/security/csrf') {
+        return Promise.resolve(
+          new Response(JSON.stringify({ csrfToken: 'csrf-123' })),
+        );
+      }
+
+      if (input === '/api/account/security/email') {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              email: 'new-user@example.com',
+              emailId: 'email-change-123',
+              status: 'pending_verification',
+            }),
+          ),
+        );
+      }
+
+      if (input === '/api/account/security/phone') {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              phoneNumber: '+13125550101',
+              phoneId: 'phone-change-123',
+              status: 'pending_verification',
+            }),
+          ),
+        );
+      }
+
+      if (input === '/api/account/security/password') {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              status: 'changed',
+            }),
+          ),
+        );
+      }
+
+      return Promise.resolve(
+        new Response(JSON.stringify({ error: 'Unexpected request' }), {
+          status: 500,
+        }),
+      );
+    });
+    const client = createWebApiClient({ fetchImpl: fetchSpy as typeof fetch });
+
+    await client.accountSecurity.startEmailChange({
+      email: 'new-user@example.com',
+    });
+    await client.accountSecurity.startPhoneChange({
+      phoneNumber: '+13125550101',
+    });
+    await client.accountSecurity.changePassword({
+      currentPassword: 'current-password-123',
+      newPassword: 'new-password-456',
+    });
+
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      2,
+      '/api/account/security/email',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ email: 'new-user@example.com' }),
+      }),
+    );
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      3,
+      '/api/account/security/phone',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ phoneNumber: '+13125550101' }),
+      }),
+    );
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      4,
+      '/api/account/security/password',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword: 'current-password-123',
+          newPassword: 'new-password-456',
+        }),
+      }),
+    );
+
+    const emailRequestHeaders = new Headers(
+      fetchSpy.mock.calls[1]?.[1]?.headers,
+    );
+    const phoneRequestHeaders = new Headers(
+      fetchSpy.mock.calls[2]?.[1]?.headers,
+    );
+    const passwordRequestHeaders = new Headers(
+      fetchSpy.mock.calls[3]?.[1]?.headers,
+    );
+
+    expect(emailRequestHeaders.get('content-type')).toBe('application/json');
+    expect(emailRequestHeaders.get('x-csrf-token')).toBe('csrf-123');
+    expect(phoneRequestHeaders.get('content-type')).toBe('application/json');
+    expect(phoneRequestHeaders.get('x-csrf-token')).toBe('csrf-123');
+    expect(passwordRequestHeaders.get('content-type')).toBe('application/json');
+    expect(passwordRequestHeaders.get('x-csrf-token')).toBe('csrf-123');
+  });
 });

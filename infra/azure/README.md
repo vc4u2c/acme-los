@@ -203,7 +203,7 @@ After DNS verification succeeds:
    configuration matches the active customer URL.
 6. Deploy the web runtime again so its browser and server configuration use the
    branded origin and theme-cookie domain.
-7. Verify sign-in, sign-out, funding email step-up, and light/dark continuity
+7. Verify sign-in, sign-out, funding email-or-phone step-up, and light/dark continuity
    across the app-to-Okta round trip.
 
 The DNS verification helper is source-owned because the managed certificate
@@ -319,8 +319,9 @@ toll-free sender `+18772244103` as verified.
 
 The internal BFF runtime supports an opt-in sample `customerId` write-back for
 the application `personal-info` step. For the current `dev` rollout,
-`oktaCustomerIdWriteback.mode = sample`; deployments require the matching Okta
-service-app private key in `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM`.
+`oktaCustomerIdWriteback.mode = sample`; first-time setup and key rotation
+require the matching Okta service-app private key in
+`ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM`.
 
 To prove the Okta claim round trip with the production security shape, create an
 Okta API Service app, grant it `okta.users.manage`, set
@@ -328,11 +329,15 @@ Okta API Service app, grant it `okta.users.manage`, set
 `clientId`, optional `privateKeyId`, and `scopes` in
 `infra/azure/config/platform.json`. Set
 `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` from the private key file in the deploy
-shell and redeploy the web
-environment. The deployment stores the private key in Key Vault as
-`sec-acme-los-okta-management-private-key` and injects it into the internal BFF
-ACA only while sample mode is enabled. The BFF reads Okta first and will not
-overwrite an existing `profile.customerId`.
+shell for first-time setup or key rotation, then redeploy the web environment.
+The deploy script stores the private key in Key Vault as
+`sec-acme-los-okta-management-private-key` before the Bicep runtime deployment,
+using an ARM/Bicep secret deployment so private-only Key Vault networking stays
+intact. Bicep then configures the internal BFF ACA environment variable as a Key
+Vault secret reference only while sample mode is enabled. Later redeploys can
+omit the env var and reuse the existing Key Vault secret; the deployment
+verifies the existing secret through ARM metadata before it proceeds. The BFF
+reads Okta first and will not overwrite an existing `profile.customerId`.
 
 If the runtime image changes and you want to force a new image build instead of
 reusing an existing tag, pass `-ImageTag` explicitly:

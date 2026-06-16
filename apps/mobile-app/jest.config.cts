@@ -3,6 +3,7 @@
 module.exports = {
   displayName: 'mobile-app',
   preset: 'jest-expo',
+  testEnvironment: 'node',
   moduleFileExtensions: ['ts', 'js', 'html', 'tsx', 'jsx'],
   setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
   transformIgnorePatterns: [
@@ -12,10 +13,9 @@ module.exports = {
   moduleNameMapper: {
     '^@acme-los/core/config$': '<rootDir>/../../libs/core/config/src/index.ts',
     '^@acme-los/ui-mobile$': '<rootDir>/../../libs/ui/mobile/src/index.ts',
-    '^expo-modules-core$':
-      '<rootDir>/../../node_modules/expo/node_modules/expo-modules-core',
+    '^expo-modules-core$': '<rootDir>/../../node_modules/expo-modules-core',
     '^expo-modules-core/(.*)$':
-      '<rootDir>/../../node_modules/expo/node_modules/expo-modules-core/$1',
+      '<rootDir>/../../node_modules/expo-modules-core/$1',
     '\\.svg$': '@nx/expo/plugins/jest/svg-mock',
   },
   transform: {

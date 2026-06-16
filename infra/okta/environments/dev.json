@@ -2,6 +2,7 @@
   "environment": "dev",
   "okta": {
     "issuer": "https://auth.avanai.net/oauth2/default",
+    "orgUrl": "https://integrator-9373984.okta.com",
     "webClientId": "0oa13cmyyzp5XlWAv698",
     "mobileClientId": "0oa114pxwpwIRfEnb698",
     "fundingStepUpAcrValues": "urn:okta:loa:2fa:any",
@@ -17,6 +18,7 @@
     },
     "hostedExperience": {
       "signInWidgetGeneration": "G3",
+      "signInWidgetVersion": "7.46",
       "rememberUser": true,
       "keepMeSignedIn": true,
       "customerSessionMaxLifetimeDays": 60,
@@ -26,7 +28,7 @@
       "registrationRequiresPhoneVerification": true,
       "adaptiveMfaOnSignIn": true,
       "fundingRouteStepUp": true,
-      "fundingStepUpMethod": "email",
+      "fundingStepUpMethod": "email_or_sms",
       "fundingStepUpRequiresPassword": false,
       "recoveryContactHints": true,
       "themeToggle": true,

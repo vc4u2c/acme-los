@@ -293,6 +293,91 @@ function Test-ContainerRegistryTagExists {
   return [int]$tagCount -gt 0
 }
 
+function Test-KeyVaultSecretExists {
+  param(
+    [string]$SubscriptionId,
+    [string]$ResourceGroupName,
+    [string]$VaultName,
+    [string]$SecretName
+  )
+
+  if ([string]::IsNullOrWhiteSpace($ResourceGroupName) -or [string]::IsNullOrWhiteSpace($VaultName) -or [string]::IsNullOrWhiteSpace($SecretName)) {
+    return $false
+  }
+
+  $secretResourceId = "/subscriptions/$SubscriptionId/resourceGroups/$ResourceGroupName/providers/Microsoft.KeyVault/vaults/$VaultName/secrets/$SecretName"
+  $secretId = az resource show `
+    --subscription $SubscriptionId `
+    --ids $secretResourceId `
+    --api-version '2023-07-01' `
+    --query id `
+    --output tsv `
+    --only-show-errors 2>$null
+
+  if ($LASTEXITCODE -ne 0) {
+    return $false
+  }
+
+  return -not [string]::IsNullOrWhiteSpace($secretId)
+}
+
+function Set-KeyVaultSecretFromValue {
+  param(
+    [string]$SubscriptionId,
+    [string]$ResourceGroupName,
+    [string]$VaultName,
+    [string]$SecretName,
+    [string]$SecretValue,
+    [string]$TemplateFile
+  )
+
+  if ([string]::IsNullOrWhiteSpace($SecretValue)) {
+    return
+  }
+
+  if (-not $TemplateFile) {
+    $TemplateFile = Join-Path $PSScriptRoot '..\..\..\infra\azure\bicep\modules\security\key-vault-secret.bicep'
+  }
+
+  $parameterFilePath = Join-Path ([System.IO.Path]::GetTempPath()) ("acme-los-kv-secret-parameters-" + [guid]::NewGuid().ToString('N') + '.json')
+  $parameterPayload = @{
+    '$schema' = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
+    contentVersion = '1.0.0.0'
+    parameters = @{
+      vaultName = @{
+        value = $VaultName
+      }
+      secretName = @{
+        value = $SecretName
+      }
+      secretValue = @{
+        value = $SecretValue
+      }
+    }
+  } | ConvertTo-Json -Depth 10
+
+  [System.IO.File]::WriteAllText($parameterFilePath, $parameterPayload, [System.Text.Encoding]::UTF8)
+
+  $deploymentName = "kv-secret-$SecretName"
+  if ($deploymentName.Length -gt 64) {
+    $deploymentName = "kv-secret-$([guid]::NewGuid().ToString('N').Substring(0, 24))"
+  }
+
+  try {
+    Invoke-AzNoOutput -Arguments @(
+      'deployment', 'group', 'create',
+      '--subscription', $SubscriptionId,
+      '--resource-group', $ResourceGroupName,
+      '--name', $deploymentName,
+      '--template-file', $TemplateFile,
+      '--parameters', "@$parameterFilePath",
+      '--output', 'none'
+    )
+  } finally {
+    Remove-Item -LiteralPath $parameterFilePath -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Get-WorkloadResourceGroupName {
   param(
     $Configuration,
@@ -863,6 +948,7 @@ $smsMfaMockOtpEnabledEnvValue = if ($smsMfaMockOtpEnabled) { 'true' } else { 'fa
 $smsSenderPhoneNumber = Get-StringOrDefault -Value (
   Get-OptionalPropertyValue -InputObject $smsMfaConfiguration -Name 'senderPhoneNumber'
 )
+$oktaTelephonyHookAuthorizationSecretName = 'sec-acme-los-okta-telephony-hook-authorization'
 $oktaTelephonyHookAuthorizationSecretValue = Get-OptionalString $env:ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION
 $oktaCustomerIdWritebackConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'oktaCustomerIdWriteback'
 $oktaCustomerIdWritebackMode = Get-StringOrDefault -Value (
@@ -877,6 +963,7 @@ $oktaManagementPrivateKeyId = Get-StringOrDefault -Value (
 $oktaManagementScopes = Get-StringOrDefault -Value (
   Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'scopes'
 ) -DefaultValue 'okta.users.manage'
+$oktaManagementPrivateKeySecretName = 'sec-acme-los-okta-management-private-key'
 $oktaManagementPrivateKeySecretValue = Get-OptionalString $env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM
 $bffRuntimeConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'bffRuntime'
 $bffRuntimeMinReplicaConfiguration = Get-OptionalPropertyValue -InputObject $bffRuntimeConfiguration -Name 'minReplicas'
@@ -1128,7 +1215,15 @@ if ($smsMfaEnabled) {
   }
 
   if (-not $oktaTelephonyHookAuthorizationSecretValue) {
-    throw "Environment '$EnvironmentName' enables smsMfa. Set ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION before deploying."
+    if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaTelephonyHookAuthorizationSecretName) {
+      Write-Warning "Environment '$EnvironmentName' enables smsMfa but ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION is not set. Deployment will reuse the existing Key Vault secret '$oktaTelephonyHookAuthorizationSecretName'. Set the env var only for first-time setup or rotation."
+    } else {
+      throw "Environment '$EnvironmentName' enables smsMfa, but ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION is not set and Key Vault secret '$oktaTelephonyHookAuthorizationSecretName' does not exist. Set the env var for first-time setup or rotation."
+    }
+  }
+
+  if ($oktaTelephonyHookAuthorizationSecretValue) {
+    Set-KeyVaultSecretFromValue -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaTelephonyHookAuthorizationSecretName -SecretValue $oktaTelephonyHookAuthorizationSecretValue
   }
 }
 
@@ -1146,11 +1241,19 @@ if ($oktaCustomerIdWritebackMode -eq 'sample') {
   }
 
   if (-not $oktaManagementPrivateKeySecretValue) {
-    throw "Environment '$EnvironmentName' enables sample Okta customer id write-back. Set ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM before deploying."
+    if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName) {
+      Write-Warning "Environment '$EnvironmentName' enables sample Okta customer id write-back but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set. Deployment will reuse the existing Key Vault secret '$oktaManagementPrivateKeySecretName'. Set the env var only for first-time setup or key rotation."
+    } else {
+      throw "Environment '$EnvironmentName' enables sample Okta customer id write-back, but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set and Key Vault secret '$oktaManagementPrivateKeySecretName' does not exist. Set the env var for first-time setup or key rotation."
+    }
   }
 
   if ($oktaManagementScopes -notmatch '(^|[\s,;])okta\.users\.manage($|[\s,;])') {
     throw "Environment '$EnvironmentName' enables sample Okta customer id write-back. oktaCustomerIdWriteback.scopes must include okta.users.manage."
+  }
+
+  if ($oktaManagementPrivateKeySecretValue) {
+    Set-KeyVaultSecretFromValue -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName -SecretValue $oktaManagementPrivateKeySecretValue
   }
 }
 
@@ -1314,14 +1417,21 @@ if (
 }
 
 $oktaIssuer = Get-OptionalString $oktaEnvironment.okta.issuer
+$oktaOrgUrl = Get-StringOrDefault -Value $oktaEnvironment.okta.orgUrl
 $oktaClientId = Get-OptionalString $oktaEnvironment.okta.webClientId
 $oktaFundingAcrValues = Get-OptionalString $oktaEnvironment.okta.fundingStepUpAcrValues
+$oktaFundingStepUpMethod = Get-StringOrDefault -Value $oktaEnvironment.okta.hostedExperience.fundingStepUpMethod -DefaultValue 'email_or_sms'
+$oktaFundingStepUpRequiresPassword = [bool]($oktaEnvironment.okta.hostedExperience.fundingStepUpRequiresPassword)
 $themeCookieDomain = Get-StringOrDefault -Value $oktaEnvironment.okta.hostedExperience.themeCookieDomain
 $oktaRedirectPath = Get-OptionalString $oktaEnvironment.web.redirectPath
 $oktaPostLogoutRedirectPath = Get-OptionalString $oktaEnvironment.web.postLogoutRedirectPath
 
 if (-not $oktaIssuer -or -not $oktaClientId -or -not $oktaRedirectPath -or -not $oktaPostLogoutRedirectPath) {
   throw "Okta environment '$oktaEnvironmentName' is missing required web auth settings."
+}
+
+if (-not $oktaOrgUrl) {
+  $oktaOrgUrl = ([System.Uri]::new($oktaIssuer)).GetLeftPart([System.UriPartial]::Authority)
 }
 
 $resolvedOktaRedirectUri = Join-AbsoluteUrl -BaseUrl $resolvedPublicWebBaseUrl -Path $oktaRedirectPath
@@ -1351,10 +1461,12 @@ if (-not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionI
       --build-arg 'NEXT_PUBLIC_AUTH_PROVIDER=okta' `
       --build-arg "NEXT_PUBLIC_OKTA_ENVIRONMENT=$oktaEnvironmentName" `
       --build-arg "NEXT_PUBLIC_OKTA_ISSUER=$oktaIssuer" `
+      --build-arg "NEXT_PUBLIC_OKTA_ORG_URL=$oktaOrgUrl" `
       --build-arg "NEXT_PUBLIC_OKTA_CLIENT_ID=$oktaClientId" `
       --build-arg "NEXT_PUBLIC_OKTA_REDIRECT_URI=$resolvedOktaRedirectUri" `
       --build-arg "NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI=$resolvedOktaPostLogoutRedirectUri" `
       --build-arg "NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES=$oktaFundingAcrValues" `
+      --build-arg "NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD=$oktaFundingStepUpMethod" `
       --build-arg "NEXT_PUBLIC_ACME_THEME_COOKIE_DOMAIN=$themeCookieDomain" `
       --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_ENABLED=$analyticsEnabledEnvValue" `
       --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_ENVIRONMENT=$analyticsRuntimeEnvironmentName" `
@@ -1442,10 +1554,13 @@ $runtimeDeploymentArguments = @(
   '--parameters', "authProvider=okta",
   '--parameters', "oktaEnvironmentName=$oktaEnvironmentName",
   '--parameters', "oktaIssuer=$oktaIssuer",
+  '--parameters', "oktaOrgUrl=$oktaOrgUrl",
   '--parameters', "oktaClientId=$oktaClientId",
   '--parameters', "oktaRedirectUri=$resolvedOktaRedirectUri",
   '--parameters', "oktaPostLogoutRedirectUri=$resolvedOktaPostLogoutRedirectUri",
   '--parameters', "oktaFundingAcrValues=$oktaFundingAcrValues",
+  '--parameters', "oktaFundingStepUpMethod=$oktaFundingStepUpMethod",
+  '--parameters', "oktaFundingStepUpRequiresPassword=$($oktaFundingStepUpRequiresPassword.ToString().ToLowerInvariant())",
   '--parameters', "themeCookieDomain=$themeCookieDomain",
   '--parameters', "customDomainEnabled=$customDomainEnabledEnvValue",
   '--parameters', "customDomainHostname=$customDomainHostname",
@@ -1477,20 +1592,6 @@ $runtimeDeploymentArguments = @(
   '--parameters', "maxReplicas=$runtimeMaxReplicas",
   '--output', 'json'
 )
-
-if ($smsMfaEnabled) {
-  $runtimeDeploymentArguments += @(
-    '--parameters',
-    "oktaTelephonyHookAuthorizationSecretValue=$oktaTelephonyHookAuthorizationSecretValue"
-  )
-}
-
-if ($oktaCustomerIdWritebackMode -eq 'sample') {
-  $runtimeDeploymentArguments += @(
-    '--parameters',
-    "oktaManagementPrivateKeySecretValue=$oktaManagementPrivateKeySecretValue"
-  )
-}
 
 $runtimeDeploymentArguments += @('--parameters', "stateStoreMode=$resolvedStateStoreMode")
 

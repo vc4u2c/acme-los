@@ -11,6 +11,10 @@ import {
 } from '../../../components/web/apply/step-definitions';
 import { getApplicationPageAuthRequirement } from '../../../lib/application-auth';
 
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
+
 export function generateStaticParams() {
   return applicationStepSlugs.map((step) => ({ step }));
 }

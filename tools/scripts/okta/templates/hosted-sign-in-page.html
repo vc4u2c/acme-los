@@ -4,6 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex,nofollow" />
+    <meta
+      name="acme-sign-in-start-url"
+      content="<!-- %%SIGN_IN_START_URL%% -->"
+    />
     <link href="{{themedStylesUrl}}" rel="stylesheet" type="text/css" />
     <link rel="shortcut icon" href="{{faviconUrl}}" type="image/x-icon" />
 
@@ -31,10 +35,10 @@
           <p class="acme-auth-subtitle" data-acme-auth-copy="subtitle">
             <!-- %%SIGN_IN_SUBTITLE%% -->
           </p>
-          <div class="acme-auth-trust-band" data-acme-auth-copy="trust">
-            Secure account access for application progress, disclosures, and
-            funding updates.
-          </div>
+          <p class="acme-auth-existing-account">
+            Already have an account?
+            <a href="#" data-acme-auth-sign-in-link>Sign in</a>
+          </p>
         </section>
         <section class="acme-auth-widget" aria-label="Account access">
           <div id="okta-login-container"></div>

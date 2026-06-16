@@ -12,6 +12,9 @@ import { clearApplicationFlow } from './application-flow';
 import {
   getAssuranceLevelFromAuthenticationEvidence,
   getAssuranceLevelFromAuthenticationMethods,
+  isFundingStepUpMethodSatisfied,
+  isEmailAuthenticationMethodSatisfied,
+  isSmsAuthenticationMethodSatisfied,
   isAssuranceSatisfied,
   MOCK_AUTH_STORAGE_KEY,
   type WebAuthRequirement,
@@ -225,6 +228,56 @@ function getConfiguredHighAssuranceAcrValues(): string[] {
     : [];
 }
 
+function getConfiguredFundingStepUpMethod(): string {
+  const config = getServerWebAuthConfig();
+
+  return config.provider === 'okta'
+    ? (config.okta?.fundingStepUpMethod ?? 'email_or_sms')
+    : 'email_or_sms';
+}
+
+function enforceStepUpAuthenticationMethod(
+  session: WebAuthSession,
+  stepUp?: StoredWebAuthStepUpRequirement,
+): void {
+  if (!stepUp) {
+    return;
+  }
+
+  if (stepUp.reason === 'funding') {
+    if (
+      !isFundingStepUpMethodSatisfied({
+        fundingStepUpMethod: getConfiguredFundingStepUpMethod(),
+        authenticationMethods: session.user?.authenticationMethods,
+      })
+    ) {
+      throw new Error(
+        'Funding step-up must be completed with email or phone OTP.',
+      );
+    }
+    return;
+  }
+
+  if (
+    (stepUp.reason === 'account-email' ||
+      stepUp.reason === 'account-password') &&
+    !isSmsAuthenticationMethodSatisfied(session.user?.authenticationMethods)
+  ) {
+    throw new Error(
+      stepUp.reason === 'account-password'
+        ? 'Password change step-up must be completed with phone/SMS OTP.'
+        : 'Email change step-up must be completed with phone/SMS OTP.',
+    );
+  }
+
+  if (
+    stepUp.reason === 'account-phone' &&
+    !isEmailAuthenticationMethodSatisfied(session.user?.authenticationMethods)
+  ) {
+    throw new Error('Phone change step-up must be completed with email OTP.');
+  }
+}
+
 function readMockRequestSession(request: NextRequest): WebAuthSession | null {
   if (getServerWebAuthConfig().provider !== 'mock') {
     return null;
@@ -433,6 +486,8 @@ export async function syncWebAuthSession(
       ? getConfiguredHighAssuranceAcrValues()
       : undefined,
   );
+
+  enforceStepUpAuthenticationMethod(session, options.stepUp);
 
   if (options.expectedUserId && session.user?.id !== options.expectedUserId) {
     throw new Error('Step-up sign-in must complete with the same user.');
@@ -736,7 +791,7 @@ export async function requireAuthenticatedWebSession(
         requirement.requiredStepUp,
       ))
   ) {
-    throw new Error('Fresh funding step-up MFA is required for this request.');
+    throw new Error('Fresh step-up MFA is required for this request.');
   }
 
   return session;

@@ -114,13 +114,15 @@ calling client id or object id before `/bff/*` routes run.
   plus OTP codes in dev-only app logs
 - standard sign-in is password-first
 - adaptive sign-in can step up to 2FA on high-risk access
-- funding route access always starts a fresh application-owned step-up check:
-  the Okta authorize request carries the configured `acr_values` without
-  forcing `prompt=login` or `max_age=0`, so an active password session proceeds
-  to email/SMS OTP instead of asking for the password again; each funding page
-  entry consumes the latest funding step-up marker, while funding save/submit
-  APIs can use that marker during the bounded 10-minute funding API window
-  created by the latest Okta callback
+- funding route access always starts an application-owned step-up check: the
+  Okta authorize request carries the configured `acr_values`; when
+  `fundingStepUpRequiresPassword=false`, the app omits `max_age=0` so Okta can
+  step up the existing SSO session with email or phone/SMS OTP instead of asking
+  for the password again. The callback must include Okta `amr` evidence for
+  email or phone/SMS OTP before the latest funding step-up marker is written;
+  each funding page entry consumes the marker, while funding save/submit APIs
+  can use it during the bounded 10-minute funding API window created by the
+  latest Okta callback
 
 ## Current API Boundary
 

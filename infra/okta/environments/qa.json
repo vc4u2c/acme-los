@@ -16,6 +16,7 @@
     },
     "hostedExperience": {
       "signInWidgetGeneration": "G3",
+      "signInWidgetVersion": "7.46",
       "rememberUser": true,
       "keepMeSignedIn": true,
       "customerSessionMaxLifetimeDays": 60,
@@ -25,7 +26,7 @@
       "registrationRequiresPhoneVerification": false,
       "adaptiveMfaOnSignIn": true,
       "fundingRouteStepUp": true,
-      "fundingStepUpMethod": "email",
+      "fundingStepUpMethod": "email_or_sms",
       "fundingStepUpRequiresPassword": false,
       "recoveryContactHints": true,
       "themeToggle": true

@@ -9,13 +9,21 @@ authenticator enrollment fields.
 - The hosted template renders the ACME brand header, auth context copy, support
   footer, theme toggle, Okta's standard background element,
   `#okta-login-container`, `{{{OktaUtil}}}`, and the Sign-In Widget resources.
+- The hosted page is pinned through
+  `okta.hostedExperience.signInWidgetVersion` in the environment manifest.
+  Bootstrap writes that exact version to Okta, and the live audit fails if the
+  tenant drifts back to a floating widget range.
 - The controller uses `OktaUtil.getSignInWidgetConfig()` and calls
-  `signIn.renderEl(...)` without `afterTransform`, custom labels, replacement
-  controls, or internal Okta DOM rewrites.
+  `signIn.renderEl(...)` without `afterTransform`, custom labels, or
+  replacement controls.
 - ACME left-rail shell copy is state-aware through Okta's supported
   `afterRender` context (`formName` and authenticator keys). The shell also
   honors ACME-owned `acme_widget_flow` URLs for forgot-password, unlock-account,
   and signup entry before the widget renders.
+- A scoped `MutationObserver` normalizes only navigation links that Okta may
+  rerender after `afterRender`, such as "back to sign in/sign on" exits. It
+  never injects or replaces password, OTP, security-question, phone, or email
+  controls.
 - ACME CSS styles the surrounding shell and applies scoped normalization to
   native Okta fields, buttons, links, focus rings, and footer actions. It must
   not inject or replace password, OTP, security-question, phone, or email
@@ -35,7 +43,12 @@ authenticator enrollment fields.
 - Set up the security question using Okta's native screen.
 - Use native forgot-password recovery and confirm the configured policy path.
 - Use native unlock-account recovery and confirm the configured policy path.
+- Open the ACME account-security email and phone routes from the dashboard and
+  confirm they use hosted step-up first, then MyAccount verification.
 - Return to sign-in after recovery or sensitive account-management changes.
+- Trigger an Okta hosted timeout/error path and confirm every "back to sign in"
+  or "home" action returns through `/api/auth/start` and the hosted Widget, not
+  Okta UserHome.
 
 ## Styling Notes To Capture Before Rework
 
@@ -48,3 +61,9 @@ authenticator enrollment fields.
 - Whether Chrome autofill or Okta/MUI field wrappers create border artifacts
   after the scoped ACME normalization layer.
 - Any Okta-provided text that should remain unchanged for supportability.
+
+## Official References
+
+- [Customize Gen3 of the Sign-In Widget](https://developer.okta.com/docs/guides/custom-widget-gen3/main/)
+- [Style the Okta-hosted Sign-In Widget](https://developer.okta.com/docs/guides/brand-and-customize/)
+- [Okta-hosted Sign-In Widget customization example](https://github.com/oktadev/okta-js-siw-customization-example)

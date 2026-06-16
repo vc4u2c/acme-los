@@ -25,7 +25,9 @@ public sealed record WebAuthSessionTiming(
     int AbsoluteExpiresAt,
     int IdleExpiresAt,
     int IdleTimeoutSeconds,
-    int WarningSeconds);
+    int WarningSeconds,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    WebAuthSessionStepUpTiming? StepUp = null);
 
 public sealed record WebAuthSessionDebugSnapshot(
     Dictionary<string, object?>? IdTokenClaims,
@@ -97,6 +99,13 @@ public sealed record StoredWebAuthStepUp(
     string Reason,
     int CompletedAt,
     int ExpiresAt,
+    int? ConsumedAt = null);
+
+public sealed record WebAuthSessionStepUpTiming(
+    string Reason,
+    int CompletedAt,
+    int ExpiresAt,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     int? ConsumedAt = null);
 
 public sealed record RequireWebAuthSessionRequest(

@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Acme.Los.Bff.Api.Contracts;
 using Acme.Los.Bff.Api.Common;
+using Acme.Los.Bff.Api.Features.AccountSecurity;
 using Acme.Los.Bff.Api.Infrastructure.Auth;
 using Acme.Los.Bff.Api.Infrastructure.Okta;
 using Acme.Los.Bff.Api.Infrastructure.State;
@@ -1080,7 +1081,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       });
     using var client = _factory.CreateClient();
     using var response = await client.GetAsync(
-      "/bff/auth/login?returnTo=/apply&aal=aal2&leadId=lead-123");
+      "/bff/auth/login?returnTo=/apply&aal=aal2&leadId=lead-123&widgetFlow=resetPassword");
 
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
@@ -1090,7 +1091,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.NotNull(payload);
     Assert.Equal("/apply/personal-info", payload!.ReturnTo);
     Assert.False(string.IsNullOrWhiteSpace(payload.TransactionId));
-    Assert.True(payload.MaxAge > 0);
+    Assert.Equal(30 * 60, payload.MaxAge);
 
     var authorizeUrl = new Uri(payload.AuthorizeUrl);
     var query = QueryHelpers.ParseQuery(authorizeUrl.Query);
@@ -1104,8 +1105,199 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal("code", query["response_type"].ToString());
     Assert.Equal("S256", query["code_challenge_method"].ToString());
     Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
+    Assert.Equal("resetPassword", query["acme_widget_flow"].ToString());
+    var requestedScopes = query["scope"].ToString().Split(' ');
+
+    Assert.Contains("okta.myAccount.email.manage", requestedScopes);
+    Assert.Contains("okta.myAccount.phone.manage", requestedScopes);
+    Assert.Contains("okta.myAccount.password.manage", requestedScopes);
     Assert.False(query.ContainsKey("prompt"));
     Assert.False(query.ContainsKey("max_age"));
+  }
+
+  [Fact]
+  public async Task GetBffAuthLogin_WithFundingStepUp_DoesNotForcePasswordReentry()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var client = _factory.CreateClient();
+    using var response = await client.GetAsync(
+      "/bff/auth/login?returnTo=/apply/funding&aal=aal2&stepUpReason=funding&stepUpMaxAgeSeconds=600&stepUpConsumeOnSatisfied=true");
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var payload =
+      await response.Content.ReadFromJsonAsync<StartAuthFlowResponse>();
+
+    Assert.NotNull(payload);
+    Assert.Equal(30 * 60, payload!.MaxAge);
+
+    var authorizeUrl = new Uri(payload.AuthorizeUrl);
+    var query = QueryHelpers.ParseQuery(authorizeUrl.Query);
+
+    Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
+    Assert.False(query.ContainsKey("max_age"));
+    Assert.False(query.ContainsKey("prompt"));
+  }
+
+  [Fact]
+  public async Task GetBffAuthLogin_WithFundingStepUpRequiresPassword_ForcesFreshOktaAuthentication()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+        ["ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD"] = "true",
+      });
+    using var client = _factory.CreateClient();
+    using var response = await client.GetAsync(
+      "/bff/auth/login?returnTo=/apply/funding&aal=aal2&stepUpReason=funding&stepUpMaxAgeSeconds=600&stepUpConsumeOnSatisfied=true");
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var payload =
+      await response.Content.ReadFromJsonAsync<StartAuthFlowResponse>();
+
+    Assert.NotNull(payload);
+
+    var authorizeUrl = new Uri(payload!.AuthorizeUrl);
+    var query = QueryHelpers.ParseQuery(authorizeUrl.Query);
+
+    Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
+    Assert.Equal("0", query["max_age"].ToString());
+    Assert.False(query.ContainsKey("prompt"));
+  }
+
+  [Fact]
+  public async Task GetBffAuthLogin_WithAccountPasswordStepUp_ForcesFreshOktaAuthentication()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var client = _factory.CreateClient();
+    using var response = await client.GetAsync(
+      "/bff/auth/login?returnTo=/account/security/password&aal=aal2&stepUpReason=account-password&stepUpMaxAgeSeconds=600");
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var payload =
+      await response.Content.ReadFromJsonAsync<StartAuthFlowResponse>();
+
+    Assert.NotNull(payload);
+
+    var authorizeUrl = new Uri(payload!.AuthorizeUrl);
+    var query = QueryHelpers.ParseQuery(authorizeUrl.Query);
+
+    Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
+    Assert.Equal("0", query["max_age"].ToString());
+    Assert.False(query.ContainsKey("prompt"));
+  }
+
+  [Fact]
+  public async Task OktaMyAccountService_ChangePassword_UsesScopedMyAccountPasswordApi()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.NoContent));
+    using var httpClient = new HttpClient(handler);
+    var service = new OktaMyAccountService(
+      new StaticHttpClientFactory(httpClient));
+
+    var result = await service.ChangePasswordAsync(
+      "access-token-123",
+      new ChangePasswordRequest(
+        "current-password-123",
+        "new-password-456"),
+      CancellationToken.None);
+
+    Assert.Equal("changed", result.Status);
+
+    var request = Assert.Single(handler.Requests);
+
+    Assert.Equal(HttpMethod.Put, request.Method);
+    Assert.Equal(
+      "https://dev-123456.okta.com/idp/myaccount/password",
+      request.RequestUri?.ToString());
+    Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
+    Assert.Equal("access-token-123", request.Headers.Authorization?.Parameter);
+    Assert.Contains(
+      request.Headers.Accept,
+      value => string.Equals(value.MediaType, "application/json", StringComparison.Ordinal)
+        && value.Parameters.Any(parameter =>
+          string.Equals(parameter.Name, "okta-version", StringComparison.OrdinalIgnoreCase)
+          && string.Equals(parameter.Value, "1.0.0", StringComparison.Ordinal)));
+
+    var body = await request.Content!.ReadAsStringAsync();
+    using var json = JsonDocument.Parse(body);
+    var profile = json.RootElement.GetProperty("profile");
+
+    Assert.Equal(
+      "current-password-123",
+      profile.GetProperty("currentPassword").GetString());
+    Assert.Equal(
+      "new-password-456",
+      profile.GetProperty("password").GetString());
+  }
+
+  [Fact]
+  public async Task OktaMyAccountService_EmailConflict_ReturnsClientSafeMessage()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.Conflict)
+      {
+        Content = JsonContent.Create(new
+        {
+          errorCode = "E0000157",
+          errorSummary = "Email already exists",
+        }),
+      });
+    using var httpClient = new HttpClient(handler);
+    var service = new OktaMyAccountService(
+      new StaticHttpClientFactory(httpClient));
+
+    var exception = await Assert.ThrowsAsync<OktaMyAccountException>(() =>
+      service.StartEmailChangeAsync(
+        "access-token-123",
+        new StartEmailChangeRequest("existing@example.com"),
+        CancellationToken.None).AsTask());
+
+    Assert.Equal((int)HttpStatusCode.Conflict, exception.StatusCode);
+    Assert.True(exception.ExposeMessageToClient);
+    Assert.Contains("already associated", exception.Message);
   }
 
   [Fact]
@@ -1124,6 +1316,40 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         new[] { "pwd" },
         "urn:okta:loa:1fa:any",
         new[] { "urn:okta:loa:2fa:any" }));
+  }
+
+  [Fact]
+  public void AuthAssurance_WithEmailOrSmsFundingMethod_AcceptsEitherEvidence()
+  {
+    Assert.True(
+      AuthAssurance.IsFundingStepUpMethodSatisfied(
+        "email_or_sms",
+        new[] { "pwd", "sms" }));
+
+    Assert.True(
+      AuthAssurance.IsFundingStepUpMethodSatisfied(
+        "email_or_sms",
+        new[] { "pwd", "phone" }));
+
+    Assert.True(
+      AuthAssurance.IsFundingStepUpMethodSatisfied(
+        "email_or_sms",
+        new[] { "pwd", "email" }));
+
+    Assert.True(
+      AuthAssurance.IsFundingStepUpMethodSatisfied(
+        "email",
+        new[] { "pwd", "email" }));
+
+    Assert.False(
+      AuthAssurance.IsFundingStepUpMethodSatisfied(
+        "sms",
+        new[] { "pwd", "email" }));
+
+    Assert.False(
+      AuthAssurance.IsFundingStepUpMethodSatisfied(
+        "email_or_sms",
+        new[] { "pwd", "totp" }));
   }
 
   [Fact]

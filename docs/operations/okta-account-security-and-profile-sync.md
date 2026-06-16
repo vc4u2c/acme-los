@@ -106,31 +106,34 @@ The intended session and adaptive sign-in posture is:
 
 The intended sensitive-change and recovery scenarios are:
 
-- Forgot email: require phone/SMS or another non-email possession-factor OTP
-  plus the Okta security-question challenge/hint, then show the recovered
-  sign-in email and require a fresh ACME sign-in.
-- Change email: require phone/SMS or another non-email possession-factor OTP
-  plus the Okta security-question challenge/hint before sign-off, then require
-  sign-in with the new email.
-- Forgot password: require the Okta security-question challenge/hint plus email
-  OTP before reset, then sign out and require sign-in with the new password.
-  The customer-scoped `ACME LOS Password Policy (<env>)` rule must allow
-  self-service password reset with email as the primary recovery method and
-  `accessControl=AUTH_POLICY`; the Okta Account Management policy then owns the
-  security-question and OTP proof requirements.
-- Change password: require current password, factor OTP, and the Okta
+- Forgot email: require phone/SMS OTP plus the Okta security-question
+  challenge/hint, then show the recovered sign-in email and require a fresh
+  ACME sign-in.
+- Change email: require phone/SMS OTP plus the Okta security-question
+  challenge/hint before sign-off, then require sign-in with the new email and
+  email OTP before ACME syncs the mutable email claim.
+- Forgot password: require phone/SMS OTP plus the Okta security-question
+  challenge/hint before reset, then sign out and require sign-in with the new
+  password. The customer-scoped `ACME LOS Password Policy (<env>)` rule must
+  allow self-service password reset with SMS as the primary recovery method when
+  telephony is enabled and `accessControl=AUTH_POLICY`; the Okta Account
+  Management policy then owns the security-question and OTP proof requirements.
+- Change password: require current password, phone/SMS OTP, and the Okta
   security-question challenge/hint before reset, then sign out and require a
   fresh ACME sign-in.
 - Lost phone/SMS factor: require email OTP plus the Okta security-question
-  challenge/hint, then allow phone replacement and require a fresh ACME sign-in.
+  challenge/hint, then allow phone replacement and require a fresh ACME sign-in
+  with the unchanged email and the new phone/SMS OTP before any verified-phone
+  sync.
 - Change phone/SMS: require email OTP plus the Okta security-question
-  challenge/hint before sign-off, then require a fresh ACME sign-in.
+  challenge/hint before sign-off, then require a fresh ACME sign-in with the
+  unchanged email and the new phone/SMS OTP before any verified-phone sync.
 
 ## Backend Sync
 
 Email sync is implemented on the customer-profile read path:
 
-1. User changes email in Okta-hosted account settings.
+1. User changes email from the ACME account-security email page.
 2. User refreshes the ACME secure session through the normal Okta redirect.
 3. ACME receives a new ID token for the same Okta `sub`.
 4. The profile API compares the stored backend email with the current Okta
@@ -205,9 +208,15 @@ Pre-deployment checklist for the sample bridge:
 6. Set `oktaCustomerIdWriteback.mode` to `sample` only after the service app,
    scope grant, client id, key id, and private key are ready.
 
-Current `dev` enables the sample bridge, so the GitHub `dev` environment must
-have a real `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` value before deployment. Keep
-the service app identifiers in source control because they are not secret.
+Current `dev` enables the sample bridge, so first-time setup and key rotation
+must provide a real `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` value before
+deployment. The deploy script stores that value in Key Vault before the Bicep
+runtime deployment by using an ARM/Bicep secret deployment that works with
+private-only Key Vault networking; Bicep then wires the internal BFF env var to
+a Key Vault secret reference. Later local redeploys can omit the env var and
+reuse the existing Key Vault secret; the deploy script verifies that the secret
+exists through ARM metadata before it continues. Keep the service app
+identifiers in source control because they are not secret.
 
 Current `dev` shape:
 
@@ -221,7 +230,7 @@ Current `dev` shape:
 ```
 
 in `infra/azure/config/platform.json`, then set the private key in the deploy
-environment before deploying locally:
+environment before the first local deploy or any key rotation:
 
 ```powershell
 $oktaManagementPrivateKeyPath = 'C:\secure\acme bff management.pem'
@@ -386,8 +395,10 @@ After running the bootstrap, confirm in Okta Admin Console:
 8. Go to the Okta account-management policy.
 9. Confirm the three ACME LOS lifecycle rules exist, are scoped to the ACME
    customer group, and match the rendered `policyPlan` scenarios.
-10. Confirm recovery/change flows require the expected OTP proof plus the Okta
-    security-question challenge/hint and force sign-off/fresh sign-in where the
+10. Confirm recovery/change flows require the expected opposite-channel OTP
+    proof plus the Okta security-question challenge/hint: password and email
+    lifecycle use phone/SMS OTP, while phone/SMS lifecycle uses email OTP.
+    Confirm each sensitive change forces sign-off/fresh sign-in where the
     scenario requires it.
 11. Confirm password and security-question changes do not send secret material to
     ACME systems.
@@ -471,24 +482,58 @@ overridden. Okta deletion is unrecoverable.
 
 ## Dashboard UX
 
-The ACME customer dashboard starts hosted Gen3 verification for:
+The ACME customer dashboard is read-only for customer identity/contact fields.
+It sends customer account changes to ACME-branded account-security routes for:
 
-- sign-in email changes
-- phone/SMS factor changes
-- password changes
-- recovery-question maintenance
+- change password
+- forgot password
+- change sign-in email
+- change phone/SMS factor
 
-These CTAs use `/api/auth/start` with `aal=aal2`, so the browser enters the
-same server-side PKCE/BFF transaction path used by normal sign-in and funding
-step-up. The dashboard does not deep-link to Okta `/enduser/settings` pages.
+Password recovery uses the Okta-hosted Gen3 widget through
+`/api/auth/start?...&widgetFlow=resetPassword`. Signed-in password, email, and
+phone changes use Okta's user-scoped MyAccount API through the BFF with the
+active user's access token, not an admin Users API patch. The browser calls ACME
+endpoints under `/api/account/security/*`; the Next facade checks CSRF and the
+account-action step-up marker, then proxies to the BFF.
 
-After the user completes hosted verification, they return to the dashboard with
-an `account_action` marker. ACME can then continue the supportable app/BFF
-workflow for that action, refresh the secure session, and sync confirmed
-metadata without collecting passwords, OTPs, or security-question answers in the
-app. Arbitrary profile or factor mutation is not implemented by custom
-client-side widget scripting; it must remain an Okta-supported account
-management flow or a BFF-mediated API workflow with explicit least privilege.
+The account-security routes have distinct step-up reasons:
+
+- `/account/security/email` requires a fresh `account-email` marker, which must
+  be satisfied with phone/SMS OTP before the form appears. Okta then sends the
+  final OTP to the new email through MyAccount verification.
+- `/account/security/phone` requires a fresh `account-phone` marker, which must
+  be satisfied with email OTP before the form appears. Okta then sends the final
+  OTP to the new phone through MyAccount verification.
+- `/account/security/password` requires a fresh `account-password` marker,
+  which must be satisfied with phone/SMS OTP before the form appears. The BFF
+  forwards the current and new password directly to Okta MyAccount
+  `PUT /idp/myaccount/password`; it must not store or log either value.
+
+The BFF account-security endpoints emit non-sensitive action-state logs for
+`email.start`, `email.verify`, `phone.start`, `phone.verify`, and
+`password.change`. Log entries include action, path, state/status, and whether
+reauthentication is required. They must not include email addresses, phone
+numbers, OTPs, current passwords, new passwords, security-question answers, or
+authenticator secrets.
+
+The custom authorization server must issue these scopes for the ACME web client:
+
+- `okta.myAccount.email.read`
+- `okta.myAccount.email.manage`
+- `okta.myAccount.phone.read`
+- `okta.myAccount.phone.manage`
+- `okta.myAccount.password.read`
+- `okta.myAccount.password.manage`
+
+`npm run okta:bootstrap -- <env>` models those reserved scopes on the custom
+authorization server before it updates the ACME app token rule.
+
+After a password, email, or phone/SMS change, require a fresh ACME sign-in
+before syncing confirmed metadata. ACME may transiently forward current/new
+password values only for the signed-in MyAccount password-change call; it must
+not store, log, sync, or reuse passwords, OTPs, security-question answers, or
+authenticator secrets in dashboard forms or custom client-side widget scripting.
 
 ## Official References
 
@@ -501,4 +546,5 @@ management flow or a BFF-mediated API workflow with explicit least privilege.
 - [Okta Event Hooks](https://developer.okta.com/docs/concepts/event-hooks/)
 - [OAuth for Okta service apps](https://developer.okta.com/docs/guides/implement-oauth-for-okta-serviceapp/main/)
 - [OAuth scopes for Okta Management APIs](https://developer.okta.com/docs/guides/implement-oauth-for-okta/main/)
+- [Configure user-scoped account management](https://developer.okta.com/docs/guides/configure-user-scoped-account-management/main/)
 - [Okta Users API](https://developer.okta.com/docs/api/openapi/okta-management/management/tag/User/)

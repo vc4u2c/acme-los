@@ -97,9 +97,11 @@ export function resolveAbsoluteSessionExpiresAt(
 export function buildWebAuthSessionTiming({
   absoluteExpiresAt,
   idleExpiresAt,
+  stepUp,
 }: {
   absoluteExpiresAt: number;
   idleExpiresAt: number;
+  stepUp?: WebAuthSessionTiming['stepUp'];
 }): WebAuthSessionTiming {
   const { idleTimeoutSeconds, warningSeconds } = getWebSessionTimeoutConfig();
 
@@ -108,5 +110,6 @@ export function buildWebAuthSessionTiming({
     idleExpiresAt,
     idleTimeoutSeconds,
     warningSeconds,
+    ...(stepUp ? { stepUp } : {}),
   };
 }

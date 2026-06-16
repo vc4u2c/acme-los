@@ -2,7 +2,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { buildHostedSignInPageContent } from './hosted-sign-in-page.mjs';
+import {
+  buildHostedErrorPageContent,
+  buildHostedSignInPageContent,
+  buildHostedSignInStartUrl,
+} from './hosted-sign-in-page.mjs';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDirectory, '..', '..', '..');
@@ -20,7 +24,7 @@ const scenarios = [
     expectedContextTexts: [
       'Customer sign in',
       'Continue your application',
-      'Secure account access for application progress',
+      'Resume your secure application',
     ],
     expectedCustomHelpLink: {
       text: 'Forgot password?',
@@ -32,11 +36,38 @@ const scenarios = [
     query: '?acme_widget_flow=signup',
     expectedFlow: 'signup',
     expectedAuthState: 'signup',
-    expectedTexts: ['Create account', 'Email', 'Continue'],
+    expectedTexts: [
+      'Create account',
+      'Email',
+      'Continue',
+      'Back to secure sign in',
+    ],
     expectedContextTexts: [
       'Create account',
       'Start your secure profile',
-      'protect your application access',
+      'email, phone, state, and password',
+    ],
+    expectedCustomHelpLink: {
+      text: 'Forgot password?',
+      widgetFlow: 'resetPassword',
+    },
+  },
+  {
+    key: 'signupValidationError',
+    query:
+      '?acme_widget_flow=signup&acme_audit_signup_error=1&acme_audit_authenticator_link=1',
+    expectedFlow: 'signup',
+    expectedAuthState: 'signup',
+    expectedTexts: [
+      'Create account',
+      'An account already exists for this email.',
+      'Back to secure sign in',
+      'Choose another verification method',
+    ],
+    expectedContextTexts: [
+      'Create account',
+      'Start your secure profile',
+      'email, phone, state, and password',
     ],
     expectedCustomHelpLink: {
       text: 'Forgot password?',
@@ -52,10 +83,10 @@ const scenarios = [
     expectedContextTexts: [
       'Password recovery',
       'Reset your password',
-      'restoring access',
+      'required proof step',
     ],
     expectedCustomHelpLink: {
-      text: 'Back to sign in',
+      text: 'Back to secure sign in',
       widgetFlow: null,
     },
   },
@@ -71,7 +102,7 @@ const scenarios = [
       'regain access',
     ],
     expectedCustomHelpLink: {
-      text: 'Back to sign in',
+      text: 'Back to secure sign in',
       widgetFlow: null,
     },
   },
@@ -91,11 +122,14 @@ main().catch((error) => {
 async function main() {
   const branding = loadHostedBranding(environmentName);
   const hostedPageContent = toAuditHtml(buildHostedSignInPageContent(branding));
+  const hostedErrorPageContent = toAuditErrorHtml(
+    buildHostedErrorPageContent(branding),
+  );
 
   fs.mkdirSync(outputDirectory, { recursive: true });
 
   const browser = await chromium.launch();
-  const results = [];
+  const results = [auditHostedSourceConventions()];
 
   try {
     for (const viewport of viewports) {
@@ -108,11 +142,25 @@ async function main() {
                 scenario,
                 theme,
                 viewport,
+                expectedSignInStartUrl: branding.SignInStartUrl,
               }),
             );
           } finally {
             await page.close();
           }
+        }
+
+        const errorPage = await browser.newPage({ viewport });
+        try {
+          results.push(
+            await auditHostedErrorPage(errorPage, hostedErrorPageContent, {
+              theme,
+              viewport,
+              expectedSignInStartUrl: branding.SignInStartUrl,
+            }),
+          );
+        } finally {
+          await errorPage.close();
         }
       }
     }
@@ -149,10 +197,125 @@ async function main() {
   }
 }
 
+function auditHostedSourceConventions() {
+  const controller = readHostedPageTemplate(
+    'hosted-sign-in-page.controller.js',
+  );
+  const shellCss = readHostedPageTemplate('hosted-sign-in-page.css');
+  const failures = [];
+
+  if (/\bMutationObserver\b/.test(controller)) {
+    failures.push('hosted sign-in controller uses MutationObserver');
+  }
+  if (!/\.afterTransform\(\s*['"]\*['"]/.test(controller)) {
+    failures.push('hosted sign-in controller does not register afterTransform');
+  }
+  if (/#okta-login-container\s+[^,{]*:where\(/.test(shellCss)) {
+    failures.push(
+      'hosted sign-in CSS styles Okta widget internals with :where',
+    );
+  }
+  if (/\[(?:data-se|data-type)[~|^$*]?=/.test(shellCss)) {
+    failures.push('hosted sign-in CSS targets Okta data attributes');
+  }
+  if (/#okta-sign-in|\.Mui|\.o-form|\.button-primary/.test(shellCss)) {
+    failures.push('hosted sign-in CSS targets Okta/MUI internal classes');
+  }
+  if (
+    !/#okta-login-container\s*{[^}]*color-scheme:\s*light\b/s.test(shellCss)
+  ) {
+    failures.push(
+      'hosted sign-in CSS does not pin widget color-scheme to light',
+    );
+  }
+
+  return {
+    viewport: 'source',
+    theme: 'source',
+    scenario: 'sourceConventions',
+    failures,
+    ok: failures.length === 0,
+  };
+}
+
+async function auditHostedErrorPage(
+  page,
+  hostedErrorPageContent,
+  { theme, viewport, expectedSignInStartUrl },
+) {
+  const url = 'https://auth.audit.local/error';
+  await page.route('**/*', (route) => route.fulfill({ body: '' }));
+  await page.goto(url);
+  await page.setContent(hostedErrorPageContent, { waitUntil: 'load' });
+  await page.evaluate((themeName) => {
+    document.documentElement.setAttribute('data-acme-theme', themeName);
+  }, theme);
+  await page.waitForSelector('[data-acme-error-sign-in-link]');
+
+  const screenshotPath = path.join(
+    outputDirectory,
+    `${viewport.key}-${theme}-hosted-error.png`,
+  );
+  await page.screenshot({ path: screenshotPath, fullPage: true });
+
+  const metrics = await page.evaluate(() => {
+    const actionLink = document.querySelector('[data-acme-error-sign-in-link]');
+    const actionHref = actionLink?.getAttribute('href') || '';
+    const actionText = (actionLink?.textContent || '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const documentHtml = document.documentElement.outerHTML;
+
+    return {
+      actionHref,
+      actionText,
+      containsOktaButtonHref: documentHtml.includes('{{buttonHref}}'),
+      containsOktaButtonText: documentHtml.includes('{{buttonText}}'),
+      containsDashboardTarget: /\/app\/UserHome|\/enduser\/|\/userhome/i.test(
+        actionHref,
+      ),
+      documentWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    };
+  });
+
+  const failures = [];
+  if (metrics.actionHref !== expectedSignInStartUrl) {
+    failures.push(
+      `hosted error action should restart app auth flow: ${metrics.actionHref}`,
+    );
+  }
+  if (metrics.actionText !== 'Back to secure sign in') {
+    failures.push(`unexpected hosted error action text: ${metrics.actionText}`);
+  }
+  if (metrics.containsOktaButtonHref || metrics.containsOktaButtonText) {
+    failures.push('hosted error page still depends on Okta button variables');
+  }
+  if (metrics.containsDashboardTarget) {
+    failures.push('hosted error action points at an Okta dashboard/home route');
+  }
+  if (metrics.documentWidth > metrics.viewportWidth + 1) {
+    failures.push(
+      `document overflows viewport (${metrics.documentWidth}px > ${metrics.viewportWidth}px)`,
+    );
+  }
+
+  return {
+    viewport: viewport.key,
+    theme,
+    scenario: 'hostedError',
+    screenshotPath: path.relative(repoRoot, screenshotPath),
+    actionHref: metrics.actionHref,
+    actionText: metrics.actionText,
+    failures,
+    ok: failures.length === 0,
+  };
+}
+
 async function auditScenario(
   page,
   hostedPageContent,
-  { scenario, theme, viewport },
+  { scenario, theme, viewport, expectedSignInStartUrl },
 ) {
   const url = `https://auth.audit.local/${scenario.query}`;
   await page.route('**/*', (route) => route.fulfill({ body: '' }));
@@ -168,6 +331,19 @@ async function auditScenario(
       expectedAuthState,
     scenario.expectedAuthState,
   );
+  await page.waitForSelector(
+    '#okta-login-container [data-se="delayed-sign-on"]',
+  );
+  await page.waitForFunction(() => {
+    const delayedLink = document.querySelector(
+      '#okta-login-container [data-se="delayed-sign-on"]',
+    );
+    const href = delayedLink?.getAttribute('href') || '';
+
+    return (
+      href !== '#' && !/\/app\/UserHome|\/enduser\/|\/userhome/i.test(href)
+    );
+  });
 
   const screenshotPath = path.join(
     outputDirectory,
@@ -177,6 +353,9 @@ async function auditScenario(
 
   const metrics = await page.evaluate((scenarioExpectations) => {
     const widgetConfig = window.__ACME_LAST_WIDGET_CONFIG__ || {};
+    const afterTransformRegistrations =
+      window.__ACME_AFTER_TRANSFORM_REGISTRATIONS__ || [];
+    const widgetThemeTokens = widgetConfig.theme?.tokens || {};
     const bodyText = document.body.innerText.replace(/\s+/g, ' ').trim();
     const normalizedBodyText = bodyText.toLowerCase();
     const authState = document.documentElement.getAttribute(
@@ -199,6 +378,18 @@ async function auditScenario(
       href: link.getAttribute('href') || '',
       dataSe: link.getAttribute('data-se') || '',
     }));
+    const shellSignInCue = document.querySelector(
+      '.acme-auth-existing-account',
+    );
+    const shellSignInLink = shellSignInCue?.querySelector(
+      '[data-acme-auth-sign-in-link]',
+    );
+    const shellSignInCueStyle = shellSignInCue
+      ? window.getComputedStyle(shellSignInCue)
+      : null;
+    const shellSignInLinkStyle = shellSignInLink
+      ? window.getComputedStyle(shellSignInLink)
+      : null;
     const configuredCustomHelpLinks = Array.isArray(
       widgetConfig.helpLinks?.custom,
     )
@@ -213,10 +404,30 @@ async function auditScenario(
       documentWidth: document.documentElement.scrollWidth,
       viewportWidth: window.innerWidth,
       configuredFlow: widgetConfig.flow,
+      afterTransformRegistrations,
+      widgetThemeTokens,
       configuredForgotPasswordHref: widgetConfig.helpLinks?.forgotPassword,
       configuredUnlockHref: widgetConfig.helpLinks?.unlock,
       configuredCustomHelpLinks,
       visibleLinks: links,
+      shellSignInLink: shellSignInLink
+        ? {
+            text: (shellSignInCue?.textContent || '')
+              .replace(/\s+/g, ' ')
+              .trim(),
+            href: shellSignInLink.getAttribute('href') || '',
+            visible:
+              shellSignInCueStyle?.display !== 'none' &&
+              shellSignInCueStyle?.visibility !== 'hidden' &&
+              shellSignInLinkStyle?.display !== 'none' &&
+              shellSignInLinkStyle?.visibility !== 'hidden' &&
+              Boolean(
+                shellSignInCue.offsetWidth ||
+                shellSignInCue.offsetHeight ||
+                shellSignInCue.getClientRects().length,
+              ),
+          }
+        : null,
       authState,
       contextText,
       widgetRect: widgetRect
@@ -267,6 +478,12 @@ async function auditScenario(
       `missing context text: ${metrics.missingContextTexts.join(', ')}`,
     );
   }
+  if (!metrics.afterTransformRegistrations.includes('*')) {
+    failures.push(
+      'widget form customization is not registered with afterTransform',
+    );
+  }
+  failures.push(...getWidgetTokenContrastFailures(metrics.widgetThemeTokens));
   if (
     !hasWidgetFlow(metrics.configuredForgotPasswordHref, 'resetPassword') ||
     !hasWidgetFlow(metrics.configuredUnlockHref, 'unlockAccount')
@@ -306,6 +523,14 @@ async function auditScenario(
         `custom ${expectedCustomHelpLink.text} link should return to default sign-in`,
       );
     }
+    if (
+      expectedCustomHelpLink.widgetFlow === null &&
+      customHelpLink.href !== expectedSignInStartUrl
+    ) {
+      failures.push(
+        `custom ${expectedCustomHelpLink.text} link should restart app sign-in: ${customHelpLink.href}`,
+      );
+    }
   }
   if (
     metrics.visibleLinks.some((link) =>
@@ -316,6 +541,68 @@ async function auditScenario(
   ) {
     failures.push('visible recovery link points to a dead hosted/help route');
   }
+  const unsafeConfiguredCustomHelpLinks =
+    metrics.configuredCustomHelpLinks.filter((link) =>
+      isUnsafeHostedHref(link.href),
+    );
+  if (unsafeConfiguredCustomHelpLinks.length > 0) {
+    failures.push(
+      `configured custom help link points at an unsafe hosted route: ${unsafeConfiguredCustomHelpLinks
+        .map((link) => link.href)
+        .join(', ')}`,
+    );
+  }
+  const dashboardLinks = metrics.visibleLinks.filter((link) =>
+    isUnsafeDashboardHref(link.href),
+  );
+  if (dashboardLinks.length > 0) {
+    failures.push(
+      `visible link points at an Okta dashboard/home route: ${dashboardLinks
+        .map((link) => link.href)
+        .join(', ')}`,
+    );
+  }
+  const technicalAuthenticatorLinks = metrics.visibleLinks.filter((link) =>
+    /\bauthenticator\b/i.test(link.text),
+  );
+  if (technicalAuthenticatorLinks.length > 0) {
+    failures.push(
+      `visible link uses technical authenticator wording: ${technicalAuthenticatorLinks
+        .map((link) => link.text)
+        .join(', ')}`,
+    );
+  }
+  const isSignupScenario =
+    scenario.key === 'signup' || scenario.key === 'signupValidationError';
+  if (isSignupScenario) {
+    if (
+      !metrics.shellSignInLink?.visible ||
+      !/already have an account\? sign in/i.test(metrics.shellSignInLink.text)
+    ) {
+      failures.push('signup shell is missing the existing-account sign-in cue');
+    }
+    if (metrics.shellSignInLink?.href !== expectedSignInStartUrl) {
+      failures.push(
+        `signup shell sign-in cue should restart app sign-in: ${metrics.shellSignInLink?.href}`,
+      );
+    }
+    const brokenSignInLinks = metrics.visibleLinks.filter((link) => {
+      return (
+        isWidgetSignInReturnText(link.text) &&
+        link.href !== expectedSignInStartUrl
+      );
+    });
+
+    if (brokenSignInLinks.length > 0) {
+      failures.push(
+        `signup sign-in link should return to default sign-in: ${brokenSignInLinks
+          .map((link) => link.href)
+          .join(', ')}`,
+      );
+    }
+  } else if (metrics.shellSignInLink?.visible) {
+    failures.push('existing-account sign-in cue should only show on signup');
+  }
 
   return {
     viewport: viewport.key,
@@ -323,16 +610,74 @@ async function auditScenario(
     scenario: scenario.key,
     screenshotPath: path.relative(repoRoot, screenshotPath),
     configuredFlow: metrics.configuredFlow,
+    afterTransformRegistrations: metrics.afterTransformRegistrations,
+    widgetTokenContrast: getWidgetTokenContrastReport(
+      metrics.widgetThemeTokens,
+    ),
     configuredForgotPasswordHref: metrics.configuredForgotPasswordHref,
     configuredUnlockHref: metrics.configuredUnlockHref,
     configuredCustomHelpLinks: metrics.configuredCustomHelpLinks,
     visibleLinks: metrics.visibleLinks,
+    shellSignInLink: metrics.shellSignInLink,
     authState: metrics.authState,
     contextText: metrics.contextText,
     widgetRect: metrics.widgetRect,
     failures,
     ok: failures.length === 0,
   };
+}
+
+function isWidgetSignInReturnText(text) {
+  const normalizedText = String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  return [
+    'sign in',
+    'sign on',
+    'secure sign in',
+    'back to sign in',
+    'back to sign on',
+    'back to secure sign in',
+    'go back to sign in',
+    'go back to sign on',
+    'go back to secure sign in',
+    'return to sign in',
+    'return to sign on',
+    'return to secure sign in',
+    'go to sign in',
+    'go to sign on',
+    'go to secure sign in',
+    'continue to sign in',
+    'continue to sign on',
+    'continue to secure sign in',
+    'go to homepage',
+    'go to home page',
+    'log in',
+    'login',
+    'back to log in',
+    'back to login',
+    'go back to log in',
+    'go back to login',
+    'return to log in',
+    'return to login',
+    'continue to log in',
+    'continue to login',
+  ].includes(normalizedText);
+}
+
+function isUnsafeDashboardHref(href) {
+  return /\/app\/UserHome|\/enduser\/|\/userhome/i.test(String(href || ''));
+}
+
+function isUnsafeHostedHref(href) {
+  return (
+    isUnsafeDashboardHref(href) ||
+    /\/signin\/(?:forgot-password|unlock)(?:\/|$)|\/help\/login/i.test(
+      String(href || ''),
+    )
+  );
 }
 
 function hasWidgetFlow(href, expectedFlow) {
@@ -359,6 +704,120 @@ function hasAnyWidgetFlow(href) {
   }
 }
 
+function getWidgetTokenContrastReport(tokens) {
+  return [
+    {
+      foreground: 'TypographyColorBody',
+      background: 'HueNeutralWhite',
+      ratio: getContrastRatio(
+        tokens.TypographyColorBody,
+        tokens.HueNeutralWhite,
+      ),
+      minimum: 4.5,
+    },
+    {
+      foreground: 'TypographyColorHeading',
+      background: 'HueNeutralWhite',
+      ratio: getContrastRatio(
+        tokens.TypographyColorHeading,
+        tokens.HueNeutralWhite,
+      ),
+      minimum: 4.5,
+    },
+    {
+      foreground: 'TypographyColorSupport',
+      background: 'HueNeutralWhite',
+      ratio: getContrastRatio(
+        tokens.TypographyColorSupport,
+        tokens.HueNeutralWhite,
+      ),
+      minimum: 4.5,
+    },
+    {
+      foreground: 'TypographyColorAction',
+      background: 'HueNeutralWhite',
+      ratio: getContrastRatio(
+        tokens.TypographyColorAction,
+        tokens.HueNeutralWhite,
+      ),
+      minimum: 4.5,
+    },
+    {
+      foreground: 'TypographyColorInverse',
+      background: 'PalettePrimaryMain',
+      ratio: getContrastRatio(
+        tokens.TypographyColorInverse,
+        tokens.PalettePrimaryMain,
+      ),
+      minimum: 4.5,
+    },
+  ];
+}
+
+function getWidgetTokenContrastFailures(tokens) {
+  return getWidgetTokenContrastReport(tokens)
+    .filter((check) => check.ratio === null || check.ratio < check.minimum)
+    .map((check) => {
+      const ratio =
+        check.ratio === null ? 'unreadable' : check.ratio.toFixed(2);
+
+      return `widget token contrast ${check.foreground} on ${check.background} is ${ratio}; expected >= ${check.minimum}`;
+    });
+}
+
+function getContrastRatio(foreground, background) {
+  const foregroundRgb = parseHexColor(foreground);
+  const backgroundRgb = parseHexColor(background);
+
+  if (!foregroundRgb || !backgroundRgb) {
+    return null;
+  }
+
+  const foregroundLuminance = getRelativeLuminance(foregroundRgb);
+  const backgroundLuminance = getRelativeLuminance(backgroundRgb);
+  const lightest = Math.max(foregroundLuminance, backgroundLuminance);
+  const darkest = Math.min(foregroundLuminance, backgroundLuminance);
+
+  return (lightest + 0.05) / (darkest + 0.05);
+}
+
+function parseHexColor(value) {
+  const normalized = String(value || '').trim();
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(normalized);
+
+  if (!match) {
+    return null;
+  }
+
+  const hex =
+    match[1].length === 3
+      ? match[1]
+          .split('')
+          .map((character) => `${character}${character}`)
+          .join('')
+      : match[1];
+
+  return {
+    red: Number.parseInt(hex.slice(0, 2), 16),
+    green: Number.parseInt(hex.slice(2, 4), 16),
+    blue: Number.parseInt(hex.slice(4, 6), 16),
+  };
+}
+
+function getRelativeLuminance({ red, green, blue }) {
+  const [linearRed, linearGreen, linearBlue] = [red, green, blue].map(
+    (channel) => {
+      const value = channel / 255;
+
+      return value <= 0.03928
+        ? value / 12.92
+        : ((value + 0.055) / 1.055) ** 2.4;
+    },
+  );
+
+  return 0.2126 * linearRed + 0.7152 * linearGreen + 0.0722 * linearBlue;
+}
+
 function toAuditHtml(pageContent) {
   const widgetResources = readHostedPageTemplate(
     'audit-sign-in-widget-resources.html',
@@ -372,6 +831,17 @@ function toAuditHtml(pageContent) {
     .replaceAll('{{nonceValue}}', '')
     .replace('{{{SignInWidgetResources}}}', widgetResources)
     .replace('{{{OktaUtil}}}', oktaUtil);
+}
+
+function toAuditErrorHtml(pageContent) {
+  return pageContent
+    .replaceAll('{{themedStylesUrl}}', 'data:text/css,')
+    .replaceAll('{{faviconUrl}}', 'data:image/x-icon;base64,')
+    .replaceAll('{{orgName}}', 'ACME LOS')
+    .replaceAll('{{errorSummary}}', 'Page Not Found')
+    .replaceAll('{{nonceValue}}', '')
+    .replace('{{{errorDescription}}}', 'The secure session expired.')
+    .replace('{{{ErrorPageResources}}}', '');
 }
 
 function readHostedPageTemplate(templateFileName) {
@@ -467,6 +937,7 @@ function loadHostedBranding(name) {
       deployedWebBaseUrl,
       requiredString(brand.helpPath, 'brand.helpPath'),
     ),
+    SignInStartUrl: buildHostedSignInStartUrl(deployedWebBaseUrl),
     SignInTitle: requiredString(brand.signInTitle, 'brand.signInTitle'),
     SignInSubtitle: requiredString(
       brand.signInSubtitle,

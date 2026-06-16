@@ -18,7 +18,7 @@ export function getSafeServerAuthReturnTo(
   returnTo?: string,
   fallback = FIRST_APPLICATION_STEP_PATH,
 ): string {
-  if (!returnTo || !returnTo.startsWith('/')) {
+  if (!returnTo || !returnTo.startsWith('/') || returnTo.startsWith('//')) {
     return fallback;
   }
 
@@ -29,10 +29,12 @@ export function buildSignInRedirectPath({
   returnTo,
   minimumAssuranceLevel = 'aal1',
   authError,
+  authRecovery,
 }: {
   returnTo: string;
   minimumAssuranceLevel?: Exclude<WebAuthSessionAssuranceLevel, 'anonymous'>;
   authError?: string;
+  authRecovery?: 'restart';
 }): string {
   const searchParams = new URLSearchParams({
     returnTo: getSafeServerAuthReturnTo(returnTo),
@@ -45,6 +47,10 @@ export function buildSignInRedirectPath({
   const normalizedError = authError?.trim();
   if (normalizedError) {
     searchParams.set('authError', normalizedError);
+  }
+
+  if (authRecovery) {
+    searchParams.set('authRecovery', authRecovery);
   }
 
   return `/account/sign-in?${searchParams.toString()}`;

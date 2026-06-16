@@ -26,8 +26,8 @@ Current strengths:
 - project-prefixed GitHub release artifacts for web, mobile, and BFF API
 - hosted Okta sign-in, registration, server-side PKCE, id-token validation,
   opaque HTTP-only sessions, logout, and funding step-up MFA
-- Okta-hosted account-security actions for login email, phone/SMS, password,
-  and security question, with backend email sync after a fresh Okta session
+- read-only customer dashboard with Okta-hosted widget actions for login email,
+  phone/SMS, and password, with backend email sync after a fresh Okta session
 - BFF-owned CSRF issuance in BFF mode, with Next preserving the stable browser
   `/api/security/csrf` contract
 - dev-only security inspector support for both Next-owned and BFF-owned

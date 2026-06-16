@@ -68,19 +68,34 @@ export function ApplicationStepPage({
             {applicationSteps.map((item, index) => {
               const isActive = item.slug === step;
               const isComplete = index < stepIndex;
+              const stepHref = `/apply/${item.slug}`;
+              const stepClassName = [
+                'min-w-fit rounded-[1rem] border px-3.5 py-1.5 text-[13px] font-medium transition',
+                isActive
+                  ? 'border-[var(--brand)] bg-[var(--brand)] text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)]'
+                  : isComplete
+                    ? 'border-[var(--accent)] bg-[var(--surface-spot)] text-[var(--accent-ink)]'
+                    : 'border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--brand)] hover:text-[var(--foreground)]',
+              ].join(' ');
+
+              if (item.slug === 'funding') {
+                return (
+                  <a
+                    key={item.slug}
+                    href={stepHref}
+                    className={stepClassName}
+                    aria-current={isActive ? 'step' : undefined}
+                  >
+                    {index + 1}. {item.shortLabel}
+                  </a>
+                );
+              }
 
               return (
                 <Link
                   key={item.slug}
-                  href={`/apply/${item.slug}`}
-                  className={[
-                    'min-w-fit rounded-[1rem] border px-3.5 py-1.5 text-[13px] font-medium transition',
-                    isActive
-                      ? 'border-[var(--brand)] bg-[var(--brand)] text-[var(--brand-contrast)] shadow-lg shadow-[color:var(--brand-shadow)]'
-                      : isComplete
-                        ? 'border-[var(--accent)] bg-[var(--surface-spot)] text-[var(--accent-ink)]'
-                        : 'border-[var(--border)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--brand)] hover:text-[var(--foreground)]',
-                  ].join(' ')}
+                  href={stepHref}
+                  className={stepClassName}
                   aria-current={isActive ? 'step' : undefined}
                 >
                   {index + 1}. {item.shortLabel}
