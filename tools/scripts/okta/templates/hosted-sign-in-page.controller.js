@@ -11,6 +11,9 @@ const supportedWidgetFlows = new Set([
   'signup',
 ]);
 
+const unsafeHostedLinkPattern =
+  /\/app\/UserHome|\/enduser\/|\/userhome|\/signin\/(?:forgot-password|unlock)(?:\/|$)|\/help\/login/i;
+
 function buildWidgetFlowUrl(flowName) {
   const url = new URL(window.location.href);
 
@@ -220,7 +223,25 @@ const signInLinkTexts = new Set([
   'continue to sign on',
   'go to homepage',
   'go to home page',
+  'log in',
+  'login',
+  'back to log in',
+  'back to login',
+  'go back to log in',
+  'go back to login',
+  'return to log in',
+  'return to login',
+  'continue to log in',
+  'continue to login',
 ]);
+
+function normalizeActionText(value) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+    .replace(/[.?!]+$/g, '');
+}
 
 function setAuthContext(stateName) {
   const state = authContextByState[stateName] ? stateName : 'signIn';
@@ -246,18 +267,32 @@ function setShellLinks() {
 }
 
 function isSignInLink(element) {
-  const text = String(element?.textContent || '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
+  const text = normalizeActionText(element?.textContent);
 
-  return signInLinkTexts.has(text);
+  return (
+    signInLinkTexts.has(text) ||
+    (unsafeHostedLinkPattern.test(
+      String(element?.getAttribute('href') || ''),
+    ) &&
+      /\b(?:sign|log|home)\b/i.test(text))
+  );
 }
 
 function wireSignInLink(element) {
   const signInUrl = buildWidgetSignInUrl();
 
-  element.setAttribute('href', signInUrl);
+  if (
+    element.tagName?.toLowerCase() === 'a' ||
+    element.hasAttribute?.('href')
+  ) {
+    if (element.getAttribute('href') !== signInUrl) {
+      element.setAttribute('href', signInUrl);
+    }
+  }
+
+  if (element.getAttribute('data-acme-auth-sign-in-target') !== signInUrl) {
+    element.setAttribute('data-acme-auth-sign-in-target', signInUrl);
+  }
 
   if (element.getAttribute('data-acme-auth-sign-in-bound') === 'true') {
     return;
@@ -271,10 +306,47 @@ function wireSignInLink(element) {
 }
 
 function setWidgetSignInLinks() {
-  document.querySelectorAll('#okta-login-container a').forEach((element) => {
-    if (isSignInLink(element)) {
-      wireSignInLink(element);
-    }
+  document
+    .querySelectorAll('#okta-login-container a, #okta-login-container button')
+    .forEach((element) => {
+      if (isSignInLink(element)) {
+        wireSignInLink(element);
+      }
+    });
+}
+
+let isRefreshingSignInLinks = false;
+
+function refreshSignInLinks() {
+  if (isRefreshingSignInLinks) {
+    return;
+  }
+
+  isRefreshingSignInLinks = true;
+
+  try {
+    setShellLinks();
+    setWidgetSignInLinks();
+  } finally {
+    isRefreshingSignInLinks = false;
+  }
+}
+
+function startWidgetLinkObserver() {
+  const widgetRoot = document.querySelector('#okta-login-container');
+
+  if (!widgetRoot || typeof window.MutationObserver !== 'function') {
+    return;
+  }
+
+  const observer = new window.MutationObserver(refreshSignInLinks);
+
+  observer.observe(widgetRoot, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['href'],
+    characterData: true,
   });
 }
 
@@ -308,12 +380,16 @@ const requestedWidgetFlow = readRequestedWidgetFlow();
 const existingCustomHelpLinks = Array.isArray(widgetConfig.helpLinks?.custom)
   ? widgetConfig.helpLinks.custom
   : [];
-const customHelpLinks = existingCustomHelpLinks.filter(
-  (link) =>
-    !/forgot password|(?:go\s+)?back to sign (?:in|on)|help/i.test(
-      String(link?.text || ''),
-    ),
-);
+const customHelpLinks = existingCustomHelpLinks.filter((link) => {
+  const text = normalizeActionText(link?.text);
+  const href = String(link?.href || '');
+
+  return (
+    !/forgot password|help/i.test(text) &&
+    !signInLinkTexts.has(text) &&
+    !unsafeHostedLinkPattern.test(href)
+  );
+});
 
 widgetConfig.helpLinks = {
   ...(widgetConfig.helpLinks || {}),
@@ -329,9 +405,9 @@ if (requestedWidgetFlow) {
   widgetConfig.flow = requestedWidgetFlow;
 }
 
-setShellLinks();
+startWidgetLinkObserver();
+refreshSignInLinks();
 setAuthContext(authStateByWidgetFlow[requestedWidgetFlow] || 'signIn');
-setWidgetSignInLinks();
 
 // Okta's hosted wrapper probes this exact global variable name after our script.
 const oktaSignIn = new OktaSignIn(widgetConfig);
@@ -340,8 +416,7 @@ oktaSignIn.on('afterRender', function onAfterRender(context) {
   setAuthContext(
     resolveAuthStateFromRenderContext(context, requestedWidgetFlow),
   );
-  setShellLinks();
-  setWidgetSignInLinks();
+  refreshSignInLinks();
 });
 
 oktaSignIn.renderEl(
@@ -349,7 +424,9 @@ oktaSignIn.renderEl(
   function onSuccess(response) {
     OktaUtil.completeLogin(response);
   },
-  function onError(error) {
-    console.log(error.message, error);
+  function onError() {
+    if (window.console && typeof window.console.warn === 'function') {
+      window.console.warn('Unable to render secure sign-in widget.');
+    }
   },
 );

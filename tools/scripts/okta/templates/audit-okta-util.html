@@ -1,7 +1,16 @@
 <script>
   window.OktaUtil = {
     getSignInWidgetConfig: function getSignInWidgetConfig() {
-      return { features: {}, helpLinks: { custom: [] } };
+      return {
+        features: {},
+        helpLinks: {
+          custom: [
+            { text: 'Help', href: '/help/login' },
+            { text: 'Go to Homepage', href: '/app/UserHome' },
+            { text: 'Support article', href: '/support/contact' },
+          ],
+        },
+      };
     },
     completeLogin: function completeLogin() {},
   };

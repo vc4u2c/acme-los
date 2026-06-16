@@ -88,6 +88,20 @@ function requiredAbsoluteHttpUrl(value, fieldName) {
   return url.toString();
 }
 
+export function buildHostedSignInStartUrl(
+  webBaseUrl,
+  fieldName = 'web.deployedBaseUrl',
+) {
+  const url = new URL(
+    '/api/auth/start',
+    requiredAbsoluteHttpUrl(webBaseUrl, fieldName),
+  );
+
+  url.searchParams.set('returnTo', '/account/profile');
+
+  return url.toString();
+}
+
 function resolveThemeCookieDomain(branding) {
   const value =
     typeof branding.ThemeCookieDomain === 'string'

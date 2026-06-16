@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import {
   buildHostedErrorPageContent,
   buildHostedSignInPageContent,
+  buildHostedSignInStartUrl,
 } from './hosted-sign-in-page.mjs';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -224,10 +225,7 @@ const webPostLogoutRedirectUri = toAbsoluteUrl(
   webPostLogoutRedirectPath,
 );
 const mobileRedirectUri = toMobileRedirectUri(mobileScheme, mobileRedirectPath);
-const signInStartUrl = toAbsoluteUrl(
-  deployedWebBaseUrl,
-  '/api/auth/start?returnTo=/account/profile',
-);
+const signInStartUrl = buildHostedSignInStartUrl(deployedWebBaseUrl);
 
 const hostedExperience = environment.okta?.hostedExperience ?? {};
 const signInWidgetGeneration = resolveSignInWidgetGeneration(

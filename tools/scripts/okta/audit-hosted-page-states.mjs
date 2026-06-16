@@ -5,6 +5,7 @@ import { chromium } from 'playwright';
 import {
   buildHostedErrorPageContent,
   buildHostedSignInPageContent,
+  buildHostedSignInStartUrl,
 } from './hosted-sign-in-page.mjs';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -266,6 +267,20 @@ async function auditScenario(
       expectedAuthState,
     scenario.expectedAuthState,
   );
+  await page.waitForSelector(
+    '#okta-login-container [data-se="delayed-sign-on"]',
+  );
+  await page.waitForFunction(() => {
+    const delayedLink = document.querySelector(
+      '#okta-login-container [data-se="delayed-sign-on"]',
+    );
+    const href = delayedLink?.getAttribute('href') || '';
+
+    return (
+      delayedLink?.getAttribute('data-acme-auth-sign-in-bound') === 'true' &&
+      !/\/app\/UserHome|\/enduser\/|\/userhome/i.test(href)
+    );
+  });
 
   const screenshotPath = path.join(
     outputDirectory,
@@ -444,8 +459,19 @@ async function auditScenario(
   ) {
     failures.push('visible recovery link points to a dead hosted/help route');
   }
+  const unsafeConfiguredCustomHelpLinks =
+    metrics.configuredCustomHelpLinks.filter((link) =>
+      isUnsafeHostedHref(link.href),
+    );
+  if (unsafeConfiguredCustomHelpLinks.length > 0) {
+    failures.push(
+      `configured custom help link points at an unsafe hosted route: ${unsafeConfiguredCustomHelpLinks
+        .map((link) => link.href)
+        .join(', ')}`,
+    );
+  }
   const dashboardLinks = metrics.visibleLinks.filter((link) =>
-    /\/app\/UserHome|\/enduser\/|\/userhome/i.test(link.href),
+    isUnsafeDashboardHref(link.href),
   );
   if (dashboardLinks.length > 0) {
     failures.push(
@@ -524,7 +550,30 @@ function isWidgetSignInReturnText(text) {
     'continue to sign on',
     'go to homepage',
     'go to home page',
+    'log in',
+    'login',
+    'back to log in',
+    'back to login',
+    'go back to log in',
+    'go back to login',
+    'return to log in',
+    'return to login',
+    'continue to log in',
+    'continue to login',
   ].includes(normalizedText);
+}
+
+function isUnsafeDashboardHref(href) {
+  return /\/app\/UserHome|\/enduser\/|\/userhome/i.test(String(href || ''));
+}
+
+function isUnsafeHostedHref(href) {
+  return (
+    isUnsafeDashboardHref(href) ||
+    /\/signin\/(?:forgot-password|unlock)(?:\/|$)|\/help\/login/i.test(
+      String(href || ''),
+    )
+  );
 }
 
 function hasWidgetFlow(href, expectedFlow) {
@@ -670,10 +719,7 @@ function loadHostedBranding(name) {
       deployedWebBaseUrl,
       requiredString(brand.helpPath, 'brand.helpPath'),
     ),
-    SignInStartUrl: toAbsoluteUrl(
-      deployedWebBaseUrl,
-      '/api/auth/start?returnTo=/account/profile',
-    ),
+    SignInStartUrl: buildHostedSignInStartUrl(deployedWebBaseUrl),
     SignInTitle: requiredString(brand.signInTitle, 'brand.signInTitle'),
     SignInSubtitle: requiredString(
       brand.signInSubtitle,

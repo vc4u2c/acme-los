@@ -109,6 +109,21 @@
       ].join('');
     }
 
+    function appendDelayedSignOnLink() {
+      window.setTimeout(function appendLinkAfterRender() {
+        var footer = container.querySelector('.siw-main-footer');
+
+        if (!footer || footer.querySelector('[data-se="delayed-sign-on"]')) {
+          return;
+        }
+
+        footer.insertAdjacentHTML(
+          'beforeend',
+          '<a data-se="delayed-sign-on" href="/app/UserHome">Continue to login</a>',
+        );
+      }, 0);
+    }
+
     var contentByFlow = {
       signIn: shell(
         'signIn',
@@ -151,5 +166,6 @@
 
     container.innerHTML = contentByFlow[flow] || contentByFlow.signIn;
     this.emit('afterRender', contextByFlow[flow] || contextByFlow.signIn);
+    appendDelayedSignOnLink();
   };
 </script>

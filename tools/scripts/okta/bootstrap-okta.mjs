@@ -11,6 +11,7 @@ import {
 import {
   buildHostedErrorPageContent,
   buildHostedSignInPageContent,
+  buildHostedSignInStartUrl,
 } from './hosted-sign-in-page.mjs';
 import { buildOktaPolicyPlan, printOktaPolicyPlan } from './policy-plan.mjs';
 
@@ -2079,10 +2080,7 @@ const helpUrl = toAbsoluteUrl(
   deployedWebBaseUrl,
   requiredString(brandProfile.helpPath, 'brand.helpPath'),
 );
-const signInStartUrl = toAbsoluteUrl(
-  deployedWebBaseUrl,
-  '/api/auth/start?returnTo=/account/profile',
-);
+const signInStartUrl = buildHostedSignInStartUrl(deployedWebBaseUrl);
 const hostedExperience = environment.okta?.hostedExperience ?? {};
 const telephony = environment.okta?.telephony ?? {};
 const userPrune = environment.okta?.userPrune ?? {};
