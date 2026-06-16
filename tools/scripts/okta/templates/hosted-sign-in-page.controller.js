@@ -13,7 +13,7 @@ const supportedWidgetFlows = new Set([
 
 const unsafeHostedLinkPattern =
   /\/app\/UserHome|\/enduser\/|\/userhome|\/signin\/(?:forgot-password|unlock)(?:\/|$)|\/help\/login/i;
-const secureSignInReturnText = 'Back to secure sign in';
+const signInReturnText = 'Sign in';
 const verificationMethodReturnText = 'Choose another verification method';
 
 function buildWidgetFlowUrl(flowName) {
@@ -62,7 +62,7 @@ function buildWidgetSignInUrl() {
 function buildPrimaryCustomHelpLink(requestedFlow) {
   if (requestedFlow === 'resetPassword' || requestedFlow === 'unlockAccount') {
     return {
-      text: secureSignInReturnText,
+      text: signInReturnText,
       href: buildWidgetSignInUrl(),
     };
   }
@@ -361,6 +361,10 @@ function setShellLinks() {
 function wireSignInLink(element) {
   const signInUrl = buildWidgetSignInUrl();
 
+  if ((element.textContent || '').trim() !== signInReturnText) {
+    element.textContent = signInReturnText;
+  }
+
   if (
     element.tagName?.toLowerCase() === 'a' ||
     element.hasAttribute?.('href')
@@ -494,7 +498,7 @@ function transformFormElements(elements, signInUrl) {
     .map((element) => {
       if (isWidgetSignInReturnElement(element)) {
         setFormElementHref(element, signInUrl);
-        setFormElementText(element, secureSignInReturnText);
+        setFormElementText(element, signInReturnText);
       } else if (isAuthenticatorReturnElement(element)) {
         setFormElementText(element, verificationMethodReturnText);
       }
