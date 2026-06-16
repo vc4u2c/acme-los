@@ -23,7 +23,7 @@ import {
   CardTitle,
 } from '@acme-los/ui-web';
 import {
-  buildAccountSecurityActionUrl,
+  buildAccountSecurityStepUpUrl,
   type AccountSecurityActionId,
 } from '../../lib/okta-account-actions';
 import { SiteHeader } from './site-header';
@@ -52,9 +52,9 @@ const oktaAccountSecurityActions: Array<{
 }> = [
   {
     actionId: 'password',
-    label: 'Change or reset password',
-    description: 'Use the Okta-hosted password recovery widget.',
-    cta: 'Change or reset password',
+    label: 'Change password',
+    description: 'Verify with phone/SMS, then enter the current password.',
+    cta: 'Change password',
     icon: KeyRound,
   },
   {
@@ -78,7 +78,7 @@ const accountSecurityActionCompletionMessages: Record<
   string
 > = {
   password:
-    'Password recovery was completed through Okta. Sign in again after a reset to refresh the customer session.',
+    'Password change completed. Sign in again with the new password to refresh the customer session.',
   'change-email':
     'Email change completed. Sign in again with the new email so ACME can sync the verified value.',
   'change-phone':
@@ -334,9 +334,8 @@ export function CustomerProfileDashboard(): React.ReactElement {
                 Review your verified account.
               </CardTitle>
               <CardDescription className="max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base sm:leading-8">
-                Verified identity and account changes stay in the Okta-hosted
-                widget. This dashboard shows the current account record for
-                review.
+                Verified identity stays with Okta. This dashboard shows the
+                current account record for review.
               </CardDescription>
             </CardHeader>
             <CardContent className="min-w-0 p-5 sm:p-6 lg:p-8">
@@ -364,7 +363,7 @@ export function CustomerProfileDashboard(): React.ReactElement {
                     id="customer-email"
                     label="Sign-in email"
                     value={formState.email}
-                    description="Use hosted verification before changing the login email, then refresh your session here so ACME can sync the verified value."
+                    description="Use protected verification before changing the login email, then refresh your session here so ACME can sync the verified value."
                   />
                   <ReadOnlyProfileField
                     id="customer-phone"
@@ -452,16 +451,15 @@ export function CustomerProfileDashboard(): React.ReactElement {
                   Protected actions.
                 </CardTitle>
                 <CardDescription className="text-sm leading-6 text-[var(--muted-foreground)] sm:text-base sm:leading-7">
-                  Password recovery stays in the Okta-hosted widget. Email and
-                  phone changes use Okta MyAccount verification behind this
-                  ACME-branded surface.
+                  Password, email, and phone changes use Okta MyAccount
+                  verification behind this ACME-branded surface.
                 </CardDescription>
               </CardHeader>
               <CardContent className="min-w-0 space-y-4 px-5 pb-5 sm:px-6 sm:pb-6">
                 <div className="grid gap-3">
                   {oktaAccountSecurityActions.map((action) => {
                     const Icon = action.icon;
-                    const actionUrl = buildAccountSecurityActionUrl(
+                    const actionUrl = buildAccountSecurityStepUpUrl(
                       action.actionId,
                     );
 

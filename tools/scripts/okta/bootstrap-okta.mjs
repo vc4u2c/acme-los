@@ -267,6 +267,8 @@ const customerMyAccountOauthScopes = [
   'okta.myAccount.email.manage',
   'okta.myAccount.phone.read',
   'okta.myAccount.phone.manage',
+  'okta.myAccount.password.read',
+  'okta.myAccount.password.manage',
 ];
 const customerWebOauthScopes = [
   'openid',

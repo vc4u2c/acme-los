@@ -344,9 +344,19 @@ describe('BFF route proxy', () => {
         return Promise.resolve(
           new Response(
             JSON.stringify({
-              phone: '+13125550101',
+              phoneNumber: '+13125550101',
               phoneId: 'phone-change-123',
               status: 'pending_verification',
+            }),
+          ),
+        );
+      }
+
+      if (input === '/api/account/security/password') {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              status: 'changed',
             }),
           ),
         );
@@ -364,7 +374,11 @@ describe('BFF route proxy', () => {
       email: 'new-user@example.com',
     });
     await client.accountSecurity.startPhoneChange({
-      phone: '+13125550101',
+      phoneNumber: '+13125550101',
+    });
+    await client.accountSecurity.changePassword({
+      currentPassword: 'current-password-123',
+      newPassword: 'new-password-456',
     });
 
     expect(fetchSpy).toHaveBeenNthCalledWith(
@@ -380,7 +394,18 @@ describe('BFF route proxy', () => {
       '/api/account/security/phone',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ phone: '+13125550101' }),
+        body: JSON.stringify({ phoneNumber: '+13125550101' }),
+      }),
+    );
+    expect(fetchSpy).toHaveBeenNthCalledWith(
+      4,
+      '/api/account/security/password',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          currentPassword: 'current-password-123',
+          newPassword: 'new-password-456',
+        }),
       }),
     );
 
@@ -390,10 +415,15 @@ describe('BFF route proxy', () => {
     const phoneRequestHeaders = new Headers(
       fetchSpy.mock.calls[2]?.[1]?.headers,
     );
+    const passwordRequestHeaders = new Headers(
+      fetchSpy.mock.calls[3]?.[1]?.headers,
+    );
 
     expect(emailRequestHeaders.get('content-type')).toBe('application/json');
     expect(emailRequestHeaders.get('x-csrf-token')).toBe('csrf-123');
     expect(phoneRequestHeaders.get('content-type')).toBe('application/json');
     expect(phoneRequestHeaders.get('x-csrf-token')).toBe('csrf-123');
+    expect(passwordRequestHeaders.get('content-type')).toBe('application/json');
+    expect(passwordRequestHeaders.get('x-csrf-token')).toBe('csrf-123');
   });
 });

@@ -468,8 +468,9 @@ Current auth shape in this repo:
   enrollment as follow-up hosted steps.
 - Okta `sub` is the immutable ACME user key; email is mutable metadata synced to
   backend profile storage after a fresh Okta session
-- ACME account-security pages use Okta user-scoped MyAccount APIs for email and
-  phone changes, while password recovery remains in the Okta-hosted Gen3 widget
+- ACME account-security pages use Okta user-scoped MyAccount APIs for
+  signed-in password, email, and phone changes; forgot-password recovery remains
+  in the Okta-hosted Gen3 widget
 - account management uses opposite-channel proofing: password and email
   lifecycle actions require phone/SMS OTP plus security question, while
   phone/SMS lifecycle actions require email OTP plus security question

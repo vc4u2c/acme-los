@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Acme.Los.Bff.Api.Contracts;
 using Acme.Los.Bff.Api.Common;
+using Acme.Los.Bff.Api.Features.AccountSecurity;
 using Acme.Los.Bff.Api.Infrastructure.Auth;
 using Acme.Los.Bff.Api.Infrastructure.Okta;
 using Acme.Los.Bff.Api.Infrastructure.State;
@@ -1105,6 +1106,11 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal("S256", query["code_challenge_method"].ToString());
     Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
     Assert.Equal("resetPassword", query["acme_widget_flow"].ToString());
+    var requestedScopes = query["scope"].ToString().Split(' ');
+
+    Assert.Contains("okta.myAccount.email.manage", requestedScopes);
+    Assert.Contains("okta.myAccount.phone.manage", requestedScopes);
+    Assert.Contains("okta.myAccount.password.manage", requestedScopes);
     Assert.False(query.ContainsKey("prompt"));
     Assert.False(query.ContainsKey("max_age"));
   }
@@ -1202,6 +1208,96 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
     Assert.Equal("0", query["max_age"].ToString());
     Assert.False(query.ContainsKey("prompt"));
+  }
+
+  [Fact]
+  public async Task OktaMyAccountService_ChangePassword_UsesScopedMyAccountPasswordApi()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.NoContent));
+    using var httpClient = new HttpClient(handler);
+    var service = new OktaMyAccountService(
+      new StaticHttpClientFactory(httpClient));
+
+    var result = await service.ChangePasswordAsync(
+      "access-token-123",
+      new ChangePasswordRequest(
+        "current-password-123",
+        "new-password-456"),
+      CancellationToken.None);
+
+    Assert.Equal("changed", result.Status);
+
+    var request = Assert.Single(handler.Requests);
+
+    Assert.Equal(HttpMethod.Put, request.Method);
+    Assert.Equal(
+      "https://dev-123456.okta.com/idp/myaccount/password",
+      request.RequestUri?.ToString());
+    Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
+    Assert.Equal("access-token-123", request.Headers.Authorization?.Parameter);
+    Assert.Contains(
+      request.Headers.Accept,
+      value => string.Equals(value.MediaType, "application/json", StringComparison.Ordinal)
+        && value.Parameters.Any(parameter =>
+          string.Equals(parameter.Name, "okta-version", StringComparison.OrdinalIgnoreCase)
+          && string.Equals(parameter.Value, "1.0.0", StringComparison.Ordinal)));
+
+    var body = await request.Content!.ReadAsStringAsync();
+    using var json = JsonDocument.Parse(body);
+    var profile = json.RootElement.GetProperty("profile");
+
+    Assert.Equal(
+      "current-password-123",
+      profile.GetProperty("currentPassword").GetString());
+    Assert.Equal(
+      "new-password-456",
+      profile.GetProperty("password").GetString());
+  }
+
+  [Fact]
+  public async Task OktaMyAccountService_EmailConflict_ReturnsClientSafeMessage()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.Conflict)
+      {
+        Content = JsonContent.Create(new
+        {
+          errorCode = "E0000157",
+          errorSummary = "Email already exists",
+        }),
+      });
+    using var httpClient = new HttpClient(handler);
+    var service = new OktaMyAccountService(
+      new StaticHttpClientFactory(httpClient));
+
+    var exception = await Assert.ThrowsAsync<OktaMyAccountException>(() =>
+      service.StartEmailChangeAsync(
+        "access-token-123",
+        new StartEmailChangeRequest("existing@example.com"),
+        CancellationToken.None).AsTask());
+
+    Assert.Equal((int)HttpStatusCode.Conflict, exception.StatusCode);
+    Assert.True(exception.ExposeMessageToClient);
+    Assert.Contains("already associated", exception.Message);
   }
 
   [Fact]

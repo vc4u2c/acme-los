@@ -443,6 +443,76 @@ describe('BFF-backed auth flow routes', () => {
     expect(setCookie).toContain('acme-los.auth-transaction=;');
   });
 
+  it('redirects completed account-security step-up callbacks back to the action UI', async () => {
+    process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
+    process.env.ACME_BFF_PROXY_MODE = 'bff';
+    process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
+    delete process.env.ACME_WEB_SESSION_SECRET;
+    const authTransaction = createSignedCookie({
+      transactionId: 'bff-account-password-transaction-123',
+      returnTo: '/account/security/password',
+      minimumAssuranceLevel: 'aal2',
+      expiresAt: Math.floor(Date.now() / 1000) + 600,
+    });
+    const fetchSpy = jest.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          session: {
+            provider: 'okta',
+            status: 'authenticated',
+            isAuthenticated: true,
+            assuranceLevel: 'aal2',
+            user: {
+              id: 'user-123',
+              displayName: 'Account User',
+              email: 'account@example.com',
+              authenticationMethods: ['pwd', 'sms'],
+            },
+          },
+          returnTo: '/account/security/password',
+          sessionTiming: {
+            absoluteExpiresAt: 4102444800,
+            idleExpiresAt: 4102441200,
+            idleTimeoutSeconds: 900,
+            warningSeconds: 120,
+            stepUp: {
+              reason: 'account-password',
+              completedAt: 1770000000,
+              expiresAt: 1770000600,
+            },
+          },
+        }),
+        {
+          headers: {
+            'content-type': 'application/json',
+            'x-acme-auth-session-id': 'stored-account-session-123',
+            'x-acme-auth-session-max-age': '900',
+          },
+        },
+      ),
+    );
+
+    global.fetch = fetchSpy as typeof fetch;
+
+    const response = await completeAuthCallback(
+      new NextRequest(
+        'https://los.example.test/api/auth/callback?code=code-123&state=okta-state-123',
+        {
+          headers: {
+            cookie: `acme-los.auth-transaction=${authTransaction}`,
+          },
+        },
+      ),
+    );
+
+    expect(response.headers.get('location')).toBe(
+      'https://los.example.test/account/security/password',
+    );
+    expect(response.headers.get('set-cookie')).toContain(
+      'acme-los.auth-session=',
+    );
+  });
+
   it('restarts recoverable expired callbacks instead of leaving a dead timeout page', async () => {
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
     process.env.ACME_BFF_PROXY_MODE = 'bff';

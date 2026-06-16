@@ -3,15 +3,10 @@ import { AccountSecurityChangePage } from '../../../../components/web/account-se
 import { getAccountSecurityAuthRequirement } from '../../../../lib/application-auth';
 
 export default async function AccountSecurityPhonePage() {
-  const session = await requireServerWebAuthSession({
+  await requireServerWebAuthSession({
     returnTo: '/account/security/phone',
     requirement: getAccountSecurityAuthRequirement('phone'),
   });
 
-  return (
-    <AccountSecurityChangePage
-      action="phone"
-      currentValue={session.user?.email}
-    />
-  );
+  return <AccountSecurityChangePage action="phone" />;
 }

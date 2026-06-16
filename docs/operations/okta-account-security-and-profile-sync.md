@@ -485,16 +485,17 @@ overridden. Okta deletion is unrecoverable.
 The ACME customer dashboard is read-only for customer identity/contact fields.
 It sends customer account changes to ACME-branded account-security routes for:
 
-- change or reset password
+- change password
+- forgot password
 - change sign-in email
 - change phone/SMS factor
 
 Password recovery uses the Okta-hosted Gen3 widget through
-`/api/auth/start?...&widgetFlow=resetPassword`, so ACME never renders password
-fields. Email and phone changes use Okta's MyAccount API through the BFF with
-the active user's access token, not an admin Users API patch. The browser calls
-ACME endpoints under `/api/account/security/*`; the Next facade checks CSRF and
-the account-action step-up marker, then proxies to the BFF.
+`/api/auth/start?...&widgetFlow=resetPassword`. Signed-in password, email, and
+phone changes use Okta's user-scoped MyAccount API through the BFF with the
+active user's access token, not an admin Users API patch. The browser calls ACME
+endpoints under `/api/account/security/*`; the Next facade checks CSRF and the
+account-action step-up marker, then proxies to the BFF.
 
 The account-security routes have distinct step-up reasons:
 
@@ -504,6 +505,17 @@ The account-security routes have distinct step-up reasons:
 - `/account/security/phone` requires a fresh `account-phone` marker, which must
   be satisfied with email OTP before the form appears. Okta then sends the final
   OTP to the new phone through MyAccount verification.
+- `/account/security/password` requires a fresh `account-password` marker,
+  which must be satisfied with phone/SMS OTP before the form appears. The BFF
+  forwards the current and new password directly to Okta MyAccount
+  `PUT /idp/myaccount/password`; it must not store or log either value.
+
+The BFF account-security endpoints emit non-sensitive action-state logs for
+`email.start`, `email.verify`, `phone.start`, `phone.verify`, and
+`password.change`. Log entries include action, path, state/status, and whether
+reauthentication is required. They must not include email addresses, phone
+numbers, OTPs, current passwords, new passwords, security-question answers, or
+authenticator secrets.
 
 The custom authorization server must issue these scopes for the ACME web client:
 
@@ -511,14 +523,17 @@ The custom authorization server must issue these scopes for the ACME web client:
 - `okta.myAccount.email.manage`
 - `okta.myAccount.phone.read`
 - `okta.myAccount.phone.manage`
+- `okta.myAccount.password.read`
+- `okta.myAccount.password.manage`
 
 `npm run okta:bootstrap -- <env>` models those reserved scopes on the custom
 authorization server before it updates the ACME app token rule.
 
-After an email or phone/SMS change, require a fresh ACME sign-in before syncing
-confirmed metadata. ACME must not collect passwords, OTPs, security-question
-answers, or authenticator secrets in dashboard forms or custom client-side
-widget scripting.
+After a password, email, or phone/SMS change, require a fresh ACME sign-in
+before syncing confirmed metadata. ACME may transiently forward current/new
+password values only for the signed-in MyAccount password-change call; it must
+not store, log, sync, or reuse passwords, OTPs, security-question answers, or
+authenticator secrets in dashboard forms or custom client-side widget scripting.
 
 ## Official References
 

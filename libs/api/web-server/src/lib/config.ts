@@ -111,6 +111,8 @@ export function getServerWebAuthConfig(): ServerWebAuthConfig {
         'okta.myAccount.email.manage',
         'okta.myAccount.phone.read',
         'okta.myAccount.phone.manage',
+        'okta.myAccount.password.read',
+        'okta.myAccount.password.manage',
       ],
       fundingStepUpAcrValues:
         getServerConfigValue(

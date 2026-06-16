@@ -711,6 +711,8 @@ internal sealed record OktaAuthOptions(
             "okta.myAccount.email.manage",
             "okta.myAccount.phone.read",
             "okta.myAccount.phone.manage",
+            "okta.myAccount.password.read",
+            "okta.myAccount.password.manage",
           ],
           ReadConfigValue(
             "ACME_OKTA_FUNDING_ACR_VALUES",

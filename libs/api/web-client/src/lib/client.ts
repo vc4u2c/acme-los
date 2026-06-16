@@ -1,5 +1,7 @@
 import type {
   ApplicationStepKey,
+  ChangePasswordRequest,
+  ChangePasswordResponse,
   ClearWebAuthSessionResponse,
   GetApplicationStepResponse,
   GetCustomerProfileResponse,
@@ -216,6 +218,17 @@ export function createWebApiClient({
       ): Promise<VerifyPhoneChangeResponse> {
         return requestWithCsrf<VerifyPhoneChangeResponse>(
           `${accountSecurityUrl}/phone/verify`,
+          {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          },
+        );
+      },
+      changePassword(
+        payload: ChangePasswordRequest,
+      ): Promise<ChangePasswordResponse> {
+        return requestWithCsrf<ChangePasswordResponse>(
+          `${accountSecurityUrl}/password`,
           {
             method: 'POST',
             body: JSON.stringify(payload),

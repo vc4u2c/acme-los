@@ -30,6 +30,11 @@ public interface IOktaMyAccountService
     string accessToken,
     VerifyPhoneChangeRequest? request,
     CancellationToken cancellationToken);
+
+  ValueTask<ChangePasswordResponse> ChangePasswordAsync(
+    string accessToken,
+    ChangePasswordRequest? request,
+    CancellationToken cancellationToken);
 }
 
 public sealed class OktaMyAccountService : IOktaMyAccountService
@@ -162,6 +167,44 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     return new VerifyPhoneChangeResponse("verified");
   }
 
+  public async ValueTask<ChangePasswordResponse> ChangePasswordAsync(
+    string accessToken,
+    ChangePasswordRequest? request,
+    CancellationToken cancellationToken)
+  {
+    var currentPassword = NormalizePasswordInput(
+      request?.CurrentPassword,
+      "current password");
+    var newPassword = NormalizePasswordInput(
+      request?.NewPassword,
+      "new password");
+
+    if (string.Equals(currentPassword, newPassword, StringComparison.Ordinal))
+    {
+      throw new OktaMyAccountException(
+        "Choose a new password that is different from the current password.",
+        StatusCodes.Status400BadRequest,
+        exposeMessageToClient: true);
+    }
+
+    await SendAsync<JsonElement?>(
+      accessToken,
+      HttpMethod.Put,
+      "/idp/myaccount/password",
+      new
+      {
+        profile = new
+        {
+          currentPassword,
+          password = newPassword,
+        },
+      },
+      cancellationToken,
+      expectBody: false);
+
+    return new ChangePasswordResponse("changed");
+  }
+
   private async ValueTask<T> SendAsync<T>(
     string accessToken,
     HttpMethod method,
@@ -245,11 +288,63 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     var statusCode = requiresReauthentication
       ? StatusCodes.Status401Unauthorized
       : Math.Clamp((int)response.StatusCode, 400, 599);
+    var clientSafeMessage = BuildClientSafeMessage(
+      error,
+      message,
+      statusCode);
 
     return new OktaMyAccountException(
-      message,
+      clientSafeMessage ?? message,
       statusCode,
-      requiresReauthentication);
+      requiresReauthentication,
+      exposeMessageToClient: clientSafeMessage is not null);
+  }
+
+  private static string? BuildClientSafeMessage(
+    OktaErrorResponse? error,
+    string message,
+    int statusCode)
+  {
+    var errorCode = error?.ErrorCode ?? string.Empty;
+    var normalizedMessage = message.ToLowerInvariant();
+
+    if (string.Equals(errorCode, "E0000157", StringComparison.OrdinalIgnoreCase)
+      || statusCode == StatusCodes.Status409Conflict)
+    {
+      return "That email or phone is already associated with an Okta account. Use a different value or sign in with that account.";
+    }
+
+    if (string.Equals(errorCode, "E0000038", StringComparison.OrdinalIgnoreCase))
+    {
+      return "This account change is not enabled in Okta for this environment. Ask support to verify the account-management policy.";
+    }
+
+    if (normalizedMessage.Contains("insufficient_scope", StringComparison.Ordinal)
+      || normalizedMessage.Contains("scope", StringComparison.Ordinal))
+    {
+      return "The Okta app is missing the required MyAccount permission for this account change.";
+    }
+
+    if (normalizedMessage.Contains("verification", StringComparison.Ordinal)
+      || normalizedMessage.Contains("challenge", StringComparison.Ordinal)
+      || normalizedMessage.Contains("expired", StringComparison.Ordinal))
+    {
+      return "The verification code is invalid or expired. Request a new code and try again.";
+    }
+
+    if (normalizedMessage.Contains("currentpassword", StringComparison.Ordinal)
+      || normalizedMessage.Contains("current password", StringComparison.Ordinal)
+      || normalizedMessage.Contains("password", StringComparison.Ordinal))
+    {
+      return "Okta rejected the password change. Check the current password and password requirements, then try again.";
+    }
+
+    if (statusCode == StatusCodes.Status400BadRequest)
+    {
+      return "Okta rejected this account change. Check the value and try again.";
+    }
+
+    return null;
   }
 
   private static string NormalizeEmail(string? value)
@@ -320,6 +415,21 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     }
 
     return code;
+  }
+
+  private static string NormalizePasswordInput(string? value, string label)
+  {
+    var password = value ?? string.Empty;
+
+    if (password.Length == 0 || password.Length > 256)
+    {
+      throw new OktaMyAccountException(
+        $"A valid {label} is required.",
+        StatusCodes.Status400BadRequest,
+        exposeMessageToClient: true);
+    }
+
+    return password;
   }
 
   private static string NormalizeOktaId(string? value, string label)

@@ -16,7 +16,7 @@ export function getSafeAuthReturnTo(
   returnTo?: string,
   fallback = FIRST_APPLICATION_STEP_PATH,
 ): string {
-  if (!returnTo || !returnTo.startsWith('/')) {
+  if (!returnTo || !returnTo.startsWith('/') || returnTo.startsWith('//')) {
     return fallback;
   }
 

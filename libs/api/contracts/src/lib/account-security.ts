@@ -41,3 +41,12 @@ export interface VerifyPhoneChangeRequest {
 export interface VerifyPhoneChangeResponse {
   status: 'verified';
 }
+
+export interface ChangePasswordRequest {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export interface ChangePasswordResponse {
+  status: 'changed';
+}

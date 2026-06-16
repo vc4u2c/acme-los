@@ -74,6 +74,8 @@ export function getWebAuthConfig(): WebAuthConfig {
         'okta.myAccount.email.manage',
         'okta.myAccount.phone.read',
         'okta.myAccount.phone.manage',
+        'okta.myAccount.password.read',
+        'okta.myAccount.password.manage',
       ],
       fundingStepUpAcrValues:
         trimValue(process.env.NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES) ??

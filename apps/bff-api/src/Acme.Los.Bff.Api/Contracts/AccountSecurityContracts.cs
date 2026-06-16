@@ -27,3 +27,9 @@ public sealed record VerifyPhoneChangeRequest(
   string VerificationCode);
 
 public sealed record VerifyPhoneChangeResponse(string Status);
+
+public sealed record ChangePasswordRequest(
+  string CurrentPassword,
+  string NewPassword);
+
+public sealed record ChangePasswordResponse(string Status);

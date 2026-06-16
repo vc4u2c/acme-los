@@ -15,6 +15,17 @@ export function buildAccountSecurityActionUrl(
   return accountSecurityActionUrls[actionId];
 }
 
+export function buildAccountSecurityStepUpUrl(
+  actionId: AccountSecurityActionId,
+): string {
+  const searchParams = new URLSearchParams({
+    returnTo: buildAccountSecurityActionUrl(actionId),
+    aal: 'aal2',
+  });
+
+  return `/api/auth/start?${searchParams.toString()}`;
+}
+
 export function buildHostedPasswordRecoveryUrl(
   returnTo = '/account/profile?account_action=password',
 ): string {

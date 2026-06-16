@@ -355,15 +355,15 @@
       "scopeKind": "customerGroup",
       "automationStatus": "automated-public-policy-api",
       "flow": [
-        "Customer starts change password from Okta-hosted account management while signed in.",
+        "Customer starts change password from the ACME account-security page while signed in.",
         "Okta verifies the current password.",
         "Okta verifies phone/SMS OTP and the security-question challenge/hint.",
-        "Customer sets the new password in Okta.",
+        "ACME BFF forwards the current and new password to Okta MyAccount without storing either value.",
         "Okta signs the customer out or ACME treats the existing session as stale.",
         "Customer signs in again with the new password."
       ],
       "securityNotes": [
-        "ACME never receives old password, new password, security-question answer, or OTP.",
+        "ACME does not store, log, sync, or reuse old password, new password, security-question answer, or OTP.",
         "The same active Okta session is not enough for ACME profile sync after the password change."
       ]
     },
