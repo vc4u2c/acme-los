@@ -51,6 +51,19 @@ const navigationItems: { href: string; label: string }[] = [];
 const fieldClassName =
   'h-11 rounded-[0.85rem] border-[var(--border)] bg-[color:var(--surface-strong)/0.92] px-3 text-sm text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] shadow-sm focus-visible:ring-[var(--ring)]';
 
+function requireResponseValue(
+  value: string | undefined,
+  label: string,
+): string {
+  const normalizedValue = value?.trim() ?? '';
+
+  if (normalizedValue.length === 0) {
+    throw new Error(`Okta did not return a valid ${label}. Try again.`);
+  }
+
+  return normalizedValue;
+}
+
 function isEmailTransaction(
   action: AccountSecurityChangeAction,
   transaction: PendingTransaction,
@@ -120,17 +133,23 @@ export function AccountSecurityChangePage({
           email: value,
         });
         setPendingTransaction({
-          emailId: response.emailId,
-          challengeId: response.challengeId,
-          displayValue: response.email,
+          emailId: requireResponseValue(response.emailId, 'email transaction'),
+          challengeId: requireResponseValue(
+            response.challengeId,
+            'email verification challenge',
+          ),
+          displayValue: requireResponseValue(response.email, 'email address'),
         });
       } else {
         const response = await webApiClient.accountSecurity.startPhoneChange({
           phoneNumber: value,
         });
         setPendingTransaction({
-          phoneId: response.phoneId,
-          displayValue: response.phoneNumber,
+          phoneId: requireResponseValue(response.phoneId, 'phone transaction'),
+          displayValue: requireResponseValue(
+            response.phoneNumber,
+            'phone number',
+          ),
         });
       }
       setVerificationCode('');

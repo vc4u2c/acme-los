@@ -334,6 +334,7 @@ describe('BFF route proxy', () => {
             JSON.stringify({
               email: 'new-user@example.com',
               emailId: 'email-change-123',
+              challengeId: 'email-challenge-456',
               status: 'pending_verification',
             }),
           ),
@@ -370,7 +371,7 @@ describe('BFF route proxy', () => {
     });
     const client = createWebApiClient({ fetchImpl: fetchSpy as typeof fetch });
 
-    await client.accountSecurity.startEmailChange({
+    const emailResponse = await client.accountSecurity.startEmailChange({
       email: 'new-user@example.com',
     });
     await client.accountSecurity.startPhoneChange({
@@ -379,6 +380,13 @@ describe('BFF route proxy', () => {
     await client.accountSecurity.changePassword({
       currentPassword: 'current-password-123',
       newPassword: 'new-password-456',
+    });
+
+    expect(emailResponse).toEqual({
+      email: 'new-user@example.com',
+      emailId: 'email-change-123',
+      challengeId: 'email-challenge-456',
+      status: 'pending_verification',
     });
 
     expect(fetchSpy).toHaveBeenNthCalledWith(
