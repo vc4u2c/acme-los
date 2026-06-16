@@ -251,13 +251,6 @@ const registrationProfileAttributes = [
   { name: 'email', label: 'Primary email', required: true, uiFormat: 'text' },
   { name: 'firstName', label: 'First name', required: true },
   { name: 'lastName', label: 'Last name', required: true },
-  {
-    name: 'mobilePhone',
-    label: 'Phone number',
-    required: true,
-    inputValidation: { format: 'phone' },
-    uiFormat: 'text',
-  },
   { name: 'acmeState', label: 'State', required: true, uiFormat: 'select' },
 ];
 
@@ -1356,9 +1349,7 @@ function buildProfileEnrollmentRulePayload(existingRule, customerGroupId) {
         access: profileEnrollment.access ?? 'ALLOW',
         activationRequirements: {
           ...(profileEnrollment.activationRequirements ?? {}),
-          emailVerification: Boolean(
-            hostedExperience.registrationRequiresEmailVerification,
-          ),
+          emailVerification: registrationProfileEmailVerification,
         },
         profileAttributes: buildRegistrationProfileAttributes(
           profileEnrollment.profileAttributes,
@@ -2118,6 +2109,8 @@ const fundingStepUpRequiresPassword =
 const themeCookieDomain =
   optionalString(hostedExperience.themeCookieDomain) ?? '';
 const authorizationServerId = resolveAuthorizationServerId(issuer);
+const registrationProfileEmailVerification =
+  hostedExperience.registrationProfileEmailVerification === true;
 const requiresEmailAuthenticator = Boolean(
   hostedExperience.registrationRequiresEmailVerification ||
   hostedExperience.adaptiveMfaOnSignIn ||
@@ -2162,13 +2155,15 @@ const accountSecurityPolicyIntent = {
     hostedStateInput:
       'Missouri/Texas state enum rendered as a select control from the ACME-owned acmeState profile attribute',
     hostedFlowShape:
-      'Okta-hosted registration collects profile fields in the profile-enrollment step. Password is modeled as Okta password authenticator enrollment, not as a profile field; Okta renders password requirements and any confirm-password behavior according to hosted widget/org behavior.',
+      'Okta-hosted registration collects only the identity fields needed to create the account. Password, email OTP, and phone/SMS OTP are modeled as Okta authenticator enrollment steps so verification starts from the customer action in the native widget.',
+    profileEnrollmentEmailVerification: registrationProfileEmailVerification,
     profileEnrollmentAuthenticatorTypes:
       registrationEnrollmentAuthenticatorTypes,
     requiredAuthenticators: [
       'okta_password',
       ...(requiresEmailAuthenticator ? ['okta_email'] : []),
       ...(requiresSecurityQuestionAuthenticator ? ['security_question'] : []),
+      ...(requiresPhoneAuthenticator ? ['phone_number'] : []),
     ],
     optionalAuthenticators: [
       ...(!requiresEmailAuthenticator ? ['okta_email'] : []),
@@ -3068,7 +3063,7 @@ const customProfileAttributesResult = await ensureUserProfileAttributes({
   mobilePhone: {
     title: 'Phone number',
     description:
-      'Customer phone number captured during Okta-hosted registration.',
+      'Reserved customer phone number profile field; hosted registration verifies phone through the Okta phone/SMS authenticator instead of collecting profile phone.',
     minLength: 1,
     maxLength: 32,
     selfPermission: 'READ_WRITE',

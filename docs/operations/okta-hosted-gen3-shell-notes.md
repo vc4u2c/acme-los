@@ -13,16 +13,17 @@ authenticator enrollment fields.
   `okta.hostedExperience.signInWidgetVersion` in the environment manifest.
   Bootstrap writes that exact version to Okta, and the live audit fails if the
   tenant drifts back to a floating widget range.
-- The controller uses `OktaUtil.getSignInWidgetConfig()` and calls
-  `signIn.renderEl(...)` without `afterTransform`, custom labels, or
-  replacement controls.
+- The controller uses `OktaUtil.getSignInWidgetConfig()`, registers supported
+  Gen 3 `afterTransform('*')` form shaping for safe navigation links, and calls
+  `signIn.renderEl(...)` without replacing credential, OTP, or authenticator
+  controls.
 - ACME left-rail shell copy is state-aware through Okta's supported
   `afterRender` context (`formName` and authenticator keys). The shell also
   honors ACME-owned `acme_widget_flow` URLs for forgot-password, unlock-account,
   and signup entry before the widget renders.
-- A scoped `MutationObserver` normalizes only navigation links that Okta may
-  rerender after `afterRender`, such as "back to sign in/sign on" exits. It
-  never injects or replaces password, OTP, security-question, phone, or email
+- Shell context updates happen in `afterRender`; widget form changes stay in
+  `afterTransform`. The hosted page does not use a `MutationObserver` and never
+  injects or replaces password, OTP, security-question, phone, or email
   controls.
 - ACME CSS styles the surrounding shell and applies scoped normalization to
   native Okta fields, buttons, links, focus rings, and footer actions. It must
@@ -34,12 +35,13 @@ authenticator enrollment fields.
 - Sign in with email/password and confirm callback returns to the app.
 - Create account through Okta's native registration link.
 - Confirm registration shows the fields controlled by bootstrap:
-  primary email, first name, last name, mobile phone, state, and password.
-- Verify email using Okta's native email challenge behavior. If Okta starts in
-  link-first mode, the code input appears only when the widget exposes its
-  supported enter-code action; ACME styles that native state but does not inject
-  custom OTP boxes.
-- Verify phone/SMS using the configured Okta authenticator behavior.
+  primary email, first name, last name, state, and password.
+- Verify required email authenticator enrollment. Profile submit should not
+  auto-send a separate profile verification email; the email challenge should be
+  sent only from the native email authenticator action.
+- Verify required phone/SMS authenticator enrollment. The customer enters phone
+  on the Okta phone authenticator screen and clicks the native receive-code
+  action; the profile-enrollment form should not also ask for phone.
 - Set up the security question using Okta's native screen.
 - Use native forgot-password recovery and confirm the configured policy path.
 - Use native unlock-account recovery and confirm the configured policy path.

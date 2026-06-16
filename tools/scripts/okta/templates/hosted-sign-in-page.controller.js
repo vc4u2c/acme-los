@@ -212,7 +212,7 @@ const authContextByState = {
     eyebrow: 'Create account',
     title: 'Start your secure profile',
     subtitle:
-      'Create your ACME LOS account with your email, phone, state, and password before verification.',
+      'Create your ACME LOS account with your email, state, and password, then verify email and phone.',
   },
   resetPassword: {
     eyebrow: 'Password recovery',

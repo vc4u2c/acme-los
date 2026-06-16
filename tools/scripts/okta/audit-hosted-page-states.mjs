@@ -40,7 +40,7 @@ const scenarios = [
     expectedContextTexts: [
       'Create account',
       'Start your secure profile',
-      'email, phone, state, and password',
+      'verify email and phone',
     ],
     expectedCustomHelpLink: {
       text: 'Forgot password?',
@@ -62,7 +62,7 @@ const scenarios = [
     expectedContextTexts: [
       'Create account',
       'Start your secure profile',
-      'email, phone, state, and password',
+      'verify email and phone',
     ],
     expectedCustomHelpLink: {
       text: 'Forgot password?',

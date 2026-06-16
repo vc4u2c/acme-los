@@ -154,17 +154,20 @@ It currently handles:
   from `hostedExperience.mapPrimaryEmailToLogin`; bootstrap prints the desired
   state, but Okta does not expose a public API setter for this org setting
 - profile-enrollment registration target group and required profile fields
-  (`email`, `firstName`, `lastName`, `mobilePhone`, `acmeState`); email remains
-  the customer login identifier, and the captured phone number is profile
-  contact input until the phone/SMS authenticator is separately verified. The
-  visible State field is scripted as the ACME-owned `acmeState` enum limited to
-  Missouri and Texas plus a UI-schema select control because Okta's built-in
+  (`email`, `firstName`, `lastName`, `acmeState`); email remains the customer
+  login identifier. Phone is captured during Okta phone/SMS authenticator
+  enrollment, not on the hosted profile-enrollment form, so it is not requested
+  twice.
+  The visible State field is scripted as the ACME-owned `acmeState` enum limited
+  to Missouri and Texas plus a UI-schema select control because Okta's built-in
   base `state` attribute is a plain string field.
   If Okta marks the rule conditions read-only, bootstrap fails closed with a
   manual-required gate instead of broadening app assignment to `Everyone`
 - customer-group-scoped MFA enrollment policy for password, email,
   security-question, and phone/SMS enrollment when telephony is enabled; `dev`
-  requires phone/SMS because the mock provider is active
+  requires phone/SMS because the mock provider is active. Profile-enrollment
+  email verification is disabled so Okta does not auto-send a profile email
+  challenge before the customer reaches the native email authenticator action.
 - customer-group-scoped global session policy with a 60-day maximum lifetime
   and 120-minute idle timeout
 - app access policy
@@ -196,27 +199,28 @@ Live dev org state last verified from the Admin API:
 - managed user profile attributes exist:
   - `leadId`
   - `customerId`
-  - `mobilePhone` for Okta-hosted registration phone capture
+  - `mobilePhone` reserved for future profile sync, not collected on hosted
+    registration
   - `acmeState` for Okta-hosted registration State capture limited to Missouri
     and Texas
 - profile-enrollment UI schema is scripted as `email`, `firstName`, `lastName`,
-  `mobilePhone`, and `acmeState`; `acmeState` uses UI format `select`
+  and `acmeState`; `acmeState` uses UI format `select`
 - `hostedExperience.mapPrimaryEmailToLogin` is source-controlled as `true`;
   verify Okta Admin > Security > General > Organization > Map primary email to
   login attribute is Enabled because the public Okta org API does not expose a
   setter for this lifecycle switch
 - profile-enrollment registration rule targets only `acme-los-customers-dev`;
-  live rule fields match `email`, `firstName`, `lastName`, `mobilePhone`, and
-  `acmeState`, and registration enrollment type includes `password`. Okta
+  live rule fields match `email`, `firstName`, `lastName`, and `acmeState`, and
+  registration enrollment type includes `password`. Okta
   rejects public Policy API updates to that default rule with `E0000077`, so
   bootstrap treats a matching rule as existing and fails closed if those fields
   drift.
 - email, password, and Okta Verify authenticators are active
 - security-question enrollment is required by the ACME LOS authenticator policy
   for the `acme-los-customers-dev` customer group
-- phone/SMS factor enrollment is required in `dev` through the repo-managed
-  mock telephony provider; the hosted profile phone number remains contact
-  metadata until the Okta phone/SMS authenticator is verified
+- phone/SMS factor enrollment is required in `dev` through the repo-managed mock
+  telephony provider; the phone number is entered and verified on the Okta
+  phone/SMS authenticator screen, not collected separately as profile phone
 - account-management lifecycle rules are repo-managed by bootstrap:
   - `ACME LOS Password Lifecycle (dev)`
   - `ACME LOS Email Lifecycle (dev)`
@@ -457,10 +461,14 @@ Current auth shape in this repo:
 - registration requires password, email, security-question, and phone/SMS
   enrollment for `dev` users in the ACME LOS customer group because the MFA
   enrollment policy requires those authenticators for that group; higher
-  environments keep phone/SMS disabled until a sender/provider rollout is ready
-- Okta-hosted registration captures email, first name, last name, profile phone
-  number, and visible State in profile enrollment; State is backed by the
-  ACME-owned `acmeState` dropdown limited to Missouri and Texas.
+  environments keep phone/SMS disabled until a sender/provider rollout is ready.
+  Profile-enrollment email verification is disabled so Okta does not send a
+  separate profile email challenge on profile submit.
+- Okta-hosted registration captures email, first name, last name, and visible
+  State in profile enrollment; State is backed by the ACME-owned `acmeState`
+  dropdown limited to Missouri and Texas. Phone is captured once on the Okta
+  phone/SMS authenticator enrollment screen, where the customer explicitly
+  requests the SMS code.
   Password and password requirements are Okta password authenticator enrollment,
   not ACME profile fields. Confirm/repeat-password display is controlled by the
   Okta hosted widget/org behavior, not by the ACME profile-enrollment schema.

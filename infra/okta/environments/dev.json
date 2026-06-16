@@ -23,6 +23,7 @@
       "keepMeSignedIn": true,
       "customerSessionMaxLifetimeDays": 60,
       "registrationRequiresEmailVerification": true,
+      "registrationProfileEmailVerification": false,
       "mapPrimaryEmailToLogin": true,
       "registrationRequiresSecurityQuestion": true,
       "registrationRequiresPhoneVerification": true,
