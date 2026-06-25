@@ -182,6 +182,48 @@ function applyWidgetCopyOverrides(config) {
       'oie.select.authenticators.enroll.subtitle':
         "Choose the verification methods we'll use to confirm it's you during sign-in and sensitive account changes.",
       'oie.setup.required.now': 'Required to continue',
+      'enroll.choices.title': 'Protect your account',
+      'enroll.choices.description':
+        "Choose the verification methods we'll use to confirm it's you.",
+      'enroll.choices.description.generic':
+        "Choose the verification methods we'll use to confirm it's you.",
+      'enroll.choices.list.setup': 'Required to continue',
+      'enroll.choices.setup': 'Set up',
+      'enroll.choices.setup.another': 'Set up another verification method',
+      'enroll.choices.submit.configure': 'Continue',
+      'enroll.choices.submit.next': 'Continue',
+      'oie.email.authenticator.description':
+        'Verify with a code sent to your email',
+      'oie.email.enroll.title': 'Verify your email',
+      'oie.email.enroll.subtitle':
+        'Use the button to send a verification code when email verification is required.',
+      'oie.email.challenge.title': 'Verify your email',
+      'factor.email': 'Email',
+      'factor.email.description':
+        'Enter the verification code sent to your email.',
+      'email.button.send': 'Send email code',
+      'email.button.resend': 'Send another email code',
+      'email.code.label': 'Email verification code',
+      'email.code.not.received': 'Need another email code?',
+      'email.enroll.title': 'Verify your email',
+      'email.enroll.description':
+        'Use the button to send a verification code to your email.',
+      'email.enroll.enterCode': 'Verify email',
+      'email.mfa.title': 'Verify with email',
+      'email.mfa.description': 'Send a verification code to {0}.',
+      'email.mfa.email.sent.description': 'Enter the code sent to your email.',
+      'email.mfa.email.sent.description.sentText': 'Email code sent',
+      'email.mfa.email.sent.description.emailCodeText':
+        'Enter the code sent to your email.',
+      'mfa.sendEmail': 'Send email code',
+      'mfa.resendEmail': 'Send another email',
+      'mfa.emailVerification.title': 'Sign in with email',
+      'mfa.emailVerification.subtitle': 'Email will be sent to {0}.',
+      'mfa.emailVerification.otc.finish': 'Enter the code sent to your email.',
+      'password.forgot.email.or.username.placeholder': 'Email',
+      'password.forgot.email.or.username.tooltip': 'Email',
+      'password.forgot.sendEmail': 'Send recovery email',
+      'password.forgot.emailSent.title': 'Check your email',
       'oie.phone.authenticator.description':
         'Verify with a code sent to your US mobile phone',
       'oie.phone.enroll.title': 'Verify your US mobile phone',
@@ -212,7 +254,7 @@ const authContextByState = {
     eyebrow: 'Create account',
     title: 'Start your secure profile',
     subtitle:
-      'Create your ACME LOS account with your email, phone, state, and password before verification.',
+      'Create your ACME LOS account with your email, state, and password, then verify email and phone.',
   },
   resetPassword: {
     eyebrow: 'Password recovery',
@@ -325,6 +367,22 @@ const authenticatorReturnLinkTexts = new Set([
   'select another authenticator',
   'choose a different authenticator',
   'select a different authenticator',
+]);
+
+const friendlyWidgetTextByNormalizedText = new Map([
+  ['email authentication', 'Email verification'],
+  ['set up email', 'Verify your email'],
+  ['set up email authentication', 'Verify your email'],
+  ['setup email', 'Verify your email'],
+  ['setup email authentication', 'Verify your email'],
+  ['setup required', 'Required to continue'],
+  ['set up another', 'Set up another verification method'],
+  ['setup another', 'Set up another verification method'],
+  ['configure factor', 'Continue'],
+  ['configure next factor', 'Continue'],
+  ['enter code', 'Verify email'],
+  ['send me the code', 'Send email code'],
+  ['send again', 'Send another email code'],
 ]);
 
 function normalizeActionText(value) {
@@ -501,6 +559,14 @@ function transformFormElements(elements, signInUrl) {
         setFormElementText(element, signInReturnText);
       } else if (isAuthenticatorReturnElement(element)) {
         setFormElementText(element, verificationMethodReturnText);
+      } else {
+        const friendlyText = friendlyWidgetTextByNormalizedText.get(
+          readFormElementText(element),
+        );
+
+        if (friendlyText) {
+          setFormElementText(element, friendlyText);
+        }
       }
 
       if (Array.isArray(element?.elements)) {

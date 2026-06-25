@@ -20,13 +20,14 @@ The BFF is real and source-owned:
 - internal Azure Container App deployment behind the public Next facade
 - Redis-backed state in Azure/local hardened paths, with in-memory fallback for
   lightweight scaffolding
-- feature-toggle handoff through `ACME_BFF_PROXY_MODE=next|bff`
+- real Okta-backed auth/session, CSRF, customer, and application routes owned by
+  the BFF behind the stable Next facade
 - optional Entra managed-identity service auth through
   `bffRuntime.serviceAuth.mode=entra`
 
 The browser contract remains unchanged: browser code calls the Next `/api/*`
-facade, and the Next server layer decides whether a route stays local or
-delegates to the BFF.
+facade, and the Next server layer delegates real Okta-backed behavior to the
+BFF. Explicit mock auth remains local for development and Playwright fixtures.
 
 ## Implemented Endpoint Surface
 
@@ -45,7 +46,6 @@ delegates to the BFF.
 - `GET /bff/auth/callback`
 - `POST /bff/auth/logout`
 - `GET /bff/auth/session`
-- `POST /bff/auth/session`
 - `DELETE /bff/auth/session`
 - `POST /bff/auth/session/touch`
 - `POST /bff/auth/session/requirement`

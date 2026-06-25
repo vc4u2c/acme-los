@@ -39,6 +39,10 @@ public interface IOktaMyAccountService
 
 public sealed class OktaMyAccountService : IOktaMyAccountService
 {
+  private const string OktaMyAccountAcceptMediaType =
+    "application/json; okta-version=1.0.0";
+  private const string JsonMediaType = "application/json";
+
   private static readonly JsonSerializerOptions JsonOptions =
     new(JsonSerializerDefaults.Web);
   private static readonly Regex SafeOktaIdPattern =
@@ -86,6 +90,9 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
         ?? challenge.Id
         ?? TryExtractEmailChallengeIdFromVerifyLink(
           challenge.Links?.Verify?.Href,
+          emailId)
+        ?? TryExtractEmailChallengeIdFromVerifyLink(
+          emailTransaction.Links?.Verify?.Href,
           emailId),
       "email challenge id");
 
@@ -187,15 +194,12 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
 
     await SendAsync<JsonElement?>(
       accessToken,
-      HttpMethod.Put,
-      "/idp/myaccount/password",
+      HttpMethod.Post,
+      "/idp/myaccount/password/change-password",
       new
       {
-        profile = new
-        {
-          currentPassword,
-          password = newPassword,
-        },
+        oldPassword = currentPassword,
+        newPassword,
       },
       cancellationToken,
       expectBody: false);
@@ -220,11 +224,12 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     request.Headers.Authorization = new AuthenticationHeaderValue(
       "Bearer",
       accessToken);
-    request.Headers.Accept.ParseAdd("application/json; okta-version=1.0.0");
+    request.Headers.Accept.ParseAdd(OktaMyAccountAcceptMediaType);
 
     if (body is not null)
     {
       request.Content = JsonContent.Create(body, options: JsonOptions);
+      request.Content.Headers.ContentType = new MediaTypeHeaderValue(JsonMediaType);
     }
 
     using var response = await _httpClientFactory.CreateClient().SendAsync(
@@ -321,6 +326,14 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
       || normalizedMessage.Contains("scope", StringComparison.Ordinal))
     {
       return "The Okta app is missing the required MyAccount permission for this account change.";
+    }
+
+    if (string.Equals(errorCode, "E0000012", StringComparison.OrdinalIgnoreCase)
+      || statusCode == StatusCodes.Status415UnsupportedMediaType
+      || normalizedMessage.Contains("unsupported media type", StringComparison.Ordinal)
+      || normalizedMessage.Contains("content-type", StringComparison.Ordinal))
+    {
+      return "Okta rejected the account-management request format. Try again or ask support to verify the MyAccount API configuration.";
     }
 
     if (normalizedMessage.Contains("verification", StringComparison.Ordinal)
@@ -556,7 +569,9 @@ public sealed class OktaMyAccountException : Exception
 internal sealed record OktaEmailTransaction(
   string? Id,
   string? Status,
-  OktaEmailProfile? Profile);
+  OktaEmailProfile? Profile,
+  [property: JsonPropertyName("_links")]
+  OktaEmailChallengeLinks? Links);
 
 internal sealed record OktaEmailChallengeTransaction(
   [property: JsonPropertyName("challengeId")]

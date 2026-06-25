@@ -161,10 +161,6 @@ var bffBaseEnvironmentVariables = !empty(bffBaseUrl)
         name: 'ACME_BFF_BASE_URL'
         value: bffBaseUrl
       }
-      {
-        name: 'ACME_BFF_PROXY_MODE'
-        value: 'bff'
-      }
     ]
   : []
 var bffTrustedProxyEnvironmentVariables = !empty(bffTrustedProxySecretKeyVaultUrl)

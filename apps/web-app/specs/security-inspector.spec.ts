@@ -6,7 +6,6 @@ import { readSecurityInspectorServerSnapshot } from '@acme-los/api/web-server';
 describe('security inspector snapshot', () => {
   const originalAuthProvider = process.env.ACME_AUTH_PROVIDER;
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
-  const originalProxyMode = process.env.ACME_BFF_PROXY_MODE;
   const originalTrustedProxySecret = process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
   const originalFetch = global.fetch;
 
@@ -23,12 +22,6 @@ describe('security inspector snapshot', () => {
       process.env.ACME_BFF_BASE_URL = originalBaseUrl;
     }
 
-    if (originalProxyMode === undefined) {
-      delete process.env.ACME_BFF_PROXY_MODE;
-    } else {
-      process.env.ACME_BFF_PROXY_MODE = originalProxyMode;
-    }
-
     if (originalTrustedProxySecret === undefined) {
       delete process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
     } else {
@@ -42,7 +35,6 @@ describe('security inspector snapshot', () => {
   it('reads the BFF-owned token snapshot when the BFF owns auth state', async () => {
     process.env.ACME_AUTH_PROVIDER = 'okta';
     process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
 
     const bffSnapshot = {
@@ -121,10 +113,9 @@ describe('security inspector snapshot', () => {
     );
   });
 
-  it('reads the Next-owned snapshot without calling the BFF when the toggle is off', async () => {
-    process.env.ACME_AUTH_PROVIDER = 'okta';
+  it('reads a token-free local snapshot only for explicit mock auth', async () => {
+    process.env.ACME_AUTH_PROVIDER = 'mock';
     process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'next';
     const fetchSpy = jest.fn();
 
     global.fetch = fetchSpy;
@@ -133,7 +124,7 @@ describe('security inspector snapshot', () => {
       new NextRequest('https://los.example.test/api/security/inspector'),
     );
 
-    expect(snapshot.provider).toBe('okta');
+    expect(snapshot.provider).toBe('mock');
     expect(snapshot.storedSession).toBeNull();
     expect(fetchSpy).not.toHaveBeenCalled();
   });

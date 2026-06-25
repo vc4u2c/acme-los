@@ -15,8 +15,6 @@ import type {
   StartPhoneChangeResponse,
   SubmitApplicationRequest,
   SubmitApplicationResponse,
-  SyncWebAuthSessionRequest,
-  SyncWebAuthSessionResponse,
   TouchWebAuthSessionResponse,
   UpdateCustomerProfileRequest,
   UpdateCustomerProfileResponse,
@@ -134,14 +132,6 @@ export function createWebApiClient({
           fetchImpl,
           `${authSessionUrl}${search}`,
         );
-      },
-      syncSession(
-        payload: SyncWebAuthSessionRequest,
-      ): Promise<SyncWebAuthSessionResponse> {
-        return requestWithCsrf<SyncWebAuthSessionResponse>(authSessionUrl, {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
       },
       clearSession(): Promise<ClearWebAuthSessionResponse> {
         return requestWithCsrf<ClearWebAuthSessionResponse>(authSessionUrl, {

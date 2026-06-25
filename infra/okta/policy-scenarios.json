@@ -130,7 +130,7 @@
       "managedBy": "okta:bootstrap",
       "configures": [
         "self-service registration",
-        "required hosted profile fields: email login identifier, first name, last name, profile phone number, and Missouri/Texas State dropdown backed by acmeState",
+        "required hosted profile fields: email login identifier, first name, last name, and Missouri/Texas State dropdown backed by acmeState",
         "new registrations target {customerGroupName}"
       ],
       "scenarioIds": ["new-customer-registration"]
@@ -243,9 +243,9 @@
       "automationStatus": "automated",
       "flow": [
         "Customer starts Okta hosted registration from ACME app.",
-        "Profile enrollment captures email as the login identifier, first name, last name, profile phone number, and visible State backed by the acmeState Missouri/Texas dropdown, then targets {customerGroupName}.",
-        "Authenticator enrollment requires password, email, security question, and phone/SMS in dev when telephony is enabled; password is an Okta-rendered enrollment input, not a profile field.",
-        "Until the customer verifies the phone/SMS authenticator, profile phone remains contact metadata, not a verified SMS factor."
+        "Profile enrollment captures email as the login identifier, first name, last name, and visible State backed by the acmeState Missouri/Texas dropdown, then targets {customerGroupName}.",
+        "Authenticator enrollment requires password, email, security question, and phone/SMS in dev when telephony is enabled; password, email OTP, and phone/SMS OTP are Okta-rendered enrollment inputs, not profile fields.",
+        "Phone is captured once during Okta phone/SMS authenticator enrollment; ACME does not also collect profile phone on the hosted profile-enrollment form."
       ],
       "securityNotes": [
         "Admin users should not be members of {customerGroupName}.",
@@ -452,7 +452,7 @@
     },
     {
       "id": "registration-profile-fields",
-      "title": "Hosted registration requires email login identifier, first name, last name, phone number, and acmeState Missouri/Texas dropdown",
+      "title": "Hosted registration requires email login identifier, first name, last name, and acmeState Missouri/Texas dropdown",
       "scopeKind": "customerGroup"
     },
     {

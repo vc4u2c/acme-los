@@ -63,17 +63,15 @@ npx.cmd nx run web-app:dev
 
 ## Run The Web App And BFF Together
 
-The route switch is server-side. The browser keeps calling the stable Next.js
-`/api/*` routes, and those route handlers proxy selected requests to the BFF
-based on `ACME_BFF_PROXY_MODE`.
-
-- `next`: force the switched routes to stay in Next
-- `bff`: force the BFF path and require a BFF base URL
+The BFF hop is server-side. The browser keeps calling the stable Next.js
+`/api/*` routes, and real Okta-backed route handlers proxy selected requests
+to the BFF when `ACME_BFF_BASE_URL` is configured. Explicit mock auth remains
+local for tests and lightweight UI work.
 
 ### Preferred One-Command Path
 
 Use this for the full local website path. It starts Redis, the `.NET` BFF, and
-the Next web app with the BFF switch enabled.
+the Next web app with BFF proxying configured.
 
 ```powershell
 npx.cmd nx run web-app:dev-stack
@@ -93,15 +91,15 @@ should still call the stable Next facade, for example `/api/health`, not the raw
 BFF URL. When the BFF is configured, `/api/health` reports both the Next web
 layer and the BFF layer. The raw BFF URL is for terminal checks or direct
 top-level navigation.
-Use `/api/security/csrf` on the Next origin for browser-facing CSRF tokens; in
-BFF mode that route delegates issuance to `/bff/security/csrf` server-side and
-relays the cookie back through the Next response.
-Open `/security` on the Next origin for the security inspector. With the toggle
-off, it shows the Next-owned server state. With `ACME_BFF_PROXY_MODE=bff`, it
-shows the BFF-owned token/session state through the authenticated Next facade.
+Use `/api/security/csrf` on the Next origin for browser-facing CSRF tokens;
+that route delegates issuance to `/bff/security/csrf` server-side and relays
+the cookie back through the Next response.
+Open `/security` on the Next origin for the security inspector. With real Okta
+auth it shows the BFF-owned token/session state through the authenticated Next
+facade; with explicit mock auth it shows a token-free local snapshot.
 If you need to override the one-command BFF URL, set
 `ACME_DEV_STACK_BFF_BASE_URL`; the script passes that value to the web app as
-`ACME_BFF_BASE_URL` and forces `ACME_BFF_PROXY_MODE=bff`.
+`ACME_BFF_BASE_URL`.
 
 The npm alias is:
 
@@ -117,7 +115,6 @@ Terminal 1:
 
 ```powershell
 $env:ACME_BFF_BASE_URL='http://localhost:5186'
-$env:ACME_BFF_PROXY_MODE='bff'
 npx.cmd nx run web-app:dev-redis
 ```
 
@@ -224,12 +221,12 @@ To force it off even in `local` or `dev`, add this to `apps/web-app/.env.local`:
 ACME_ENABLE_SECURITY_INSPECTOR=false
 ```
 
-Security inspector toggle expectations:
+Security inspector authority expectations:
 
-| Setting                             | What `/security` shows                     |
-| ----------------------------------- | ------------------------------------------ |
-| `ACME_BFF_PROXY_MODE=next` or unset | Next-owned auth/session and token snapshot |
-| `ACME_BFF_PROXY_MODE=bff`           | BFF-owned auth/session and token snapshot  |
+| Setting                   | What `/security` shows                    |
+| ------------------------- | ----------------------------------------- |
+| Real Okta auth            | BFF-owned auth/session and token snapshot |
+| `ACME_AUTH_PROVIDER=mock` | token-free local mock snapshot            |
 
 The raw BFF inspector route is for server-to-server local/dev diagnostics. Do
 not use it from browser application code.

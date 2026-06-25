@@ -4,7 +4,6 @@ import {
   getBffBaseUrlOrThrow,
   getBffServiceAuthorizationHeader,
   getBffTrustedProxySecret,
-  isBffProxyEnabled,
 } from '@acme-los/api/web-server';
 
 const REQUEST_HEADERS_TO_FORWARD = [
@@ -114,15 +113,11 @@ async function toNextResponse(
   });
 }
 
-export async function maybeProxyToBff(
+export async function proxyToBff(
   request: NextRequest,
   upstreamPath: string,
   options: BffProxyOptions = {},
-): Promise<NextResponse | null> {
-  if (!isBffProxyEnabled()) {
-    return null;
-  }
-
+): Promise<NextResponse> {
   const baseUrl = getBffBaseUrlOrThrow();
   const targetUrl = buildProxyTargetUrl(request, upstreamPath, baseUrl);
   const rawBody =

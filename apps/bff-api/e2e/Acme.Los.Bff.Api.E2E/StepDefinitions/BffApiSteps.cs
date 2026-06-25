@@ -3,8 +3,12 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Acme.Los.Bff.Api.Contracts;
+using Acme.Los.Bff.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Reqnroll;
 using Xunit;
 
@@ -23,7 +27,6 @@ public sealed class BffApiSteps : IDisposable
   private readonly Dictionary<string, string> _defaultHeaders = [];
   private readonly Dictionary<string, string> _trustedIdentityHeaders = [];
   private IReadOnlyList<string> _setCookieHeaders = [];
-  private string? _authSessionId;
   private string? _authSessionCookieValue;
   private string? _csrfToken;
   private HttpResponseMessage? _response;
@@ -158,37 +161,43 @@ public sealed class BffApiSteps : IDisposable
     await WhenIUpdateTheCustomerProfileEmailTo("user@example.com");
   }
 
-  [When("I sync an authenticated BFF session for user {string} with email {string}")]
-  public async Task WhenISyncAnAuthenticatedBffSessionForUserWithEmail(
+  [Given("I have an authenticated BFF session for user {string} with email {string}")]
+  public async Task GivenIHaveAnAuthenticatedBffSessionForUserWithEmail(
     string userId,
     string email)
   {
-    using var request = CreateRequest(HttpMethod.Post, "/bff/auth/session");
-    request.Content = JsonContent.Create(new
+    if (_factory is null)
     {
-      idToken = "id-token-123",
-      session = new
-      {
-        provider = "okta",
-        status = "authenticated",
-        isAuthenticated = true,
-        assuranceLevel = "aal1",
-        user = new
-        {
-          id = userId,
-          displayName = "Session User",
-          email,
-        },
-      },
-      expiresAt = DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
-      serverTokens = new
-      {
-        idToken = "id-token-123",
-      },
-    });
+      throw new InvalidOperationException(
+        "Authenticated BFF session seeding requires the in-memory E2E host. " +
+        "Live environments create BFF sessions through the hosted auth callback.");
+    }
 
-    await SendAsync(request);
-    CaptureAuthSessionCookie();
+    using var scope = _factory.Services.CreateScope();
+    var context = new DefaultHttpContext
+    {
+      RequestServices = scope.ServiceProvider,
+    };
+    var result = await scope.ServiceProvider
+      .GetRequiredService<IAuthSessionService>()
+      .SyncSessionAsync(
+        context,
+        new SyncWebAuthSessionRequest(
+          "id-token-123",
+          Session: new WebAuthSession(
+            "okta",
+            "authenticated",
+            true,
+            "aal1",
+            new WebAuthSessionUser(
+              userId,
+              "Session User",
+              email)),
+          ExpiresAt: (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+          ServerTokens: new WebAuthSessionTokenSet("id-token-123")),
+        CancellationToken.None);
+
+    _authSessionCookieValue = CreateSignedSessionCookie(result.StoredSessionId);
   }
 
   [When("I read the BFF auth session")]
@@ -298,13 +307,6 @@ public sealed class BffApiSteps : IDisposable
       payload.GetProperty("profile").GetProperty("email").GetString());
   }
 
-  [Then("the response should include a BFF auth session id")]
-  public void ThenTheResponseShouldIncludeABffAuthSessionId()
-  {
-    Assert.False(string.IsNullOrWhiteSpace(_authSessionId));
-    Assert.False(string.IsNullOrWhiteSpace(_authSessionCookieValue));
-  }
-
   [Then("the auth session should be authenticated for user {string}")]
   public async Task ThenTheAuthSessionShouldBeAuthenticatedForUser(string userId)
   {
@@ -403,18 +405,6 @@ public sealed class BffApiSteps : IDisposable
     }
 
     return request;
-  }
-
-  private void CaptureAuthSessionCookie()
-  {
-    Assert.NotNull(_response);
-
-    Assert.True(_response!.Headers.TryGetValues(
-      "x-acme-auth-session-id",
-      out var sessionIdValues));
-
-    _authSessionId = Assert.Single(sessionIdValues);
-    _authSessionCookieValue = CreateSignedSessionCookie(_authSessionId);
   }
 
   private async Task<JsonElement> ReadJsonPayloadAsync()

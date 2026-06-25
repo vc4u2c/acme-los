@@ -216,7 +216,7 @@ to show the full platform surface, not just the visible web pages.
 - browser code calls same-origin Next `/api/*` routes
 - raw BFF URL is for server-to-server or terminal checks, not browser app code
 - CSRF double-submit protection covers mutating browser/facade routes
-- BFF-issued CSRF cookie is relayed through `/api/security/csrf` in BFF mode
+- BFF-issued CSRF cookie is relayed through `/api/security/csrf`
 - Next validates browser cookies/session/CSRF before proxying protected calls
 - Content Security Policy keeps application traffic scoped to the Next origin
   plus approved identity and analytics endpoints
@@ -232,8 +232,8 @@ to show the full platform surface, not just the visible web pages.
 - `.NET` 10 Minimal API BFF under Nx
 - OpenAPI JSON and Scalar UI in development
 - health, readiness, and live-style checks
-- auth flow endpoints for login, callback, logout, session sync, session read,
-  touch, requirement checks, and logout hints
+- auth flow endpoints for login, callback, logout, session read, touch,
+  requirement checks, and logout hints
 - CSRF endpoint
 - customer profile endpoints
 - application flow endpoints
@@ -245,18 +245,16 @@ to show the full platform surface, not just the visible web pages.
 - BFF request logging, trusted proxy validation, cookie handling, CSRF,
   correlation, and OpenTelemetry concerns live before handlers
 
-### BFF Toggle And Migration Architecture
+### BFF Facade Architecture
 
-- `ACME_BFF_PROXY_MODE=next|bff` is the reversible server-side migration switch
-- browser contracts stay stable while route authority moves between Next and
+- browser contracts stay stable while real Okta-backed route authority lives in
   the BFF
-- when toggle is `next`, switched routes stay in the Next implementation
-- when toggle is `bff`, Next keeps the public browser contract and delegates
-  selected auth/session/customer/application/security routes to the BFF
-- BFF mode makes the BFF the auth/session, CSRF, customer-profile, and
-  application-flow authority
-- security inspector reads the active authority, so BFF mode shows BFF-owned
-  token/session state
+- Next keeps the public browser contract and delegates selected
+  auth/session/customer/application/security routes to the BFF
+- the BFF is the auth/session, CSRF, customer-profile, and application-flow
+  authority
+- security inspector shows BFF-owned token/session state for real Okta auth and
+  a token-free local snapshot for explicit mock auth
 - browser-origin telemetry stays on the Next facade; the logging demo uses a
   separate diagnostic trace API to prove the Next-to-BFF hop
 
@@ -320,8 +318,8 @@ to show the full platform surface, not just the visible web pages.
   API event ingestion, client errors, and server errors
 - `/api/observability/events` validates allowlisted browser-origin operational
   events before logging them
-- telemetry ingestion can route to the BFF only when BFF mode and the telemetry
-  feature toggle are both enabled
+- telemetry ingestion remains on the Next facade; BFF diagnostic tracing is a
+  separate demo path
 
 ### Digital Analytics And Tag Management
 
@@ -424,8 +422,7 @@ to show the full platform surface, not just the visible web pages.
 ### Current Honest Assessment
 
 - `dev` is real and deploys from `main` through CI/CD
-- BFF auth/session is the intended end-state path when the BFF toggle is
-  enabled
+- BFF auth/session is the current real-Okta path behind the Next facade
 - if a direct BFF URL times out from your workstation, that is expected for the
   internal ACA endpoint; use the public Next `/api/*` facade for browser and
   manual web checks

@@ -6,13 +6,10 @@ import {
   buildSignInRedirectPath,
   clearWebAuthTransaction,
   checkRateLimit,
-  isBffProxyEnabled,
   logAuthAuditEvent,
   readWebAuthSession,
   startBffAuthFlow,
-  startOktaAuthTransaction,
   writeBffWebAuthTransaction,
-  writeWebAuthTransaction,
 } from '@acme-los/api/web-server';
 import {
   getApplicationAuthRequirementForPath,
@@ -111,38 +108,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         ? routeRequirement?.requiredStepUp
         : undefined;
 
-    if (isBffProxyEnabled()) {
-      const transaction = await startBffAuthFlow(request, {
-        returnTo: payload.returnTo,
-        minimumAssuranceLevel,
-        expectedUserId,
-        leadId,
-        stepUp,
-        widgetFlow: payload.widgetFlow,
-      });
-      const response = NextResponse.redirect(transaction.authorizeUrl);
-
-      writeBffWebAuthTransaction(request, response, {
-        transactionId: transaction.transactionId,
-        returnTo: transaction.returnTo,
-        minimumAssuranceLevel,
-        maxAge: transaction.maxAge,
-      });
-      applyRateLimitHeaders(response, rateLimit);
-      logAuthAuditEvent(request, {
-        event: 'auth.start',
-        outcome: 'success',
-        message: 'Started BFF-backed secure sign-in redirect.',
-        metadata: {
-          returnTo: transaction.returnTo,
-          minimumAssuranceLevel,
-        },
-      });
-
-      return response;
-    }
-
-    const transaction = startOktaAuthTransaction({
+    const transaction = await startBffAuthFlow(request, {
       returnTo: payload.returnTo,
       minimumAssuranceLevel,
       expectedUserId,
@@ -152,16 +118,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
     const response = NextResponse.redirect(transaction.authorizeUrl);
 
-    await writeWebAuthTransaction(request, response, transaction);
+    writeBffWebAuthTransaction(request, response, {
+      transactionId: transaction.transactionId,
+      returnTo: transaction.returnTo,
+      minimumAssuranceLevel,
+      maxAge: transaction.maxAge,
+    });
     applyRateLimitHeaders(response, rateLimit);
     logAuthAuditEvent(request, {
       event: 'auth.start',
       outcome: 'success',
-      message: 'Started secure sign-in redirect.',
+      message: 'Started BFF-backed secure sign-in redirect.',
       metadata: {
-        returnTo: transaction.storedTransaction.returnTo,
-        minimumAssuranceLevel:
-          transaction.storedTransaction.minimumAssuranceLevel,
+        returnTo: transaction.returnTo,
+        minimumAssuranceLevel,
       },
     });
 

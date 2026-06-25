@@ -66,6 +66,9 @@ describe('Okta telephony hook route', () => {
     process.env.ACME_WEB_STATE_STORE = 'file';
     delete process.env.ACME_REDIS_HOST;
     delete process.env.ACME_REDIS_URL;
+    process.env.ACME_OKTA_TELEPHONY_PROVIDER = 'acs';
+    delete process.env.ACME_ENABLE_MOCK_SMS_OTP;
+    delete process.env.APP_ENVIRONMENT_NAME;
     process.env.ACME_ACS_ENDPOINT =
       'https://acs-acme-los-dev-cus-01.communication.azure.com';
     process.env.ACME_ACS_SMS_SENDER_PHONE_NUMBER = '+15555550100';

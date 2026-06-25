@@ -28,7 +28,6 @@ function createSignedCookie(payload: Record<string, unknown>): string {
 
 describe('BFF-backed auth flow routes', () => {
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
-  const originalProxyMode = process.env.ACME_BFF_PROXY_MODE;
   const originalTrustedProxySecret = process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
   const originalWebSessionSecret = process.env.ACME_WEB_SESSION_SECRET;
   const originalFetch = global.fetch;
@@ -38,12 +37,6 @@ describe('BFF-backed auth flow routes', () => {
       delete process.env.ACME_BFF_BASE_URL;
     } else {
       process.env.ACME_BFF_BASE_URL = originalBaseUrl;
-    }
-
-    if (originalProxyMode === undefined) {
-      delete process.env.ACME_BFF_PROXY_MODE;
-    } else {
-      process.env.ACME_BFF_PROXY_MODE = originalProxyMode;
     }
 
     if (originalTrustedProxySecret === undefined) {
@@ -64,7 +57,6 @@ describe('BFF-backed auth flow routes', () => {
 
   it('delegates sign-in start to the BFF and stores the BFF transaction cookie', async () => {
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     delete process.env.ACME_WEB_SESSION_SECRET;
     const fetchSpy = jest.fn<typeof fetch>().mockResolvedValue(
@@ -118,7 +110,6 @@ describe('BFF-backed auth flow routes', () => {
 
   it('starts funding step-up through the BFF with single-use route-entry consumption', async () => {
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     delete process.env.ACME_WEB_SESSION_SECRET;
     const fetchSpy = jest
@@ -201,7 +192,6 @@ describe('BFF-backed auth flow routes', () => {
 
   it('starts account email step-up through the BFF with a phone/SMS-specific marker', async () => {
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     delete process.env.ACME_WEB_SESSION_SECRET;
     const fetchSpy = jest
@@ -287,7 +277,6 @@ describe('BFF-backed auth flow routes', () => {
 
   it('starts account password step-up through the BFF with a phone/SMS-specific marker', async () => {
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     delete process.env.ACME_WEB_SESSION_SECRET;
     const fetchSpy = jest
@@ -373,7 +362,6 @@ describe('BFF-backed auth flow routes', () => {
 
   it('delegates callback exchange to the BFF before checking Next-owned state', async () => {
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     delete process.env.ACME_WEB_SESSION_SECRET;
     const authTransaction = createSignedCookie({
@@ -445,7 +433,6 @@ describe('BFF-backed auth flow routes', () => {
 
   it('redirects completed account-security step-up callbacks back to the action UI', async () => {
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     delete process.env.ACME_WEB_SESSION_SECRET;
     const authTransaction = createSignedCookie({
@@ -515,7 +502,6 @@ describe('BFF-backed auth flow routes', () => {
 
   it('restarts recoverable expired callbacks instead of leaving a dead timeout page', async () => {
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     delete process.env.ACME_WEB_SESSION_SECRET;
     const fetchSpy = jest.fn<typeof fetch>().mockResolvedValue(

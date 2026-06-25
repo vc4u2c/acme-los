@@ -1,221 +1,124 @@
-import { randomUUID } from 'node:crypto';
 import type {
-  ApplicationFlowSummary,
-  ApplicationStepState,
   ApplicationStepKey,
-  SaveApplicationStepRequest,
-  SaveApplicationStepResponse,
-  SubmitApplicationRequest,
-  SubmitApplicationResponse,
+  ApplicationStepState,
+  GetApplicationStepResponse,
   WebAuthSession,
 } from '@acme-los/api/contracts';
-import { applicationStepKeys } from '@acme-los/api/contracts';
 import type { NextRequest, NextResponse } from 'next/server';
-import { APPLICATION_FLOW_COOKIE_NAME, clearCookie } from './cookies';
+import { cookies } from 'next/headers';
 import {
-  deleteStateValue,
-  readStateValue,
-  writeStateValue,
-} from './state-store';
+  BFF_TRUSTED_PROXY_SECRET_HEADER,
+  getBffBaseUrlOrThrow,
+  getBffTrustedProxySecret,
+} from './bff-config';
+import { getBffServiceAuthorizationHeader } from './bff-service-auth';
+import { APPLICATION_FLOW_COOKIE_NAME, clearCookie } from './cookies';
 
-type ApplicationFlowState = {
-  flowId: string;
-  userId: string;
-  formState: Record<string, unknown>;
-  summary: ApplicationFlowSummary;
-  submittedAt?: string;
-  expiresAt: number;
-};
+const BFF_AUTH_PROVIDER_HEADER = 'x-acme-auth-provider';
+const BFF_AUTHENTICATED_USER_ID_HEADER = 'x-acme-authenticated-user-id';
+const BFF_AUTHENTICATED_USER_EMAIL_HEADER = 'x-acme-authenticated-user-email';
+const BFF_AUTHENTICATED_CUSTOMER_ID_HEADER = 'x-acme-authenticated-customer-id';
+const BFF_AUTHENTICATED_LEAD_ID_HEADER = 'x-acme-authenticated-lead-id';
 
-const APPLICATION_FLOW_TTL_SECONDS = 60 * 60 * 8;
-const APPLICATION_FLOW_NAMESPACE = 'application-flow';
+function buildBffUrl(path: string): URL {
+  const baseUrl = getBffBaseUrlOrThrow();
 
-function getCurrentEpochSeconds(): number {
-  return Math.floor(Date.now() / 1000);
+  return new URL(path, baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`);
 }
 
-function getApplicationFlowKey(session: WebAuthSession): string | null {
-  return session.user?.id ?? null;
+function buildCookieHeader(
+  cookieStore: Awaited<ReturnType<typeof cookies>>,
+): string {
+  return cookieStore
+    .getAll()
+    .map((cookie) => `${cookie.name}=${cookie.value}`)
+    .join('; ');
 }
 
-function buildApplicationFlowSummary(
+function setHeaderIfPresent(
+  headers: Headers,
+  headerName: string,
+  value?: string,
+): void {
+  const trimmedValue = value?.trim();
+
+  if (trimmedValue) {
+    headers.set(headerName, trimmedValue);
+  }
+}
+
+async function buildBffApplicationHeaders(
   session: WebAuthSession,
-  currentStep: ApplicationStepKey,
-): ApplicationFlowSummary {
-  return {
-    applicationId: randomUUID(),
-    customerId: session.user?.customerId,
-    leadId: session.user?.leadId,
-    currentStep,
-    completedSteps: [],
-    lastUpdatedAt: new Date().toISOString(),
-  };
-}
+): Promise<Headers> {
+  const cookieStore = await cookies();
+  const headers = new Headers({
+    accept: 'application/json',
+    cookie: buildCookieHeader(cookieStore),
+  });
 
-function getCompletedSteps(
-  existingSteps: ApplicationStepKey[],
-  step: ApplicationStepKey,
-): ApplicationStepKey[] {
-  const completedSteps = new Set<ApplicationStepKey>([...existingSteps, step]);
-
-  return applicationStepKeys.filter((candidate) =>
-    completedSteps.has(candidate),
+  setHeaderIfPresent(headers, BFF_AUTH_PROVIDER_HEADER, session.provider);
+  setHeaderIfPresent(
+    headers,
+    BFF_AUTHENTICATED_USER_ID_HEADER,
+    session.user?.id,
   );
-}
-
-async function getFlowState(
-  session: WebAuthSession,
-): Promise<ApplicationFlowState | null> {
-  const applicationFlowKey = getApplicationFlowKey(session);
-  if (!applicationFlowKey) {
-    return null;
-  }
-
-  const state = await readStateValue<ApplicationFlowState>(
-    APPLICATION_FLOW_NAMESPACE,
-    applicationFlowKey,
+  setHeaderIfPresent(
+    headers,
+    BFF_AUTHENTICATED_USER_EMAIL_HEADER,
+    session.user?.email,
   );
-  if (!state) {
-    return null;
-  }
-
-  if (state.expiresAt <= getCurrentEpochSeconds()) {
-    await deleteStateValue(APPLICATION_FLOW_NAMESPACE, applicationFlowKey);
-    return null;
-  }
-
-  if (state.userId !== session.user?.id) {
-    return null;
-  }
-
-  return state;
-}
-
-function toApplicationStepState(
-  state: ApplicationFlowState,
-  step: ApplicationStepKey,
-): ApplicationStepState {
-  return {
-    step,
-    payload: state.formState,
-    summary: state.summary,
-  };
-}
-
-async function upsertApplicationFlow(
-  session: WebAuthSession,
-  step: ApplicationStepKey,
-  payload: Record<string, unknown>,
-): Promise<ApplicationFlowState> {
-  const existingState = await getFlowState(session);
-  const baseState =
-    existingState ??
-    ({
-      flowId: randomUUID(),
-      userId: session.user?.id ?? 'anonymous',
-      formState: {},
-      summary: buildApplicationFlowSummary(session, step),
-      expiresAt: getCurrentEpochSeconds() + APPLICATION_FLOW_TTL_SECONDS,
-    } satisfies ApplicationFlowState);
-
-  const nextState: ApplicationFlowState = {
-    ...baseState,
-    formState: {
-      ...baseState.formState,
-      ...payload,
-    },
-    summary: {
-      ...baseState.summary,
-      customerId: session.user?.customerId ?? baseState.summary.customerId,
-      leadId: session.user?.leadId ?? baseState.summary.leadId,
-      currentStep: step,
-      completedSteps: getCompletedSteps(baseState.summary.completedSteps, step),
-      lastUpdatedAt: new Date().toISOString(),
-    },
-    expiresAt: getCurrentEpochSeconds() + APPLICATION_FLOW_TTL_SECONDS,
-  };
-
-  const applicationFlowKey = getApplicationFlowKey(session);
-  if (!applicationFlowKey) {
-    return nextState;
-  }
-
-  await writeStateValue(
-    APPLICATION_FLOW_NAMESPACE,
-    applicationFlowKey,
-    nextState,
-    APPLICATION_FLOW_TTL_SECONDS,
+  setHeaderIfPresent(
+    headers,
+    BFF_AUTHENTICATED_CUSTOMER_ID_HEADER,
+    session.user?.customerId,
+  );
+  setHeaderIfPresent(
+    headers,
+    BFF_AUTHENTICATED_LEAD_ID_HEADER,
+    session.user?.leadId,
   );
 
-  return nextState;
-}
-
-export async function readApplicationStepState(
-  session: WebAuthSession,
-  step: ApplicationStepKey,
-): Promise<ApplicationStepState | null> {
-  const state = await getFlowState(session);
-  if (!state) {
-    return null;
+  const trustedProxySecret = getBffTrustedProxySecret();
+  if (trustedProxySecret) {
+    headers.set(BFF_TRUSTED_PROXY_SECRET_HEADER, trustedProxySecret);
   }
 
-  return toApplicationStepState(state, step);
+  const authorizationHeader = await getBffServiceAuthorizationHeader();
+  if (authorizationHeader) {
+    headers.set('authorization', authorizationHeader);
+  }
+
+  return headers;
 }
 
 export async function readServerApplicationStepState(
   session: WebAuthSession,
   step: ApplicationStepKey,
 ): Promise<ApplicationStepState | null> {
-  return readApplicationStepState(session, step);
-}
-
-export async function saveApplicationStep(
-  session: WebAuthSession,
-  step: ApplicationStepKey,
-  payload: SaveApplicationStepRequest,
-): Promise<SaveApplicationStepResponse> {
-  const nextState = await upsertApplicationFlow(session, step, payload.payload);
-
-  return {
-    stepState: toApplicationStepState(nextState, step),
-  };
-}
-
-export async function submitApplicationFlow(
-  session: WebAuthSession,
-  payload: SubmitApplicationRequest,
-): Promise<SubmitApplicationResponse> {
-  const nextState = await upsertApplicationFlow(
-    session,
-    payload.step,
-    payload.payload ?? {},
-  );
-  const submittedAt = new Date().toISOString();
-  const applicationFlowKey = getApplicationFlowKey(session);
-
-  if (applicationFlowKey) {
-    await deleteStateValue(APPLICATION_FLOW_NAMESPACE, applicationFlowKey);
+  if (session.provider === 'mock') {
+    return null;
   }
 
-  return {
-    summary: {
-      ...nextState.summary,
-      currentStep: payload.step,
-      lastUpdatedAt: submittedAt,
-    },
-    submittedAt,
-  };
+  const response = await fetch(buildBffUrl(`/bff/application/steps/${step}`), {
+    method: 'GET',
+    headers: await buildBffApplicationHeaders(session),
+    cache: 'no-store',
+    redirect: 'manual',
+  });
+
+  if (!response.ok) {
+    return null;
+  }
+
+  const payload = (await response.json()) as GetApplicationStepResponse;
+
+  return payload.stepState;
 }
 
 export async function clearApplicationFlow(
-  session: WebAuthSession,
+  _session: WebAuthSession,
   request: NextRequest,
   response: NextResponse,
 ): Promise<void> {
-  const applicationFlowKey = getApplicationFlowKey(session);
-  if (applicationFlowKey) {
-    await deleteStateValue(APPLICATION_FLOW_NAMESPACE, applicationFlowKey);
-  }
-
   clearCookie(response, request, APPLICATION_FLOW_COOKIE_NAME);
 }

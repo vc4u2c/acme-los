@@ -41,59 +41,6 @@ public static class AuthSessionEndpoints
         .Produces<GetWebAuthSessionResponse>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status403Forbidden);
 
-    authGroup.MapPost(
-            "/session",
-            async (
-                HttpContext context,
-                IAuthSessionService authSessionService) =>
-            {
-              try
-              {
-                if (!BffTrustedProxyBoundary.HasTrustedProxyBoundary(context.Request))
-                {
-                  return BffTrustedProxyBoundary.BuildRejectedResult();
-                }
-
-                var payload =
-                        await context.Request.ReadFromJsonAsync<SyncWebAuthSessionRequest>(
-                            cancellationToken: context.RequestAborted);
-
-                if (payload is null || string.IsNullOrWhiteSpace(payload.IdToken))
-                {
-                  return Results.Json(
-                          BuildSyncErrorResponse("Unable to sync auth session."),
-                          statusCode: StatusCodes.Status400BadRequest);
-                }
-
-                var syncedSession = await authSessionService.SyncSessionAsync(
-                  context,
-                  payload,
-                  context.RequestAborted);
-
-                WriteAuthSessionHeaders(context, syncedSession);
-
-                return Results.Json(syncedSession.Response);
-              }
-              catch (NotSupportedException error)
-              {
-                return Results.Json(
-                        BuildSyncErrorResponse(error.Message),
-                        statusCode: StatusCodes.Status501NotImplemented);
-              }
-              catch (Exception error)
-              {
-                return Results.Json(
-                        BuildSyncErrorResponse(error.Message),
-                        statusCode: StatusCodes.Status400BadRequest);
-              }
-            })
-        .WithName("SyncBffAuthSession")
-        .Produces<SyncWebAuthSessionResponse>(StatusCodes.Status200OK)
-        .Produces<SyncWebAuthSessionResponse>(StatusCodes.Status400BadRequest)
-        .Produces<SyncWebAuthSessionResponse>(
-            StatusCodes.Status501NotImplemented)
-        .Produces(StatusCodes.Status403Forbidden);
-
     authGroup.MapDelete(
             "/session",
             async (
@@ -211,13 +158,6 @@ public static class AuthSessionEndpoints
         .Produces(StatusCodes.Status403Forbidden);
 
     return endpoints;
-  }
-
-  private static SyncWebAuthSessionResponse BuildSyncErrorResponse(
-      string message)
-  {
-    return new SyncWebAuthSessionResponse(
-        BffAuthSessionService.BuildUnauthenticatedSession(message));
   }
 
   private static TouchWebAuthSessionResponse BuildTouchErrorResponse(

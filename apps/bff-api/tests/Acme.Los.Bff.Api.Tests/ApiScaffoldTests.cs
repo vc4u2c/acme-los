@@ -10,6 +10,7 @@ using Acme.Los.Bff.Api.Infrastructure.Auth;
 using Acme.Los.Bff.Api.Infrastructure.Okta;
 using Acme.Los.Bff.Api.Infrastructure.State;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Configuration;
@@ -330,36 +331,28 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       sub = "user-123",
       scp = new[] { "openid", "profile" },
     });
-    var expiresAt = (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
-    using var syncResponse = await client.PostAsJsonAsync(
-      "/bff/auth/session",
-      new SyncWebAuthSessionRequest(
+    var storedSession = await CreateStoredAuthSessionAsync(
+      _factory,
+      idToken,
+      new WebAuthSession(
+        "okta",
+        "authenticated",
+        true,
+        "aal1",
+        new WebAuthSessionUser(
+          "user-123",
+          "User Test",
+          "user@example.com")),
+      (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+      new WebAuthSessionTokenSet(
         idToken,
-        Session: new WebAuthSession(
-          "okta",
-          "authenticated",
-          true,
-          "aal1",
-          new WebAuthSessionUser(
-            "user-123",
-            "User Test",
-            "user@example.com")),
-        ExpiresAt: expiresAt,
-        ServerTokens: new WebAuthSessionTokenSet(
-          idToken,
-          accessToken,
-          "refresh-token-123",
-          "Bearer",
-          "openid profile",
-          3600)));
+        accessToken,
+        "refresh-token-123",
+        "Bearer",
+        "openid profile",
+        3600));
 
-    Assert.Equal(HttpStatusCode.OK, syncResponse.StatusCode);
-    Assert.True(
-      syncResponse.Headers.TryGetValues(
-        "x-acme-auth-session-id",
-        out var sessionIdValues));
-
-    var sessionId = Assert.Single(sessionIdValues);
+    var sessionId = storedSession.StoredSessionId;
     using var inspectorRequest = new HttpRequestMessage(
       HttpMethod.Get,
       "/bff/security/inspector");
@@ -423,42 +416,28 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
-  public async Task BffAuthSession_CanSyncReadTouchAndReturnLogoutHint()
+  public async Task BffAuthSession_CanReadTouchAndReturnLogoutHint()
   {
     using var client = _factory.CreateClient();
-    var expiresAt = (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
-    using var syncResponse = await client.PostAsJsonAsync(
-      "/bff/auth/session",
-      new SyncWebAuthSessionRequest(
-        "id-token-123",
-        Session: new WebAuthSession(
-          "okta",
-          "authenticated",
-          true,
-          "aal1",
-          new WebAuthSessionUser(
-            "user-123",
-            "User Test",
-            "user@example.com")),
-        ExpiresAt: expiresAt,
-        ServerTokens: new WebAuthSessionTokenSet("id-token-123")));
+    var storedSession = await CreateStoredAuthSessionAsync(
+      _factory,
+      "id-token-123",
+      new WebAuthSession(
+        "okta",
+        "authenticated",
+        true,
+        "aal1",
+        new WebAuthSessionUser(
+          "user-123",
+          "User Test",
+          "user@example.com")),
+      (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+      new WebAuthSessionTokenSet("id-token-123"));
 
-    Assert.Equal(HttpStatusCode.OK, syncResponse.StatusCode);
-    Assert.True(
-      syncResponse.Headers.TryGetValues(
-        "x-acme-auth-session-id",
-        out var sessionIdValues));
-    Assert.True(
-      syncResponse.Headers.TryGetValues(
-        "x-acme-auth-session-max-age",
-        out var maxAgeValues));
-
-    var sessionId = Assert.Single(sessionIdValues);
-    var maxAge = Assert.Single(maxAgeValues);
+    var sessionId = storedSession.StoredSessionId;
 
     Assert.False(string.IsNullOrWhiteSpace(sessionId));
-    Assert.True(int.Parse(maxAge) > 0);
-
+    Assert.True(storedSession.MaxAge > 0);
     var sessionCookie = CreateSignedSessionCookie(sessionId);
     using var readRequest = new HttpRequestMessage(
       HttpMethod.Get,
@@ -956,28 +935,22 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         services.AddSingleton<IOktaCustomerIdWritebackService>(writebackService);
       }));
     using var client = factory.CreateClient();
-    var expiresAt = (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds();
-    using var syncResponse = await client.PostAsJsonAsync(
-      "/bff/auth/session",
-      new SyncWebAuthSessionRequest(
-        "id-token-application-user-005",
-        Session: new WebAuthSession(
-          "okta",
-          "authenticated",
-          true,
-          "aal1",
-          new WebAuthSessionUser(
-            userId,
-            "Application User",
-            "application-user-005@example.com")),
-        ExpiresAt: expiresAt,
-        ServerTokens: new WebAuthSessionTokenSet(
-          "id-token-application-user-005")));
+    var storedSession = await CreateStoredAuthSessionAsync(
+      factory,
+      "id-token-application-user-005",
+      new WebAuthSession(
+        "okta",
+        "authenticated",
+        true,
+        "aal1",
+        new WebAuthSessionUser(
+          userId,
+          "Application User",
+          "application-user-005@example.com")),
+      (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+      new WebAuthSessionTokenSet("id-token-application-user-005"));
 
-    Assert.Equal(HttpStatusCode.OK, syncResponse.StatusCode);
-
-    var sessionId = Assert.Single(
-      syncResponse.Headers.GetValues("x-acme-auth-session-id"));
+    var sessionId = storedSession.StoredSessionId;
     var sessionCookie = CreateSignedSessionCookie(sessionId);
     var csrfToken =
       await client.GetFromJsonAsync<IssueCsrfTokenResponse>("/bff/security/csrf");
@@ -1264,29 +1237,22 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
 
     var request = Assert.Single(handler.Requests);
 
-    Assert.Equal(HttpMethod.Put, request.Method);
+    Assert.Equal(HttpMethod.Post, request.Method);
     Assert.Equal(
-      "https://dev-123456.okta.com/idp/myaccount/password",
+      "https://dev-123456.okta.com/idp/myaccount/password/change-password",
       request.RequestUri?.ToString());
     Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
     Assert.Equal("access-token-123", request.Headers.Authorization?.Parameter);
-    Assert.Contains(
-      request.Headers.Accept,
-      value => string.Equals(value.MediaType, "application/json", StringComparison.Ordinal)
-        && value.Parameters.Any(parameter =>
-          string.Equals(parameter.Name, "okta-version", StringComparison.OrdinalIgnoreCase)
-          && string.Equals(parameter.Value, "1.0.0", StringComparison.Ordinal)));
+    AssertOktaMyAccountJsonHeaders(request);
 
     var body = await request.Content!.ReadAsStringAsync();
     using var json = JsonDocument.Parse(body);
-    var profile = json.RootElement.GetProperty("profile");
-
     Assert.Equal(
       "current-password-123",
-      profile.GetProperty("currentPassword").GetString());
+      json.RootElement.GetProperty("oldPassword").GetString());
     Assert.Equal(
       "new-password-456",
-      profile.GetProperty("password").GetString());
+      json.RootElement.GetProperty("newPassword").GetString());
   }
 
   [Fact]
@@ -1348,10 +1314,12 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal(
       "https://dev-123456.okta.com/idp/myaccount/emails",
       handler.Requests[0].RequestUri?.ToString());
+    AssertOktaMyAccountJsonHeaders(handler.Requests[0]);
     Assert.Equal(HttpMethod.Post, handler.Requests[1].Method);
     Assert.Equal(
       "https://dev-123456.okta.com/idp/myaccount/emails/email-change-123/challenge",
       handler.Requests[1].RequestUri?.ToString());
+    AssertOktaMyAccountJsonHeaders(handler.Requests[1], hasJsonBody: false);
 
     var body = await handler.Requests[0].Content!.ReadAsStringAsync();
     using var json = JsonDocument.Parse(body);
@@ -1423,6 +1391,66 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public async Task OktaMyAccountService_StartEmailChange_CanReadChallengeIdFromCreateEmailVerifyLink()
+  {
+    const string challengeId = "myaccount.IDseIErVSEiFlLyAbzSp5Q";
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var handler = new CapturingHttpMessageHandler(
+      request =>
+      {
+        return request.RequestUri?.AbsolutePath switch
+        {
+          "/idp/myaccount/emails" => new HttpResponseMessage(HttpStatusCode.OK)
+          {
+            Content = JsonContent.Create(new
+            {
+              id = "email-change-123",
+              status = "UNVERIFIED",
+              profile = new { email = "new-user@example.com" },
+              _links = new
+              {
+                verify = new
+                {
+                  href =
+                    $"https://dev-123456.okta.com/idp/myaccount/emails/email-change-123/challenge/{challengeId}/verify",
+                },
+              },
+            }),
+          },
+          "/idp/myaccount/emails/email-change-123/challenge" =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+              Content = JsonContent.Create(new
+              {
+                status = "PENDING",
+                expiresAt = "2030-01-01T00:00:00Z",
+              }),
+            },
+          _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        };
+      });
+    using var httpClient = new HttpClient(handler);
+    var service = new OktaMyAccountService(
+      new StaticHttpClientFactory(httpClient));
+
+    var result = await service.StartEmailChangeAsync(
+      "access-token-123",
+      new StartEmailChangeRequest("new-user@example.com"),
+      CancellationToken.None);
+
+    Assert.Equal("email-change-123", result.EmailId);
+    Assert.Equal(challengeId, result.ChallengeId);
+  }
+
+  [Fact]
   public async Task OktaMyAccountService_VerifyEmailChange_AllowsDottedChallengeId()
   {
     const string challengeId = "myaccount.IDseIErVSEiFlLyAbzSp5Q";
@@ -1457,6 +1485,93 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal(
       $"https://dev-123456.okta.com/idp/myaccount/emails/email-change-123/challenge/{challengeId}/verify",
       request.RequestUri?.ToString());
+    AssertOktaMyAccountJsonHeaders(request);
+  }
+
+  [Fact]
+  public async Task OktaMyAccountService_StartPhoneChange_UsesScopedMyAccountPhoneApi()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.Created)
+      {
+        Content = JsonContent.Create(new
+        {
+          id = "phone-change-123",
+          status = "UNVERIFIED",
+          profile = new { phoneNumber = "+13145550123" },
+        }),
+      });
+    using var httpClient = new HttpClient(handler);
+    var service = new OktaMyAccountService(
+      new StaticHttpClientFactory(httpClient));
+
+    var result = await service.StartPhoneChangeAsync(
+      "access-token-123",
+      new StartPhoneChangeRequest("(314) 555-0123"),
+      CancellationToken.None);
+
+    Assert.Equal("phone-change-123", result.PhoneId);
+    Assert.Equal("+13145550123", result.PhoneNumber);
+    Assert.Equal("pending_verification", result.Status);
+
+    var request = Assert.Single(handler.Requests);
+
+    Assert.Equal(HttpMethod.Post, request.Method);
+    Assert.Equal(
+      "https://dev-123456.okta.com/idp/myaccount/phones",
+      request.RequestUri?.ToString());
+    AssertOktaMyAccountJsonHeaders(request);
+
+    var body = await request.Content!.ReadAsStringAsync();
+    using var json = JsonDocument.Parse(body);
+    var profile = json.RootElement.GetProperty("profile");
+
+    Assert.Equal("+13145550123", profile.GetProperty("phoneNumber").GetString());
+    Assert.True(json.RootElement.GetProperty("sendCode").GetBoolean());
+    Assert.Equal("SMS", json.RootElement.GetProperty("method").GetString());
+  }
+
+  [Fact]
+  public async Task OktaMyAccountService_VerifyPhoneChange_UsesScopedMyAccountPhoneApi()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.NoContent));
+    using var httpClient = new HttpClient(handler);
+    var service = new OktaMyAccountService(
+      new StaticHttpClientFactory(httpClient));
+
+    var result = await service.VerifyPhoneChangeAsync(
+      "access-token-123",
+      new VerifyPhoneChangeRequest("phone-change-123", "278964"),
+      CancellationToken.None);
+
+    Assert.Equal("verified", result.Status);
+
+    var request = Assert.Single(handler.Requests);
+
+    Assert.Equal(HttpMethod.Post, request.Method);
+    Assert.Equal(
+      "https://dev-123456.okta.com/idp/myaccount/phones/phone-change-123/verify",
+      request.RequestUri?.ToString());
+    AssertOktaMyAccountJsonHeaders(request);
   }
 
   [Fact]
@@ -1493,6 +1608,42 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal((int)HttpStatusCode.Conflict, exception.StatusCode);
     Assert.True(exception.ExposeMessageToClient);
     Assert.Contains("already associated", exception.Message);
+  }
+
+  [Fact]
+  public async Task OktaMyAccountService_UnsupportedMediaType_ReturnsClientSafeMessage()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.UnsupportedMediaType)
+      {
+        Content = JsonContent.Create(new
+        {
+          errorCode = "E0000012",
+          errorSummary = "Unsupported media type",
+        }),
+      });
+    using var httpClient = new HttpClient(handler);
+    var service = new OktaMyAccountService(
+      new StaticHttpClientFactory(httpClient));
+
+    var exception = await Assert.ThrowsAsync<OktaMyAccountException>(() =>
+      service.StartPhoneChangeAsync(
+        "access-token-123",
+        new StartPhoneChangeRequest("+13145550123"),
+        CancellationToken.None).AsTask());
+
+    Assert.Equal((int)HttpStatusCode.UnsupportedMediaType, exception.StatusCode);
+    Assert.True(exception.ExposeMessageToClient);
+    Assert.Contains("request format", exception.Message);
   }
 
   [Fact]
@@ -1910,6 +2061,32 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     return PemEncoding.WriteString("PRIVATE KEY", rsa.ExportPkcs8PrivateKey());
   }
 
+  private static void AssertOktaMyAccountJsonHeaders(
+    HttpRequestMessage request,
+    bool hasJsonBody = true)
+  {
+    Assert.Contains(
+      request.Headers.Accept,
+      value => string.Equals(value.MediaType, "application/json", StringComparison.Ordinal)
+        && value.Parameters.Any(parameter =>
+          string.Equals(parameter.Name, "okta-version", StringComparison.OrdinalIgnoreCase)
+          && string.Equals(parameter.Value, "1.0.0", StringComparison.Ordinal)));
+
+    if (!hasJsonBody)
+    {
+      Assert.Null(request.Content);
+      return;
+    }
+
+    Assert.NotNull(request.Content);
+
+    var contentType = request.Content!.Headers.ContentType;
+
+    Assert.NotNull(contentType);
+    Assert.Equal("application/json", contentType!.MediaType);
+    Assert.Empty(contentType.Parameters);
+  }
+
   private static OktaCustomerIdWritebackService CreateOktaCustomerIdWritebackService(
     HttpClient httpClient)
   {
@@ -1924,6 +2101,31 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         CreatePrivateKeyPem(),
         "key-1",
         ["okta.users.manage"]));
+  }
+
+  private static async Task<AuthSessionMutationResult> CreateStoredAuthSessionAsync(
+    WebApplicationFactory<global::Program> factory,
+    string idToken,
+    WebAuthSession session,
+    int expiresAt,
+    WebAuthSessionTokenSet serverTokens)
+  {
+    using var scope = factory.Services.CreateScope();
+    var context = new DefaultHttpContext
+    {
+      RequestServices = scope.ServiceProvider,
+    };
+
+    return await scope.ServiceProvider
+      .GetRequiredService<IAuthSessionService>()
+      .SyncSessionAsync(
+        context,
+        new SyncWebAuthSessionRequest(
+          idToken,
+          Session: session,
+          ExpiresAt: expiresAt,
+          ServerTokens: serverTokens),
+        CancellationToken.None);
   }
 
   private static string CreateSignedSessionCookie(string sessionId)
@@ -2114,6 +2316,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       {
         var content = await request.Content.ReadAsStringAsync(cancellationToken);
         clone.Content = new StringContent(content, Encoding.UTF8);
+        clone.Content.Headers.ContentType = null;
 
         foreach (var header in request.Content.Headers)
         {

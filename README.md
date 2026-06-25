@@ -14,10 +14,10 @@ The root README is intentionally short. Use it to get running, then follow the l
 
 The repo is now a production-shaped pre-prod platform rather than a prototype.
 The main architectural decision is stable: browsers call the same-origin
-Next.js `/api/*` facade, and the server-side switch
-`ACME_BFF_PROXY_MODE=next|bff` decides whether those routes stay in Next or
-delegate to the `.NET` BFF. In `bff` mode, the BFF is the auth/session, CSRF,
-customer-profile, and application-flow authority behind the public Next facade.
+Next.js `/api/*` facade, and real Okta-backed routes delegate to the `.NET`
+BFF. The BFF is the auth/session, CSRF, customer-profile, and
+application-flow authority behind the public Next facade; explicit mock auth
+remains local for tests and lightweight UI work.
 
 Current strengths:
 
@@ -28,10 +28,10 @@ Current strengths:
   opaque HTTP-only sessions, logout, and funding step-up MFA
 - read-only customer dashboard with Okta-hosted widget actions for login email,
   phone/SMS, and password, with backend email sync after a fresh Okta session
-- BFF-owned CSRF issuance in BFF mode, with Next preserving the stable browser
+- BFF-owned CSRF issuance, with Next preserving the stable browser
   `/api/security/csrf` contract
-- dev-only security inspector support for both Next-owned and BFF-owned
-  auth/session stores
+- dev-only security inspector support for BFF-owned auth/session state, with a
+  token-free local snapshot for explicit mock auth
 - composite health that reports both web and BFF layer status, versions, and
   build identifiers
 - repo-owned GA4/GTM analytics admin plane and web runtime with environment
@@ -98,7 +98,6 @@ The presenter-focused version lives in
 - `.NET` BFF app under Nx with Minimal APIs, OpenAPI, Scalar UI, health/readiness
   endpoints, and modular feature folders
 - stable Next `/api/*` facade so browser code does not call the raw BFF URL
-- feature toggle `ACME_BFF_PROXY_MODE=next|bff` for reversible route migration
 - BFF auth/session endpoints, customer profile endpoints, application flow
   endpoints, CSRF endpoint, and health endpoint
 - BFF security inspector endpoint used only through the authenticated Next
@@ -193,15 +192,11 @@ For the full local run/setup details, including the Redis path, see
 
 Run the full local web + BFF stack:
 
-The `/api/*` switch is server-side, not browser-side. The client keeps calling
-the same Next.js `/api/*` routes. Those Next route handlers then decide at
-request time whether to handle the route locally or proxy it to the `.NET` BFF.
-
-- `ACME_BFF_PROXY_MODE=next` forces the switched routes to stay in Next
-- `ACME_BFF_PROXY_MODE=bff` forces the BFF path and requires a BFF base URL
-
-When the BFF path is active, Next validates auth and CSRF locally, forwards
-trusted identity headers, and proxies the request to the BFF.
+The `/api/*` facade is server-side, not browser-side. The client keeps calling
+the same Next.js `/api/*` routes. For real Okta-backed behavior, those Next
+route handlers validate the browser boundary, forward trusted identity headers
+where needed, and proxy to the `.NET` BFF. Explicit mock auth remains local for
+test fixtures and lightweight UI work.
 
 Preferred one-command path:
 
@@ -210,16 +205,14 @@ npx.cmd nx run web-app:dev-stack
 ```
 
 That starts local Redis, the `.NET` BFF, and the Next web app with
-`ACME_BFF_BASE_URL`, `ACME_BFF_PROXY_MODE=bff`,
-`ACME_WEB_STATE_STORE=redis`, and
+`ACME_BFF_BASE_URL`, `ACME_WEB_STATE_STORE=redis`, and
 `ACME_REDIS_URL=redis://127.0.0.1:6379` wired for the local process tree.
 For local server-to-server proxying, the command uses the BFF HTTP loopback URL
 `http://localhost:5186` so Node does not need to trust the ASP.NET Core
 self-signed HTTPS development certificate.
 If you need to override that URL for the one-command stack, set
 `ACME_DEV_STACK_BFF_BASE_URL`; the script still passes it to the web app as
-`ACME_BFF_BASE_URL`. `ACME_BFF_BASE_URL` configures the upstream endpoint; it
-does not enable the BFF path unless `ACME_BFF_PROXY_MODE=bff` is also set.
+`ACME_BFF_BASE_URL`.
 
 The npm alias is:
 
@@ -233,7 +226,6 @@ Terminal 1:
 
 ```powershell
 $env:ACME_BFF_BASE_URL='http://localhost:5186'
-$env:ACME_BFF_PROXY_MODE='bff'
 npx.cmd nx run web-app:dev-redis
 ```
 

@@ -53,21 +53,24 @@ const oktaAccountSecurityActions: Array<{
   {
     actionId: 'password',
     label: 'Change password',
-    description: 'Verify with phone/SMS, then enter the current password.',
+    description:
+      'Confirm your password, complete phone/SMS verification, then set the new password.',
     cta: 'Change password',
     icon: KeyRound,
   },
   {
     actionId: 'change-email',
     label: 'Change email',
-    description: 'Verify with phone/SMS, then confirm the new email OTP.',
+    description:
+      'Confirm your password, complete phone/SMS verification, then verify the code sent to the new email.',
     cta: 'Change email',
     icon: Mail,
   },
   {
     actionId: 'change-phone',
     label: 'Change phone',
-    description: 'Verify with email OTP, then confirm the new SMS phone.',
+    description:
+      'Confirm your password, complete email verification, then verify the code sent to the new phone.',
     cta: 'Change phone',
     icon: Phone,
   },

@@ -155,31 +155,30 @@ This avoids coupling the BFF introduction to a breaking client rewrite.
 
 Current bridge decision:
 
-- the BFF switch belongs in the Next server route layer for this phase
-- browser code should not read `ACME_BFF_BASE_URL`, `ACME_BFF_URL`, or
-  `ACME_BFF_PROXY_MODE`, and should not choose the BFF directly
-- `ACME_BFF_PROXY_MODE=next|bff` is the server-side route switch; the BFF base
-  URL is endpoint configuration, not the rollout switch
+- browser code should not read `ACME_BFF_BASE_URL` or `ACME_BFF_URL`, and
+  should not choose the BFF directly
+- `ACME_BFF_BASE_URL` is server-side endpoint configuration for the Next facade
 - Next route handlers continue to own the same-origin browser route contract,
-  redirects, browser cookie handoff, and CSRF checks while the BFF owns selected
-  customer, application, auth transaction, Okta callback, and session-store
-  behavior when the switch is enabled
+  redirects, browser cookie handoff, and CSRF checks while the BFF owns real
+  Okta-backed customer, application, auth transaction, Okta callback, and
+  session behavior
 - trusted identity headers are accepted only inside a trusted proxy boundary;
   outside local development, use `ACME_BFF_TRUSTED_PROXY_SECRET` or an
   equivalent private network control before the BFF honors those headers
 - Azure environments can add Entra managed-identity service auth through
   `bffRuntime.serviceAuth.mode=entra`; the BFF validates tenant, audience, and
   the allowed web managed identity before `/bff/*` routes run
-- auth start, callback, session read/sync/touch/clear, requirement checks, and
-  logout hints move behind the same `ACME_BFF_PROXY_MODE` switch; Next remains
-  the browser facade for the public redirect URLs, final `Set-Cookie` emission,
-  and mock-auth development fixtures
+- auth start, callback, session read/touch/clear, requirement checks, and logout
+  hints are BFF-owned for real Okta auth; Next remains the browser facade for
+  the public redirect URLs, final `Set-Cookie` emission, and mock-auth
+  development fixtures
 - `GET /api/security/csrf` remains browser-facing on the stable Next facade; in
-  BFF mode it delegates issuance to `/bff/security/csrf` and relays the BFF
-  cookie back to the browser
+  real Okta mode it delegates issuance to `/bff/security/csrf` and relays the
+  BFF cookie back to the browser
 - `GET /api/security/inspector` remains browser-facing and authenticated on the
-  stable Next facade; in BFF mode it reads the BFF-owned token/session snapshot
-  from `/bff/security/inspector` through the trusted server-side proxy boundary
+  stable Next facade; with real Okta auth it reads the BFF-owned token/session
+  snapshot from `/bff/security/inspector` through the trusted server-side proxy
+  boundary
 - after the BFF-owned auth path is proven in `dev` and `qa`, the team can
   revisit whether `/api/*` remains a thin Next proxy or whether a more direct
   BFF-facing route shape is cleaner
@@ -220,9 +219,9 @@ Definition of done:
 - Redis integration boots cleanly
 - Scalar docs render
 - dev ACA deploys the BFF with internal ingress only
-- Next receives `ACME_BFF_BASE_URL`, `ACME_BFF_PROXY_MODE=bff`, and the trusted
-  proxy secret through IaC; the BFF receives the same web session secret so it
-  can validate the opaque session cookie behind the facade
+- Next receives `ACME_BFF_BASE_URL` and the trusted proxy secret through IaC;
+  the BFF receives the same web session secret so it can validate the opaque
+  session cookie behind the facade
 
 ### Phase 2: Move Customer And Application Behavior First
 
@@ -256,7 +255,6 @@ Current BFF-mode endpoints:
 - `GET /bff/auth/callback`
 - `POST /bff/auth/logout`
 - `GET /bff/auth/session`
-- `POST /bff/auth/session`
 - `DELETE /bff/auth/session`
 - `POST /bff/auth/session/touch`
 - `POST /bff/auth/session/requirement`
@@ -267,11 +265,11 @@ Current BFF-mode endpoints:
 Definition of done:
 
 - the BFF owns PKCE initiation, auth transaction state, Okta token exchange,
-  id-token validation, and callback handling when `ACME_BFF_PROXY_MODE=bff`
+  id-token validation, and callback handling for real Okta auth
 - session storage, lookup, touch, requirement checks, and logout hints are stable
 - funding step-up rules are preserved
-- the dev-only security inspector follows the active session authority in both
-  `next` and `bff` modes
+- the dev-only security inspector reads BFF state for real Okta auth and a
+  token-free local snapshot for explicit mock auth
 - the Next layer stays a route shell and UX boundary, not the long-term auth
   engine
 

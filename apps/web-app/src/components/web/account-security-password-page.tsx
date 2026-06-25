@@ -88,8 +88,9 @@ export function AccountSecurityPasswordPage(): React.ReactElement {
                     Change password.
                   </CardTitle>
                   <CardDescription className="max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base sm:leading-8">
-                    Phone/SMS verification protects this change. After the
-                    password is updated, sign in again with the new password.
+                    Confirm your password and phone/SMS verification before this
+                    page. Okta requires the current password on the final
+                    update, then you sign in again with the new password.
                   </CardDescription>
                 </div>
                 <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--brand)]">

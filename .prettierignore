@@ -6,3 +6,4 @@
 /.nx/workspace-data
 **/next-env.d.ts
 *.http
+package-lock.json
