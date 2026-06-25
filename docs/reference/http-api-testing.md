@@ -77,8 +77,8 @@ For the browser path, call the Next facade instead:
 GET {{WebHost}}/api/security/csrf
 ```
 
-When `ACME_BFF_PROXY_MODE=bff`, that Next route delegates issuance to the BFF
-and relays the browser cookie through the stable web origin.
+That Next route delegates issuance to the BFF and relays the browser cookie
+through the stable web origin.
 
 ## Azure Dev
 

@@ -24,12 +24,10 @@ The current split is:
 That means the browser talks to app-owned endpoints, not directly to Okta or
 to backend-specific storage details.
 
-When `ACME_BFF_PROXY_MODE=bff`, the browser still talks to the same app-owned
-Next `/api/*` routes. The difference is server-side only: the Next facade
-delegates selected routes to the `.NET` BFF, and the BFF becomes the authority
-for auth transaction state, auth session state, CSRF issuance, customer profile
-state, application-flow state, and feature-flagged operational telemetry
-ingestion.
+The browser still talks to the same app-owned Next `/api/*` routes. The
+difference is server-side only: the Next facade delegates real Okta-backed
+auth/session, CSRF, customer profile, and application-flow routes to the `.NET`
+BFF. Explicit mock auth remains local and token-free for development fixtures.
 
 When `bffRuntime.serviceAuth.mode=entra` is enabled in Azure, the same
 browser-facing contract remains stable. The Next facade adds a managed-identity
@@ -123,27 +121,27 @@ Owns:
 - auth/session helpers for the Next facade
 - callback handling support
 - CSRF and cookie helpers
-- server-side state access for auth, customer, and application flow
-- session idle timeout config, server-side idle expiry, and touch handling
-- the server-side BFF switch that keeps the browser contract stable while
-  changing the implementation authority
+- BFF client helpers and trusted identity/service-auth headers
+- server-side route checks that keep the browser contract stable while the BFF
+  owns implementation authority
 
 Must stay:
 
 - server-only
 - thin enough that the BFF can continue replacing backend behavior cleanly
 
-### Toggle Contract
+### Authority Contract
 
-| Contract                     | Toggle off: `next`                      | Toggle on: `bff`                                                   |
-| ---------------------------- | --------------------------------------- | ------------------------------------------------------------------ |
-| Browser API URLs             | Next `/api/*`                           | Same Next `/api/*`                                                 |
-| Browser cookie               | Same opaque auth session cookie         | Same opaque auth session cookie                                    |
-| CSRF route                   | Next issues signed facade token         | BFF issues token through Next facade                               |
-| Auth/session source of truth | Next server state store                 | BFF state store                                                    |
-| Security inspector           | Reads Next-owned token/session snapshot | Reads BFF-owned token/session snapshot through trusted diagnostics |
-| Raw tokens                   | Never in normal browser storage         | Never in normal browser storage                                    |
-| Service-to-service identity  | Not required for local/Next-only mode   | Optional Entra managed-identity bearer auth in Azure               |
+| Contract                     | Current behavior                                                    |
+| ---------------------------- | ------------------------------------------------------------------- |
+| Browser API URLs             | Next `/api/*`                                                       |
+| Browser cookie               | Opaque auth session cookie written by Next from BFF session headers |
+| CSRF route                   | BFF issues token through Next facade                                |
+| Auth/session source of truth | BFF state store for real Okta auth                                  |
+| Security inspector           | Reads BFF-owned token/session snapshot through trusted diagnostics  |
+| Mock auth                    | Local, token-free development/test fixture                          |
+| Raw tokens                   | Never in normal browser storage                                     |
+| Service-to-service identity  | Optional Entra managed-identity bearer auth in Azure                |
 
 ## Authorization Today
 

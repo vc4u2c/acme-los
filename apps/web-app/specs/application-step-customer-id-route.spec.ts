@@ -1,6 +1,6 @@
 /** @jest-environment node */
 
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import type { WebAuthSession } from '@acme-los/api/contracts';
 import type * as WebServerModule from '@acme-los/api/web-server';
 import type * as BffRouteProxyModule from '../src/app/api/_lib/bff-route-proxy';
@@ -8,13 +8,11 @@ import type * as ApplicationStepRouteModule from '../src/app/api/application/ste
 
 jest.mock('@acme-los/api/web-server', () => ({
   assertValidCsrf: jest.fn(),
-  readApplicationStepState: jest.fn(),
   requireAuthenticatedWebSession: jest.fn(),
-  saveApplicationStep: jest.fn(),
 }));
 
 jest.mock('../src/app/api/_lib/bff-route-proxy', () => ({
-  maybeProxyToBff: jest.fn(),
+  proxyToBff: jest.fn(),
 }));
 
 jest.mock('../src/app/api/_lib/bff-trusted-session', () => ({
@@ -80,63 +78,37 @@ function createLoadStepRequest(): NextRequest {
 }
 
 describe('application step route', () => {
-  const mockMaybeProxyToBff = bffRouteProxy.maybeProxyToBff;
-  const mockReadApplicationStepState = webServer.readApplicationStepState;
+  const mockProxyToBff = bffRouteProxy.proxyToBff;
   const mockRequireAuthenticatedWebSession =
     webServer.requireAuthenticatedWebSession;
-  const mockSaveApplicationStep = webServer.saveApplicationStep;
 
   afterEach(() => {
     jest.clearAllMocks();
   });
 
-  it('loads the personal-info step without mutating customer identity in the facade', async () => {
+  it('loads the personal-info step through the BFF facade', async () => {
     mockRequireAuthenticatedWebSession.mockResolvedValue(authenticatedSession);
-    mockMaybeProxyToBff.mockResolvedValue(null);
-    mockReadApplicationStepState.mockResolvedValue({
-      step: 'personal-info',
-      payload: {},
-      summary: {
-        applicationId: 'application-123',
-        currentStep: 'personal-info',
-        completedSteps: [],
-        lastUpdatedAt: '2026-06-03T00:00:00.000Z',
-      },
-    });
+    mockProxyToBff.mockResolvedValue(
+      NextResponse.json({
+        stepState: {
+          step: 'personal-info',
+          payload: {},
+          summary: {
+            applicationId: 'application-123',
+            currentStep: 'personal-info',
+            completedSteps: [],
+            lastUpdatedAt: '2026-06-03T00:00:00.000Z',
+          },
+        },
+      }),
+    );
 
     const response = await GET(createLoadStepRequest(), {
       params: Promise.resolve({ step: 'personal-info' }),
     });
 
     expect(response.status).toBe(200);
-    expect(mockReadApplicationStepState).toHaveBeenCalledWith(
-      authenticatedSession,
-      'personal-info',
-    );
-  });
-
-  it('saves the personal-info step with trusted identity headers for the BFF-owned write-back', async () => {
-    mockRequireAuthenticatedWebSession.mockResolvedValue(authenticatedSession);
-    mockMaybeProxyToBff.mockResolvedValue(null);
-    mockSaveApplicationStep.mockResolvedValue({
-      stepState: {
-        step: 'personal-info',
-        payload: {},
-        summary: {
-          applicationId: 'application-123',
-          currentStep: 'personal-info',
-          completedSteps: ['personal-info'],
-          lastUpdatedAt: '2026-06-03T00:00:00.000Z',
-        },
-      },
-    });
-
-    const response = await PUT(createSaveStepRequest(), {
-      params: Promise.resolve({ step: 'personal-info' }),
-    });
-
-    expect(response.status).toBe(200);
-    expect(mockMaybeProxyToBff).toHaveBeenCalledWith(
+    expect(mockProxyToBff).toHaveBeenCalledWith(
       expect.any(NextRequest),
       '/bff/application/steps/personal-info',
       expect.objectContaining({
@@ -147,10 +119,40 @@ describe('application step route', () => {
         }),
       }),
     );
-    expect(mockSaveApplicationStep).toHaveBeenCalledWith(
-      authenticatedSession,
-      'personal-info',
-      expect.any(Object),
+  });
+
+  it('saves the personal-info step through the BFF-owned write-back', async () => {
+    mockRequireAuthenticatedWebSession.mockResolvedValue(authenticatedSession);
+    mockProxyToBff.mockResolvedValue(
+      NextResponse.json({
+        stepState: {
+          step: 'personal-info',
+          payload: {},
+          summary: {
+            applicationId: 'application-123',
+            currentStep: 'personal-info',
+            completedSteps: ['personal-info'],
+            lastUpdatedAt: '2026-06-03T00:00:00.000Z',
+          },
+        },
+      }),
+    );
+
+    const response = await PUT(createSaveStepRequest(), {
+      params: Promise.resolve({ step: 'personal-info' }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mockProxyToBff).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      '/bff/application/steps/personal-info',
+      expect.objectContaining({
+        extraHeaders: expect.objectContaining({
+          'x-acme-auth-provider': 'okta',
+          'x-acme-authenticated-user-id': '00u-application-user-001',
+          'x-acme-authenticated-user-email': 'ada@example.test',
+        }),
+      }),
     );
   });
 });

@@ -7,8 +7,6 @@ import type {
   RequireWebAuthSessionResponse,
   StartAuthFlowResponse,
   StartLogoutResponse,
-  SyncWebAuthSessionRequest,
-  SyncWebAuthSessionResponse,
   TouchWebAuthSessionResponse,
   WebAuthStepUpRequirement,
 } from '@acme-los/api/contracts';
@@ -184,19 +182,6 @@ export async function readBffWebAuthSession(
       context,
     )
   ).payload;
-}
-
-export async function syncBffWebAuthSession(
-  request: NextRequest,
-  payload: SyncWebAuthSessionRequest,
-): Promise<BffAuthMutation<SyncWebAuthSessionResponse>> {
-  return readBffMutationHeaders(
-    await fetchBffAuthJson<SyncWebAuthSessionResponse>('/bff/auth/session', {
-      request,
-      method: 'POST',
-      body: payload,
-    }),
-  );
 }
 
 export async function startBffAuthFlow(

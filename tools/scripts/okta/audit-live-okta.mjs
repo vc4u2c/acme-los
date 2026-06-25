@@ -394,6 +394,9 @@ const expectedSignInWidgetGeneration = resolveSignInWidgetGeneration(
 const expectedSignInWidgetVersion = resolveSignInWidgetVersion(
   environment.okta?.hostedExperience?.signInWidgetVersion,
 );
+const expectedProfileEnrollmentEmailVerification =
+  environment.okta?.hostedExperience?.registrationProfileEmailVerification ===
+  true;
 const expectedTelephonyUri = environment.okta?.telephony?.enabled
   ? toAbsoluteUrl(
       requiredString(environment.web?.deployedBaseUrl, 'web.deployedBaseUrl'),
@@ -977,14 +980,30 @@ checkStatusActive(
 );
 
 if (customerGroupId) {
-  addCheck(
-    profileEnrollmentRules.some((rule) =>
+  const customerProfileEnrollmentRule =
+    profileEnrollmentRules.find((rule) =>
       hasTargetGroupId(rule, customerGroupId),
-    )
-      ? 'pass'
-      : 'fail',
+    ) ?? null;
+
+  addCheck(
+    customerProfileEnrollmentRule ? 'pass' : 'fail',
     'policies.registration.customer-scoped',
     `${profileEnrollmentPolicyName} targets the customer group during registration`,
+  );
+  addCheck(
+    Boolean(customerProfileEnrollmentRule) &&
+      Boolean(
+        customerProfileEnrollmentRule?.actions?.profileEnrollment
+          ?.activationRequirements?.emailVerification,
+      ) === expectedProfileEnrollmentEmailVerification
+      ? 'pass'
+      : 'fail',
+    'policies.registration.profile-email-auto-verification',
+    `${profileEnrollmentPolicyName} profile enrollment email auto-verification is disabled`,
+    `expected=${expectedProfileEnrollmentEmailVerification} actual=${Boolean(
+      customerProfileEnrollmentRule?.actions?.profileEnrollment
+        ?.activationRequirements?.emailVerification,
+    )}`,
   );
   checkCustomerScoped(
     mfaEnrollmentPolicy,

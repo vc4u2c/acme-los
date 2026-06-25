@@ -7,7 +7,6 @@ import { GET as getLiveHealth } from '../src/app/api/health/live/route';
 describe('health routes', () => {
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
   const originalUrl = process.env.ACME_BFF_URL;
-  const originalProxyMode = process.env.ACME_BFF_PROXY_MODE;
   const originalFetch = global.fetch;
 
   afterEach(() => {
@@ -21,12 +20,6 @@ describe('health routes', () => {
       delete process.env.ACME_BFF_URL;
     } else {
       process.env.ACME_BFF_URL = originalUrl;
-    }
-
-    if (originalProxyMode === undefined) {
-      delete process.env.ACME_BFF_PROXY_MODE;
-    } else {
-      process.env.ACME_BFF_PROXY_MODE = originalProxyMode;
     }
 
     global.fetch = originalFetch;
@@ -47,10 +40,9 @@ describe('health routes', () => {
     expect(payload.service).toBe('web-app');
   });
 
-  it('returns web-only public health when the BFF is not configured', async () => {
+  it('marks public health degraded when the BFF is not configured', async () => {
     delete process.env.ACME_BFF_BASE_URL;
     delete process.env.ACME_BFF_URL;
-    delete process.env.ACME_BFF_PROXY_MODE;
     const fetchSpy = jest.fn();
 
     global.fetch = fetchSpy as typeof fetch;
@@ -60,18 +52,19 @@ describe('health routes', () => {
     );
     const payload = await response.json();
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(503);
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(payload.status).toBe('ok');
+    expect(payload.status).toBe('degraded');
     expect(payload.service).toBe('web-app');
-    expect(payload.bff.enabled).toBe(false);
+    expect(payload.bff.enabled).toBe(true);
     expect(payload.layers.web.service).toBe('web-app');
-    expect(payload.layers.bff).toBeUndefined();
+    expect(payload.layers.bff.service).toBe('bff-api');
+    expect(payload.layers.bff.status).toBe('unhealthy');
+    expect(payload.layers.bff.error).toContain('ACME_BFF_BASE_URL');
   });
 
   it('returns public health for both web and BFF layers when the BFF is configured', async () => {
     process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     const fetchSpy = jest.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -117,7 +110,6 @@ describe('health routes', () => {
 
   it('marks public health degraded when the BFF layer is unavailable', async () => {
     process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     const fetchSpy = jest
       .fn<typeof fetch>()
       .mockRejectedValue(new Error('BFF timed out'));

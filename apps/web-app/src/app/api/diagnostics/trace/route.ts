@@ -12,7 +12,7 @@ import {
   parseInboundTraceContext,
   traceparentHeaderName,
 } from '@acme-los/core/logger/trace-context';
-import { maybeProxyToBff } from '../../_lib/bff-route-proxy';
+import { proxyToBff } from '../../_lib/bff-route-proxy';
 
 export const runtime = 'nodejs';
 
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       },
     );
 
-    const proxiedResponse = await maybeProxyToBff(
+    const proxiedResponse = await proxyToBff(
       request,
       bffDiagnosticsTraceRoute,
       {
@@ -118,21 +118,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         },
       },
     );
-
-    if (!proxiedResponse) {
-      const response = NextResponse.json(
-        { message: 'BFF diagnostic tracing is not configured.' },
-        {
-          status: 503,
-          headers: {
-            [correlationIdHeaderName]: correlationId,
-          },
-        },
-      );
-
-      applyRateLimitHeaders(response, rateLimit);
-      return response;
-    }
 
     applyRateLimitHeaders(proxiedResponse, rateLimit);
     return proxiedResponse;

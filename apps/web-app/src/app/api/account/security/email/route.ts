@@ -4,7 +4,7 @@ import {
   requireAuthenticatedWebSession,
 } from '@acme-los/api/web-server';
 import { getAccountSecurityAuthRequirement } from '../../../../../lib/application-auth';
-import { maybeProxyToBff } from '../../../_lib/bff-route-proxy';
+import { proxyToBff } from '../../../_lib/bff-route-proxy';
 
 export const runtime = 'nodejs';
 
@@ -16,19 +16,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       getAccountSecurityAuthRequirement('email'),
     );
 
-    const proxiedResponse = await maybeProxyToBff(
-      request,
-      '/bff/account/security/email',
-    );
-
-    if (proxiedResponse) {
-      return proxiedResponse;
-    }
-
-    return NextResponse.json(
-      { error: 'Account email changes require the BFF MyAccount bridge.' },
-      { status: 501 },
-    );
+    return proxyToBff(request, '/bff/account/security/email');
   } catch (error) {
     const message =
       error instanceof Error

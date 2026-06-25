@@ -29,7 +29,6 @@ function createTelemetryRequest(headers?: Record<string, string>): NextRequest {
 
 describe('observability events route', () => {
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
-  const originalProxyMode = process.env.ACME_BFF_PROXY_MODE;
   const originalTrustedProxySecret = process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
   const originalFetch = global.fetch;
 
@@ -38,12 +37,6 @@ describe('observability events route', () => {
       delete process.env.ACME_BFF_BASE_URL;
     } else {
       process.env.ACME_BFF_BASE_URL = originalBaseUrl;
-    }
-
-    if (originalProxyMode === undefined) {
-      delete process.env.ACME_BFF_PROXY_MODE;
-    } else {
-      process.env.ACME_BFF_PROXY_MODE = originalProxyMode;
     }
 
     if (originalTrustedProxySecret === undefined) {
@@ -56,9 +49,8 @@ describe('observability events route', () => {
     jest.restoreAllMocks();
   });
 
-  it('keeps browser observability ingestion on the Next facade when BFF mode is enabled', async () => {
+  it('keeps browser observability ingestion on the Next facade', async () => {
     process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     const fetchSpy = jest.fn();
 
     global.fetch = fetchSpy as typeof fetch;

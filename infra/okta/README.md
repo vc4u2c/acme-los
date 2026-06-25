@@ -161,8 +161,9 @@ It currently handles:
   The visible State field is scripted as the ACME-owned `acmeState` enum limited
   to Missouri and Texas plus a UI-schema select control because Okta's built-in
   base `state` attribute is a plain string field.
-  If Okta marks the rule conditions read-only, bootstrap fails closed with a
-  manual-required gate instead of broadening app assignment to `Everyone`
+  If Okta refuses the default rule update through the public Policy API,
+  bootstrap fails closed with a manual-required gate instead of broadening app
+  assignment to `Everyone`
 - customer-group-scoped MFA enrollment policy for password, email,
   security-question, and phone/SMS enrollment when telephony is enabled; `dev`
   requires phone/SMS because the mock provider is active. Profile-enrollment
@@ -211,10 +212,11 @@ Live dev org state last verified from the Admin API:
   setter for this lifecycle switch
 - profile-enrollment registration rule targets only `acme-los-customers-dev`;
   live rule fields match `email`, `firstName`, `lastName`, and `acmeState`, and
-  registration enrollment type includes `password`. Okta
-  rejects public Policy API updates to that default rule with `E0000077`, so
+  registration enrollment type includes `password`. If Okta rejects public
+  Policy API updates to that default rule with `E0000077` or `E0000009`,
   bootstrap treats a matching rule as existing and fails closed if those fields
-  drift.
+  drift. The same gate protects the profile-enrollment email verification flag;
+  it must be disabled so Okta does not send an automatic profile email OTP.
 - email, password, and Okta Verify authenticators are active
 - security-question enrollment is required by the ACME LOS authenticator policy
   for the `acme-los-customers-dev` customer group
@@ -236,13 +238,13 @@ Live dev org state last verified from the Admin API:
 For local development, use this flow:
 
 1. Update `infra/okta/environments/dev.json` and `infra/okta/brand/acme-los.json`
-2. Render local config:
+1. Render local config:
 
 ```powershell
 npm run okta:render -- dev
 ```
 
-3. Set local Okta management credentials. Prefer a scoped OAuth management
+1. Set local Okta management credentials. Prefer a scoped OAuth management
    access token for bootstrap; use an SSWS token only as a local dev fallback:
 
 ```powershell
@@ -251,19 +253,19 @@ $env:OKTA_MANAGEMENT_ACCESS_TOKEN='<scoped okta management access token>'
 $env:OKTA_API_TOKEN='<ssws token>'
 ```
 
-4. Bootstrap the dev org:
+1. Bootstrap the dev org:
 
 ```powershell
 npm run okta:bootstrap -- dev
 ```
 
-5. Run the read-only live audit:
+1. Run the read-only live audit:
 
 ```powershell
 npm run okta:audit-live -- dev
 ```
 
-6. Start the web app and test the hosted flow
+1. Start the web app and test the hosted flow
 
 This gives you the least manual work with the least amount of architectural weirdness.
 
@@ -398,10 +400,11 @@ Current limitations:
   policy-driven
 - route-specific funding step-up still belongs in application runtime logic
 - custom-domain linking is still a manual tenant step because DNS ownership and certificate validation happen outside the repo bootstrap
-- profile-enrollment uses the Okta-managed catch-all rule, but bootstrap now
-  updates that rule to target the ACME LOS customer group; if Okta rejects that
-  update, bootstrap fails closed instead of broadening customer enrollment to
-  admins through `Everyone`
+- profile-enrollment uses the Okta-managed catch-all rule. Bootstrap attempts to
+  update that rule to target the ACME LOS customer group, remove retired
+  registration fields such as `mobilePhone`, and disable profile-enrollment
+  email verification. If Okta rejects that public API update, bootstrap fails
+  closed instead of broadening customer enrollment to admins through `Everyone`.
 
 That means:
 
@@ -462,8 +465,9 @@ Current auth shape in this repo:
   enrollment for `dev` users in the ACME LOS customer group because the MFA
   enrollment policy requires those authenticators for that group; higher
   environments keep phone/SMS disabled until a sender/provider rollout is ready.
-  Profile-enrollment email verification is disabled so Okta does not send a
-  separate profile email challenge on profile submit.
+  The intended profile-enrollment email verification state is disabled so Okta
+  does not send a separate profile email challenge on profile submit; bootstrap
+  and the live audit fail closed if the tenant drifts from that setting.
 - Okta-hosted registration captures email, first name, last name, and visible
   State in profile enrollment; State is backed by the ACME-owned `acmeState`
   dropdown limited to Missouri and Texas. Phone is captured once on the Okta
@@ -535,7 +539,7 @@ If you find an old admin service app in the Okta org that is not referenced by t
 If you want the simple mental model, read these in order:
 
 1. `infra/okta/environments/dev.json`
-2. `infra/okta/brand/acme-los.json`
-3. `tools/scripts/okta/render-auth-config.mjs`
-4. `tools/scripts/okta/bootstrap-okta.mjs`
-5. `tools/scripts/okta/hosted-sign-in-page.mjs`
+1. `infra/okta/brand/acme-los.json`
+1. `tools/scripts/okta/render-auth-config.mjs`
+1. `tools/scripts/okta/bootstrap-okta.mjs`
+1. `tools/scripts/okta/hosted-sign-in-page.mjs`

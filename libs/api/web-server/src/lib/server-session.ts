@@ -9,23 +9,13 @@ import {
   readBffWebAuthSession,
   requireBffWebAuthSession,
 } from './bff-auth-session-client';
-import { isBffProxyEnabled } from './bff-config';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { getServerWebAuthConfig } from './config';
-import { AUTH_SESSION_COOKIE_NAME } from './cookies';
-import { readSessionCookiePayload } from './auth-session';
-import {
-  consumeStoredWebAuthStepUp,
-  isStoredWebAuthStepUpFresh,
-  readStoredWebAuthSession,
-  type StoredWebAuthSession,
-} from './session-store';
 import { getAssuranceLevelFromAuthenticationMethods } from './assurance';
 
 type ResolvedServerWebAuthSession = {
   session: WebAuthSession;
-  storedSession?: StoredWebAuthSession;
 };
 
 export type ServerWebAuthSessionRequirementStatus = {
@@ -37,10 +27,6 @@ const defaultAuthenticatedRequirement: WebAuthRequirement = {
   requiresAuthentication: true,
   minimumAssuranceLevel: 'aal1',
 };
-
-function shouldUseBffServerAuthSessionAuthority(): boolean {
-  return isBffProxyEnabled() && getServerWebAuthConfig().provider !== 'mock';
-}
 
 function buildCookieHeader(
   cookieStore: Awaited<ReturnType<typeof cookies>>,
@@ -98,50 +84,17 @@ async function getResolvedServerWebAuthSession(): Promise<ResolvedServerWebAuthS
     return session ? { session } : null;
   }
 
-  if (shouldUseBffServerAuthSessionAuthority()) {
-    const sessionResponse = await readBffWebAuthSession({
-      cookieHeader: buildCookieHeader(cookieStore),
-    });
+  const sessionResponse = await readBffWebAuthSession({
+    cookieHeader: buildCookieHeader(cookieStore),
+  });
 
-    return sessionResponse.session.isAuthenticated
-      ? { session: sessionResponse.session }
-      : null;
-  }
-
-  const sessionCookie = cookieStore.get(AUTH_SESSION_COOKIE_NAME)?.value;
-  const sessionCookiePayload = readSessionCookiePayload(sessionCookie);
-  const storedSession = sessionCookiePayload
-    ? await readStoredWebAuthSession(sessionCookiePayload.sessionId)
-    : null;
-
-  return storedSession
-    ? { session: storedSession.session, storedSession }
+  return sessionResponse.session.isAuthenticated
+    ? { session: sessionResponse.session }
     : null;
 }
 
 export async function getServerWebAuthSession(): Promise<WebAuthSession | null> {
   return (await getResolvedServerWebAuthSession())?.session ?? null;
-}
-
-function hasFreshRequiredStepUp(
-  resolvedSession: ResolvedServerWebAuthSession | null,
-  requirement: WebAuthRequirement,
-): boolean {
-  if (!requirement.requiredStepUp) {
-    return true;
-  }
-
-  if (resolvedSession?.session.provider === 'mock') {
-    return true;
-  }
-
-  return Boolean(
-    resolvedSession?.storedSession &&
-    isStoredWebAuthStepUpFresh(
-      resolvedSession.storedSession,
-      requirement.requiredStepUp,
-    ),
-  );
 }
 
 function isResolvedServerWebAuthSessionRequirementSatisfied(
@@ -158,17 +111,13 @@ function isResolvedServerWebAuthSessionRequirementSatisfied(
   }
 
   const minimumAssuranceLevel = requirement.minimumAssuranceLevel ?? 'aal1';
-  if (!isAssuranceSatisfied(session.assuranceLevel, minimumAssuranceLevel)) {
-    return false;
-  }
-
-  return hasFreshRequiredStepUp(resolvedSession, requirement);
+  return isAssuranceSatisfied(session.assuranceLevel, minimumAssuranceLevel);
 }
 
 export async function getServerWebAuthSessionRequirementStatus(
   requirement: WebAuthRequirement = defaultAuthenticatedRequirement,
 ): Promise<ServerWebAuthSessionRequirementStatus> {
-  if (shouldUseBffServerAuthSessionAuthority()) {
+  if (getServerWebAuthConfig().provider !== 'mock') {
     const cookieStore = await cookies();
     const requirementResponse = await requireBffWebAuthSession(
       {
@@ -202,7 +151,7 @@ export async function requireServerWebAuthSession(options: {
 }): Promise<WebAuthSession> {
   const requirement = options.requirement ?? defaultAuthenticatedRequirement;
 
-  if (shouldUseBffServerAuthSessionAuthority()) {
+  if (getServerWebAuthConfig().provider !== 'mock') {
     const cookieStore = await cookies();
     const requirementResponse = await requireBffWebAuthSession(
       {
@@ -235,7 +184,7 @@ export async function requireServerWebAuthSession(options: {
   if (!requirement.requiresAuthentication) {
     return (
       session ?? {
-        provider: 'okta',
+        provider: 'mock',
         status: 'unauthenticated',
         isAuthenticated: false,
         assuranceLevel: 'anonymous',
@@ -265,28 +214,6 @@ export async function requireServerWebAuthSession(options: {
         returnTo: options.returnTo,
         minimumAssuranceLevel: requirement.minimumAssuranceLevel,
       }),
-    );
-  }
-
-  if (
-    requirement.requiredStepUp &&
-    !hasFreshRequiredStepUp(resolvedSession, requirement)
-  ) {
-    redirect(
-      buildSignInRedirectPath({
-        returnTo: options.returnTo,
-        minimumAssuranceLevel: requirement.minimumAssuranceLevel ?? 'aal2',
-      }),
-    );
-  }
-
-  if (
-    requirement.requiredStepUp?.consumeOnSatisfied &&
-    resolvedSession?.storedSession
-  ) {
-    await consumeStoredWebAuthStepUp(
-      resolvedSession.storedSession,
-      requirement.requiredStepUp,
     );
   }
 

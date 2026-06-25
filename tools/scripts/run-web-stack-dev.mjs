@@ -90,7 +90,6 @@ redis.once('exit', (code) => {
     {
       env: {
         ACME_BFF_BASE_URL: bffBaseUrl,
-        ACME_BFF_PROXY_MODE: 'bff',
         ACME_BFF_TRUSTED_PROXY_SECRET: trustedProxySecret,
         ACME_WEB_STATE_STORE: process.env.ACME_WEB_STATE_STORE || 'redis',
         ACME_REDIS_URL: redisUrl,

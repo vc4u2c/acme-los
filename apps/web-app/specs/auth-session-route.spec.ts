@@ -13,8 +13,8 @@ jest.mock('@azure/identity', () => ({
 }));
 
 describe('auth session route', () => {
+  const originalAuthProvider = process.env.ACME_AUTH_PROVIDER;
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
-  const originalProxyMode = process.env.ACME_BFF_PROXY_MODE;
   const originalTrustedProxySecret = process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
   const originalServiceAuthMode = process.env.ACME_BFF_SERVICE_AUTH_MODE;
   const originalServiceAuthScope = process.env.ACME_BFF_SERVICE_AUTH_SCOPE;
@@ -28,16 +28,16 @@ describe('auth session route', () => {
   });
 
   afterEach(() => {
+    if (originalAuthProvider === undefined) {
+      delete process.env.ACME_AUTH_PROVIDER;
+    } else {
+      process.env.ACME_AUTH_PROVIDER = originalAuthProvider;
+    }
+
     if (originalBaseUrl === undefined) {
       delete process.env.ACME_BFF_BASE_URL;
     } else {
       process.env.ACME_BFF_BASE_URL = originalBaseUrl;
-    }
-
-    if (originalProxyMode === undefined) {
-      delete process.env.ACME_BFF_PROXY_MODE;
-    } else {
-      process.env.ACME_BFF_PROXY_MODE = originalProxyMode;
     }
 
     if (originalTrustedProxySecret === undefined) {
@@ -64,9 +64,8 @@ describe('auth session route', () => {
     jest.restoreAllMocks();
   });
 
-  it('keeps session reads local while the BFF mode is disabled', async () => {
-    process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'next';
+  it('keeps explicit mock-provider session reads local', async () => {
+    process.env.ACME_AUTH_PROVIDER = 'mock';
     const fetchSpy = jest.fn();
 
     global.fetch = fetchSpy as typeof fetch;
@@ -79,11 +78,12 @@ describe('auth session route', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(payload.session.isAuthenticated).toBe(false);
     expect(payload.session.status).toBe('unauthenticated');
+    expect(payload.session.provider).toBe('mock');
   });
 
-  it('delegates session reads to the BFF when BFF mode is enabled', async () => {
+  it('delegates Okta session reads to the BFF', async () => {
+    delete process.env.ACME_AUTH_PROVIDER;
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     const fetchSpy = jest.fn<typeof fetch>().mockResolvedValue(
       new Response(
@@ -126,8 +126,8 @@ describe('auth session route', () => {
   });
 
   it('adds service identity auth when delegated session reads call the BFF', async () => {
+    delete process.env.ACME_AUTH_PROVIDER;
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     process.env.ACME_BFF_SERVICE_AUTH_MODE = 'entra';
     process.env.ACME_BFF_SERVICE_AUTH_SCOPE = 'api://acme-los-bff/.default';

@@ -45,21 +45,6 @@ export interface GetWebAuthSessionResponse {
   debug?: WebAuthSessionDebugSnapshot;
 }
 
-export interface SyncWebAuthSessionRequest {
-  idToken: string;
-  leadId?: string;
-  accessTokenClaims?: Record<string, unknown> | null;
-  session?: WebAuthSession;
-  expiresAt?: number;
-  serverTokens?: WebAuthSessionTokenSet;
-  stepUp?: WebAuthStepUpRequirement;
-}
-
-export interface SyncWebAuthSessionResponse {
-  session: WebAuthSession;
-  sessionTiming?: WebAuthSessionTiming;
-}
-
 export interface TouchWebAuthSessionResponse {
   session: WebAuthSession;
   sessionTiming?: WebAuthSessionTiming;
@@ -69,15 +54,6 @@ export interface TouchWebAuthSessionResponse {
 export interface ClearWebAuthSessionResponse {
   session: WebAuthSession;
   cleared: boolean;
-}
-
-export interface WebAuthSessionTokenSet {
-  idToken: string;
-  accessToken?: string;
-  refreshToken?: string;
-  tokenType?: string;
-  scope?: string;
-  expiresIn?: number;
 }
 
 export type WebAuthStepUpReason =

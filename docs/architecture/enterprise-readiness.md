@@ -39,7 +39,7 @@ flowchart LR
 Security strengths:
 
 - browsers call the same-origin Next `/api/*` facade instead of the raw BFF
-- BFF mode makes the BFF the auth/session, CSRF, customer-profile, and
+- The BFF is the auth/session, CSRF, customer-profile, and
   application-flow authority behind that facade
 - Okta hosted sign-in uses server-side PKCE, nonce/state validation, and
   server-side id-token validation

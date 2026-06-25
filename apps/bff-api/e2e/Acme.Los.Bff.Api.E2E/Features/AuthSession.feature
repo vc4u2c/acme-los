@@ -1,9 +1,7 @@
 Feature: BFF auth session API
 
-  Scenario: Auth session can be synced, read, touched, and cleared
-    When I sync an authenticated BFF session for user "session-user-123" with email "session@example.com"
-    Then the response status code should be OK
-    And the response should include a BFF auth session id
+  Scenario: Auth session can be read, touched, and cleared
+    Given I have an authenticated BFF session for user "session-user-123" with email "session@example.com"
     When I read the BFF auth session
     Then the response status code should be OK
     And the auth session should be authenticated for user "session-user-123"

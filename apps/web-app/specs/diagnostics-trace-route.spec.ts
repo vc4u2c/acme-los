@@ -28,7 +28,6 @@ function createDiagnosticsTraceRequest(): NextRequest {
 
 describe('diagnostics trace route', () => {
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
-  const originalProxyMode = process.env.ACME_BFF_PROXY_MODE;
   const originalTrustedProxySecret = process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
   const originalFetch = global.fetch;
 
@@ -37,12 +36,6 @@ describe('diagnostics trace route', () => {
       delete process.env.ACME_BFF_BASE_URL;
     } else {
       process.env.ACME_BFF_BASE_URL = originalBaseUrl;
-    }
-
-    if (originalProxyMode === undefined) {
-      delete process.env.ACME_BFF_PROXY_MODE;
-    } else {
-      process.env.ACME_BFF_PROXY_MODE = originalProxyMode;
     }
 
     if (originalTrustedProxySecret === undefined) {
@@ -57,7 +50,6 @@ describe('diagnostics trace route', () => {
 
   it('forwards a real diagnostic API call to the BFF with trace and correlation headers', async () => {
     process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     const bffPayload = {
       acceptedAt: '2026-05-14T00:00:00.000Z',
@@ -114,9 +106,8 @@ describe('diagnostics trace route', () => {
     expect(payload).toEqual(bffPayload);
   });
 
-  it('returns unavailable when the BFF proxy is disabled', async () => {
-    process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'next';
+  it('fails closed when BFF diagnostics are not configured', async () => {
+    delete process.env.ACME_BFF_BASE_URL;
     const fetchSpy = jest.fn();
 
     global.fetch = fetchSpy as typeof fetch;
@@ -125,10 +116,9 @@ describe('diagnostics trace route', () => {
     const payload = await response.json();
 
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(response.status).toBe(503);
-    expect(response.headers.get('x-correlation-id')).toBe(correlationId);
+    expect(response.status).toBe(400);
     expect(payload).toEqual({
-      message: 'BFF diagnostic tracing is not configured.',
+      message: 'Unable to run diagnostic trace.',
     });
   });
 });

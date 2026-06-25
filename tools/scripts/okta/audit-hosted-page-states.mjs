@@ -70,6 +70,28 @@ const scenarios = [
     },
   },
   {
+    key: 'emailEnrollment',
+    query: '?acme_audit_email_enrollment=1',
+    expectedFlow: undefined,
+    expectedAuthState: 'emailVerification',
+    expectedTexts: [
+      'Verify your email',
+      'Send a verification code to your email.',
+      'Send email code',
+      'Choose another verification method',
+      'Set up another verification method',
+    ],
+    expectedContextTexts: [
+      'Email verification',
+      'Verify your email',
+      'verification link or code',
+    ],
+    expectedCustomHelpLink: {
+      text: 'Forgot password?',
+      widgetFlow: 'resetPassword',
+    },
+  },
+  {
     key: 'resetPassword',
     query: '?acme_widget_flow=resetPassword',
     expectedFlow: 'resetPassword',
@@ -137,6 +159,7 @@ async function main() {
                 scenario,
                 theme,
                 viewport,
+                expectedHomeUrl: branding.HomeUrl,
                 expectedSignInStartUrl: branding.SignInStartUrl,
               }),
             );
@@ -151,6 +174,7 @@ async function main() {
             await auditHostedErrorPage(errorPage, hostedErrorPageContent, {
               theme,
               viewport,
+              expectedHomeUrl: branding.HomeUrl,
               expectedSignInStartUrl: branding.SignInStartUrl,
             }),
           );
@@ -205,6 +229,17 @@ function auditHostedSourceConventions() {
   if (!/\.afterTransform\(\s*['"]\*['"]/.test(controller)) {
     failures.push('hosted sign-in controller does not register afterTransform');
   }
+  for (const key of [
+    'email.button.send',
+    'email.code.label',
+    'email.enroll.title',
+    'email.mfa.title',
+    'enroll.choices.setup.another',
+  ]) {
+    if (!controller.includes(`'${key}'`)) {
+      failures.push(`hosted sign-in controller is missing i18n key ${key}`);
+    }
+  }
   if (/#okta-login-container\s+[^,{]*:where\(/.test(shellCss)) {
     failures.push(
       'hosted sign-in CSS styles Okta widget internals with :where',
@@ -236,7 +271,7 @@ function auditHostedSourceConventions() {
 async function auditHostedErrorPage(
   page,
   hostedErrorPageContent,
-  { theme, viewport, expectedSignInStartUrl },
+  { theme, viewport, expectedHomeUrl, expectedSignInStartUrl },
 ) {
   const url = 'https://auth.audit.local/error';
   await page.route('**/*', (route) => route.fulfill({ body: '' }));
@@ -255,6 +290,8 @@ async function auditHostedErrorPage(
 
   const metrics = await page.evaluate(() => {
     const actionLink = document.querySelector('[data-acme-error-sign-in-link]');
+    const brandHomeLink = document.querySelector('.acme-brand-header__lockup');
+    const themeToggle = document.querySelector('[data-acme-theme-toggle]');
     const actionHref = actionLink?.getAttribute('href') || '';
     const actionText = (actionLink?.textContent || '')
       .replace(/\s+/g, ' ')
@@ -264,12 +301,18 @@ async function auditHostedErrorPage(
     return {
       actionHref,
       actionText,
+      brandHomeHref: brandHomeLink?.getAttribute('href') || '',
       containsOktaButtonHref: documentHtml.includes('{{buttonHref}}'),
       containsOktaButtonText: documentHtml.includes('{{buttonText}}'),
       containsDashboardTarget: /\/app\/UserHome|\/enduser\/|\/userhome/i.test(
         actionHref,
       ),
       documentWidth: document.documentElement.scrollWidth,
+      themeToggleAriaChecked: themeToggle?.getAttribute('aria-checked') || '',
+      themeToggleCount: document.querySelectorAll('[data-acme-theme-toggle]')
+        .length,
+      themeChoiceCount: document.querySelectorAll('[data-acme-theme-choice]')
+        .length,
       viewportWidth: window.innerWidth,
     };
   });
@@ -279,6 +322,18 @@ async function auditHostedErrorPage(
     failures.push(
       `hosted error action should restart app auth flow: ${metrics.actionHref}`,
     );
+  }
+  if (metrics.brandHomeHref !== expectedHomeUrl) {
+    failures.push(
+      `hosted error brand link should go to app home: ${metrics.brandHomeHref}`,
+    );
+  }
+  if (
+    metrics.themeToggleCount !== 1 ||
+    !['true', 'false'].includes(metrics.themeToggleAriaChecked) ||
+    metrics.themeChoiceCount !== 0
+  ) {
+    failures.push('hosted error theme control is not the app-style switch');
   }
   if (metrics.actionText !== 'Sign in') {
     failures.push(`unexpected hosted error action text: ${metrics.actionText}`);
@@ -302,6 +357,7 @@ async function auditHostedErrorPage(
     screenshotPath: path.relative(repoRoot, screenshotPath),
     actionHref: metrics.actionHref,
     actionText: metrics.actionText,
+    brandHomeHref: metrics.brandHomeHref,
     failures,
     ok: failures.length === 0,
   };
@@ -310,7 +366,7 @@ async function auditHostedErrorPage(
 async function auditScenario(
   page,
   hostedPageContent,
-  { scenario, theme, viewport, expectedSignInStartUrl },
+  { scenario, theme, viewport, expectedHomeUrl, expectedSignInStartUrl },
 ) {
   const url = `https://auth.audit.local/${scenario.query}`;
   await page.route('**/*', (route) => route.fulfill({ body: '' }));
@@ -366,6 +422,8 @@ async function auditScenario(
       '#okta-login-container [data-audit-flow]',
     );
     const widgetRect = widget?.getBoundingClientRect();
+    const brandHomeLink = document.querySelector('.acme-brand-header__lockup');
+    const themeToggle = document.querySelector('[data-acme-theme-toggle]');
     const links = Array.from(
       document.querySelectorAll('#okta-login-container a'),
     ).map((link) => ({
@@ -404,6 +462,18 @@ async function auditScenario(
       configuredForgotPasswordHref: widgetConfig.helpLinks?.forgotPassword,
       configuredUnlockHref: widgetConfig.helpLinks?.unlock,
       configuredCustomHelpLinks,
+      brandHomeHref: brandHomeLink?.getAttribute('href') || '',
+      themeToggle: themeToggle
+        ? {
+            ariaChecked: themeToggle.getAttribute('aria-checked') || '',
+            ariaLabel: themeToggle.getAttribute('aria-label') || '',
+            role: themeToggle.getAttribute('role') || '',
+          }
+        : null,
+      themeToggleCount: document.querySelectorAll('[data-acme-theme-toggle]')
+        .length,
+      themeChoiceCount: document.querySelectorAll('[data-acme-theme-choice]')
+        .length,
       visibleLinks: links,
       shellSignInLink: shellSignInLink
         ? {
@@ -442,6 +512,13 @@ async function auditScenario(
         (expectedText) =>
           !normalizedContextText.includes(expectedText.toLowerCase()),
       ),
+      legacyTechnicalTexts: [
+        'Set up Email Authentication',
+        'Setup required',
+        'Setup another',
+      ].filter((legacyText) =>
+        normalizedBodyText.includes(legacyText.toLowerCase()),
+      ),
     };
   }, scenario);
 
@@ -475,6 +552,24 @@ async function auditScenario(
     failures.push(
       `missing context text: ${metrics.missingContextTexts.join(', ')}`,
     );
+  }
+  if (metrics.legacyTechnicalTexts.length > 0) {
+    failures.push(
+      `legacy technical text is still visible: ${metrics.legacyTechnicalTexts.join(
+        ', ',
+      )}`,
+    );
+  }
+  if (metrics.brandHomeHref !== expectedHomeUrl) {
+    failures.push(`brand link should go to app home: ${metrics.brandHomeHref}`);
+  }
+  if (
+    metrics.themeToggleCount !== 1 ||
+    metrics.themeToggle?.role !== 'switch' ||
+    !['true', 'false'].includes(metrics.themeToggle?.ariaChecked ?? '') ||
+    metrics.themeChoiceCount !== 0
+  ) {
+    failures.push('theme control is not the app-style switch');
   }
   if (!metrics.afterTransformRegistrations.includes('*')) {
     failures.push(
@@ -650,6 +745,8 @@ async function auditScenario(
     configuredForgotPasswordHref: metrics.configuredForgotPasswordHref,
     configuredUnlockHref: metrics.configuredUnlockHref,
     configuredCustomHelpLinks: metrics.configuredCustomHelpLinks,
+    brandHomeHref: metrics.brandHomeHref,
+    themeToggle: metrics.themeToggle,
     visibleLinks: metrics.visibleLinks,
     shellSignInLink: metrics.shellSignInLink,
     authState: metrics.authState,
@@ -970,6 +1067,7 @@ function loadHostedBranding(name) {
       deployedWebBaseUrl,
       requiredString(brand.helpPath, 'brand.helpPath'),
     ),
+    HomeUrl: new URL('/', deployedWebBaseUrl).toString(),
     SignInStartUrl: buildHostedSignInStartUrl(deployedWebBaseUrl),
     SignInTitle: requiredString(brand.signInTitle, 'brand.signInTitle'),
     SignInSubtitle: requiredString(

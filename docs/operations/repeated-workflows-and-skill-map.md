@@ -87,18 +87,17 @@ Skill to use and improve:
 - `github-pr-and-actions`
 - `verification-loop`
 
-### BFF Toggle, Telemetry, And Service Auth
+### BFF Facade, Telemetry, And Service Auth
 
 Common requests:
 
 - confirm which routes are implemented in the BFF
-- keep `ACME_BFF_PROXY_MODE=next|bff` behavior reversible
 - keep browser telemetry on the Next facade while proving BFF trace propagation
 - harden Next-to-BFF with managed identity
 
 Use:
 
-- `ACME_BFF_PROXY_MODE=next|bff`
+- `ACME_BFF_BASE_URL` for the Next-to-BFF upstream endpoint
 - `/api/observability/events` for browser-origin logs handled by Next
 - `/api/diagnostics/trace` for the logging-demo Next-to-BFF trace hop
 - `bffRuntime.serviceAuth.mode=entra`; in `dev`, the deploy path creates or

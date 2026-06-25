@@ -77,7 +77,7 @@ function actionCopy(action: AccountSecurityChangeAction) {
         eyebrow: 'Account security',
         title: 'Change sign-in email.',
         description:
-          'Phone/SMS verification protects this change. Okta sends the final OTP to the new email.',
+          'Password and phone/SMS verification protect this change. Okta sends the final code to the new email.',
         valueLabel: 'New sign-in email',
         valuePlaceholder: 'name@example.com',
         codeLabel: 'Email verification code',
@@ -93,7 +93,7 @@ function actionCopy(action: AccountSecurityChangeAction) {
         eyebrow: 'Account security',
         title: 'Change SMS phone.',
         description:
-          'Email verification protects this change. Okta sends the final OTP to the new phone.',
+          'Password and email verification protect this change. Okta sends the final code to the new phone.',
         valueLabel: 'New SMS phone',
         valuePlaceholder: '+13145550123',
         codeLabel: 'SMS verification code',
@@ -368,8 +368,8 @@ export function AccountSecurityChangePage({
                 </CardTitle>
                 <CardDescription className="text-sm leading-6 text-[var(--muted-foreground)] sm:text-base sm:leading-7">
                   {action === 'email'
-                    ? 'This page opens only after phone/SMS step-up.'
-                    : 'This page opens only after email step-up.'}
+                    ? 'This page opens only after password and phone/SMS step-up.'
+                    : 'This page opens only after password and email step-up.'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 px-5 pb-5 sm:px-6 sm:pb-6">

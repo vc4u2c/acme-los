@@ -6,15 +6,9 @@ import {
   buildSignInRedirectPath,
   checkRateLimit,
   completeBffAuthCallback,
-  clearReplacedWebAuthSession,
   clearWebAuthTransaction,
-  deleteStoredWebAuthTransaction,
-  exchangeOktaAuthorizationCode,
-  isBffProxyEnabled,
   logAuthAuditEvent,
   readWebAuthTransactionCookie,
-  readWebAuthTransaction,
-  syncWebAuthSession,
   writeWebAuthSession,
 } from '@acme-los/api/web-server';
 
@@ -86,108 +80,35 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
 
     if (query.error || query.error_description) {
-      if (!isBffProxyEnabled()) {
-        await deleteStoredWebAuthTransaction(
-          await readWebAuthTransaction(request),
-        );
-      }
       throw new Error(
         query.error_description ?? query.error ?? 'Sign-in failed.',
       );
     }
 
     if (!query.code || !query.state) {
-      if (!isBffProxyEnabled()) {
-        await deleteStoredWebAuthTransaction(
-          await readWebAuthTransaction(request),
-        );
-      }
       throw new Error(
         'The Okta callback did not include the expected code and state.',
       );
     }
 
-    if (isBffProxyEnabled()) {
-      const syncedSession = await completeBffAuthCallback(request, {
-        code: query.code,
-        state: query.state,
-      });
-      const response = NextResponse.redirect(
-        buildPublicRequestUrl(request, syncedSession.response.returnTo),
-      );
-
-      writeWebAuthSession(request, response, syncedSession);
-      clearWebAuthTransaction(request, response);
-      applyRateLimitHeaders(response, rateLimit);
-      logAuthAuditEvent(request, {
-        event: 'auth.callback',
-        outcome: 'success',
-        message: 'Completed BFF-backed secure callback exchange.',
-        session: syncedSession.response.session,
-        metadata: {
-          returnTo: syncedSession.response.returnTo,
-        },
-      });
-
-      return response;
-    }
-
-    const transaction = await readWebAuthTransaction(request);
-    if (!transaction) {
-      throw new Error(
-        'Your secure sign-in session expired. Please start the hosted sign-in flow again.',
-      );
-    }
-
-    if (query.state !== transaction.state) {
-      await deleteStoredWebAuthTransaction(transaction);
-      throw new Error(
-        'The Okta callback state did not match this sign-in attempt.',
-      );
-    }
-
-    await deleteStoredWebAuthTransaction(transaction);
-
-    const tokenResponse = await exchangeOktaAuthorizationCode({
+    const syncedSession = await completeBffAuthCallback(request, {
       code: query.code,
-      codeVerifier: transaction.codeVerifier,
+      state: query.state,
     });
-    const syncedSession = await syncWebAuthSession(
-      {
-        idToken: tokenResponse.id_token ?? '',
-        leadId: transaction.leadId,
-      },
-      {
-        expectedNonce: transaction.nonce,
-        expectedUserId: transaction.expectedUserId,
-        minimumAssuranceLevel: transaction.minimumAssuranceLevel,
-        request,
-        stepUp: transaction.stepUp,
-        serverTokens: {
-          accessToken: tokenResponse.access_token,
-          refreshToken: tokenResponse.refresh_token,
-          tokenType: tokenResponse.token_type,
-          scope: tokenResponse.scope,
-          expiresIn: tokenResponse.expires_in,
-        },
-      },
-    );
     const response = NextResponse.redirect(
-      buildPublicRequestUrl(request, transaction.returnTo),
+      buildPublicRequestUrl(request, syncedSession.response.returnTo),
     );
 
-    await clearReplacedWebAuthSession(request, syncedSession.storedSessionId);
     writeWebAuthSession(request, response, syncedSession);
     clearWebAuthTransaction(request, response);
     applyRateLimitHeaders(response, rateLimit);
     logAuthAuditEvent(request, {
       event: 'auth.callback',
       outcome: 'success',
-      message: 'Completed secure callback exchange.',
+      message: 'Completed BFF-backed secure callback exchange.',
       session: syncedSession.response.session,
       metadata: {
-        returnTo: transaction.returnTo,
-        minimumAssuranceLevel: transaction.minimumAssuranceLevel,
+        returnTo: syncedSession.response.returnTo,
       },
     });
 

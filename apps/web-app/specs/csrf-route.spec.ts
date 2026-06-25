@@ -7,7 +7,6 @@ import { GET as getCsrfToken } from '../src/app/api/security/csrf/route';
 describe('CSRF route', () => {
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
   const originalUrl = process.env.ACME_BFF_URL;
-  const originalProxyMode = process.env.ACME_BFF_PROXY_MODE;
   const originalFetch = global.fetch;
 
   afterEach(() => {
@@ -23,38 +22,12 @@ describe('CSRF route', () => {
       process.env.ACME_BFF_URL = originalUrl;
     }
 
-    if (originalProxyMode === undefined) {
-      delete process.env.ACME_BFF_PROXY_MODE;
-    } else {
-      process.env.ACME_BFF_PROXY_MODE = originalProxyMode;
-    }
-
     global.fetch = originalFetch;
     jest.restoreAllMocks();
   });
 
-  it('issues the browser-facing CSRF cookie locally when BFF mode is disabled', async () => {
+  it('delegates browser-facing CSRF issuance to the BFF', async () => {
     process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'next';
-    const fetchSpy = jest.fn();
-
-    global.fetch = fetchSpy as typeof fetch;
-
-    const response = await getCsrfToken(
-      new NextRequest('https://los.example.test/api/security/csrf'),
-    );
-    const payload = await response.json();
-
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(payload.csrfToken).toEqual(expect.any(String));
-    expect(response.headers.get('set-cookie')).toContain(
-      'acme-los.csrf-token=',
-    );
-  });
-
-  it('delegates browser-facing CSRF issuance to the BFF when BFF mode is enabled', async () => {
-    process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
-    process.env.ACME_BFF_PROXY_MODE = 'bff';
     const fetchSpy = jest.fn<typeof fetch>().mockResolvedValue(
       new Response(JSON.stringify({ csrfToken: 'bff-csrf-token-123' }), {
         headers: {

@@ -147,8 +147,8 @@ Current project promotion units:
   promotion lane
 - `mobile-app`: releases separately through the mobile lane
 
-The BFF now has its own Nx Release group because it owns auth/session state in
-BFF mode. The deployable artifact still records both `webVersion` and
+The BFF now has its own Nx Release group because it owns real Okta
+auth/session state. The deployable artifact still records both `webVersion` and
 `bffVersion`; Azure receives the BFF semantic version through `ACME_BFF_VERSION`
 and the source/image build SHA through `APP_BUILD_ID`.
 
@@ -163,20 +163,15 @@ When the BFF has independent consumers, split runtime promotion into
 as the public app deploy unit and treat the BFF release as the API version
 record carried inside that deploy unit.
 
-Promotion smoke checks should validate both sides of the BFF toggle:
+Promotion smoke checks should validate the BFF-backed facade:
 
-- with `ACME_BFF_PROXY_MODE=bff`, `/api/health` reports a healthy BFF layer and
-  `/security` reads the BFF-owned token/session snapshot in local/dev
+- `/api/health` reports a healthy BFF layer and `/security` reads the
+  BFF-owned token/session snapshot in local/dev for real Okta auth
 - when `bffRuntime.serviceAuth.mode=entra` is enabled, the same smoke path must
   prove that Next can acquire the BFF token and the BFF accepts only the allowed
   caller identity
-- with `ACME_BFF_PROXY_MODE=next`, the same browser-facing routes stay on the
-  Next implementation and the BFF is not required for those switched contracts
-
-The toggle-off path is tabled as a manual promotion check for now. Keep it in
-the smoke checklist when auth/session/security routes change, but do not make it
-a required CD gate until the BFF migration work needs routine dual-mode
-certification.
+- explicit mock auth remains the local/test-only fallback and should not be used
+  as a promotion substitute for the real BFF path
 
 ## Current Operating Reality
 

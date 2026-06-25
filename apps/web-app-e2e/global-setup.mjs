@@ -152,7 +152,6 @@ export default async function globalSetup() {
           ...(enableBffProxyE2E
             ? {
                 ACME_BFF_BASE_URL: bffBaseURL,
-                ACME_BFF_PROXY_MODE: 'bff',
                 ACME_BFF_TRUSTED_PROXY_SECRET: trustedBffProxySecret,
               }
             : {}),

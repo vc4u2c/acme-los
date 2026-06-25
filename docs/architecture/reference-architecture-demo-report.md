@@ -158,13 +158,14 @@ That framing makes the project read as architecture, implementation, automation,
 
 - Next.js exposes an `/api/*` facade for the browser.
 - Browser calls stay on same-origin application routes.
-- The facade can run in local Next mode or BFF-backed mode.
-- `ACME_BFF_PROXY_MODE` controls the runtime path.
+- The facade delegates real Okta-backed auth/session/customer/application work
+  to the BFF.
 - This keeps frontend ergonomics while preserving the backend authority model.
 
 ## Reference Architecture Demo 17 - BFF, API, session, and token security - .NET BFF API surface
 
-- The .NET BFF owns backend authority for auth/session/customer/application behaviors in BFF mode.
+- The .NET BFF owns backend authority for real Okta-backed
+  auth/session/customer/application behaviors.
 - The BFF uses Minimal APIs, OpenAPI, Scalar docs, health, readiness, and modular endpoint organization.
 - Wolverine-style handler organization supports clean feature boundaries where used.
 - API contracts are shared instead of hand-recreated across clients.
@@ -360,7 +361,7 @@ That framing makes the project read as architecture, implementation, automation,
 - Health and readiness endpoints.
 - Modular endpoint organization.
 - Next.js `/api/*` browser facade.
-- Optional BFF-backed proxy mode.
+- BFF-backed Next facade for real auth/session/customer/application behavior.
 - Server-side PKCE.
 - Server-side callback state.
 - Redis-backed auth transaction storage.

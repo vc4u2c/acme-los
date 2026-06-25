@@ -33,7 +33,7 @@
       return;
     }
 
-    var flow = this.config.flow || 'signIn';
+    var i18n = (this.config.i18n && this.config.i18n.en) || {};
     var links = this.config.helpLinks || {};
     var forgotHref = links.forgotPassword || '#';
     var unlockHref = links.unlock || '#';
@@ -45,12 +45,24 @@
     var renderAuthenticatorReturnLink = searchParams.has(
       'acme_audit_authenticator_link',
     );
+    var renderEmailEnrollment = searchParams.has('acme_audit_email_enrollment');
+    var flow = renderEmailEnrollment
+      ? 'emailEnrollment'
+      : this.config.flow || 'signIn';
     var contextByFlow = {
       signIn: { formName: 'identify' },
       signup: { formName: 'enroll-profile' },
+      emailEnrollment: {
+        formName: 'enroll-authenticator-verification',
+        authenticatorKey: 'okta_email',
+      },
       resetPassword: { formName: 'identify' },
       unlockAccount: { formName: 'unlock-account' },
     };
+
+    function copy(key, fallback) {
+      return String(i18n[key] || fallback);
+    }
 
     function applyTransforms(formName, elements) {
       var formBag = {
@@ -195,7 +207,6 @@
           field('Email', 'email') +
           field('First name', 'text') +
           field('Last name', 'text') +
-          field('Mobile phone', 'tel') +
           selectField('State') +
           button('Continue'),
         linksHtml.call(
@@ -222,6 +233,22 @@
             ),
           ].filter(Boolean),
         ),
+      ),
+      emailEnrollment: shell(
+        'emailEnrollment',
+        copy('email.enroll.title', 'Set up Email Authentication'),
+        '<p>' +
+          copy(
+            'email.enroll.description',
+            'Send a verification code to your registered email.',
+          ) +
+          '</p>' +
+          button(copy('email.button.send', 'Send me the code')),
+        linksHtml.call(this, 'enroll-authenticator-verification', [
+          linkElement('Back to authenticator', '#', 'select-authenticator'),
+          linkElement('Set up another', '#', 'setup-another'),
+          linkElement('Continue to login', '/app/UserHome', 'delayed-sign-on'),
+        ]),
       ),
       resetPassword: shell(
         'resetPassword',

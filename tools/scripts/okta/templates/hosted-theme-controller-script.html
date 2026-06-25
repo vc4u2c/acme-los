@@ -67,6 +67,14 @@
       Array.prototype.forEach.call(document.querySelectorAll('[data-acme-theme-choice]'), function (button) {
         button.setAttribute('aria-pressed', button.getAttribute('data-acme-theme-choice') === nextTheme ? 'true' : 'false');
       });
+
+      Array.prototype.forEach.call(document.querySelectorAll('[data-acme-theme-toggle]'), function (button) {
+        var isDark = nextTheme === 'dark';
+        var nextLabel = 'Switch to ' + (isDark ? 'light' : 'dark') + ' theme';
+        button.setAttribute('aria-checked', isDark ? 'true' : 'false');
+        button.setAttribute('aria-label', nextLabel);
+        button.setAttribute('title', nextLabel);
+      });
     }
 
     Array.prototype.forEach.call(document.querySelectorAll('[data-acme-theme-choice]'), function (button) {
@@ -75,6 +83,16 @@
         if (!isTheme(nextTheme)) {
           return;
         }
+
+        persistTheme(nextTheme);
+        applyTheme(nextTheme);
+      });
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll('[data-acme-theme-toggle]'), function (button) {
+      button.addEventListener('click', function () {
+        var currentTheme = document.documentElement.getAttribute('data-acme-theme');
+        var nextTheme = currentTheme === 'dark' ? 'light' : 'dark';
 
         persistTheme(nextTheme);
         applyTheme(nextTheme);

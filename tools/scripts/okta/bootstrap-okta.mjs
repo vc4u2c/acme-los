@@ -76,11 +76,12 @@ const issuer = requiredString(environment.okta?.issuer, 'okta.issuer');
 const oktaApiBaseUrl = new URL('/', issuer).toString().replace(/\/$/, '');
 const warnings = [];
 
-function isReadOnlyConditionsError(error) {
+function isProfileEnrollmentRuleOwnershipError(error) {
   const message = error instanceof Error ? error.message : String(error);
 
   return (
     message.includes('E0000077') ||
+    message.includes('E0000009') ||
     (message.includes('conditions') && message.includes('read-only'))
   );
 }
@@ -253,6 +254,7 @@ const registrationProfileAttributes = [
   { name: 'lastName', label: 'Last name', required: true },
   { name: 'acmeState', label: 'State', required: true, uiFormat: 'select' },
 ];
+const retiredRegistrationProfileAttributeNames = new Set(['mobilePhone']);
 
 const registrationEnrollmentAuthenticatorTypes = ['password'];
 const customerMyAccountOauthScopes = [
@@ -1211,9 +1213,15 @@ function buildRegistrationProfileAttributes(existingAttributes = []) {
       ...policyAttribute,
     };
   });
-  const unmanagedAttributes = currentAttributes.filter(
-    (attribute) => !managedNames.has(attribute?.name),
-  );
+  const unmanagedAttributes = currentAttributes.filter((attribute) => {
+    const attributeName = optionalString(attribute?.name);
+
+    return (
+      typeof attributeName === 'string' &&
+      !managedNames.has(attributeName) &&
+      !retiredRegistrationProfileAttributeNames.has(attributeName)
+    );
+  });
 
   return [...managedAttributes, ...unmanagedAttributes];
 }
@@ -1305,6 +1313,14 @@ function profileEnrollmentManagedAttributesMatch(rule) {
     return false;
   }
 
+  if (
+    profileAttributes.some((attribute) =>
+      retiredRegistrationProfileAttributeNames.has(attribute?.name),
+    )
+  ) {
+    return false;
+  }
+
   const existingByName = new Map(
     profileAttributes
       .filter((attribute) => typeof attribute?.name === 'string')
@@ -1329,35 +1345,62 @@ function profileEnrollmentAuthenticatorTypesMatch(rule) {
   );
 }
 
+function profileEnrollmentEmailVerificationMatches(rule) {
+  const emailVerification =
+    rule?.actions?.profileEnrollment?.activationRequirements?.emailVerification;
+
+  return Boolean(emailVerification) === registrationProfileEmailVerification;
+}
+
 function buildProfileEnrollmentRulePayload(existingRule, customerGroupId) {
   const profileEnrollment = existingRule?.actions?.profileEnrollment ?? {};
+  const uiSchemaId = optionalString(profileEnrollment.uiSchemaId);
+  const progressiveProfilingAction = optionalString(
+    profileEnrollment.progressiveProfilingAction,
+  );
+  const allowedIdentifiers = optionalStringArray(
+    profileEnrollment.allowedIdentifiers,
+  );
+  const preRegistrationInlineHooks = Array.isArray(
+    profileEnrollment.preRegistrationInlineHooks,
+  )
+    ? profileEnrollment.preRegistrationInlineHooks
+    : undefined;
+  const nextProfileEnrollment = {
+    access: profileEnrollment.access ?? 'ALLOW',
+    activationRequirements: {
+      ...(profileEnrollment.activationRequirements ?? {}),
+      emailVerification: registrationProfileEmailVerification,
+    },
+    profileAttributes: buildRegistrationProfileAttributes(
+      profileEnrollment.profileAttributes,
+    ),
+    enrollAuthenticatorTypes: registrationEnrollmentAuthenticatorTypes,
+    targetGroupIds: [customerGroupId],
+    unknownUserAction: profileEnrollment.unknownUserAction ?? 'REGISTER',
+  };
+
+  if (uiSchemaId) {
+    nextProfileEnrollment.uiSchemaId = uiSchemaId;
+  }
+
+  if (progressiveProfilingAction) {
+    nextProfileEnrollment.progressiveProfilingAction =
+      progressiveProfilingAction;
+  }
+
+  if (allowedIdentifiers.length > 0) {
+    nextProfileEnrollment.allowedIdentifiers = allowedIdentifiers;
+  }
+
+  if (preRegistrationInlineHooks) {
+    nextProfileEnrollment.preRegistrationInlineHooks =
+      preRegistrationInlineHooks;
+  }
 
   return {
-    type: 'PROFILE_ENROLLMENT',
-    name: existingRule?.name ?? 'Catch-all Rule',
-    status: 'ACTIVE',
-    ...(typeof existingRule?.priority === 'number'
-      ? { priority: existingRule.priority }
-      : {}),
-    ...(existingRule?.conditions
-      ? { conditions: existingRule.conditions }
-      : {}),
     actions: {
-      ...(existingRule?.actions ?? {}),
-      profileEnrollment: {
-        ...profileEnrollment,
-        access: profileEnrollment.access ?? 'ALLOW',
-        activationRequirements: {
-          ...(profileEnrollment.activationRequirements ?? {}),
-          emailVerification: registrationProfileEmailVerification,
-        },
-        profileAttributes: buildRegistrationProfileAttributes(
-          profileEnrollment.profileAttributes,
-        ),
-        enrollAuthenticatorTypes: registrationEnrollmentAuthenticatorTypes,
-        targetGroupIds: [customerGroupId],
-        unknownUserAction: profileEnrollment.unknownUserAction ?? 'REGISTER',
-      },
+      profileEnrollment: nextProfileEnrollment,
     },
   };
 }
@@ -1372,14 +1415,23 @@ function describeProfileEnrollmentManualGate({
   customerGroupId,
   customerGroupName,
   missingEnrollmentAuthenticatorTypes = [],
+  profileEmailVerificationMismatch = false,
   missingProfileAttributes = [],
   profileEnrollmentPolicyName,
   ruleName,
+  unexpectedProfileAttributes = [],
 }) {
   const fieldMessage =
     missingProfileAttributes.length > 0
       ? ` Add the missing required registration profile fields: ${missingProfileAttributes.join(', ')}.`
       : '';
+  const unexpectedFieldMessage =
+    unexpectedProfileAttributes.length > 0
+      ? ` Remove retired registration profile fields: ${unexpectedProfileAttributes.join(', ')}.`
+      : '';
+  const emailVerificationMessage = profileEmailVerificationMismatch
+    ? ' Disable profile-enrollment email verification so Okta does not send an automatic profile email OTP during hosted registration.'
+    : '';
   const authenticatorMessage =
     missingEnrollmentAuthenticatorTypes.length > 0
       ? ` Add the missing registration authenticator enrollment types: ${missingEnrollmentAuthenticatorTypes.join(', ')}.`
@@ -1387,7 +1439,7 @@ function describeProfileEnrollmentManualGate({
 
   return [
     `Okta refused API ownership of the profile-enrollment registration rule "${ruleName}" for ${profileEnrollmentPolicyName}.`,
-    `Manual gate: in Okta Admin, open Security > User Profile Policies > ${profileEnrollmentPolicyName}, edit the registration rule, verify the target group is ${customerGroupName} (${customerGroupId}), and verify the required hosted registration profile fields and password enrollment match the repo.${fieldMessage}${authenticatorMessage}`,
+    `Manual gate: in Okta Admin, open Security > User Profile Policies > ${profileEnrollmentPolicyName}, edit the registration rule, verify the target group is ${customerGroupName} (${customerGroupId}), and verify the required hosted registration profile fields and password enrollment match the repo.${fieldMessage}${unexpectedFieldMessage}${emailVerificationMessage}${authenticatorMessage}`,
     'Do not assign the ACME app to Everyone as a workaround; that broadens app access beyond the customer population.',
   ].join(' ');
 }
@@ -2284,6 +2336,7 @@ const hostedBranding = {
   PrivacyPolicyUrl: privacyPolicyUrl,
   TermsUrl: termsUrl,
   HelpUrl: helpUrl,
+  HomeUrl: new URL('/', deployedWebBaseUrl).toString(),
   SignInStartUrl: signInStartUrl,
   SignInTitle: requiredString(brandProfile.signInTitle, 'brand.signInTitle'),
   SignInSubtitle: requiredString(
@@ -3246,17 +3299,22 @@ try {
   );
   const enrollmentAuthenticatorTypesMatch =
     profileEnrollmentAuthenticatorTypesMatch(profileEnrollmentRule);
+  const emailVerificationMatches = profileEnrollmentEmailVerificationMatches(
+    profileEnrollmentRule,
+  );
 
   if (
     existingTargetGroupIds.length === 1 &&
     existingTargetGroupIds.includes(customerGroupId) &&
     profileAttributesMatch &&
-    enrollmentAuthenticatorTypesMatch
+    enrollmentAuthenticatorTypesMatch &&
+    emailVerificationMatches
   ) {
     results.profileEnrollmentRule = {
       mode: 'existing',
       id: profileEnrollmentRule.id,
       targetGroupIds: existingTargetGroupIds,
+      emailVerification: registrationProfileEmailVerification,
       profileAttributes: readProfileEnrollmentAttributeNames(
         profileEnrollmentRule,
       ),
@@ -3284,6 +3342,10 @@ try {
       mode: 'updated',
       id: updatedProfileEnrollmentRule.id,
       targetGroupIds,
+      emailVerification: Boolean(
+        updatedProfileEnrollmentRule.actions?.profileEnrollment
+          ?.activationRequirements?.emailVerification,
+      ),
       profileAttributes: readProfileEnrollmentAttributeNames(
         updatedProfileEnrollmentRule,
       ),
@@ -3295,7 +3357,7 @@ try {
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
 
-  if (isReadOnlyConditionsError(error)) {
+  if (isProfileEnrollmentRuleOwnershipError(error)) {
     const actualTargetGroupIds = readProfileEnrollmentTargetGroupIds(
       profileEnrollmentRule,
     );
@@ -3308,8 +3370,18 @@ try {
     const missingProfileAttributes = targetProfileAttributes.filter(
       (attributeName) => !actualProfileAttributes.includes(attributeName),
     );
+    const unexpectedProfileAttributes = actualProfileAttributes.filter(
+      (attributeName) =>
+        retiredRegistrationProfileAttributeNames.has(attributeName),
+    );
     const actualEnrollmentAuthenticatorTypes =
       readProfileEnrollmentAuthenticatorTypes(profileEnrollmentRule);
+    const actualEmailVerification = Boolean(
+      profileEnrollmentRule.actions?.profileEnrollment?.activationRequirements
+        ?.emailVerification,
+    );
+    const profileEmailVerificationMismatch =
+      actualEmailVerification !== registrationProfileEmailVerification;
     const missingEnrollmentAuthenticatorTypes =
       registrationEnrollmentAuthenticatorTypes.filter(
         (authenticatorType) =>
@@ -3329,8 +3401,12 @@ try {
       targetEnrollmentAuthenticatorTypes:
         registrationEnrollmentAuthenticatorTypes,
       missingProfileAttributes,
+      unexpectedProfileAttributes,
+      actualEmailVerification,
+      targetEmailVerification: registrationProfileEmailVerification,
+      profileEmailVerificationMismatch,
       missingEnrollmentAuthenticatorTypes,
-      reason: 'okta-read-only-rule-conditions',
+      reason: 'okta-profile-enrollment-rule-api-refused',
     };
     throw new Error(
       `${describeProfileEnrollmentManualGate({
@@ -3340,7 +3416,9 @@ try {
         missingProfileAttributes,
         profileEnrollmentPolicyName,
         ruleName: profileEnrollmentRule.name,
-      })} Actual rule fields: ${actualProfileAttributes.join(', ') || 'none'}. Actual UI schema fields: ${uiSchemaProfileAttributes.join(', ') || 'none'}. Target fields: ${targetProfileAttributes.join(', ')}. Actual registration enrollment types: ${actualEnrollmentAuthenticatorTypes.join(', ') || 'none'}. Target registration enrollment types: ${registrationEnrollmentAuthenticatorTypes.join(', ')}. Okta error: ${message}`,
+        unexpectedProfileAttributes,
+        profileEmailVerificationMismatch,
+      })} Actual rule fields: ${actualProfileAttributes.join(', ') || 'none'}. Actual UI schema fields: ${uiSchemaProfileAttributes.join(', ') || 'none'}. Target fields: ${targetProfileAttributes.join(', ')}. Actual profile email verification: ${actualEmailVerification}. Target profile email verification: ${registrationProfileEmailVerification}. Actual registration enrollment types: ${actualEnrollmentAuthenticatorTypes.join(', ') || 'none'}. Target registration enrollment types: ${registrationEnrollmentAuthenticatorTypes.join(', ')}. Okta error: ${message}`,
     );
   } else {
     throw new Error(

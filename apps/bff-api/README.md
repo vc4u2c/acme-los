@@ -179,20 +179,14 @@ npx.cmd nx run Acme.Los.Bff.Api:publish
 If the inferred project names differ, update this README to match the real
 names discovered by `nx show project`.
 
-## Next Route Switch
+## Next Facade To BFF
 
-Keep the existing Next.js `/api/*` routes during the rollout and proxy selected
-routes into the BFF only when you opt in with server-side configuration:
+Keep browser traffic on the existing Next.js `/api/*` routes and proxy real
+Okta-backed behavior into the BFF through server-side configuration:
 
 ```powershell
 $env:ACME_BFF_BASE_URL = 'http://localhost:5186'
-$env:ACME_BFF_PROXY_MODE = 'bff'
 ```
-
-`ACME_BFF_PROXY_MODE` accepts:
-
-- `next`: force the switched routes to stay on the Next implementation
-- `bff`: force the BFF implementation and fail if no BFF base URL is configured
 
 Use the BFF HTTP loopback URL for local Next-to-BFF proxy traffic. The BFF still
 can expose `https://localhost:7206` through the `https` launch profile when you
@@ -207,40 +201,40 @@ server-side BFF proxy hop.
 
 Current switched routes:
 
-- `GET /api/health` -> composite Next + BFF health; includes `GET /bff/health`
-  when the BFF base URL is configured
+- `GET /api/health` -> composite Next + BFF health; reports degraded if the BFF
+  base URL is missing or unhealthy
 - `GET /api/security/csrf` -> `GET /bff/security/csrf`
-- `GET /api/security/inspector` -> `GET /bff/security/inspector` in BFF mode,
-  after the authenticated Next facade and rate-limit checks pass
+- `GET /api/security/inspector` -> `GET /bff/security/inspector` for real Okta
+  auth, after the authenticated Next facade and rate-limit checks pass
 - `GET /api/auth/start` -> `GET /bff/auth/login`
 - `GET /api/auth/callback` -> `GET /bff/auth/callback`
+- `GET|DELETE /api/auth/session` -> `/bff/auth/session`
+- `POST /api/auth/session/touch` -> `/bff/auth/session/touch`
+- guarded API/server-rendered session checks -> `/bff/auth/session/requirement`
+- logout hints -> `/bff/auth/logout-hint`
 - `GET|PUT /api/customer/profile` -> `/bff/customer/profile`
 - `GET|PUT /api/application/steps/[step]` -> `/bff/application/steps/{step}`
 - `POST /api/application/submit` -> `/bff/application/submit`
 - `POST /api/diagnostics/trace` -> `/bff/diagnostics/trace`
 
-`GET|POST|DELETE /api/auth/session`,
-`POST /api/auth/session/touch`, guarded API session checks, server-rendered
-session checks, and logout hints use the same `ACME_BFF_PROXY_MODE` switch. In
-`next` mode, Next owns the auth session store. In `bff` mode, Next remains the
-browser facade but delegates PKCE transaction state, Okta token exchange,
-id-token validation, session read/sync/touch/clear, requirement checks, funding
-step-up freshness, and logout-hint reads to the BFF. Next still owns the public
-redirect routes and writes the browser-facing opaque session cookie from the BFF
-session headers. Mock auth remains local for development and Playwright
+Next remains the browser facade but delegates PKCE transaction state, Okta token
+exchange, id-token validation, session read/touch/clear, requirement checks,
+funding step-up freshness, and logout-hint reads to the BFF. Next still owns the
+public redirect routes and writes the browser-facing opaque session cookie from
+the BFF session headers. Mock auth remains local for development and Playwright
 fixtures.
 
-In `bff` mode, `GET /api/security/csrf` stays browser-facing on the Next
-origin but delegates token issuance to the BFF and relays the BFF `Set-Cookie`
-header back to the browser. The Next facade accepts both the earlier signed
-facade cookie format and BFF-issued raw CSRF tokens so existing local cookies
-can roll forward cleanly.
+`GET /api/security/csrf` stays browser-facing on the Next origin but delegates
+token issuance to the BFF and relays the BFF `Set-Cookie` header back to the
+browser. The Next facade accepts both the earlier signed facade cookie format
+and BFF-issued raw CSRF tokens so existing local cookies can roll forward
+cleanly.
 
-The security inspector follows the same authority rule. In `next` mode it reads
-the Next-owned server store. In `bff` mode it reads the BFF-owned store through
-`/bff/security/inspector` over the trusted server-to-server boundary. The raw
-BFF inspector endpoint is local/dev diagnostics only; browser users should open
-`/security` on the Next origin.
+The security inspector follows the same authority rule. With real Okta auth it
+reads the BFF-owned store through `/bff/security/inspector` over the trusted
+server-to-server boundary. With explicit mock auth it returns a token-free local
+snapshot. The raw BFF inspector endpoint is local/dev diagnostics only; browser
+users should open `/security` on the Next origin.
 
 The BFF HTTP pipeline owns cross-cutting transport concerns before any Wolverine
 handler runs: request completion logging, correlation ID normalization,
@@ -260,26 +254,13 @@ state-store contract as the Next facade:
 - `ACME_REDIS_HOST`, `ACME_REDIS_PORT`, and
   `ACME_REDIS_MANAGED_IDENTITY_CLIENT_ID` drive the ACA + Entra path
 - `ACME_REDIS_KEY_PREFIX` is intentionally shared with the Next facade so route
-  switches stay reversible and customer/application state survives the handoff
+  handoffs keep customer/application state under the same namespace
 
 If Redis is not configured, the BFF falls back to in-memory customer and
 application state for local scaffolding.
 
-That keeps browser contracts stable while letting the Next facade fall back to
-the existing implementation whenever the proxy mode is `next`. The BFF base URL
-is connection configuration only; it does not act as the rollout switch.
-
-Toggle behavior to preserve:
-
-| Surface              | `ACME_BFF_PROXY_MODE=next` | `ACME_BFF_PROXY_MODE=bff`                            |
-| -------------------- | -------------------------- | ---------------------------------------------------- |
-| Browser URL          | Next `/api/*`              | Same Next `/api/*`                                   |
-| Session authority    | Next web-server store      | BFF auth session store                               |
-| CSRF issuer          | Next facade                | BFF, relayed through Next                            |
-| Security inspector   | Next-owned snapshot        | BFF-owned snapshot                                   |
-| Customer/application | Next implementation        | BFF implementation behind Next                       |
-| Browser telemetry    | Next facade logging        | Still Next facade logging                            |
-| Diagnostic tracing   | Not proxied                | Next facade calls `/bff/diagnostics/trace` for demos |
+That keeps browser contracts stable while making the BFF the single real-Okta
+authority behind the Next facade.
 
 For the trusted identity bridge, Next forwards authenticated customer context
 with `x-acme-authenticated-*` headers. In local development the BFF accepts

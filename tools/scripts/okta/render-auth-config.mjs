@@ -312,6 +312,7 @@ const hostedBranding = {
     deployedWebBaseUrl,
     requiredString(brandProfile.helpPath, 'brand.helpPath'),
   ),
+  HomeUrl: new URL('/', deployedWebBaseUrl).toString(),
   SignInStartUrl: signInStartUrl,
   SignInTitle: requiredString(brandProfile.signInTitle, 'brand.signInTitle'),
   SignInSubtitle: requiredString(

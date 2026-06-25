@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { maybeProxyToBff } from '../_lib/bff-route-proxy';
+import { proxyToBff } from '../_lib/bff-route-proxy';
 import { createWebHealthSnapshot } from '../_lib/web-health-response';
 
 const BFF_HEALTH_TIMEOUT_MS = 5_000;
@@ -68,18 +68,11 @@ function toErrorMessage(error: unknown): string {
 
 async function getBffHealthLayer(
   request: NextRequest,
-): Promise<
-  | { enabled: false; layer: null }
-  | { enabled: true; layer: HealthLayerSnapshot }
-> {
+): Promise<HealthLayerSnapshot> {
   try {
-    const proxiedResponse = await maybeProxyToBff(request, '/bff/health', {
+    const proxiedResponse = await proxyToBff(request, '/bff/health', {
       timeoutMs: BFF_HEALTH_TIMEOUT_MS,
     });
-
-    if (!proxiedResponse) {
-      return { enabled: false, layer: null };
-    }
 
     let payload: Record<string, unknown> | null = null;
     try {
@@ -88,32 +81,24 @@ async function getBffHealthLayer(
       payload = null;
     }
 
-    return {
-      enabled: true,
-      layer: normalizeBffHealthLayer(payload, proxiedResponse.status),
-    };
+    return normalizeBffHealthLayer(payload, proxiedResponse.status);
   } catch (error) {
     return {
-      enabled: true,
-      layer: {
-        status: 'unhealthy',
-        service: 'bff-api',
-        error: toErrorMessage(error),
-      },
+      status: 'unhealthy',
+      service: 'bff-api',
+      error: toErrorMessage(error),
     };
   }
 }
 
 export async function GET(request: NextRequest) {
   const webLayer = createWebHealthSnapshot();
-  const bffHealth = await getBffHealthLayer(request);
+  const bffLayer = await getBffHealthLayer(request);
   const isBffHealthy =
-    !bffHealth.enabled ||
-    (bffHealth.layer.status === 'ok' &&
-      bffHealth.layer.service === 'bff-api' &&
-      (!bffHealth.layer.upstreamStatus ||
-        (bffHealth.layer.upstreamStatus >= 200 &&
-          bffHealth.layer.upstreamStatus < 300)));
+    bffLayer.status === 'ok' &&
+    bffLayer.service === 'bff-api' &&
+    (!bffLayer.upstreamStatus ||
+      (bffLayer.upstreamStatus >= 200 && bffLayer.upstreamStatus < 300));
   const status = isBffHealthy ? 'ok' : 'degraded';
 
   return NextResponse.json(
@@ -125,11 +110,11 @@ export async function GET(request: NextRequest) {
       environment: webLayer.environment,
       servedAt: webLayer.servedAt,
       bff: {
-        enabled: bffHealth.enabled,
+        enabled: true,
       },
       layers: {
         web: webLayer,
-        ...(bffHealth.enabled ? { bff: bffHealth.layer } : {}),
+        bff: bffLayer,
       },
     },
     { status: status === 'ok' ? 200 : 503 },

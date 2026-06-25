@@ -102,6 +102,20 @@ export function buildHostedSignInStartUrl(
   return url.toString();
 }
 
+function buildHostedHomeUrl(branding) {
+  if (
+    typeof branding.HomeUrl === 'string' &&
+    branding.HomeUrl.trim().length > 0
+  ) {
+    return requiredAbsoluteHttpUrl(branding.HomeUrl, 'Branding.HomeUrl');
+  }
+
+  return new URL(
+    '/',
+    requiredAbsoluteHttpUrl(branding.SignInStartUrl, 'Branding.SignInStartUrl'),
+  ).toString();
+}
+
 function resolveThemeCookieDomain(branding) {
   const value =
     typeof branding.ThemeCookieDomain === 'string'
@@ -185,9 +199,10 @@ function buildHostedThemeControllerScript(branding) {
   });
 }
 
-function buildHostedBrandHeaderMarkup({ brandLabel, productLabel }) {
+function buildHostedBrandHeaderMarkup({ brandLabel, homeUrl, productLabel }) {
   return renderHostedPagePartial('hosted-brand-header.html', {
     BRAND_LABEL: brandLabel,
+    HOME_URL: escapeHtml(homeUrl),
     PRODUCT_LABEL: productLabel,
   });
 }
@@ -223,14 +238,17 @@ function buildCommonHostedPageParts(branding) {
   const supportHours = escapeHtml(
     requiredString(branding.SupportHours, 'Branding.SupportHours'),
   );
+  const homeUrl = buildHostedHomeUrl(branding);
 
   return {
     brandLabel,
+    homeUrl,
     productLabel,
     themeBootstrapScript: buildHostedThemeBootstrapScript(branding),
     themeControllerScript: buildHostedThemeControllerScript(branding),
     brandHeaderMarkup: buildHostedBrandHeaderMarkup({
       brandLabel,
+      homeUrl,
       productLabel,
     }),
     supportFooterMarkup: buildHostedSupportFooterMarkup({
@@ -283,6 +301,7 @@ export function buildHostedErrorPageContent(branding) {
     ),
     BRAND_HEADER_MARKUP: buildHostedBrandHeaderMarkup({
       brandLabel: common.brandLabel,
+      homeUrl: common.homeUrl,
       productLabel: escapeHtml(
         requiredString(branding.ProductName, 'Branding.ProductName'),
       ),
