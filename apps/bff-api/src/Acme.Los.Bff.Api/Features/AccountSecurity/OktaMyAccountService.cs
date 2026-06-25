@@ -39,8 +39,9 @@ public interface IOktaMyAccountService
 
 public sealed class OktaMyAccountService : IOktaMyAccountService
 {
-  private const string OktaMyAccountJsonMediaType =
+  private const string OktaMyAccountAcceptMediaType =
     "application/json; okta-version=1.0.0";
+  private const string JsonMediaType = "application/json";
 
   private static readonly JsonSerializerOptions JsonOptions =
     new(JsonSerializerDefaults.Web);
@@ -193,15 +194,12 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
 
     await SendAsync<JsonElement?>(
       accessToken,
-      HttpMethod.Put,
-      "/idp/myaccount/password",
+      HttpMethod.Post,
+      "/idp/myaccount/password/change-password",
       new
       {
-        profile = new
-        {
-          currentPassword,
-          password = newPassword,
-        },
+        oldPassword = currentPassword,
+        newPassword,
       },
       cancellationToken,
       expectBody: false);
@@ -226,13 +224,12 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     request.Headers.Authorization = new AuthenticationHeaderValue(
       "Bearer",
       accessToken);
-    request.Headers.Accept.ParseAdd(OktaMyAccountJsonMediaType);
+    request.Headers.Accept.ParseAdd(OktaMyAccountAcceptMediaType);
 
     if (body is not null)
     {
       request.Content = JsonContent.Create(body, options: JsonOptions);
-      request.Content.Headers.ContentType =
-        MediaTypeHeaderValue.Parse(OktaMyAccountJsonMediaType);
+      request.Content.Headers.ContentType = new MediaTypeHeaderValue(JsonMediaType);
     }
 
     using var response = await _httpClientFactory.CreateClient().SendAsync(

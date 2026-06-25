@@ -506,8 +506,10 @@ The account-security routes have distinct step-up reasons:
   OTP to the new phone through MyAccount verification.
 - `/account/security/password` requires a fresh `account-password` marker,
   which must be satisfied with phone/SMS OTP before the form appears. The BFF
-  forwards the current and new password directly to Okta MyAccount
-  `PUT /idp/myaccount/password`; it must not store or log either value.
+  forwards the current password as `oldPassword` and the new password as
+  `newPassword` directly to Okta MyAccount
+  `POST /idp/myaccount/password/change-password`; it must not store or log
+  either value.
 
 The BFF account-security endpoints emit non-sensitive action-state logs for
 `email.start`, `email.verify`, `phone.start`, `phone.verify`, and

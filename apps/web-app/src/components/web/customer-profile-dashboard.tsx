@@ -54,7 +54,7 @@ const oktaAccountSecurityActions: Array<{
     actionId: 'password',
     label: 'Change password',
     description:
-      'Sign in again with password, verify phone/SMS, then enter the current password.',
+      'Confirm your password, complete phone/SMS verification, then set the new password.',
     cta: 'Change password',
     icon: KeyRound,
   },
@@ -62,7 +62,7 @@ const oktaAccountSecurityActions: Array<{
     actionId: 'change-email',
     label: 'Change email',
     description:
-      'Sign in again with password, verify phone/SMS, then confirm the new email code.',
+      'Confirm your password, complete phone/SMS verification, then verify the code sent to the new email.',
     cta: 'Change email',
     icon: Mail,
   },
@@ -70,7 +70,7 @@ const oktaAccountSecurityActions: Array<{
     actionId: 'change-phone',
     label: 'Change phone',
     description:
-      'Sign in again with password, verify email, then confirm the new SMS phone.',
+      'Confirm your password, complete email verification, then verify the code sent to the new phone.',
     cta: 'Change phone',
     icon: Phone,
   },

@@ -1237,9 +1237,9 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
 
     var request = Assert.Single(handler.Requests);
 
-    Assert.Equal(HttpMethod.Put, request.Method);
+    Assert.Equal(HttpMethod.Post, request.Method);
     Assert.Equal(
-      "https://dev-123456.okta.com/idp/myaccount/password",
+      "https://dev-123456.okta.com/idp/myaccount/password/change-password",
       request.RequestUri?.ToString());
     Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
     Assert.Equal("access-token-123", request.Headers.Authorization?.Parameter);
@@ -1247,14 +1247,12 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
 
     var body = await request.Content!.ReadAsStringAsync();
     using var json = JsonDocument.Parse(body);
-    var profile = json.RootElement.GetProperty("profile");
-
     Assert.Equal(
       "current-password-123",
-      profile.GetProperty("currentPassword").GetString());
+      json.RootElement.GetProperty("oldPassword").GetString());
     Assert.Equal(
       "new-password-456",
-      profile.GetProperty("password").GetString());
+      json.RootElement.GetProperty("newPassword").GetString());
   }
 
   [Fact]
@@ -2086,11 +2084,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
 
     Assert.NotNull(contentType);
     Assert.Equal("application/json", contentType!.MediaType);
-    Assert.Contains(
-      contentType.Parameters,
-      parameter =>
-        string.Equals(parameter.Name, "okta-version", StringComparison.OrdinalIgnoreCase)
-        && string.Equals(parameter.Value, "1.0.0", StringComparison.Ordinal));
+    Assert.Empty(contentType.Parameters);
   }
 
   private static OktaCustomerIdWritebackService CreateOktaCustomerIdWritebackService(

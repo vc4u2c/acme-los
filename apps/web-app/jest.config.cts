@@ -23,6 +23,8 @@ const config = {
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx'],
   coverageDirectory: '../../coverage/apps/web-app',
   testEnvironment: 'jsdom',
+  // Route specs mutate process.env to exercise runtime-only Next/BFF modes.
+  maxWorkers: 1,
 };
 
 module.exports = createJestConfig(config);

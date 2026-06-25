@@ -77,7 +77,7 @@ function actionCopy(action: AccountSecurityChangeAction) {
         eyebrow: 'Account security',
         title: 'Change sign-in email.',
         description:
-          'Password and phone/SMS verification protect this change. Okta sends the final code to the new email.',
+          'Confirm your password and phone/SMS OTP first. Then enter the new email and verify the email code Okta sends.',
         valueLabel: 'New sign-in email',
         valuePlaceholder: 'name@example.com',
         codeLabel: 'Email verification code',
@@ -93,7 +93,7 @@ function actionCopy(action: AccountSecurityChangeAction) {
         eyebrow: 'Account security',
         title: 'Change SMS phone.',
         description:
-          'Password and email verification protect this change. Okta sends the final code to the new phone.',
+          'Confirm your password and email OTP first. Then enter the new SMS phone and verify the SMS code Okta sends.',
         valueLabel: 'New SMS phone',
         valuePlaceholder: '+13145550123',
         codeLabel: 'SMS verification code',
@@ -364,12 +364,12 @@ export function AccountSecurityChangePage({
                   Verified session
                 </p>
                 <CardTitle className="font-display text-[1.8rem] leading-tight text-[var(--foreground)] sm:text-3xl">
-                  Opposite-channel proof.
+                  Verified Okta proof.
                 </CardTitle>
                 <CardDescription className="text-sm leading-6 text-[var(--muted-foreground)] sm:text-base sm:leading-7">
                   {action === 'email'
-                    ? 'This page opens only after password and phone/SMS step-up.'
-                    : 'This page opens only after password and email step-up.'}
+                    ? 'This page opens only after password and phone/SMS verification.'
+                    : 'This page opens only after password and email verification.'}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 px-5 pb-5 sm:px-6 sm:pb-6">

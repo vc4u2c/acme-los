@@ -196,8 +196,8 @@ function applyWidgetCopyOverrides(config) {
         'Verify with a code sent to your email',
       'oie.email.enroll.title': 'Verify your email',
       'oie.email.enroll.subtitle':
-        'Use the code sent to your email when email verification is required.',
-      'oie.email.challenge.title': 'Enter your email verification code',
+        'Use the button to send a verification code when email verification is required.',
+      'oie.email.challenge.title': 'Verify your email',
       'factor.email': 'Email',
       'factor.email.description':
         'Enter the verification code sent to your email.',
@@ -206,15 +206,15 @@ function applyWidgetCopyOverrides(config) {
       'email.code.label': 'Email verification code',
       'email.code.not.received': 'Need another email code?',
       'email.enroll.title': 'Verify your email',
-      'email.enroll.description': 'Send a verification code to your email.',
-      'email.enroll.enterCode': 'Enter code',
+      'email.enroll.description':
+        'Use the button to send a verification code to your email.',
+      'email.enroll.enterCode': 'Verify email',
       'email.mfa.title': 'Verify with email',
       'email.mfa.description': 'Send a verification code to {0}.',
-      'email.mfa.email.sent.description':
-        'A verification code was sent to {0}. Enter the code below.',
-      'email.mfa.email.sent.description.sentText':
-        'A verification code was sent to',
-      'email.mfa.email.sent.description.emailCodeText': 'Enter the code below.',
+      'email.mfa.email.sent.description': 'Enter the code sent to your email.',
+      'email.mfa.email.sent.description.sentText': 'Email code sent',
+      'email.mfa.email.sent.description.emailCodeText':
+        'Enter the code sent to your email.',
       'mfa.sendEmail': 'Send email code',
       'mfa.resendEmail': 'Send another email',
       'mfa.emailVerification.title': 'Sign in with email',
@@ -370,13 +370,17 @@ const authenticatorReturnLinkTexts = new Set([
 ]);
 
 const friendlyWidgetTextByNormalizedText = new Map([
+  ['email authentication', 'Email verification'],
+  ['set up email', 'Verify your email'],
   ['set up email authentication', 'Verify your email'],
+  ['setup email', 'Verify your email'],
   ['setup email authentication', 'Verify your email'],
   ['setup required', 'Required to continue'],
   ['set up another', 'Set up another verification method'],
   ['setup another', 'Set up another verification method'],
   ['configure factor', 'Continue'],
   ['configure next factor', 'Continue'],
+  ['enter code', 'Verify email'],
   ['send me the code', 'Send email code'],
   ['send again', 'Send another email code'],
 ]);

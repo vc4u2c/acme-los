@@ -46,6 +46,7 @@
       'acme_audit_authenticator_link',
     );
     var renderEmailEnrollment = searchParams.has('acme_audit_email_enrollment');
+    var renderEmailCodeSent = searchParams.has('acme_audit_email_code_sent');
     var flow = renderEmailEnrollment
       ? 'emailEnrollment'
       : this.config.flow || 'signIn';
@@ -237,13 +238,25 @@
       emailEnrollment: shell(
         'emailEnrollment',
         copy('email.enroll.title', 'Set up Email Authentication'),
-        '<p>' +
-          copy(
-            'email.enroll.description',
-            'Send a verification code to your registered email.',
-          ) +
-          '</p>' +
-          button(copy('email.button.send', 'Send me the code')),
+        renderEmailCodeSent
+          ? '<p>' +
+              copy(
+                'email.mfa.email.sent.description',
+                'Enter the code sent to your email.',
+              ).replace('{0}', 'your email') +
+              '</p>' +
+              field(
+                copy('email.code.label', 'Email verification code'),
+                'text',
+              ) +
+              button(copy('email.enroll.enterCode', 'Verify email'))
+          : '<p>' +
+              copy(
+                'email.enroll.description',
+                'Use the button to send a verification code to your email.',
+              ) +
+              '</p>' +
+              button(copy('email.button.send', 'Send email code')),
         linksHtml.call(this, 'enroll-authenticator-verification', [
           linkElement('Back to authenticator', '#', 'select-authenticator'),
           linkElement('Set up another', '#', 'setup-another'),

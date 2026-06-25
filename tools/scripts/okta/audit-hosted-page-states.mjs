@@ -76,10 +76,38 @@ const scenarios = [
     expectedAuthState: 'emailVerification',
     expectedTexts: [
       'Verify your email',
-      'Send a verification code to your email.',
+      'Use the button to send a verification code to your email.',
       'Send email code',
       'Choose another verification method',
       'Set up another verification method',
+    ],
+    forbiddenTexts: ['Email verification code', 'Verify email'],
+    expectedContextTexts: [
+      'Email verification',
+      'Verify your email',
+      'verification link or code',
+    ],
+    expectedCustomHelpLink: {
+      text: 'Forgot password?',
+      widgetFlow: 'resetPassword',
+    },
+  },
+  {
+    key: 'emailCodeSent',
+    query: '?acme_audit_email_enrollment=1&acme_audit_email_code_sent=1',
+    expectedFlow: undefined,
+    expectedAuthState: 'emailVerification',
+    expectedTexts: [
+      'Verify your email',
+      'Enter the code sent to your email.',
+      'Email verification code',
+      'Verify email',
+      'Choose another verification method',
+      'Set up another verification method',
+    ],
+    forbiddenTexts: [
+      'Use the button to send a verification code to your email.',
+      'Send email code',
     ],
     expectedContextTexts: [
       'Email verification',
@@ -233,8 +261,11 @@ function auditHostedSourceConventions() {
     'email.button.send',
     'email.code.label',
     'email.enroll.title',
+    'email.enroll.enterCode',
+    'email.mfa.email.sent.description',
     'email.mfa.title',
     'enroll.choices.setup.another',
+    'oie.email.challenge.title',
   ]) {
     if (!controller.includes(`'${key}'`)) {
       failures.push(`hosted sign-in controller is missing i18n key ${key}`);
@@ -508,6 +539,10 @@ async function auditScenario(
         (expectedText) =>
           !normalizedBodyText.includes(expectedText.toLowerCase()),
       ),
+      forbiddenTextsPresent: (scenarioExpectations.forbiddenTexts ?? []).filter(
+        (forbiddenText) =>
+          normalizedBodyText.includes(forbiddenText.toLowerCase()),
+      ),
       missingContextTexts: scenarioExpectations.expectedContextTexts.filter(
         (expectedText) =>
           !normalizedContextText.includes(expectedText.toLowerCase()),
@@ -525,6 +560,11 @@ async function auditScenario(
   const failures = [];
   if (metrics.missingTexts.length > 0) {
     failures.push(`missing text: ${metrics.missingTexts.join(', ')}`);
+  }
+  if (metrics.forbiddenTextsPresent.length > 0) {
+    failures.push(
+      `unexpected text: ${metrics.forbiddenTextsPresent.join(', ')}`,
+    );
   }
   if (!metrics.widgetRect || metrics.widgetRect.height < 40) {
     failures.push('hosted widget rendered too small or blank');
