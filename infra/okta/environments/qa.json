@@ -17,8 +17,8 @@
     "hostedExperience": {
       "signInWidgetGeneration": "G3",
       "signInWidgetVersion": "7.46",
-      "rememberUser": true,
-      "keepMeSignedIn": true,
+      "rememberUser": false,
+      "keepMeSignedIn": false,
       "customerSessionMaxLifetimeDays": 60,
       "registrationRequiresEmailVerification": true,
       "registrationProfileEmailVerification": false,

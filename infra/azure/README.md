@@ -315,7 +315,7 @@ For `dev`, `smsMfa.provider = mock` can be used for a demo-only OTP log path.
 For real ACS SMS, switch the provider back to `acs` only after Azure marks
 toll-free sender `+18772244103` as verified.
 
-## Okta Customer ID Sample Write-Back
+## Okta Profile Sync
 
 The internal BFF runtime supports an opt-in sample `customerId` write-back for
 the application `personal-info` step. For the current `dev` rollout,
@@ -323,8 +323,17 @@ the application `personal-info` step. For the current `dev` rollout,
 require the matching Okta service-app private key in
 `ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM`.
 
+The same Key Vault-backed Okta service app can also support ACME's
+email-as-sign-in-ID guarantee for this app. When
+`oktaAccountProfileSync.emailLoginSyncEnabled = true`, the BFF receives
+`ACME_OKTA_EMAIL_LOGIN_SYNC_ENABLED=true` and, after a successful Okta
+MyAccount new-email OTP verification, updates that user's Okta
+`profile.email` and `profile.login` to the verified email. This keeps changed
+emails and Okta sign-in IDs aligned without exposing Okta management
+credentials to the public Next container or browser.
+
 To prove the Okta claim round trip with the production security shape, create an
-Okta API Service app, grant it `okta.users.manage`, set
+Okta API Service app, grant it `okta.users.read okta.users.manage`, set
 `oktaCustomerIdWriteback.mode` to `sample`, and provide the service-app
 `clientId`, optional `privateKeyId`, and `scopes` in
 `infra/azure/config/platform.json`. Set
@@ -334,10 +343,11 @@ The deploy script stores the private key in Key Vault as
 `sec-acme-los-okta-management-private-key` before the Bicep runtime deployment,
 using an ARM/Bicep secret deployment so private-only Key Vault networking stays
 intact. Bicep then configures the internal BFF ACA environment variable as a Key
-Vault secret reference only while sample mode is enabled. Later redeploys can
-omit the env var and reuse the existing Key Vault secret; the deployment
-verifies the existing secret through ARM metadata before it proceeds. The BFF
-reads Okta first and will not overwrite an existing `profile.customerId`.
+Vault secret reference only while sample customer-id write-back or email-login
+sync is enabled. Later redeploys can omit the env var and reuse the existing
+Key Vault secret; the deployment verifies the existing secret through ARM
+metadata before it proceeds. The BFF reads Okta first and will not overwrite an
+existing `profile.customerId`.
 
 If the runtime image changes and you want to force a new image build instead of
 reusing an existing tag, pass `-ImageTag` explicitly:

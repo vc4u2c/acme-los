@@ -1,6 +1,7 @@
 using Acme.Los.Bff.Api.Common;
 using Acme.Los.Bff.Api.Contracts;
 using Acme.Los.Bff.Api.Infrastructure.Auth;
+using Acme.Los.Bff.Api.Infrastructure.Okta;
 using Acme.Los.Bff.Api.Infrastructure.Security;
 
 namespace Acme.Los.Bff.Api.Features.AccountSecurity;
@@ -71,6 +72,7 @@ public static class AccountSecurityEndpoints
           ICsrfTokenService csrfTokenService,
           IAuthSessionService authSessionService,
           IOktaMyAccountService oktaMyAccountService,
+          IOktaAccountProfileSyncService accountProfileSyncService,
           ILoggerFactory loggerFactory,
           CancellationToken cancellationToken) =>
         {
@@ -96,14 +98,30 @@ public static class AccountSecurityEndpoints
               accessTokenResult.AccessToken!,
               payload,
               cancellationToken);
+            var profileSync = await accountProfileSyncService
+              .SyncVerifiedEmailLoginAsync(
+                accessTokenResult.UserId!,
+                response.Email,
+                cancellationToken);
 
-            LogCompleted(logger, "email.verify", request.Path, response.Status);
+            LogCompleted(
+              logger,
+              "email.verify",
+              request.Path,
+              profileSync.Written
+                ? "verified-and-login-synced"
+                : response.Status);
             return Results.Ok(response);
           }
           catch (OktaMyAccountException exception)
           {
             LogFailed(logger, "email.verify", request.Path, exception);
             return BuildOktaError(exception);
+          }
+          catch (InvalidOperationException exception)
+          {
+            LogProfileSyncFailed(logger, "email.verify", request.Path, exception);
+            return BuildProfileSyncError();
           }
         })
       .WithName("VerifyBffAccountEmailChange")
@@ -273,6 +291,7 @@ public static class AccountSecurityEndpoints
     {
       return new VerifiedAccessTokenResult(
         null,
+        null,
         BffTrustedProxyBoundary.BuildRejectedResult());
     }
 
@@ -283,6 +302,7 @@ public static class AccountSecurityEndpoints
     catch (InvalidOperationException exception)
     {
       return new VerifiedAccessTokenResult(
+        null,
         null,
         Results.Json(
           new { error = exception.Message },
@@ -304,6 +324,7 @@ public static class AccountSecurityEndpoints
     {
       return new VerifiedAccessTokenResult(
         null,
+        null,
         Results.Json(
           new
           {
@@ -318,17 +339,29 @@ public static class AccountSecurityEndpoints
       request,
       cancellationToken);
     var accessToken = storedSession?.Tokens.AccessToken;
+    var userId = sessionRequirement.Session.User?.Id;
 
     if (string.IsNullOrWhiteSpace(accessToken))
     {
       return new VerifiedAccessTokenResult(
+        null,
         null,
         Results.Json(
           new { error = "The active session does not include an Okta access token." },
           statusCode: StatusCodes.Status401Unauthorized));
     }
 
-    return new VerifiedAccessTokenResult(accessToken, null);
+    if (string.IsNullOrWhiteSpace(userId))
+    {
+      return new VerifiedAccessTokenResult(
+        null,
+        null,
+        Results.Json(
+          new { error = "The active session is missing the Okta user id." },
+          statusCode: StatusCodes.Status401Unauthorized));
+    }
+
+    return new VerifiedAccessTokenResult(accessToken, userId, null);
   }
 
   private static IResult BuildOktaError(OktaMyAccountException exception)
@@ -346,6 +379,16 @@ public static class AccountSecurityEndpoints
         requiresReauthentication = exception.RequiresReauthentication,
       },
       statusCode: exception.StatusCode);
+  }
+
+  private static IResult BuildProfileSyncError()
+  {
+    return Results.Json(
+      new
+      {
+        error = "Email was verified, but ACME could not align the sign-in ID. Please contact support before signing in again.",
+      },
+      statusCode: StatusCodes.Status502BadGateway);
   }
 
   private static ILogger CreateLogger(ILoggerFactory loggerFactory) =>
@@ -392,7 +435,19 @@ public static class AccountSecurityEndpoints
       exception.StatusCode,
       exception.RequiresReauthentication);
 
+  private static void LogProfileSyncFailed(
+    ILogger logger,
+    string action,
+    PathString path,
+    InvalidOperationException exception) =>
+    logger.LogWarning(
+      exception,
+      "Account security profile sync failed {Action} {Path}",
+      action,
+      path.ToString());
+
   private sealed record VerifiedAccessTokenResult(
     string? AccessToken,
+    string? UserId,
     IResult? Error);
 }

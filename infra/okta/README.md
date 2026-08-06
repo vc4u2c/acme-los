@@ -36,6 +36,7 @@ Use this quick rule:
 - want to remove the Okta apps for a clean-room retest -> `npm run okta:cleanup -- <env>`
 - want to deactivate or delete non-allowlisted Okta users -> `npm run okta:prune-users -- <env> --dry-run`
 - want to permanently delete exact Okta users -> `npm run okta:delete-users -- <env> --login <login> --dry-run`
+- want to verify/apply the scoped service-app admin role -> `npm run okta:ensure-service-app-role -- <env>`
 
 If you are unsure, use `okta:bootstrap`.
 
@@ -113,6 +114,39 @@ Use this after bootstrap, after hosted-page changes, and whenever Okta
 behavior looks different from the repo intent. A clean dev run should have no
 `fail` checks and no actionable `warn` checks.
 
+### `npm run okta:ensure-service-app-role -- <env>`
+
+Script:
+
+- `tools/scripts/okta/ensure-service-app-admin-role.mjs`
+
+Purpose:
+
+- calls the live Okta Admin APIs
+- uses `OKTA_MANAGEMENT_ACCESS_TOKEN`, `OKTA_API_TOKEN`, or
+  `--token-file <path>`
+- verifies the Okta service app from `infra/azure/config/platform.json`
+- assigns the standard `USER_ADMIN` role to that client app only when needed
+- scopes the role target to `acme-los-customers-<env>`
+- defaults to dry-run and writes a non-secret output report
+
+Dry-run first:
+
+```powershell
+node tools/scripts/okta/ensure-service-app-admin-role.mjs dev --token-file C:\secure\acme-los-okta-api-token.txt
+```
+
+After reviewing `tmp/okta/dev.service-app-role.outputs.json`, apply:
+
+```powershell
+node tools/scripts/okta/ensure-service-app-admin-role.mjs dev --token-file C:\secure\acme-los-okta-api-token.txt --confirm
+```
+
+This role assignment is required for the runtime service app to use its scoped
+OAuth token against the Users API. The app still only requests
+`okta.users.read okta.users.manage`, and the role target must stay limited to
+the ACME customer group.
+
 ### `npm run okta:bootstrap -- <env>`
 
 Script:
@@ -152,7 +186,10 @@ It currently handles:
 - customer group
 - org-level email-as-username intent (`Map primary email to login attribute`)
   from `hostedExperience.mapPrimaryEmailToLogin`; bootstrap prints the desired
-  state, but Okta does not expose a public API setter for this org setting
+  state, but Okta does not expose a public API setter for this org setting.
+  Existing ACME users are kept aligned by the BFF post-email-OTP profile sync,
+  which updates `profile.login` to the verified email through the scoped Okta
+  service app when the ACME runtime switch is enabled.
 - profile-enrollment registration target group and required profile fields
   (`email`, `firstName`, `lastName`, `acmeState`); email remains the customer
   login identifier. Phone is captured during Okta phone/SMS authenticator
@@ -200,8 +237,9 @@ Live dev org state last verified from the Admin API:
 - managed user profile attributes exist:
   - `leadId`
   - `customerId`
-  - `mobilePhone` reserved for future profile sync, not collected on hosted
-    registration
+  - `mobilePhone` reserved for future Okta profile-attribute sync, not
+    collected on hosted registration; the current dashboard reads verified
+    SMS phone from the user-scoped Okta MyAccount phone API instead
   - `acmeState` for Okta-hosted registration State capture limited to Missouri
     and Texas
 - profile-enrollment UI schema is scripted as `email`, `firstName`, `lastName`,
@@ -209,7 +247,9 @@ Live dev org state last verified from the Admin API:
 - `hostedExperience.mapPrimaryEmailToLogin` is source-controlled as `true`;
   verify Okta Admin > Security > General > Organization > Map primary email to
   login attribute is Enabled because the public Okta org API does not expose a
-  setter for this lifecycle switch
+  setter for this lifecycle switch. Run the live audit before demos; it fails
+  if scanned customer users have different `profile.login` and `profile.email`
+  values.
 - profile-enrollment registration rule targets only `acme-los-customers-dev`;
   live rule fields match `email`, `firstName`, `lastName`, and `acmeState`, and
   registration enrollment type includes `password`. If Okta rejects public
@@ -325,7 +365,7 @@ For irreversible allowlist cleanup in dev only, set the manifest guard:
   "enabled": true,
   "action": "delete",
   "keepLogins": [],
-  "keepProfileContains": ["vinod", "gopi", "sasha"]
+  "keepProfileContains": ["vinod", "gopi"]
 }
 ```
 
@@ -483,9 +523,12 @@ Current auth shape in this repo:
 - ACME account-security pages use Okta user-scoped MyAccount APIs for
   signed-in password, email, and phone changes; forgot-password recovery remains
   in the Okta-hosted Gen3 widget
-- account management uses opposite-channel proofing: password and email
-  lifecycle actions require phone/SMS OTP plus security question, while
-  phone/SMS lifecycle actions require email OTP plus security question
+- account management uses opposite-channel proofing: password recovery and
+  email recovery require phone/SMS OTP plus security question; password change
+  requires current password, phone/SMS OTP, and security question; email change
+  requires current password plus phone/SMS OTP; phone/SMS recovery requires
+  email OTP plus security question; phone/SMS change requires current password
+  plus email OTP
 - after email changes, ACME syncs the new email only after fresh sign-in with
   the new email and email OTP; after phone/SMS changes, ACME syncs verified
   phone metadata only after fresh sign-in with the unchanged email and the new

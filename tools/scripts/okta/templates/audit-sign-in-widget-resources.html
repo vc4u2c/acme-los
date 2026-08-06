@@ -47,12 +47,20 @@
     );
     var renderEmailEnrollment = searchParams.has('acme_audit_email_enrollment');
     var renderEmailCodeSent = searchParams.has('acme_audit_email_code_sent');
-    var flow = renderEmailEnrollment
-      ? 'emailEnrollment'
-      : this.config.flow || 'signIn';
+    var renderAuthenticatorChoices = searchParams.has(
+      'acme_audit_authenticator_choices',
+    );
+    var flow = renderAuthenticatorChoices
+      ? 'authenticatorChoices'
+      : renderEmailEnrollment
+        ? 'emailEnrollment'
+        : this.config.flow || 'signIn';
     var contextByFlow = {
       signIn: { formName: 'identify' },
       signup: { formName: 'enroll-profile' },
+      authenticatorChoices: {
+        formName: 'select-authenticator-enroll',
+      },
       emailEnrollment: {
         formName: 'enroll-authenticator-verification',
         authenticatorKey: 'okta_email',
@@ -68,6 +76,8 @@
     function applyTransforms(formName, elements) {
       var formBag = {
         uischema: {
+          formName: formName,
+          name: formName,
           elements: elements.slice(),
         },
       };
@@ -153,6 +163,70 @@
       );
     }
 
+    function authenticatorChoiceCards() {
+      var actionElements = applyTransforms.call(
+        this,
+        'select-authenticator-enroll',
+        [
+          linkElement(
+            copy('enroll.choices.setup.another', 'Set up another'),
+            '#email',
+            'okta_email',
+          ),
+          linkElement(
+            copy('enroll.choices.setup', 'Set up'),
+            '#phone',
+            'phone_number',
+          ),
+          linkElement(
+            copy('enroll.choices.setup', 'Set up'),
+            '#security-question',
+            'security_question',
+          ),
+          linkElement('Continue to login', '/app/UserHome', 'delayed-sign-on'),
+        ],
+      );
+
+      function card(title, description, actionElement) {
+        return (
+          '<section class="audit-choice-card"><h3>' +
+          title +
+          '</h3><p>' +
+          description +
+          '</p>' +
+          linkHtml(actionElement) +
+          '</section>'
+        );
+      }
+
+      return [
+        card(
+          'Email',
+          copy(
+            'oie.email.authenticator.description',
+            'Verify with a code sent to your email',
+          ),
+          actionElements[0],
+        ),
+        card(
+          'Phone',
+          copy(
+            'oie.phone.authenticator.description',
+            'Verify with a code sent to your US mobile phone',
+          ),
+          actionElements[1],
+        ),
+        card(
+          'Security Question',
+          'Choose a security question and answer that will be used for signing in',
+          actionElements[2],
+        ),
+        '<div class="audit-choice-footer">' +
+          linkHtml(actionElements[3]) +
+          '</div>',
+      ].join('');
+    }
+
     function linksHtml(formName, elements) {
       return applyTransforms
         .call(this, formName, elements)
@@ -235,6 +309,12 @@
           ].filter(Boolean),
         ),
       ),
+      authenticatorChoices: shell(
+        'authenticatorChoices',
+        copy('oie.select.authenticators.enroll.title', 'Protect your account'),
+        authenticatorChoiceCards.call(this),
+        '',
+      ),
       emailEnrollment: shell(
         'emailEnrollment',
         copy('email.enroll.title', 'Set up Email Authentication'),
@@ -246,17 +326,14 @@
               ).replace('{0}', 'your email') +
               '</p>' +
               field(
-                copy('email.code.label', 'Email verification code'),
+                copy(
+                  'mfa.challenge.enterCode.placeholder',
+                  'Verification code',
+                ),
                 'text',
               ) +
-              button(copy('email.enroll.enterCode', 'Verify email'))
-          : '<p>' +
-              copy(
-                'email.enroll.description',
-                'Use the button to send a verification code to your email.',
-              ) +
-              '</p>' +
-              button(copy('email.button.send', 'Send email code')),
+              button(copy('mfa.challenge.verify', 'Verify code'))
+          : '<p>We sent an email to v***4@gmail.com. Use the link in your email or enter the code here.</p><button type="button">Enter email code</button>',
         linksHtml.call(this, 'enroll-authenticator-verification', [
           linkElement('Back to authenticator', '#', 'select-authenticator'),
           linkElement('Set up another', '#', 'setup-another'),

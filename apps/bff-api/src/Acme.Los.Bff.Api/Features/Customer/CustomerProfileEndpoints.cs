@@ -1,6 +1,8 @@
 using System.Net.Mail;
 using Acme.Los.Bff.Api.Common;
 using Acme.Los.Bff.Api.Contracts;
+using Acme.Los.Bff.Api.Features.AccountSecurity;
+using Acme.Los.Bff.Api.Infrastructure.Auth;
 using Acme.Los.Bff.Api.Infrastructure.Security;
 using Wolverine;
 
@@ -17,9 +19,13 @@ public static class CustomerProfileEndpoints
         "/profile",
         async (
           HttpRequest request,
+          IAuthSessionService authSessionService,
+          IOktaMyAccountService oktaMyAccountService,
+          ILoggerFactory loggerFactory,
           IMessageBus bus,
           CancellationToken cancellationToken) =>
         {
+          var logger = CreateLogger(loggerFactory);
           var identity = BffTrustedIdentity.TryRead(request);
 
           if (identity is null)
@@ -29,8 +35,19 @@ public static class CustomerProfileEndpoints
               statusCode: StatusCodes.Status401Unauthorized);
           }
 
+          var verifiedPhone = await TryReadVerifiedPhoneAsync(
+            request,
+            identity,
+            authSessionService,
+            oktaMyAccountService,
+            logger,
+            cancellationToken);
+
           var profile = await bus.InvokeAsync<GetCustomerProfileResponse>(
-            new GetCustomerProfileQuery(identity.UserId, identity.UserEmail),
+            new GetCustomerProfileQuery(
+              identity.UserId,
+              identity.UserEmail,
+              verifiedPhone),
             cancellationToken);
 
           return Results.Ok(profile);
@@ -95,6 +112,57 @@ public static class CustomerProfileEndpoints
 
     return endpoints;
   }
+
+  private static async ValueTask<string?> TryReadVerifiedPhoneAsync(
+    HttpRequest request,
+    BffTrustedIdentity identity,
+    IAuthSessionService authSessionService,
+    IOktaMyAccountService oktaMyAccountService,
+    ILogger logger,
+    CancellationToken cancellationToken)
+  {
+    var storedSession = await authSessionService.ReadActiveStoredSessionAsync(
+      request,
+      cancellationToken);
+    var sessionUser = storedSession?.Session.User;
+
+    if (storedSession is null
+      || sessionUser is null
+      || !storedSession.Session.IsAuthenticated
+      || !string.Equals(sessionUser.Id, identity.UserId, StringComparison.Ordinal))
+    {
+      return null;
+    }
+
+    var accessToken = storedSession.Tokens.AccessToken?.Trim();
+
+    if (string.IsNullOrWhiteSpace(accessToken))
+    {
+      return null;
+    }
+
+    try
+    {
+      var phones = await oktaMyAccountService.ListPhonesAsync(
+        accessToken,
+        cancellationToken);
+
+      return phones.FirstOrDefault(phone => phone.IsVerified)?.PhoneNumber;
+    }
+    catch (OktaMyAccountException exception)
+    {
+      logger.LogWarning(
+        "Unable to read verified Okta MyAccount phone for customer profile. Event={Event} StatusCode={StatusCode} RequiresReauthentication={RequiresReauthentication}",
+        "customer.profile.phone_lookup_failed",
+        exception.StatusCode,
+        exception.RequiresReauthentication);
+
+      return null;
+    }
+  }
+
+  private static ILogger CreateLogger(ILoggerFactory loggerFactory) =>
+    loggerFactory.CreateLogger("Acme.Los.Bff.Api.Features.Customer");
 }
 
 internal static class CustomerProfileInput

@@ -86,7 +86,7 @@ function actionCopy(action: AccountSecurityChangeAction) {
         verifyLabel: 'Verify email change',
         successTitle: 'Email changed',
         successDescription:
-          'Sign in again with the new email so ACME can refresh the verified session.',
+          'Sign in again with the new email to start a fresh secure session.',
         icon: Mail,
       }
     : {
@@ -102,7 +102,7 @@ function actionCopy(action: AccountSecurityChangeAction) {
         verifyLabel: 'Verify phone change',
         successTitle: 'Phone changed',
         successDescription:
-          'Sign in again so ACME can refresh the verified session before funding.',
+          'Sign in again so ACME can refresh your verified session before funding.',
         icon: Phone,
       };
 }
@@ -202,6 +202,38 @@ export function AccountSecurityChangePage({
   return (
     <main className="min-h-screen text-[var(--foreground)]">
       <SiteHeader items={navigationItems} variant="application" />
+      {isComplete ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[color:var(--background)/0.72] px-4 py-8 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="account-security-complete-title"
+        >
+          <div className="w-full max-w-md rounded-[1.5rem] border border-[var(--border)] bg-[var(--surface)] p-5 text-[var(--foreground)] shadow-2xl shadow-[color:var(--shadow-soft)] sm:p-6">
+            <span className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-full border border-[var(--accent)] bg-[var(--surface-spot)] text-[var(--accent-ink)]">
+              <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <h2
+              id="account-security-complete-title"
+              className="font-display text-3xl leading-tight text-[var(--foreground)]"
+            >
+              {copy.successTitle}
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
+              {copy.successDescription}
+            </p>
+            <Button
+              asChild
+              className="mt-6 w-full rounded-full bg-[var(--brand)] px-6 text-[var(--brand-contrast)] hover:bg-[var(--brand-strong)]"
+            >
+              <a href="/api/auth/logout">
+                <LogIn className="mr-2 h-4 w-4" aria-hidden="true" />
+                Securely sign in again
+              </a>
+            </Button>
+          </div>
+        </div>
+      ) : null}
       <section className="site-shell py-6 sm:py-8 lg:py-10">
         <div className="mx-auto grid max-w-5xl gap-5 lg:grid-cols-[0.95fr_0.65fr] lg:gap-7">
           <Card className="min-w-0 rounded-[1.6rem] border-[var(--border)] bg-[color:var(--surface)/0.96] text-[var(--foreground)] shadow-2xl shadow-[color:var(--shadow-soft)] sm:rounded-[2rem]">

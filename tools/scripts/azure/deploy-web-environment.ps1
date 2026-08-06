@@ -951,18 +951,28 @@ $smsSenderPhoneNumber = Get-StringOrDefault -Value (
 $oktaTelephonyHookAuthorizationSecretName = 'sec-acme-los-okta-telephony-hook-authorization'
 $oktaTelephonyHookAuthorizationSecretValue = Get-OptionalString $env:ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION
 $oktaCustomerIdWritebackConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'oktaCustomerIdWriteback'
+$oktaAccountProfileSyncConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'oktaAccountProfileSync'
+$oktaEmailLoginSyncEnabled = ConvertTo-Boolean (
+  Get-OptionalPropertyValue -InputObject $oktaAccountProfileSyncConfiguration -Name 'emailLoginSyncEnabled'
+)
 $oktaCustomerIdWritebackMode = Get-StringOrDefault -Value (
   Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'mode'
 ) -DefaultValue 'disabled'
 $oktaManagementClientId = Get-StringOrDefault -Value (
-  Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'clientId'
-) -DefaultValue (Get-StringOrDefault -Value $env:ACME_OKTA_MANAGEMENT_CLIENT_ID)
+  Get-OptionalPropertyValue -InputObject $oktaAccountProfileSyncConfiguration -Name 'clientId'
+) -DefaultValue (Get-StringOrDefault -Value (
+    Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'clientId'
+  ) -DefaultValue (Get-StringOrDefault -Value $env:ACME_OKTA_MANAGEMENT_CLIENT_ID))
 $oktaManagementPrivateKeyId = Get-StringOrDefault -Value (
-  Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'privateKeyId'
-) -DefaultValue (Get-StringOrDefault -Value $env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_ID)
+  Get-OptionalPropertyValue -InputObject $oktaAccountProfileSyncConfiguration -Name 'privateKeyId'
+) -DefaultValue (Get-StringOrDefault -Value (
+    Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'privateKeyId'
+  ) -DefaultValue (Get-StringOrDefault -Value $env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_ID))
 $oktaManagementScopes = Get-StringOrDefault -Value (
-  Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'scopes'
-) -DefaultValue 'okta.users.manage'
+  Get-OptionalPropertyValue -InputObject $oktaAccountProfileSyncConfiguration -Name 'scopes'
+) -DefaultValue (Get-StringOrDefault -Value (
+    Get-OptionalPropertyValue -InputObject $oktaCustomerIdWritebackConfiguration -Name 'scopes'
+  ) -DefaultValue 'okta.users.read okta.users.manage')
 $oktaManagementPrivateKeySecretName = 'sec-acme-los-okta-management-private-key'
 $oktaManagementPrivateKeySecretValue = Get-OptionalString $env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM
 $bffRuntimeConfiguration = Get-OptionalPropertyValue -InputObject $environmentConfiguration -Name 'bffRuntime'
@@ -1231,25 +1241,29 @@ if ($oktaCustomerIdWritebackMode -notin @('disabled', 'sample')) {
   throw "Environment '$EnvironmentName' has unsupported oktaCustomerIdWriteback.mode '$oktaCustomerIdWritebackMode'. Use 'disabled' or 'sample'."
 }
 
-if ($oktaCustomerIdWritebackMode -eq 'sample') {
+if (($oktaCustomerIdWritebackMode -eq 'sample' -or $oktaEmailLoginSyncEnabled) -and -not $resolvedBffDeploymentEnabled) {
+  throw "Environment '$EnvironmentName' enables Okta profile sync, which requires BFF deployment."
+}
+
+if ($oktaCustomerIdWritebackMode -eq 'sample' -or $oktaEmailLoginSyncEnabled) {
   if (-not $resolvedBffDeploymentEnabled) {
-    throw "Environment '$EnvironmentName' enables sample Okta customer id write-back, which requires BFF deployment."
+    throw "Environment '$EnvironmentName' enables Okta profile sync, which requires BFF deployment."
   }
 
   if (-not $oktaManagementClientId) {
-    throw "Environment '$EnvironmentName' enables sample Okta customer id write-back. Set oktaCustomerIdWriteback.clientId or ACME_OKTA_MANAGEMENT_CLIENT_ID before deploying."
+    throw "Environment '$EnvironmentName' enables Okta profile sync. Set oktaAccountProfileSync.clientId, oktaCustomerIdWriteback.clientId, or ACME_OKTA_MANAGEMENT_CLIENT_ID before deploying."
   }
 
   if (-not $oktaManagementPrivateKeySecretValue) {
     if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName) {
-      Write-Warning "Environment '$EnvironmentName' enables sample Okta customer id write-back but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set. Deployment will reuse the existing Key Vault secret '$oktaManagementPrivateKeySecretName'. Set the env var only for first-time setup or key rotation."
+      Write-Warning "Environment '$EnvironmentName' enables Okta profile sync but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set. Deployment will reuse the existing Key Vault secret '$oktaManagementPrivateKeySecretName'. Set the env var only for first-time setup or key rotation."
     } else {
-      throw "Environment '$EnvironmentName' enables sample Okta customer id write-back, but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set and Key Vault secret '$oktaManagementPrivateKeySecretName' does not exist. Set the env var for first-time setup or key rotation."
+      throw "Environment '$EnvironmentName' enables Okta profile sync, but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set and Key Vault secret '$oktaManagementPrivateKeySecretName' does not exist. Set the env var for first-time setup or key rotation."
     }
   }
 
-  if ($oktaManagementScopes -notmatch '(^|[\s,;])okta\.users\.manage($|[\s,;])') {
-    throw "Environment '$EnvironmentName' enables sample Okta customer id write-back. oktaCustomerIdWriteback.scopes must include okta.users.manage."
+  if ($oktaManagementScopes -notmatch '(^|[\s,;])okta\.users\.read($|[\s,;])' -or $oktaManagementScopes -notmatch '(^|[\s,;])okta\.users\.manage($|[\s,;])') {
+    throw "Environment '$EnvironmentName' enables Okta profile sync. oktaAccountProfileSync.scopes or oktaCustomerIdWriteback.scopes must include okta.users.read and okta.users.manage."
   }
 
   if ($oktaManagementPrivateKeySecretValue) {
@@ -1583,6 +1597,7 @@ $runtimeDeploymentArguments = @(
   '--parameters', "oktaManagementClientId=$oktaManagementClientId",
   '--parameters', "oktaManagementPrivateKeyId=$oktaManagementPrivateKeyId",
   '--parameters', "oktaManagementScopes=$oktaManagementScopes",
+  '--parameters', "oktaEmailLoginSyncEnabled=$($oktaEmailLoginSyncEnabled.ToString().ToLowerInvariant())",
   '--parameters', "sessionSecretValue=$webSessionSecretValue",
   '--parameters', "applicationInsightsConnectionString=$platformApplicationInsightsConnectionString",
   '--parameters', "logAnalyticsWorkspaceId=$platformLogAnalyticsWorkspaceId",

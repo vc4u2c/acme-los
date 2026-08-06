@@ -175,7 +175,7 @@
       "automationStatus": "automated",
       "managedBy": "okta:bootstrap",
       "configures": [
-        "password-first app sign-in",
+        "standard app authorization requires email or phone/SMS possession OTP every time when funding step-up is passwordless",
         "{adaptiveMfaState}",
         "no security-question challenge during app sign-in"
       ],
@@ -222,9 +222,9 @@
       "automationStatus": "automated-public-policy-api",
       "managedBy": "okta:bootstrap",
       "configures": [
-        "change email requires phone/SMS OTP plus security-question challenge/hint",
+        "change email requires current password plus phone/SMS OTP",
         "change password requires current password plus phone/SMS OTP and security-question challenge/hint",
-        "change phone requires email OTP plus security-question challenge/hint",
+        "change phone requires current password plus email OTP",
         "fresh ACME sign-in after sensitive change"
       ],
       "scenarioIds": [
@@ -338,8 +338,8 @@
       "automationStatus": "automated-public-policy-api",
       "flow": [
         "Customer changes email in Okta-hosted account management.",
+        "Before the change UI opens, ACME requires fresh password reauthentication.",
         "Before the change is accepted, Okta requires phone/SMS OTP proof, not the email address being changed.",
-        "Okta verifies the enrolled security-question challenge/hint.",
         "Okta signs the customer out or ACME treats the existing session as stale.",
         "Customer signs in again with the new email and satisfies email OTP.",
         "ACME syncs backend email from the current Okta email claim when Okta subject is unchanged."
@@ -357,7 +357,7 @@
       "flow": [
         "Customer starts change password from the ACME account-security page while signed in.",
         "Okta verifies the current password.",
-        "Okta verifies phone/SMS OTP and the security-question challenge/hint.",
+        "Okta verifies phone/SMS OTP and the enrolled security-question challenge/hint.",
         "ACME BFF forwards the current and new password to Okta MyAccount without storing either value.",
         "Okta signs the customer out or ACME treats the existing session as stale.",
         "Customer signs in again with the new password."
@@ -394,8 +394,8 @@
       "automationStatus": "automated-public-policy-api-until-acs-approved",
       "flow": [
         "Customer changes phone/SMS factor in Okta-hosted account management.",
+        "Before the change UI opens, ACME requires fresh password reauthentication.",
         "Okta requires email OTP before the phone/SMS factor is changed.",
-        "Okta verifies the enrolled security-question challenge/hint.",
         "Okta signs the customer out or ACME treats the existing session as stale.",
         "Customer signs in fresh with the unchanged email and the new phone/SMS OTP after the phone/SMS change.",
         "ACME treats verified phone as Okta-owned until a trusted profile claim, Management API lookup, or event hook is enabled."

@@ -224,7 +224,8 @@
   text-underline-offset: 0.18em;
 }
 
-html[data-acme-auth-state='signup'] .acme-auth-existing-account {
+html[data-acme-auth-state='signup'] .acme-auth-existing-account,
+html[data-acme-auth-state='accountProtection'] .acme-auth-existing-account {
   display: block;
 }
 

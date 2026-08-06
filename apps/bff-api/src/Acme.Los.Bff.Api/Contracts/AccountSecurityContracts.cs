@@ -13,7 +13,9 @@ public sealed record VerifyEmailChangeRequest(
   string ChallengeId,
   string VerificationCode);
 
-public sealed record VerifyEmailChangeResponse(string Status);
+public sealed record VerifyEmailChangeResponse(
+  string Status,
+  string Email);
 
 public sealed record StartPhoneChangeRequest(string PhoneNumber);
 

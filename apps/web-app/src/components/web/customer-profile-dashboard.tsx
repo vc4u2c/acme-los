@@ -54,7 +54,7 @@ const oktaAccountSecurityActions: Array<{
     actionId: 'password',
     label: 'Change password',
     description:
-      'Confirm your password, complete phone/SMS verification, then set the new password.',
+      'Confirm your password, complete phone/SMS verification and your secret hint, then set the new password.',
     cta: 'Change password',
     icon: KeyRound,
   },
@@ -370,9 +370,9 @@ export function CustomerProfileDashboard(): React.ReactElement {
                   />
                   <ReadOnlyProfileField
                     id="customer-phone"
-                    label="Application contact phone"
+                    label="Verified SMS phone"
                     value={formState.phone}
-                    description="Okta owns SMS verification factor changes."
+                    description="Loaded from your verified Okta phone/SMS enrollment when available."
                   />
                 </div>
 

@@ -37,11 +37,12 @@ authenticator enrollment fields.
 - Confirm registration shows the fields controlled by bootstrap:
   primary email, first name, last name, state, and password.
 - Verify required email authenticator enrollment. Profile submit should not
-  auto-send a separate profile verification email; the email challenge should
-  either be user-initiated by the native Email Authenticator action or render an
-  email-code entry field immediately after Okta sends the challenge. If
-  Okta-hosted Gen3 cannot provide that coherent sequence, registration should
-  move to embedded IDX rather than patching widget DOM.
+  auto-send a separate profile verification email. In Okta-hosted Gen3, choosing
+  the native Email authenticator sends the email challenge; the hosted widget
+  then offers the native email-code entry action. Do not inject an ACME-owned
+  OTP textbox or fake a pre-send challenge page. If the business requirement is
+  a custom pre-send textbox/button sequence, move that flow to embedded IDX in a
+  separate branch.
 - Verify required phone/SMS authenticator enrollment. The customer enters phone
   on the Okta phone authenticator screen and clicks the native receive-code
   action; the profile-enrollment form should not also ask for phone.

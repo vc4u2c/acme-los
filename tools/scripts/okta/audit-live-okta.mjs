@@ -324,6 +324,10 @@ function maskEmail(value) {
   return `${local.slice(0, 1)}***${suffix}@${domain}`;
 }
 
+function normalizeLogin(value) {
+  return typeof value === 'string' ? value.trim().toLowerCase() : '';
+}
+
 function maskPhone(value) {
   if (typeof value !== 'string') {
     return value;
@@ -730,6 +734,29 @@ checkObjectExists(
 const customerGroupUsers = customerGroup
   ? await listAll(`/api/v1/groups/${customerGroup.id}/users`, { limit: 200 }, 5)
   : [];
+const customerUsersWithEmailLoginMismatch = customerGroupUsers.filter(
+  (user) => {
+    const login = normalizeLogin(user.profile?.login);
+    const email = normalizeLogin(user.profile?.email);
+
+    return login.length > 0 && email.length > 0 && login !== email;
+  },
+);
+
+addCheck(
+  customerUsersWithEmailLoginMismatch.length === 0 ? 'pass' : 'fail',
+  'customer-users.email-login-match',
+  'Customer users use email as the Okta sign-in ID',
+  customerUsersWithEmailLoginMismatch.length === 0
+    ? undefined
+    : `mismatches=${customerUsersWithEmailLoginMismatch.length}; sample=${customerUsersWithEmailLoginMismatch
+        .slice(0, 5)
+        .map(
+          (user) =>
+            `${maskEmail(user.profile?.login)} -> ${maskEmail(user.profile?.email)}`,
+        )
+        .join(', ')}`,
+);
 
 const webApp = await findAppByLabel(webAppLabel);
 const mobileApp = await findAppByLabel(mobileAppLabel);
@@ -1273,6 +1300,15 @@ const result = {
             login: maskEmail(user.profile?.login),
             email: maskEmail(user.profile?.email),
           })),
+          emailLoginMismatchCount: customerUsersWithEmailLoginMismatch.length,
+          emailLoginMismatchSamples: customerUsersWithEmailLoginMismatch
+            .slice(0, 10)
+            .map((user) => ({
+              id: user.id,
+              status: user.status,
+              login: maskEmail(user.profile?.login),
+              email: maskEmail(user.profile?.email),
+            })),
         }
       : null,
     apps: {

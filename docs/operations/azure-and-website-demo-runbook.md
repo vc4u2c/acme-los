@@ -203,6 +203,9 @@ to show the full platform surface, not just the visible web pages.
 - funding access starts an Okta authorize request with MFA-oriented
   `acr_values`; dev intentionally omits `max_age=0` so funding step-up can use
   email or phone/SMS OTP without requiring the password again
+- ACME app keep-me-signed-in is disabled in the Okta manifest so funding
+  step-up presents the authenticator challenge instead of a post-auth
+  "stay signed in" interstitial
 - each funding page entry consumes the latest funding step-up marker
 - the callback must include Okta `amr` evidence for email or phone/SMS OTP
   before the marker is written

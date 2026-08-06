@@ -75,7 +75,8 @@ param oktaCustomerIdWritebackMode string = ''
 param oktaManagementClientId string = ''
 param oktaManagementPrivateKeySecretName string = 'sec-acme-los-okta-management-private-key'
 param oktaManagementPrivateKeyId string = ''
-param oktaManagementScopes string = 'okta.users.manage'
+param oktaManagementScopes string = 'okta.users.read okta.users.manage'
+param oktaEmailLoginSyncEnabled bool = false
 param containerRegistryLoginServer string
 param containerImage string
 param bffContainerImage string = ''
@@ -124,6 +125,7 @@ var resolvedContainerAppName = toLower('ca-${organizationShortName}-${workloadSh
 var deployBff = !empty(bffContainerImage)
 var resolvedBffContainerAppName = toLower('ca-${organizationShortName}-${workloadShortName}-bff-${environmentName}-${regionShortName}-${instanceNumber}')
 var oktaCustomerIdWritebackEnabled = toLower(oktaCustomerIdWritebackMode) == 'sample'
+var oktaManagementEnabled = oktaCustomerIdWritebackEnabled || oktaEmailLoginSyncEnabled
 var redisKeyPrefix = '${organizationShortName}-${workloadShortName}:web:${environmentName}'
 var bffRedisKeyPrefix = '${organizationShortName}-${workloadShortName}:bff:${environmentName}'
 var resolvedContainerAppDiagnosticSettingsName = toLower('diag-${organizationShortName}-${workloadShortName}-ca-${environmentName}-${regionShortName}-${instanceNumber}')
@@ -286,11 +288,12 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     oktaCustomerIdWritebackMode: oktaCustomerIdWritebackMode
     oktaManagementClientId: oktaManagementClientId
     oktaManagementPrivateKeySecretName: oktaManagementPrivateKeySecretName
-    oktaManagementPrivateKeySecretKeyVaultUrl: oktaCustomerIdWritebackEnabled
+    oktaManagementPrivateKeySecretKeyVaultUrl: oktaManagementEnabled
       ? '${keyVaultUri}secrets/${oktaManagementPrivateKeySecretName}'
       : ''
     oktaManagementPrivateKeyId: oktaManagementPrivateKeyId
     oktaManagementScopes: oktaManagementScopes
+    oktaEmailLoginSyncEnabled: oktaEmailLoginSyncEnabled
     stateStoreMode: stateStoreMode
     redisKeyPrefix: bffRedisKeyPrefix
     redisHostName: redisHostName

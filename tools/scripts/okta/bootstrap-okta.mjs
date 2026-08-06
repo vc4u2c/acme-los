@@ -1683,10 +1683,7 @@ function buildStandardAccessRulePayload(existingRule) {
     actions: {
       appSignOn: {
         access: 'ALLOW',
-        verificationMethod: buildPasswordFirstVerificationMethod(
-          '1FA',
-          'PT12H',
-        ),
+        verificationMethod: buildStandardAccessVerificationMethod(),
         keepMeSignedIn: hostedExperience.keepMeSignedIn
           ? {
               postAuth: 'ALLOWED',
@@ -2040,6 +2037,56 @@ function buildPasswordFirstVerificationMethod(factorMode, reauthenticateIn) {
   };
 }
 
+function buildAuthenticationMethod(key, method) {
+  return {
+    key,
+    ...(method ? { method } : {}),
+  };
+}
+
+function getFundingPossessionAuthenticationMethods() {
+  const emailMethod = buildAuthenticationMethod('okta_email', 'email');
+  const phoneSmsMethod = buildAuthenticationMethod('phone_number', 'sms');
+
+  if (fundingStepUpMethod === 'email') {
+    return [emailMethod];
+  }
+
+  if (fundingStepUpMethod === 'sms') {
+    return telephonyEnabled ? [phoneSmsMethod] : [emailMethod];
+  }
+
+  return telephonyEnabled ? [emailMethod, phoneSmsMethod] : [emailMethod];
+}
+
+function buildPossessionOnlyVerificationMethod(factorMode, reauthenticateIn) {
+  return {
+    factorMode,
+    type: 'ASSURANCE',
+    reauthenticateIn,
+    constraints: [
+      {
+        possession: {
+          required: true,
+          userPresence: 'OPTIONAL',
+          authenticationMethods: getFundingPossessionAuthenticationMethods(),
+        },
+      },
+    ],
+  };
+}
+
+function buildStandardAccessVerificationMethod() {
+  if (
+    hostedExperience.fundingRouteStepUp === true &&
+    !fundingStepUpRequiresPassword
+  ) {
+    return buildPossessionOnlyVerificationMethod('1FA', 'PT0S');
+  }
+
+  return buildPasswordFirstVerificationMethod('1FA', 'PT12H');
+}
+
 function profileAttributeMatches(existingDefinition, expectedDefinition) {
   const existingPermissions =
     normalizeProfileAttributePermissions(existingDefinition);
@@ -2234,7 +2281,7 @@ const accountSecurityPolicyIntent = {
     },
     {
       action: 'change_email',
-      requiredProofs: ['phone_sms_otp', 'security_question_challenge'],
+      requiredProofs: ['current_password', 'phone_sms_otp'],
       postCondition:
         'sign_out_then_fresh_acme_sign_in_with_new_email_and_email_otp',
       backendSync:
@@ -2268,7 +2315,7 @@ const accountSecurityPolicyIntent = {
     },
     {
       action: 'change_phone_or_sms_factor',
-      requiredProofs: ['okta_email_otp', 'security_question_challenge'],
+      requiredProofs: ['current_password', 'okta_email_otp'],
       postCondition: 'sign_out_then_fresh_acme_sign_in_with_new_phone_sms_otp',
       backendSync:
         'After a fresh ACME sign-in with the unchanged email and the new phone/SMS OTP, sync verified phone metadata only when Okta exposes it through a profile claim, Management API lookup, or event hook.',
@@ -3595,7 +3642,7 @@ if (mapPrimaryEmailToLogin) {
 
 if (hostedExperience.fundingRouteStepUp) {
   warnings.push(
-    `Funding step-up remains enforced in application code through acr_values on the guarded funding step. fundingStepUpRequiresPassword=${fundingStepUpRequiresPassword}; when false, the app omits max_age=0 so Okta can use email or phone/SMS OTP without asking for the password again. Verify this behavior once after publishing the hosted page and policy changes.`,
+    `Funding step-up remains enforced by the application guard plus the Okta app sign-in policy. fundingStepUpRequiresPassword=${fundingStepUpRequiresPassword}; when false, the standard app authorization rule requires email or phone/SMS possession OTP every time without max_age=0 password reauthentication. Verify this behavior once after publishing the hosted page and policy changes.`,
   );
 }
 

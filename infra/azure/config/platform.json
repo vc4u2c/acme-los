@@ -52,7 +52,10 @@
         "mode": "sample",
         "clientId": "0oa13qfg2seqPW1xO698",
         "privateKeyId": "_3bkuLQtLOx5IbP0p1cMlu24FKF3wbv3wrz_vAm0KFQ",
-        "scopes": "okta.users.manage"
+        "scopes": "okta.users.read okta.users.manage"
+      },
+      "oktaAccountProfileSync": {
+        "emailLoginSyncEnabled": true
       },
       "bffRuntime": {
         "serviceAuth": {

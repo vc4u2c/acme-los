@@ -11,16 +11,16 @@
       "hookPath": "/api/hooks/okta/telephony"
     },
     "userPrune": {
-      "enabled": false,
-      "action": "deactivate",
+      "enabled": true,
+      "action": "delete",
       "keepLogins": [],
-      "keepProfileContains": ["vinod", "gopi", "sasha"]
+      "keepProfileContains": ["vinod", "gopi"]
     },
     "hostedExperience": {
       "signInWidgetGeneration": "G3",
       "signInWidgetVersion": "7.46",
-      "rememberUser": true,
-      "keepMeSignedIn": true,
+      "rememberUser": false,
+      "keepMeSignedIn": false,
       "customerSessionMaxLifetimeDays": 60,
       "registrationRequiresEmailVerification": true,
       "registrationProfileEmailVerification": false,

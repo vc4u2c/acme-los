@@ -14,7 +14,10 @@ const supportedWidgetFlows = new Set([
 const unsafeHostedLinkPattern =
   /\/app\/UserHome|\/enduser\/|\/userhome|\/signin\/(?:forgot-password|unlock)(?:\/|$)|\/help\/login/i;
 const signInReturnText = 'Sign in';
+const setupVerificationMethodText = 'Set up';
 const verificationMethodReturnText = 'Choose another verification method';
+const securityQuestionSubmitText = 'Save security question';
+const passwordChallengeSubmitText = 'Verify password';
 
 function buildWidgetFlowUrl(flowName) {
   const url = new URL(window.location.href);
@@ -178,6 +181,18 @@ function applyWidgetCopyOverrides(config) {
     ...(config.i18n || {}),
     en: {
       ...(config.i18n?.en || {}),
+      signin: 'Sign in',
+      signup: 'Sign up',
+      remember: 'Keep me signed in',
+      'oie.remember': 'Keep me signed in',
+      'oie.kmsi.title': 'Keep me signed in',
+      'oie.kmsi.subtitle':
+        'Use this only on a private device. ACME disables this option for sensitive lending flows.',
+      'primaryauth.title': 'Sign in',
+      'primaryauth.username.placeholder': 'Email',
+      'primaryauth.username.tooltip': 'Email',
+      'primaryauth.submit': 'Continue',
+      'error.username.required': 'Please enter your email.',
       'oie.select.authenticators.enroll.title': 'Protect your account',
       'oie.select.authenticators.enroll.subtitle':
         "Choose the verification methods we'll use to confirm it's you during sign-in and sensitive account changes.",
@@ -189,25 +204,37 @@ function applyWidgetCopyOverrides(config) {
         "Choose the verification methods we'll use to confirm it's you.",
       'enroll.choices.list.setup': 'Required to continue',
       'enroll.choices.setup': 'Set up',
-      'enroll.choices.setup.another': 'Set up another verification method',
+      'enroll.choices.setup.another': setupVerificationMethodText,
       'enroll.choices.submit.configure': 'Continue',
       'enroll.choices.submit.next': 'Continue',
       'oie.email.authenticator.description':
         'Verify with a code sent to your email',
       'oie.email.enroll.title': 'Verify your email',
       'oie.email.enroll.subtitle':
-        'Use the button to send a verification code when email verification is required.',
+        'Select Email to receive a verification email.',
       'oie.email.challenge.title': 'Verify your email',
+      'oie.email.challenge.mfa.title': 'Verify with email',
+      'oie.email.mfa.title': 'Verify with email',
+      'oie.email.verify.primaryButton': 'Send email code',
+      'oie.email.verify.alternate.instructions':
+        'Use the link in your email or enter the code here.',
+      'oie.email.verify.alternate.show.verificationCode.text':
+        'Enter email code',
+      'oie.email.verify.alternate.verificationCode.instructions':
+        'Enter the code from your email.',
       'factor.email': 'Email',
       'factor.email.description':
         'Enter the verification code sent to your email.',
+      'factor.call': 'Phone',
+      'factor.call.description':
+        'Verify with a code sent to your US mobile phone',
       'email.button.send': 'Send email code',
       'email.button.resend': 'Send another email code',
       'email.code.label': 'Email verification code',
       'email.code.not.received': 'Need another email code?',
       'email.enroll.title': 'Verify your email',
       'email.enroll.description':
-        'Use the button to send a verification code to your email.',
+        'Select Email to receive a verification email.',
       'email.enroll.enterCode': 'Verify email',
       'email.mfa.title': 'Verify with email',
       'email.mfa.description': 'Send a verification code to {0}.',
@@ -217,6 +244,9 @@ function applyWidgetCopyOverrides(config) {
         'Enter the code sent to your email.',
       'mfa.sendEmail': 'Send email code',
       'mfa.resendEmail': 'Send another email',
+      'mfa.challenge.enterCode.placeholder': 'Verification code',
+      'mfa.challenge.enterCode.tooltip': 'Verification code',
+      'mfa.challenge.verify': 'Verify code',
       'mfa.emailVerification.title': 'Sign in with email',
       'mfa.emailVerification.subtitle': 'Email will be sent to {0}.',
       'mfa.emailVerification.otc.finish': 'Enter the code sent to your email.',
@@ -224,12 +254,37 @@ function applyWidgetCopyOverrides(config) {
       'password.forgot.email.or.username.tooltip': 'Email',
       'password.forgot.sendEmail': 'Send recovery email',
       'password.forgot.emailSent.title': 'Check your email',
+      'account.unlock.email.or.username.placeholder': 'Email',
+      'account.unlock.email.or.username.tooltip': 'Email',
+      'account.unlock.sendEmail': 'Send unlock email',
       'oie.phone.authenticator.description':
         'Verify with a code sent to your US mobile phone',
+      'oie.phone.label': 'Phone',
       'oie.phone.enroll.title': 'Verify your US mobile phone',
       'oie.phone.enroll.subtitle':
         'Use a US mobile number that can receive text messages.',
+      'oie.phone.enroll.sms.label': 'SMS',
+      'oie.phone.enroll.voice.label': 'Phone call',
+      'oie.user.profile.login': 'Email',
+      'password.complexity.no_username': 'no parts of your email',
+      'password.complexity.no_username.description': 'No parts of your email',
+      'idx.recovery.completed':
+        'You can now sign in with your email and new password.',
+      'errors.E0000114':
+        'An account with this email already exists. Sign in to continue.',
+      'registration.error.notUniqueWithinOrg.Email':
+        'An account with this email already exists. Sign in to continue.',
+      'registration.error.notUniqueWithinOrg.custom':
+        'An account with this email already exists. Sign in to continue.',
     },
+  };
+}
+
+function applyWidgetBehaviorConfig(config) {
+  config.rememberMe = false;
+  config.features = {
+    ...(config.features || {}),
+    rememberMe: false,
   };
 }
 
@@ -342,6 +397,8 @@ const signInLinkTexts = new Set([
   'continue to sign in',
   'continue to sign on',
   'continue to secure sign in',
+  'have an account? sign in',
+  'already have an account? sign in',
   'go to homepage',
   'go to home page',
   'log in',
@@ -376,11 +433,14 @@ const friendlyWidgetTextByNormalizedText = new Map([
   ['setup email', 'Verify your email'],
   ['setup email authentication', 'Verify your email'],
   ['setup required', 'Required to continue'],
-  ['set up another', 'Set up another verification method'],
-  ['setup another', 'Set up another verification method'],
+  ['set up another', setupVerificationMethodText],
+  ['set up another verification method', setupVerificationMethodText],
+  ['setup another', setupVerificationMethodText],
+  ['setup another verification method', setupVerificationMethodText],
   ['configure factor', 'Continue'],
   ['configure next factor', 'Continue'],
   ['enter code', 'Verify email'],
+  ['enter a verification code instead', 'Enter email code'],
   ['send me the code', 'Send email code'],
   ['send again', 'Send another email code'],
 ]);
@@ -511,12 +571,33 @@ function setFormElementText(element, text) {
   }
 }
 
+function isAuthenticatorSelectionForm(formName) {
+  return formName === 'select-authenticator-enroll';
+}
+
+function resolveSignInReturnText() {
+  return signInReturnText;
+}
+
 function isNativeHelpElement(element) {
   return (
     element?.type === 'Link' &&
     (element?.options?.dataSe === 'help' ||
       (readFormElementText(element) === 'help' &&
         unsafeHostedLinkPattern.test(readFormElementHref(element))))
+  );
+}
+
+function isSetupAnotherElement(element) {
+  const text = readFormElementText(element);
+  const dataSe = String(element?.options?.dataSe || '');
+
+  return (
+    dataSe === 'setup-another' ||
+    text === 'set up another' ||
+    text === 'setup another' ||
+    text === 'set up another verification method' ||
+    text === 'setup another verification method'
   );
 }
 
@@ -546,18 +627,45 @@ function isWidgetSignInReturnElement(element) {
   );
 }
 
-function transformFormElements(elements, signInUrl) {
+function isRememberUserElement(element) {
+  const text = readFormElementText(element);
+  const dataSe = String(element?.options?.dataSe || element?.dataSe || '');
+  const name = String(element?.name || element?.options?.name || '');
+
+  return (
+    dataSe === 'rememberMe' ||
+    name === 'rememberMe' ||
+    text === 'remember me' ||
+    text === 'keep me signed in' ||
+    text === 'stay signed in'
+  );
+}
+
+function transformFormElements(elements, signInUrl, formName) {
   if (!Array.isArray(elements)) {
     return elements;
   }
 
   return elements
-    .filter((element) => !isNativeHelpElement(element))
+    .filter(
+      (element) =>
+        !isNativeHelpElement(element) && !isRememberUserElement(element),
+    )
     .map((element) => {
       if (isWidgetSignInReturnElement(element)) {
         setFormElementHref(element, signInUrl);
-        setFormElementText(element, signInReturnText);
+        setFormElementText(element, resolveSignInReturnText(formName));
+      } else if (isAuthenticatorSelectionForm(formName)) {
+        const friendlyText = friendlyWidgetTextByNormalizedText.get(
+          readFormElementText(element),
+        );
+
+        if (friendlyText) {
+          setFormElementText(element, friendlyText);
+        }
       } else if (isAuthenticatorReturnElement(element)) {
+        setFormElementText(element, verificationMethodReturnText);
+      } else if (isSetupAnotherElement(element)) {
         setFormElementText(element, verificationMethodReturnText);
       } else {
         const friendlyText = friendlyWidgetTextByNormalizedText.get(
@@ -570,13 +678,21 @@ function transformFormElements(elements, signInUrl) {
       }
 
       if (Array.isArray(element?.elements)) {
-        element.elements = transformFormElements(element.elements, signInUrl);
+        element.elements = transformFormElements(
+          element.elements,
+          signInUrl,
+          formName,
+        );
       }
 
       if (Array.isArray(element?.options?.elements)) {
         element.options = {
           ...(element.options || {}),
-          elements: transformFormElements(element.options.elements, signInUrl),
+          elements: transformFormElements(
+            element.options.elements,
+            signInUrl,
+            formName,
+          ),
         };
       }
 
@@ -584,21 +700,113 @@ function transformFormElements(elements, signInUrl) {
     });
 }
 
+function formContainsElementName(elements, names) {
+  if (!Array.isArray(elements)) {
+    return false;
+  }
+
+  return elements.some((element) => {
+    const elementName = String(element?.name || element?.options?.name || '');
+
+    return (
+      names.has(elementName) ||
+      formContainsElementName(element?.elements, names) ||
+      formContainsElementName(element?.options?.elements, names)
+    );
+  });
+}
+
+function formContainsPasswordInput(elements) {
+  if (!Array.isArray(elements)) {
+    return false;
+  }
+
+  return elements.some((element) => {
+    const elementName = String(element?.name || element?.options?.name || '');
+    const inputType = String(
+      element?.type ||
+        element?.options?.type ||
+        element?.options?.inputType ||
+        element?.options?.inputMeta?.type ||
+        '',
+    ).toLowerCase();
+
+    return (
+      (elementName === 'credentials.passcode' && inputType === 'password') ||
+      formContainsPasswordInput(element?.elements) ||
+      formContainsPasswordInput(element?.options?.elements)
+    );
+  });
+}
+
+function isSecurityQuestionSetupForm(elements) {
+  const names = new Set([
+    'credentials.answer',
+    'credentials.questionKey',
+    'questionType',
+  ]);
+
+  return formContainsElementName(elements, names);
+}
+
+function transformSubmitText(elements, submitText) {
+  if (!Array.isArray(elements)) {
+    return elements;
+  }
+
+  return elements.map((element) => {
+    if (readFormElementText(element) === 'verify code') {
+      setFormElementText(element, submitText);
+    }
+
+    if (Array.isArray(element?.elements)) {
+      element.elements = transformSubmitText(element.elements, submitText);
+    }
+
+    if (Array.isArray(element?.options?.elements)) {
+      element.options = {
+        ...(element.options || {}),
+        elements: transformSubmitText(element.options.elements, submitText),
+      };
+    }
+
+    return element;
+  });
+}
+
 function registerWidgetTransforms(oktaSignIn) {
   if (typeof oktaSignIn.afterTransform !== 'function') {
     return;
   }
 
-  oktaSignIn.afterTransform('*', function transformWidgetForm({ formBag }) {
-    const elements = formBag?.uischema?.elements;
+  oktaSignIn.afterTransform(
+    '*',
+    function transformWidgetForm({ formBag, formName }) {
+      const elements = formBag?.uischema?.elements;
+      const resolvedFormName =
+        formName || formBag?.uischema?.name || formBag?.uischema?.formName;
 
-    if (Array.isArray(elements)) {
-      formBag.uischema.elements = transformFormElements(
-        elements,
-        buildWidgetSignInUrl(),
-      );
-    }
-  });
+      if (Array.isArray(elements)) {
+        if (isSecurityQuestionSetupForm(elements)) {
+          formBag.uischema.elements = transformSubmitText(
+            elements,
+            securityQuestionSubmitText,
+          );
+        } else if (formContainsPasswordInput(elements)) {
+          formBag.uischema.elements = transformSubmitText(
+            elements,
+            passwordChallengeSubmitText,
+          );
+        }
+
+        formBag.uischema.elements = transformFormElements(
+          formBag.uischema.elements,
+          buildWidgetSignInUrl(),
+          resolvedFormName,
+        );
+      }
+    },
+  );
 }
 
 const widgetConfig = OktaUtil.getSignInWidgetConfig();
@@ -626,6 +834,7 @@ widgetConfig.helpLinks = {
 delete widgetConfig.helpLinks.help;
 applyWidgetThemeTokens(widgetConfig);
 applyWidgetCopyOverrides(widgetConfig);
+applyWidgetBehaviorConfig(widgetConfig);
 
 if (requestedWidgetFlow) {
   widgetConfig.flow = requestedWidgetFlow;
