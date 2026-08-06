@@ -22,7 +22,7 @@ acceptance scenarios where Gherkin helps describe the behavior:
 - route smoke tests for `/health/*`, `/bff/health`, and `/openapi/v1.json`
 - CSRF token and cookie contract checks, including forwarded HTTPS secure-cookie
   behavior
-- auth-session read, touch, logout-hint, and clear contracts
+- auth-session read, touch, server-owned logout, and clear contracts
 - contract checks for `customer` and `application` slices, including CSRF-backed
   writes
 - Redis-backed and auth-bridge coverage when the local stack includes the Next

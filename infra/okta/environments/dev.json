@@ -40,7 +40,7 @@
     "baseUrl": "http://localhost:3000",
     "deployedBaseUrl": "https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io",
     "additionalBaseUrls": ["https://apply-dev.avanai.net"],
-    "redirectPath": "/auth/callback",
+    "redirectPath": "/account/sign-in",
     "postLogoutRedirectPath": "/"
   },
   "mobile": {
@@ -49,8 +49,8 @@
   },
   "bff": {
     "baseUrl": "http://localhost:8080",
-    "loginPath": "/bff/auth/login",
-    "callbackPath": "/bff/auth/callback",
+    "idxStartPath": "/bff/auth/idx/start",
+    "idxCompletePath": "/bff/auth/idx/complete",
     "logoutPath": "/bff/auth/logout",
     "sessionPath": "/bff/auth/session"
   }

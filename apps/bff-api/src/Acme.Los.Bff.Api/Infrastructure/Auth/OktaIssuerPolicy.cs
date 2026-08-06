@@ -1,13 +1,7 @@
-using System.Text.RegularExpressions;
-
 namespace Acme.Los.Bff.Api.Infrastructure.Auth;
 
 internal static class OktaIssuerPolicy
 {
-  private static readonly Regex KnownOktaHostPattern = new(
-    @"(^|\.)okta(?:preview|-emea|-gov)?\.com$",
-    RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
-
   internal static string NormalizeIssuer(string value)
   {
     return value.TrimEnd('/');
@@ -15,7 +9,8 @@ internal static class OktaIssuerPolicy
 
   internal static bool IsAllowedIssuer(
     string configuredIssuer,
-    string claimedIssuer)
+    string claimedIssuer,
+    string? canonicalOrgUrl = null)
   {
     if (!Uri.TryCreate(configuredIssuer, UriKind.Absolute, out var configuredUri)
       || !Uri.TryCreate(claimedIssuer, UriKind.Absolute, out var claimedUri))
@@ -23,25 +18,34 @@ internal static class OktaIssuerPolicy
       return false;
     }
 
-    var configuredPath = NormalizeIssuerPath(configuredUri.AbsolutePath);
-    var claimedPath = NormalizeIssuerPath(claimedUri.AbsolutePath);
-
     if (!string.Equals(claimedUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
-      || !string.Equals(configuredPath, claimedPath, StringComparison.Ordinal))
+      || !string.Equals(configuredUri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
     {
       return false;
     }
 
-    if (string.Equals(claimedUri.Host, configuredUri.Host, StringComparison.OrdinalIgnoreCase))
+    var allowedIssuers = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-      return true;
+      NormalizeIssuer(configuredUri.ToString()),
+    };
+
+    if (Uri.TryCreate(canonicalOrgUrl, UriKind.Absolute, out var canonicalOrgUri)
+      && string.Equals(
+        canonicalOrgUri.Scheme,
+        Uri.UriSchemeHttps,
+        StringComparison.OrdinalIgnoreCase))
+    {
+      allowedIssuers.Add(NormalizeIssuer(new UriBuilder(canonicalOrgUri)
+      {
+        Path = NormalizeIssuerPath(configuredUri.AbsolutePath),
+        Query = string.Empty,
+        Fragment = string.Empty,
+      }.Uri.ToString()));
     }
 
-    return KnownOktaHostPattern.IsMatch(claimedUri.Host);
+    return allowedIssuers.Contains(NormalizeIssuer(claimedUri.ToString()));
   }
 
-  private static string NormalizeIssuerPath(string value)
-  {
-    return value.TrimEnd('/');
-  }
+  private static string NormalizeIssuerPath(string value) =>
+    value.TrimEnd('/');
 }

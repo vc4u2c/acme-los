@@ -11,7 +11,6 @@ public interface IAuthSessionService
 {
   ValueTask<GetWebAuthSessionResponse> ReadSessionAsync(
     HttpRequest request,
-    bool includeDebug,
     CancellationToken cancellationToken);
 
   ValueTask<AuthSessionMutationResult> SyncSessionAsync(
@@ -21,6 +20,10 @@ public interface IAuthSessionService
 
   ValueTask<ClearWebAuthSessionResponse> ClearSessionAsync(
     HttpContext context,
+    CancellationToken cancellationToken);
+
+  ValueTask<bool> RevokeSessionAsync(
+    HttpRequest request,
     CancellationToken cancellationToken);
 
   ValueTask<AuthSessionMutationResult?> TouchSessionAsync(
@@ -42,7 +45,7 @@ public interface IAuthSessionService
     HttpRequest request,
     CancellationToken cancellationToken);
 
-  ValueTask<GetWebAuthLogoutHintResponse> ReadLogoutHintAsync(
+  ValueTask<string?> ReadLogoutHintIdTokenAsync(
     HttpRequest request,
     CancellationToken cancellationToken);
 }
@@ -67,7 +70,6 @@ public sealed class BffAuthSessionService : IAuthSessionService
 
   public async ValueTask<GetWebAuthSessionResponse> ReadSessionAsync(
     HttpRequest request,
-    bool includeDebug,
     CancellationToken cancellationToken)
   {
     var storedSession = await ReadActiveSessionFromCookieAsync(
@@ -76,19 +78,12 @@ public sealed class BffAuthSessionService : IAuthSessionService
 
     if (storedSession is null)
     {
-      return new GetWebAuthSessionResponse(
-        BuildUnauthenticatedSession(),
-        Debug: includeDebug
-          ? new WebAuthSessionDebugSnapshot(null, null)
-          : null);
+      return new GetWebAuthSessionResponse(BuildUnauthenticatedSession());
     }
 
     return new GetWebAuthSessionResponse(
       storedSession.Session,
-      BuildTiming(storedSession),
-      includeDebug
-        ? new WebAuthSessionDebugSnapshot(null, null)
-        : null);
+      BuildTiming(storedSession));
   }
 
   public async ValueTask<AuthSessionMutationResult> SyncSessionAsync(
@@ -158,6 +153,36 @@ public sealed class BffAuthSessionService : IAuthSessionService
     return new ClearWebAuthSessionResponse(
       BuildUnauthenticatedSession(),
       true);
+  }
+
+  public async ValueTask<bool> RevokeSessionAsync(
+    HttpRequest request,
+    CancellationToken cancellationToken)
+  {
+    var sessionId = TryReadSessionId(request);
+
+    if (string.IsNullOrWhiteSpace(sessionId))
+    {
+      return false;
+    }
+
+    var storedSession = await _store.ReadForLogoutAsync(
+      sessionId,
+      cancellationToken);
+
+    if (storedSession is null)
+    {
+      return false;
+    }
+
+    await _store.WriteAsync(
+      storedSession with
+      {
+        RevokedAt = GetCurrentEpochSeconds(),
+      },
+      cancellationToken);
+
+    return true;
   }
 
   public async ValueTask<AuthSessionMutationResult?> TouchSessionAsync(
@@ -315,7 +340,7 @@ public sealed class BffAuthSessionService : IAuthSessionService
       storedSession is null ? null : BuildTiming(storedSession));
   }
 
-  public async ValueTask<GetWebAuthLogoutHintResponse> ReadLogoutHintAsync(
+  public async ValueTask<string?> ReadLogoutHintIdTokenAsync(
     HttpRequest request,
     CancellationToken cancellationToken)
   {
@@ -323,12 +348,12 @@ public sealed class BffAuthSessionService : IAuthSessionService
 
     if (string.IsNullOrWhiteSpace(sessionId))
     {
-      return new GetWebAuthLogoutHintResponse(null);
+      return null;
     }
 
     var storedSession = await _store.ReadForLogoutAsync(sessionId, cancellationToken);
 
-    return new GetWebAuthLogoutHintResponse(storedSession?.Tokens.IdToken);
+    return storedSession?.Tokens.IdToken;
   }
 
   public static WebAuthSession BuildUnauthenticatedSession(
@@ -594,7 +619,8 @@ public sealed record StoredWebAuthSession(
   long CreatedAt,
   int LastActivityAt,
   int IdleExpiresAt,
-  StoredWebAuthStepUp? StepUp = null);
+  StoredWebAuthStepUp? StepUp = null,
+  int? RevokedAt = null);
 
 internal sealed class InMemoryAuthSessionStore : IAuthSessionStore
 {
@@ -614,6 +640,11 @@ internal sealed class InMemoryAuthSessionStore : IAuthSessionStore
     if (IsExpired(storedSession))
     {
       _sessions.TryRemove(sessionId, out _);
+      return ValueTask.FromResult<StoredWebAuthSession?>(null);
+    }
+
+    if (storedSession.RevokedAt is not null)
+    {
       return ValueTask.FromResult<StoredWebAuthSession?>(null);
     }
 
@@ -692,6 +723,11 @@ internal sealed class RedisAuthSessionStore : IAuthSessionStore
       || storedSession.IdleExpiresAt <= currentEpochSeconds)
     {
       await DeleteAsync(sessionId, cancellationToken);
+      return null;
+    }
+
+    if (storedSession.RevokedAt is not null)
+    {
       return null;
     }
 

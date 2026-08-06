@@ -375,7 +375,22 @@ const environment = readJsonFile(environmentPath);
 const brandProfile = readJsonFile(brandProfilePath);
 const policyScenarioManifest = loadOktaPolicyScenarioManifest(repoRoot);
 const issuer = requiredString(environment.okta?.issuer, 'okta.issuer');
-const oktaApiBaseUrl = new URL('/', issuer).toString().replace(/\/$/, '');
+const configuredOktaOrgUrl = new URL(
+  requiredString(environment.okta?.orgUrl, 'okta.orgUrl'),
+);
+if (
+  configuredOktaOrgUrl.protocol !== 'https:' ||
+  configuredOktaOrgUrl.username ||
+  configuredOktaOrgUrl.password ||
+  configuredOktaOrgUrl.pathname !== '/' ||
+  configuredOktaOrgUrl.search ||
+  configuredOktaOrgUrl.hash
+) {
+  throw new Error(
+    'Expected "okta.orgUrl" to be an HTTPS origin without credentials, path, query, or fragment.',
+  );
+}
+const oktaApiBaseUrl = configuredOktaOrgUrl.origin;
 const authorizationServerId = resolveAuthorizationServerId(issuer);
 const customerGroupName = `acme-los-customers-${environment.environment}`;
 const webAppLabel = `ACME LOS Web (${environment.environment})`;

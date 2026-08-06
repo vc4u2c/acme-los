@@ -206,23 +206,30 @@ Current switched routes:
 - `GET /api/security/csrf` -> `GET /bff/security/csrf`
 - `GET /api/security/inspector` -> `GET /bff/security/inspector` for real Okta
   auth, after the authenticated Next facade and rate-limit checks pass
-- `GET /api/auth/start` -> `GET /bff/auth/login`
-- `GET /api/auth/callback` -> `GET /bff/auth/callback`
+- `POST /api/auth/idx/start` -> `POST /bff/auth/idx/start`
+- `POST /api/auth/idx/complete` -> `POST /bff/auth/idx/complete`
 - `GET|DELETE /api/auth/session` -> `/bff/auth/session`
 - `POST /api/auth/session/touch` -> `/bff/auth/session/touch`
 - guarded API/server-rendered session checks -> `/bff/auth/session/requirement`
-- logout hints -> `/bff/auth/logout-hint`
+- server-owned Okta end-session URL and session clear -> `POST /bff/auth/logout`
 - `GET|PUT /api/customer/profile` -> `/bff/customer/profile`
 - `GET|PUT /api/application/steps/[step]` -> `/bff/application/steps/{step}`
 - `POST /api/application/submit` -> `/bff/application/submit`
 - `POST /api/diagnostics/trace` -> `/bff/diagnostics/trace`
 
-Next remains the browser facade but delegates PKCE transaction state, Okta token
-exchange, id-token validation, session read/touch/clear, requirement checks,
-funding step-up freshness, and logout-hint reads to the BFF. Next still owns the
-public redirect routes and writes the browser-facing opaque session cookie from
-the BFF session headers. Mock auth remains local for development and Playwright
-fixtures.
+Next remains the browser facade. Auth JS sends IDX remediation values directly
+from the browser to Okta, while the BFF owns the PKCE verifier and transaction
+state, redeems the one-time Interaction Code, validates the ID token, enforces
+step-up evidence, and creates the opaque application session. Next writes only
+the browser-facing session identifier returned in BFF headers. Mock auth remains
+local for development and Playwright fixtures.
+
+`ACME_OKTA_ISSUER` is the exact authorization-server issuer used by the web
+client. `ACME_OKTA_ORG_URL` is the exact canonical Okta tenant URL used for
+tenant-scoped Management API calls and as the only permitted canonical issuer
+alias when a custom domain is configured. Both are non-secret deployment
+configuration; OAuth client private-key material and trusted proxy secrets stay
+in Key Vault-backed secret references.
 
 `GET /api/security/csrf` stays browser-facing on the Next origin but delegates
 token issuance to the BFF and relays the BFF `Set-Cookie` header back to the
@@ -309,6 +316,6 @@ npx.cmd nx show projects
 
 - Keep the current browser-facing `/api/*` contract stable during the first BFF
   rollout.
-- Move customer and application behavior before moving the full auth callback
-  path.
+- Keep browser authentication on the app-owned IDX path and let the BFF own
+  Interaction Code redemption, token validation, and session creation.
 - Do not relayout the repo before the BFF proves its value.

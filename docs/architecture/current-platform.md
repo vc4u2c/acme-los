@@ -17,7 +17,7 @@ This doc is the current-state snapshot for the repo. It complements:
 - public marketing and support routes
 - guarded seven-step application flow under `/apply/[step]`
 - customer dashboard under `/account/profile`
-- hosted Okta sign-in and registration
+- app-owned Okta IDX sign-in and registration
 - route-level funding step-up for stronger verification
 
 ### Mobile
@@ -33,14 +33,14 @@ The platform is in a materially better place than the earlier prototype phase.
 
 What is solid now:
 
-- server-side PKCE initiation and callback exchange are in place
+- server-generated PKCE and server-side Interaction Code exchange are in place
 - one opaque web session is shared across profile, apply, and sign-out
 - web sessions now have server-enforced idle expiry with a client warning modal
 - the browser is no longer the source of truth for authenticated state
 - the BFF can be the auth/session, CSRF, customer-profile, and application-flow
   authority behind the stable Next `/api/*` facade
 - Azure landing-zone structure now exists with management groups, subscriptions, budgets, and an ACA-based web runtime path
-- local and Azure `dev` now align to the same Okta `dev` tenant with different allowed callback URLs
+- local and Azure `dev` now align to the same Okta `dev` tenant with different allowed redirect and logout URLs
 - both apps expose the active environment in the UI
 
 What is true operationally today:
@@ -74,7 +74,7 @@ flowchart LR
   browser[Browser] --> web[Next.js web ACA<br/>public ingress]
   web --> facade[Same-origin /api/* facade]
   facade --> bff[.NET BFF ACA<br/>internal ingress]
-  web --> okta[Okta hosted auth]
+  web --> okta[Okta Identity Engine / IDX]
   bff --> okta
   web --> redis[(Azure Managed Redis<br/>private endpoint)]
   bff --> redis
@@ -98,8 +98,9 @@ calling client id or object id before `/bff/*` routes run.
 ## Current Auth Shape
 
 - public product entry points send users into the application flow
-- signed-out profile entry goes to hosted Okta sign-in
-- hosted Okta sign-in is also the registration path
+- signed-out web entry goes to the ACME-owned Auth JS IDX page
+- web registration, recovery, and step-up use supported IDX remediations; the
+  hosted Gen3 page remains for mobile redirect and rollback
 - there is no separate local create-account page anymore
 - signed-in profile entry goes to the customer dashboard
 - funding uses fresh route-level MFA requirements in addition to the normal
@@ -115,14 +116,14 @@ calling client id or object id before `/bff/*` routes run.
 - standard sign-in is password-first
 - adaptive sign-in can step up to 2FA on high-risk access
 - funding route access always starts an application-owned step-up check: the
-  Okta authorize request carries the configured `acr_values`; when
-  `fundingStepUpRequiresPassword=false`, the app omits `max_age=0` so Okta can
-  step up the existing SSO session with email or phone/SMS OTP instead of asking
-  for the password again. The callback must include Okta `amr` evidence for
-  email or phone/SMS OTP before the latest funding step-up marker is written;
+  passwordless IDX transaction omits both two-factor `acr_values` and
+  `max_age=0`. The possession-only app policy then asks for exactly one email or
+  phone/SMS OTP instead of the password. The validated IDX completion must
+  include Okta `amr` evidence for email or phone/SMS OTP before the latest
+  funding step-up marker is written;
   each funding page entry consumes the marker, while funding save/submit APIs
   can use it during the bounded 10-minute funding API window created by the
-  latest Okta callback
+  latest validated IDX completion
 
 ## Current API Boundary
 
@@ -147,11 +148,16 @@ Current BFF bridge:
 - outside local development, the BFF should only honor those trusted identity
   headers when `ACME_BFF_TRUSTED_PROXY_SECRET` matches or an equivalent private
   network boundary is in place
-- `GET /api/auth/start` and `GET /api/auth/callback` delegate to the BFF; the
-  BFF owns PKCE transaction state, Okta token exchange, id-token validation,
-  session creation, and funding step-up enforcement, while Next keeps the
-  public redirect URLs and writes the browser-facing opaque session cookie from
-  BFF response headers
+- `POST /api/auth/idx/start` and `POST /api/auth/idx/complete` delegate to the
+  BFF. The BFF owns PKCE verifier, state, nonce, transaction state, Interaction
+  Code exchange, token validation, session creation, and step-up enforcement.
+  Auth JS submits IDX credentials and OTPs directly to Okta; Next returns only
+  public transaction metadata and writes the browser-facing opaque session
+  cookie from BFF response headers
+- `POST /api/auth/idx/start` also recognizes a short-lived signed intent issued
+  only after a successful email, phone, or password mutation. It ignores
+  browser-selected routing in that mode and binds the fresh sign-in to the same
+  Okta subject and the newly changed factor
 - `GET|DELETE /api/auth/session`, `POST /api/auth/session/touch`, guarded API
   session checks, server-rendered session checks, and logout hints all use the
   BFF as the Okta-backed session authority behind the stable Next facade
@@ -165,18 +171,18 @@ Current BFF bridge:
 
 ### BFF Authority Behavior
 
-| Surface                     | Current behavior                                                                                     |
-| --------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Browser contract            | Browser calls the same Next `/api/*` routes                                                          |
-| Auth start/callback         | BFF owns PKCE transaction, Okta token exchange, id-token validation, step-up, and session creation   |
-| Session read/touch/logout   | Next calls BFF session endpoints and writes/clears the browser-facing opaque cookie                  |
-| CSRF                        | BFF issues the CSRF token; Next relays the cookie and accepts BFF raw tokens during validation       |
-| Customer/application routes | Next enforces browser boundary rules, then proxies to BFF customer/application endpoints             |
-| Security inspector          | Reads the BFF-owned server session/token snapshot through trusted BFF diagnostics for real Okta auth |
-| Mock auth                   | Stays local and token-free for development fixtures                                                  |
-| Browser telemetry           | Next facade validates and logs browser-origin operational telemetry                                  |
-| Diagnostic tracing          | Next calls `/bff/diagnostics/trace` for the logging-demo trace propagation check                     |
-| Raw BFF URL                 | Not used by the browser; only server-to-server or terminal checks                                    |
+| Surface                     | Current behavior                                                                                      |
+| --------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Browser contract            | Browser calls the same Next `/api/*` routes                                                           |
+| IDX start/complete          | BFF owns PKCE transaction, Interaction Code exchange, token validation, step-up, and session creation |
+| Session read/touch/logout   | Next calls BFF session endpoints and writes/clears the browser-facing opaque cookie                   |
+| CSRF                        | BFF issues the CSRF token; Next relays the cookie and accepts BFF raw tokens during validation        |
+| Customer/application routes | Next enforces browser boundary rules, then proxies to BFF customer/application endpoints              |
+| Security inspector          | Reads the BFF-owned server session/token snapshot through trusted BFF diagnostics for real Okta auth  |
+| Mock auth                   | Stays local and token-free for development fixtures                                                   |
+| Browser telemetry           | Next facade validates and logs browser-origin operational telemetry                                   |
+| Diagnostic tracing          | Next calls `/bff/diagnostics/trace` for the logging-demo trace propagation check                      |
+| Raw BFF URL                 | Not used by the browser; only server-to-server or terminal checks                                     |
 
 ## Current Server-State Model
 
@@ -206,7 +212,7 @@ Current BFF bridge:
 
 In place now:
 
-- server-side PKCE initiation and callback exchange
+- server-generated PKCE and server-side Interaction Code exchange
 - opaque HTTP-only auth session cookie
 - tokens off the browser in the normal signed-in flow
 - server-enforced idle session timeout with CSRF-protected keep-alive touches
@@ -252,7 +258,7 @@ What is not fully hardened yet:
 - the app is still directly reachable on the ACA hostname
 - `apply-dev.avanai.net` is source-configured as the Bicep-managed branded
   web-hostname activation path, but it is not a proven live endpoint until DNS
-  validation, managed-certificate deployment, and Okta callback cutover are
+  validation, managed-certificate deployment, and Okta redirect URI cutover are
   complete
 - Front Door, WAF, and private-only ACA ingress are still later phases
 - the environment model is proven in `dev`, but still needs the same repeatability proven in `qa`
@@ -344,7 +350,7 @@ Goals:
   `local`, `dev`, `qa`, `stg`, and `prod`
 - capture page visits consistently across static, ISR, server-rendered, and
   client-transitioned routes
-- capture hosted sign-in, callback completion, sign-out, MFA, funding step-up,
+- capture IDX sign-in, Interaction Code completion, sign-out, MFA, funding step-up,
   and other auth journey events without coupling UI code to vendor-specific
   tags
 - support explicit business events such as application start, step completion,
@@ -357,7 +363,7 @@ Recommended shape:
 - define one app-owned analytics event contract and one app-owned analytics
   service instead of letting feature code call a tag manager directly
 - allow server-side event emission for SSR, route handlers, auth events, and
-  callback-driven outcomes that the browser alone cannot observe reliably; this
+  completion outcomes that the browser alone cannot observe reliably; this
   remains a later Measurement Protocol step
 - allow client-side event emission for page views, interaction events, and
   browser-only context
@@ -393,14 +399,14 @@ the UI layer or browser API contract.
 
 Current BFF auth/session endpoints:
 
-- `GET /bff/auth/login`
-- `GET /bff/auth/callback`
+- `POST /bff/auth/idx/start`
+- `POST /bff/auth/idx/complete`
 - `POST /bff/auth/logout`
 - `GET /bff/auth/session`
 - `DELETE /bff/auth/session`
 - `POST /bff/auth/session/touch`
 - `POST /bff/auth/session/requirement`
-- `GET /bff/auth/logout-hint`
+- `POST /bff/auth/logout`
 - `GET /bff/security/csrf`
 - `GET /bff/security/inspector` for local/dev diagnostics through the trusted
   Next facade only
@@ -422,11 +428,12 @@ Near-term guidance:
 - keep client form islands focused on interaction only
 - keep the web app using the opaque server-backed auth session cookie as the source of truth
 - keep idle expiry server-enforced; the browser modal should only warn and call the CSRF-protected touch route after real user activity
-- keep hosted Okta focused on sign-in, MFA, reset, and unlock flows
+- keep the app-owned IDX surface focused on web sign-in, registration, MFA,
+  reset, and unlock; retain hosted Okta only for mobile redirect and rollback
 
 Definition of done:
 
-- callback creates the secure web session reliably through the server-side PKCE flow
+- Interaction Code completion creates the secure web session reliably through the server-generated PKCE flow
 - guarded routes use server-side session checks
 - sign-out clears both the app session and the Okta browser session
 
@@ -474,11 +481,11 @@ Definition of done:
   moving into the BFF
 - avoid baking Next-specific auth or session assumptions into shared UI or domain code
 
-### Phase 7: Registration Rework When Unpaused
+### Phase 7: App-Owned IDX Registration
 
-- stop relying on hosted Okta self-service registration as the final customer registration model
-- build app-owned registration flow behind the server API layer
-- keep temporary registration state in backend persistence
-- create the Okta user only at the end of successful registration
-- create the Okta user as `STAGED`
+- render registration and authenticator remediation in the ACME web app
+- keep PKCE verifier, state, nonce, tokens, and session authority on the server
+- let Okta Identity Engine own the registration transaction and policy state
+- collect only email, first name, last name, and ACME state as profile fields
+- enroll and verify phone through the phone authenticator, not the profile form
 - include `leadId` and `customerId` in the final user creation path

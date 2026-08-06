@@ -21,6 +21,12 @@ internal static class AuthAssurance
     "okta_email",
     "okta_email:email",
   };
+  private static readonly string[] PasswordAuthenticationMethods = new[]
+  {
+    "pwd",
+    "password",
+    "okta_password",
+  };
   private const string FundingEmailOrSmsMethod = "email_or_sms";
 
   public static string GetAssuranceLevel(
@@ -135,6 +141,20 @@ internal static class AuthAssurance
 
     return normalizedMethods.Any(method =>
       EmailAuthenticationMethods.Contains(
+        method,
+        StringComparer.OrdinalIgnoreCase));
+  }
+
+  public static bool IsPasswordAuthenticationMethodSatisfied(
+    IEnumerable<string>? authenticationMethods)
+  {
+    var normalizedMethods = authenticationMethods?
+      .Where(value => !string.IsNullOrWhiteSpace(value))
+      .Select(value => value.Trim().ToLowerInvariant())
+      .ToArray() ?? Array.Empty<string>();
+
+    return normalizedMethods.Any(method =>
+      PasswordAuthenticationMethods.Contains(
         method,
         StringComparer.OrdinalIgnoreCase));
   }

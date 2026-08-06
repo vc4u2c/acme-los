@@ -3,7 +3,7 @@
 This doc describes the contract and auth boundaries the repo uses today, plus
 the rules we want to preserve as the backend evolves.
 
-For the current implemented redirect, callback, session, and logout diagrams,
+For the current implemented IDX, Interaction Code, session, and logout diagrams,
 see [auth-server-flows.md](./auth-server-flows.md).
 
 ## What Exists Today
@@ -21,8 +21,9 @@ The current split is:
 - `@acme-los/auth/*`
   - auth contracts, core helpers, and web integration helpers
 
-That means the browser talks to app-owned endpoints, not directly to Okta or
-to backend-specific storage details.
+The browser uses app-owned endpoints for application APIs and auth transaction
+start/completion. During IDX remediation, Auth JS sends credentials and OTPs
+directly to Okta; the browser never talks to backend storage details.
 
 The browser still talks to the same app-owned Next `/api/*` routes. The
 difference is server-side only: the Next facade delegates real Okta-backed
@@ -38,11 +39,11 @@ audience, lifetime, and allowed caller identity before `/bff/*` routes run.
 
 The web app currently uses:
 
-- server-side PKCE initiation
-- server-side callback code exchange
+- server-generated PKCE, state, and nonce
+- server-side Interaction Code exchange
 - one opaque HTTP-only auth session cookie
 - one CSRF cookie for mutating web routes
-- one short-lived auth transaction cookie during the Okta redirect handshake;
+- one short-lived auth transaction cookie during the IDX transaction;
   it is an opaque pointer only, while `state`, `nonce`, `code_verifier`, and
   route context live in the server-side state store
 - server-side session, customer, and application flow state
@@ -119,7 +120,7 @@ Must not own:
 Owns:
 
 - auth/session helpers for the Next facade
-- callback handling support
+- IDX start and Interaction Code completion support
 - CSRF and cookie helpers
 - BFF client helpers and trusted identity/service-auth headers
 - server-side route checks that keep the browser contract stable while the BFF

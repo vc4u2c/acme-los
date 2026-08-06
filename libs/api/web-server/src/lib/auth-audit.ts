@@ -8,8 +8,9 @@ const logger = createConsoleLogger();
 type AuthAuditOutcome = 'success' | 'failure' | 'rate_limited';
 
 type AuthAuditEvent =
-  | 'auth.start'
-  | 'auth.callback'
+  | 'auth.idx.start'
+  | 'auth.idx.post_change.start'
+  | 'auth.idx.complete'
   | 'auth.session.touch'
   | 'auth.session.clear'
   | 'auth.logout'

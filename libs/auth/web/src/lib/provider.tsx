@@ -18,7 +18,6 @@ import {
   MOCK_AUTH_STORAGE_KEY,
 } from '@acme-los/auth/core';
 import { getWebAuthConfig } from './config';
-import { getStoredLeadId } from './lead-id';
 
 type AuthContextValue = {
   session: AuthSession;
@@ -130,7 +129,7 @@ export function AuthProvider({
       return;
     }
 
-    if (config.configurationError || !config.okta) {
+    if (config.configurationError) {
       setSession(toUnauthenticatedSession('okta', config.configurationError));
       setSessionTiming(null);
       return;
@@ -162,7 +161,7 @@ export function AuthProvider({
       return;
     }
 
-    if (config.configurationError || !config.okta) {
+    if (config.configurationError) {
       setSession(toUnauthenticatedSession('okta', config.configurationError));
       setSessionTiming(null);
       return;
@@ -185,7 +184,7 @@ export function AuthProvider({
         return;
       }
 
-      if (config.configurationError || !config.okta) {
+      if (config.configurationError) {
         setSession(toUnauthenticatedSession('okta', config.configurationError));
         setSessionTiming(null);
         return;
@@ -200,12 +199,7 @@ export function AuthProvider({
           searchParams.set('aal', 'aal2');
         }
 
-        const leadId = getStoredLeadId();
-        if (leadId) {
-          searchParams.set('leadId', leadId);
-        }
-
-        window.location.assign(`/api/auth/start?${searchParams.toString()}`);
+        window.location.assign(`/account/sign-in?${searchParams.toString()}`);
       } catch (error) {
         const message =
           error instanceof Error
@@ -228,7 +222,7 @@ export function AuthProvider({
       return;
     }
 
-    if (config.configurationError || !config.okta) {
+    if (config.configurationError) {
       setSession(toUnauthenticatedSession('okta', config.configurationError));
       window.location.assign('/');
       return;
@@ -245,7 +239,7 @@ export function AuthProvider({
       return true;
     }
 
-    if (config.configurationError || !config.okta) {
+    if (config.configurationError) {
       setSession(toUnauthenticatedSession('okta', config.configurationError));
       setSessionTiming(null);
       return false;

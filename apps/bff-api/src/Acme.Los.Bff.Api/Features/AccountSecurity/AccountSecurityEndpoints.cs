@@ -9,6 +9,9 @@ namespace Acme.Los.Bff.Api.Features.AccountSecurity;
 public static class AccountSecurityEndpoints
 {
   private const int AccountSecurityStepUpMaxAgeSeconds = 10 * 60;
+  private const string EmailManageScope = "okta.myAccount.email.manage";
+  private const string PhoneManageScope = "okta.myAccount.phone.manage";
+  private const string PasswordManageScope = "okta.myAccount.password.manage";
 
   public static IEndpointRouteBuilder MapBffAccountSecurityEndpoints(
     this IEndpointRouteBuilder endpoints)
@@ -34,6 +37,7 @@ public static class AccountSecurityEndpoints
             csrfTokenService,
             authSessionService,
             "account-email",
+            EmailManageScope,
             cancellationToken);
 
           if (accessTokenResult.Error is not null)
@@ -84,6 +88,7 @@ public static class AccountSecurityEndpoints
             csrfTokenService,
             authSessionService,
             "account-email",
+            EmailManageScope,
             cancellationToken);
 
           if (accessTokenResult.Error is not null)
@@ -98,11 +103,28 @@ public static class AccountSecurityEndpoints
               accessTokenResult.AccessToken!,
               payload,
               cancellationToken);
-            var profileSync = await accountProfileSyncService
-              .SyncVerifiedEmailLoginAsync(
-                accessTokenResult.UserId!,
-                response.Email,
+
+            OktaAccountProfileSyncResult profileSync;
+            try
+            {
+              profileSync = await accountProfileSyncService
+                .SyncVerifiedEmailLoginAsync(
+                  accessTokenResult.UserId!,
+                  response.Email,
+                  cancellationToken);
+            }
+            catch (InvalidOperationException exception)
+            {
+              await authSessionService.RevokeSessionAsync(
+                request,
                 cancellationToken);
+              LogProfileSyncFailed(logger, "email.verify", request.Path, exception);
+              return BuildProfileSyncError();
+            }
+
+            await authSessionService.RevokeSessionAsync(
+              request,
+              cancellationToken);
 
             LogCompleted(
               logger,
@@ -117,11 +139,6 @@ public static class AccountSecurityEndpoints
           {
             LogFailed(logger, "email.verify", request.Path, exception);
             return BuildOktaError(exception);
-          }
-          catch (InvalidOperationException exception)
-          {
-            LogProfileSyncFailed(logger, "email.verify", request.Path, exception);
-            return BuildProfileSyncError();
           }
         })
       .WithName("VerifyBffAccountEmailChange")
@@ -149,6 +166,7 @@ public static class AccountSecurityEndpoints
             csrfTokenService,
             authSessionService,
             "account-phone",
+            PhoneManageScope,
             cancellationToken);
 
           if (accessTokenResult.Error is not null)
@@ -198,6 +216,7 @@ public static class AccountSecurityEndpoints
             csrfTokenService,
             authSessionService,
             "account-phone",
+            PhoneManageScope,
             cancellationToken);
 
           if (accessTokenResult.Error is not null)
@@ -211,6 +230,9 @@ public static class AccountSecurityEndpoints
             var response = await oktaMyAccountService.VerifyPhoneChangeAsync(
               accessTokenResult.AccessToken!,
               payload,
+              cancellationToken);
+            await authSessionService.RevokeSessionAsync(
+              request,
               cancellationToken);
 
             LogCompleted(logger, "phone.verify", request.Path, response.Status);
@@ -247,6 +269,7 @@ public static class AccountSecurityEndpoints
             csrfTokenService,
             authSessionService,
             "account-password",
+            PasswordManageScope,
             cancellationToken);
 
           if (accessTokenResult.Error is not null)
@@ -260,6 +283,9 @@ public static class AccountSecurityEndpoints
             var response = await oktaMyAccountService.ChangePasswordAsync(
               accessTokenResult.AccessToken!,
               payload,
+              cancellationToken);
+            await authSessionService.RevokeSessionAsync(
+              request,
               cancellationToken);
 
             LogCompleted(logger, "password.change", request.Path, response.Status);
@@ -285,6 +311,7 @@ public static class AccountSecurityEndpoints
     ICsrfTokenService csrfTokenService,
     IAuthSessionService authSessionService,
     string stepUpReason,
+    string requiredScope,
     CancellationToken cancellationToken)
   {
     if (!BffTrustedProxyBoundary.HasTrustedProxyBoundary(request))
@@ -339,6 +366,8 @@ public static class AccountSecurityEndpoints
       request,
       cancellationToken);
     var accessToken = storedSession?.Tokens.AccessToken;
+    var grantedScopes = (storedSession?.Tokens.Scope ?? string.Empty)
+      .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     var userId = sessionRequirement.Session.User?.Id;
 
     if (string.IsNullOrWhiteSpace(accessToken))
@@ -359,6 +388,16 @@ public static class AccountSecurityEndpoints
         Results.Json(
           new { error = "The active session is missing the Okta user id." },
           statusCode: StatusCodes.Status401Unauthorized));
+    }
+
+    if (!grantedScopes.Contains(requiredScope, StringComparer.Ordinal))
+    {
+      return new VerifiedAccessTokenResult(
+        null,
+        null,
+        Results.Json(
+          new { error = "The active session is missing the required account-management permission." },
+          statusCode: StatusCodes.Status403Forbidden));
     }
 
     return new VerifiedAccessTokenResult(accessToken, userId, null);

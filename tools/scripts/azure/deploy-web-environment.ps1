@@ -1431,7 +1431,7 @@ if (
 }
 
 $oktaIssuer = Get-OptionalString $oktaEnvironment.okta.issuer
-$oktaOrgUrl = Get-StringOrDefault -Value $oktaEnvironment.okta.orgUrl
+$oktaOrgUrl = Get-OptionalString $oktaEnvironment.okta.orgUrl
 $oktaClientId = Get-OptionalString $oktaEnvironment.okta.webClientId
 $oktaFundingAcrValues = Get-OptionalString $oktaEnvironment.okta.fundingStepUpAcrValues
 $oktaFundingStepUpMethod = Get-StringOrDefault -Value $oktaEnvironment.okta.hostedExperience.fundingStepUpMethod -DefaultValue 'email_or_sms'
@@ -1440,13 +1440,10 @@ $themeCookieDomain = Get-StringOrDefault -Value $oktaEnvironment.okta.hostedExpe
 $oktaRedirectPath = Get-OptionalString $oktaEnvironment.web.redirectPath
 $oktaPostLogoutRedirectPath = Get-OptionalString $oktaEnvironment.web.postLogoutRedirectPath
 
-if (-not $oktaIssuer -or -not $oktaClientId -or -not $oktaRedirectPath -or -not $oktaPostLogoutRedirectPath) {
+if (-not $oktaIssuer -or -not $oktaOrgUrl -or -not $oktaClientId -or -not $oktaRedirectPath -or -not $oktaPostLogoutRedirectPath) {
   throw "Okta environment '$oktaEnvironmentName' is missing required web auth settings."
 }
 
-if (-not $oktaOrgUrl) {
-  $oktaOrgUrl = ([System.Uri]::new($oktaIssuer)).GetLeftPart([System.UriPartial]::Authority)
-}
 
 $resolvedOktaRedirectUri = Join-AbsoluteUrl -BaseUrl $resolvedPublicWebBaseUrl -Path $oktaRedirectPath
 $resolvedOktaPostLogoutRedirectUri = Join-AbsoluteUrl -BaseUrl $resolvedPublicWebBaseUrl -Path $oktaPostLogoutRedirectPath
@@ -1473,14 +1470,7 @@ if (-not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionI
       --build-arg "NEXT_PUBLIC_APP_ENVIRONMENT=$($environmentConfiguration.appEnvironmentName)" `
       --build-arg "NEXT_PUBLIC_APP_BUILD=$resolvedBuildId" `
       --build-arg 'NEXT_PUBLIC_AUTH_PROVIDER=okta' `
-      --build-arg "NEXT_PUBLIC_OKTA_ENVIRONMENT=$oktaEnvironmentName" `
       --build-arg "NEXT_PUBLIC_OKTA_ISSUER=$oktaIssuer" `
-      --build-arg "NEXT_PUBLIC_OKTA_ORG_URL=$oktaOrgUrl" `
-      --build-arg "NEXT_PUBLIC_OKTA_CLIENT_ID=$oktaClientId" `
-      --build-arg "NEXT_PUBLIC_OKTA_REDIRECT_URI=$resolvedOktaRedirectUri" `
-      --build-arg "NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI=$resolvedOktaPostLogoutRedirectUri" `
-      --build-arg "NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES=$oktaFundingAcrValues" `
-      --build-arg "NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD=$oktaFundingStepUpMethod" `
       --build-arg "NEXT_PUBLIC_ACME_THEME_COOKIE_DOMAIN=$themeCookieDomain" `
       --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_ENABLED=$analyticsEnabledEnvValue" `
       --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_ENVIRONMENT=$analyticsRuntimeEnvironmentName" `

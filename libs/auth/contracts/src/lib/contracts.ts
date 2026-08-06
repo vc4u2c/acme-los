@@ -11,7 +11,10 @@ export type AuthStepUpReason =
   | 'funding'
   | 'account-email'
   | 'account-phone'
-  | 'account-password';
+  | 'account-password'
+  | 'post-email-change'
+  | 'post-phone-change'
+  | 'post-password-change';
 
 export interface AuthStepUpRequirement {
   reason: AuthStepUpReason;

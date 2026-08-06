@@ -170,7 +170,7 @@ public sealed class BffApiSteps : IDisposable
     {
       throw new InvalidOperationException(
         "Authenticated BFF session seeding requires the in-memory E2E host. " +
-        "Live environments create BFF sessions through the hosted auth callback.");
+        "Live environments create BFF sessions through validated Interaction Code completion.");
     }
 
     using var scope = _factory.Services.CreateScope();
@@ -218,13 +218,16 @@ public sealed class BffApiSteps : IDisposable
       includeAuthSessionCookie: true));
   }
 
-  [When("I request the BFF auth logout hint")]
-  public async Task WhenIRequestTheBffAuthLogoutHint()
+  [When("I start the BFF logout")]
+  public async Task WhenIStartTheBffLogout()
   {
-    await SendAsync(CreateRequest(
-      HttpMethod.Get,
-      "/bff/auth/logout-hint",
-      includeAuthSessionCookie: true));
+    using var request = CreateRequest(
+      HttpMethod.Post,
+      "/bff/auth/logout",
+      includeAuthSessionCookie: true);
+
+    request.Content = JsonContent.Create(new StartLogoutRequest());
+    await SendAsync(request);
   }
 
   [When("I clear the BFF auth session")]
@@ -324,14 +327,6 @@ public sealed class BffApiSteps : IDisposable
 
     Assert.True(payload.GetProperty("touched").GetBoolean());
     Assert.True(payload.GetProperty("session").GetProperty("isAuthenticated").GetBoolean());
-  }
-
-  [Then("the logout hint id token should be {string}")]
-  public async Task ThenTheLogoutHintIdTokenShouldBe(string idToken)
-  {
-    var payload = await ReadJsonPayloadAsync();
-
-    Assert.Equal(idToken, payload.GetProperty("idToken").GetString());
   }
 
   [Then("the auth session should be unauthenticated")]

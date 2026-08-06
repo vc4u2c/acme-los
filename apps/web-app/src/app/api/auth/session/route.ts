@@ -17,9 +17,7 @@ const authSessionMutationRateLimitPolicy = {
 } as const;
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const includeDebug = request.nextUrl.searchParams.get('includeDebug') === '1';
-
-  return NextResponse.json(await readWebAuthSession(request, { includeDebug }));
+  return NextResponse.json(await readWebAuthSession(request));
 }
 
 export async function DELETE(request: NextRequest): Promise<NextResponse> {

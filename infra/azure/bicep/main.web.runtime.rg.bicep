@@ -193,7 +193,6 @@ module containerApp './modules/web/container-app.bicep' = {
     authProvider: authProvider
     oktaEnvironmentName: oktaEnvironmentName
     oktaIssuer: oktaIssuer
-    oktaOrgUrl: oktaOrgUrl
     oktaClientId: oktaClientId
     oktaRedirectUri: oktaRedirectUri
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri
@@ -279,6 +278,7 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     authProvider: authProvider
     oktaEnvironmentName: oktaEnvironmentName
     oktaIssuer: oktaIssuer
+    oktaOrgUrl: oktaOrgUrl
     oktaClientId: oktaClientId
     oktaRedirectUri: oktaRedirectUri
     oktaPostLogoutRedirectUri: oktaPostLogoutRedirectUri

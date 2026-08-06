@@ -10,16 +10,16 @@ internal enum OktaCustomerIdWritebackMode
 
 internal sealed record OktaCustomerIdWritebackOptions(
   OktaCustomerIdWritebackMode Mode,
-  string? Issuer,
   string? ManagementClientId,
   string? ManagementPrivateKeyPem,
   string? ManagementPrivateKeyId,
   string[] ManagementScopes,
-  bool EmailLoginSyncEnabled)
+  bool EmailLoginSyncEnabled,
+  string? OrgUrl = null)
 {
   private const string ModeEnvironmentName =
     "ACME_OKTA_CUSTOMER_ID_WRITEBACK_MODE";
-  private const string IssuerEnvironmentName = "ACME_OKTA_ISSUER";
+  private const string OrgUrlEnvironmentName = "ACME_OKTA_ORG_URL";
   private const string ClientIdEnvironmentName =
     "ACME_OKTA_MANAGEMENT_CLIENT_ID";
   private const string PrivateKeyPemEnvironmentName =
@@ -37,21 +37,30 @@ internal sealed record OktaCustomerIdWritebackOptions(
   {
     get
     {
-      if (string.IsNullOrWhiteSpace(Issuer))
+      if (string.IsNullOrWhiteSpace(OrgUrl))
       {
         throw new InvalidOperationException(
-          "Okta issuer is required for customer id write-back.");
+          $"{OrgUrlEnvironmentName} is required for customer profile sync.");
       }
 
-      var issuerUri = new Uri(Issuer, UriKind.Absolute);
+      var orgUri = new Uri(OrgUrl, UriKind.Absolute);
 
-      if (!string.Equals(issuerUri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal))
+      if (!string.Equals(orgUri.Scheme, Uri.UriSchemeHttps, StringComparison.Ordinal))
       {
         throw new InvalidOperationException(
-          "Okta issuer must use HTTPS for customer id write-back.");
+          "Okta org URL must use HTTPS for customer profile sync.");
       }
 
-      return new Uri($"{issuerUri.Scheme}://{issuerUri.Authority}/");
+      if (!string.IsNullOrEmpty(orgUri.UserInfo)
+        || orgUri.AbsolutePath != "/"
+        || !string.IsNullOrEmpty(orgUri.Query)
+        || !string.IsNullOrEmpty(orgUri.Fragment))
+      {
+        throw new InvalidOperationException(
+          "Okta org URL must be an HTTPS origin without credentials, path, query, or fragment.");
+      }
+
+      return new Uri($"{orgUri.Scheme}://{orgUri.Authority}/");
     }
   }
 
@@ -64,12 +73,12 @@ internal sealed record OktaCustomerIdWritebackOptions(
     var scopes = ReadScopes(configuration[ScopesEnvironmentName]);
     var options = new OktaCustomerIdWritebackOptions(
       mode,
-      TrimValue(configuration[IssuerEnvironmentName]),
       TrimValue(configuration[ClientIdEnvironmentName]),
       NormalizePrivateKeyPem(configuration[PrivateKeyPemEnvironmentName]),
       TrimValue(configuration[PrivateKeyIdEnvironmentName]),
       scopes,
-      ReadBoolean(configuration[EmailLoginSyncEnabledEnvironmentName]));
+      ReadBoolean(configuration[EmailLoginSyncEnabledEnvironmentName]),
+      TrimValue(configuration[OrgUrlEnvironmentName]));
 
     if (!options.RequiresManagementToken)
     {

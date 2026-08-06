@@ -140,7 +140,7 @@ to show the full platform surface, not just the visible web pages.
 
 - Next.js 16 App Router with React 19
 - public landing page, rates/terms, support, legal, showcase, rendering demo,
-  logging demo, security demo, account sign-in, account profile, auth callback,
+  logging demo, security demo, account sign-in, account profile,
   and seven-step application routes
 - seven application steps:
   `personal-info`, `disclosures`, `employment-income`, `bank-card`,
@@ -180,11 +180,12 @@ to show the full platform surface, not just the visible web pages.
 
 ### Auth, Identity, And Session Security
 
-- Okta hosted sign-in and hosted registration
+- app-owned Okta IDX sign-in and registration
+- hosted Gen3 sign-in retained for mobile redirect and rollback only
 - environment-specific Okta manifests for `dev`, `qa`, `stg`, and `prod`
-- local and `dev` map to the Okta `dev` tenant with separate callback URLs
+- local and `dev` map to the Okta `dev` tenant with separate redirect and logout URLs
 - custom Okta domain issuer policy
-- server-side PKCE initiation and callback exchange
+- server-generated PKCE and server-side Interaction Code exchange
 - nonce/state validation and server-side id-token validation
 - opaque HTTP-only web session cookie
 - tokens stay out of normal browser storage
@@ -200,17 +201,17 @@ to show the full platform surface, not just the visible web pages.
 ### Funding Step-Up And Assurance
 
 - funding route requires stronger assurance than ordinary application steps
-- funding access starts an Okta authorize request with MFA-oriented
-  `acr_values`; dev intentionally omits `max_age=0` so funding step-up can use
-  email or phone/SMS OTP without requiring the password again
+- passwordless funding access omits both two-factor `acr_values` and
+  `max_age=0`; the possession-only Okta app policy asks for one email or
+  phone/SMS OTP without requiring the password again
 - ACME app keep-me-signed-in is disabled in the Okta manifest so funding
   step-up presents the authenticator challenge instead of a post-auth
   "stay signed in" interstitial
 - each funding page entry consumes the latest funding step-up marker
-- the callback must include Okta `amr` evidence for email or phone/SMS OTP
+- Interaction Code completion must include Okta `amr` evidence for email or phone/SMS OTP
   before the marker is written
 - funding save/submit APIs can use the bounded 10-minute funding API window
-  after callback
+  after validated completion
 - assurance checks are part of route and API enforcement, not only UI state
 - funding step-up is visible in both auth behavior and analytics events
 
@@ -235,7 +236,7 @@ to show the full platform surface, not just the visible web pages.
 - `.NET` 10 Minimal API BFF under Nx
 - OpenAPI JSON and Scalar UI in development
 - health, readiness, and live-style checks
-- auth flow endpoints for login, callback, logout, session read, touch,
+- auth flow endpoints for IDX start/completion, logout, session read, touch,
   requirement checks, and logout hints
 - CSRF endpoint
 - customer profile endpoints
@@ -374,7 +375,6 @@ to show the full platform surface, not just the visible web pages.
 - `/account/sign-in`
 - `/account/profile`
 - `/apply` and `/apply/[step]`
-- `/auth/callback`
 - `/security`
 - `/logging-demo`
 - `/showcase`
@@ -383,8 +383,8 @@ to show the full platform surface, not just the visible web pages.
 
 ### Browser-Facing API Demo Surfaces
 
-- `/api/auth/start`
-- `/api/auth/callback`
+- `/api/auth/idx/start`
+- `/api/auth/idx/complete`
 - `/api/auth/logout`
 - `/api/auth/session`
 - `/api/auth/session/touch`
@@ -445,7 +445,7 @@ to show the full platform surface, not just the visible web pages.
 The `dev` ACA public hostname can change when the environment is rebuilt.
 The stable customer-facing hostname `apply-dev.avanai.net` is prepared in
 source but should not be used as the demo URL until DNS validation,
-Bicep-managed certificate binding, and Okta callback cutover have completed.
+Bicep-managed certificate binding, and Okta redirect URI cutover have completed.
 
 Run this before the demo if you want to confirm the current URL:
 
@@ -676,8 +676,8 @@ Talking points:
 
 Walk through:
 
-- hosted sign-in
-- callback back into the app
+- app-owned IDX sign-in
+- server-side Interaction Code completion
 - arrival on `/apply/*`
 
 Talking points:
@@ -697,12 +697,12 @@ What to prove:
 
 - unauthenticated access redirects to
   `/account/sign-in?returnTo=%2Fapply%2Ffunding&aal=aal2`
-- the funding sign-in start asks Okta for stronger assurance with
-  `acr_values`, but does not send `max_age=0` while
-  `fundingStepUpRequiresPassword=false`; the goal is email-or-phone OTP step-up
-  without asking for the password again
+- while `fundingStepUpRequiresPassword=false`, the funding sign-in start sends
+  neither two-factor `acr_values` nor `max_age=0`; the possession-only app
+  policy asks for one email-or-phone OTP without asking for the password again
 - an existing `aal2` session is not enough by itself; each funding page entry
-  consumes the funding step-up marker written by the latest Okta callback
+  consumes the funding step-up marker written by the latest validated IDX
+  completion
 - after the Okta challenge completes, funding save/submit APIs can use that
   marker during the bounded 10-minute funding API window
 
@@ -720,37 +720,46 @@ $fundingRoute = Invoke-WebRequest `
 $fundingRoute.StatusCode
 $fundingRoute.Headers.Location
 
-$authStart = Invoke-WebRequest `
-  -UseBasicParsing `
-  -Uri "$baseUrl/api/auth/start?returnTo=%2Fapply%2Ffunding" `
-  -MaximumRedirection 0 `
+$webSession = [Microsoft.PowerShell.Commands.WebRequestSession]::new()
+$csrf = Invoke-RestMethod `
+  -Method Get `
+  -Uri "$baseUrl/api/security/csrf" `
+  -WebSession $webSession `
   -TimeoutSec 120
 
-$authorizeUrl = [uri][string]$authStart.Headers.Location
-$decodedAuthorizeQuery = [System.Net.WebUtility]::UrlDecode($authorizeUrl.Query)
+$idxStart = Invoke-RestMethod `
+  -Method Post `
+  -Uri "$baseUrl/api/auth/idx/start" `
+  -WebSession $webSession `
+  -Headers @{ 'x-csrf-token' = $csrf.csrfToken } `
+  -ContentType 'application/json' `
+  -Body '{"returnTo":"/apply/funding","minimumAssuranceLevel":"aal2"}' `
+  -TimeoutSec 120
 
-$authorizeUrl.Host
-$decodedAuthorizeQuery -match "acr_values=urn:okta:loa:2fa:any"
-$decodedAuthorizeQuery -notmatch "prompt=login"
-$decodedAuthorizeQuery -notmatch "max_age=0"
+$idxStart.issuer
+$idxStart.stepUpReason
+$idxStart.acrValues
+$idxStart.maxAgeSeconds
 ```
 
 Expected result:
 
 - route status is `307`
 - route location includes `returnTo=%2Fapply%2Ffunding` and `aal=aal2`
-- authorize host is `auth.avanai.net`
-- all three Okta query checks return `True`
-
-The final proof still needs an interactive browser session with a real dev Okta
-user:
+- IDX start returns `stepUpReason` `funding`
+- IDX start returns an empty `acrValues` for passwordless funding
+- IDX start does not return a PKCE verifier or any OAuth token
+- `maxAgeSeconds` is empty when funding is configured for possession-only OTP
+  The final proof still needs an interactive browser session with a real dev Okta
+  user:
 
 1. sign in normally
-2. open `/apply/funding`
-3. complete the Okta email or phone/SMS step-up challenge
-4. confirm the funding page loads and funding save/submit calls no longer return
+1. open `/apply/funding`
+1. complete the Okta email or phone/SMS step-up challenge without entering a
+   password
+1. confirm the funding page loads and funding save/submit calls no longer return
    the step-up error during the 10-minute API window
-5. leave funding and open `/apply/funding` again; it should start a new Okta
+1. leave funding and open `/apply/funding` again; it should start a new Okta
    step-up challenge instead of reusing the consumed route-entry marker
 
 ### 5. Show The Security Demo Page

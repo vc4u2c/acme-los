@@ -29,21 +29,14 @@ public sealed record WebAuthSessionTiming(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     WebAuthSessionStepUpTiming? StepUp = null);
 
-public sealed record WebAuthSessionDebugSnapshot(
-    Dictionary<string, object?>? IdTokenClaims,
-    Dictionary<string, object?>? AccessTokenClaims);
-
 public sealed record GetWebAuthSessionResponse(
     WebAuthSession Session,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    WebAuthSessionTiming? SessionTiming = null,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    WebAuthSessionDebugSnapshot? Debug = null);
+    WebAuthSessionTiming? SessionTiming = null);
 
 public sealed record SyncWebAuthSessionRequest(
     string IdToken,
     string? LeadId = null,
-    Dictionary<string, object?>? AccessTokenClaims = null,
     WebAuthSession? Session = null,
     int? ExpiresAt = null,
     WebAuthSessionTokenSet? ServerTokens = null,
@@ -77,11 +70,32 @@ public sealed record WebAuthStepUpRequirement(
     int MaxAgeSeconds,
     bool? ConsumeOnSatisfied = null);
 
-public sealed record StartAuthFlowResponse(
-    string AuthorizeUrl,
+public sealed record StartIdxAuthFlowRequest(
+    string? ReturnTo = null,
+    string? MinimumAssuranceLevel = null,
+    string? ExpectedUserId = null,
+    string? LeadId = null,
+    WebAuthStepUpRequirement? StepUp = null);
+
+public sealed record StartIdxAuthFlowResponse(
+    string Issuer,
+    string ClientId,
+    string RedirectUri,
+    string[] Scopes,
+    string State,
+    string Nonce,
+    string CodeChallenge,
+    string CodeChallengeMethod,
+    string? AcrValues,
+    int? MaxAgeSeconds,
     string TransactionId,
     int MaxAge,
-    string ReturnTo);
+    string ReturnTo,
+    string? StepUpReason);
+
+public sealed record CompleteIdxAuthFlowRequest(
+    string InteractionCode,
+    string State);
 
 public sealed record CompleteAuthFlowResponse(
     WebAuthSession Session,
@@ -94,6 +108,9 @@ public sealed record StartLogoutResponse(
     bool Cleared,
     string LogoutUrl,
     bool UsedOktaLogout);
+
+public sealed record StartLogoutRequest(
+    string? PostLogoutRedirectUri = null);
 
 public sealed record StoredWebAuthStepUp(
     string Reason,
@@ -120,7 +137,5 @@ public sealed record RequireWebAuthSessionResponse(
     WebAuthSessionTiming? SessionTiming = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? ErrorMessage = null);
-
-public sealed record GetWebAuthLogoutHintResponse(string? IdToken);
 
 public sealed record IssueCsrfTokenResponse(string CsrfToken);

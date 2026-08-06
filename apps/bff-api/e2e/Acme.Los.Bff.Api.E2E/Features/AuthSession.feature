@@ -8,9 +8,6 @@ Feature: BFF auth session API
     When I touch the BFF auth session
     Then the response status code should be OK
     And the auth session touch should succeed
-    When I request the BFF auth logout hint
-    Then the response status code should be OK
-    And the logout hint id token should be "id-token-123"
-    When I clear the BFF auth session
+    When I start the BFF logout
     Then the response status code should be OK
     And the auth session should be unauthenticated

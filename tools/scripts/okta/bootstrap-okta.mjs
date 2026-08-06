@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   buildAccountManagementPolicyRuleDefinitions,
+  buildRetiredAccountManagementPolicyRuleNames,
   findAccountManagementPolicy,
   printAccountManagementPolicyRules,
   summarizeAccountManagementPolicyRules,
@@ -73,7 +74,22 @@ const oktaAuthorizationHeader = oktaManagementAccessToken
     ? `SSWS ${oktaApiToken}`
     : '';
 const issuer = requiredString(environment.okta?.issuer, 'okta.issuer');
-const oktaApiBaseUrl = new URL('/', issuer).toString().replace(/\/$/, '');
+const configuredOktaOrgUrl = new URL(
+  requiredString(environment.okta?.orgUrl, 'okta.orgUrl'),
+);
+if (
+  configuredOktaOrgUrl.protocol !== 'https:' ||
+  configuredOktaOrgUrl.username ||
+  configuredOktaOrgUrl.password ||
+  configuredOktaOrgUrl.pathname !== '/' ||
+  configuredOktaOrgUrl.search ||
+  configuredOktaOrgUrl.hash
+) {
+  throw new Error(
+    'Expected "okta.orgUrl" to be an HTTPS origin without credentials, path, query, or fragment.',
+  );
+}
+const oktaApiBaseUrl = configuredOktaOrgUrl.origin;
 const warnings = [];
 
 function isProfileEnrollmentRuleOwnershipError(error) {
@@ -899,6 +915,13 @@ async function updatePolicyRule(policyId, ruleId, payload) {
   );
 }
 
+async function deactivatePolicyRule(policyId, ruleId) {
+  return oktaRequest(
+    'POST',
+    `/api/v1/policies/${policyId}/rules/${ruleId}/lifecycle/deactivate`,
+  );
+}
+
 async function assignPolicyToApp(appId, policyId) {
   return oktaRequest('PUT', `/api/v1/apps/${appId}/policies/${policyId}`);
 }
@@ -1162,7 +1185,7 @@ function buildAuthorizationServerRulePayload({
         },
       },
       grantTypes: {
-        include: ['authorization_code'],
+        include: ['authorization_code', 'interaction_code'],
       },
       scopes: {
         include: customerWebOauthScopes,
@@ -1187,7 +1210,7 @@ function buildProfileEnrollmentPolicyPayload({
     type: 'PROFILE_ENROLLMENT',
     status: 'ACTIVE',
     name: policyName,
-    description: `Hosted registration policy for ACME LOS (${environmentName}).`,
+    description: `Customer registration policy for ACME LOS (${environmentName}).`,
     conditions: existingPolicy?.conditions ?? null,
   };
 }
@@ -2156,6 +2179,12 @@ const webPostLogoutRedirectPath = requiredString(
   environment.web?.postLogoutRedirectPath,
   'web.postLogoutRedirectPath',
 );
+const webPostLogoutRedirectUris = getUniqueValues(
+  allowedWebBaseUrls.flatMap((baseUrl) => [
+    toAbsoluteUrl(baseUrl, webPostLogoutRedirectPath),
+    toAbsoluteUrl(baseUrl, '/account/sign-in'),
+  ]),
+);
 const mobileRedirectUri = toMobileRedirectUri(
   requiredString(environment.mobile?.scheme, 'mobile.scheme'),
   requiredString(environment.mobile?.redirectPath, 'mobile.redirectPath'),
@@ -2236,6 +2265,17 @@ const accountSecurityPolicyIntent = {
   },
   orgLevelSettings: [
     {
+      setting: 'Embedded widget sign-in support: Interaction Code',
+      desiredState: 'Enabled',
+      adminPath: 'Settings > Account > Embedded widget sign-in support',
+      scope: 'Okta org',
+      automationStatus: 'manual-public-api-not-exposed',
+      reason:
+        'Okta requires Interaction Code at the org, custom authorization-server rule, and app integration. Bootstrap manages the rule and app, but no supported public API is documented for the org checkbox.',
+      impact:
+        'App-owned Auth JS IDX transactions fail before remediation when this org setting is disabled.',
+    },
+    {
       setting: 'Map primary email to login attribute',
       desiredState: mapPrimaryEmailToLogin ? 'Enabled' : 'Not enabled',
       adminPath: 'Security > General > Organization',
@@ -2250,11 +2290,11 @@ const accountSecurityPolicyIntent = {
   registration: {
     loginIdentifier: 'email',
     mapPrimaryEmailToLogin,
-    hostedProfileAttributes: registrationProfileAttributes,
-    hostedStateInput:
+    idxProfileAttributes: registrationProfileAttributes,
+    idxStateInput:
       'Missouri/Texas state enum rendered as a select control from the ACME-owned acmeState profile attribute',
-    hostedFlowShape:
-      'Okta-hosted registration collects only the identity fields needed to create the account. Password, email OTP, and phone/SMS OTP are modeled as Okta authenticator enrollment steps so verification starts from the customer action in the native widget.',
+    idxFlowShape:
+      'App-owned IDX registration renders the remediation inputs returned by Okta. Password, email OTP, and phone/SMS OTP are authenticator enrollment steps, not ACME profile fields.',
     profileEnrollmentEmailVerification: registrationProfileEmailVerification,
     profileEnrollmentAuthenticatorTypes:
       registrationEnrollmentAuthenticatorTypes,
@@ -2271,16 +2311,10 @@ const accountSecurityPolicyIntent = {
         : []),
     ],
   },
-  oktaHostedAccountManagement: [
-    {
-      action: 'forgot_email',
-      requiredProofs: ['phone_sms_otp', 'security_question_challenge'],
-      postCondition: 'fresh_acme_sign_in',
-      backendSync:
-        'Treat the recovered Okta email claim as the source of truth only after a fresh ACME sign-in.',
-    },
+  accountSecurityOperations: [
     {
       action: 'change_email',
+      enforcement: 'acme_bff_step_up_then_user_scoped_myaccount_api',
       requiredProofs: ['current_password', 'phone_sms_otp'],
       postCondition:
         'sign_out_then_fresh_acme_sign_in_with_new_email_and_email_otp',
@@ -2289,6 +2323,7 @@ const accountSecurityPolicyIntent = {
     },
     {
       action: 'forgot_password',
+      enforcement: 'okta_password_recovery_and_account_management_policy',
       requiredProofs: ['security_question_challenge', 'phone_sms_otp'],
       postCondition: 'sign_out_then_fresh_acme_sign_in_with_new_password',
       backendSync:
@@ -2296,17 +2331,15 @@ const accountSecurityPolicyIntent = {
     },
     {
       action: 'change_password',
-      requiredProofs: [
-        'current_password',
-        'phone_sms_otp',
-        'security_question_challenge',
-      ],
+      enforcement: 'acme_bff_step_up_then_user_scoped_myaccount_api',
+      requiredProofs: ['current_password', 'phone_sms_otp'],
       postCondition: 'sign_out_then_fresh_acme_sign_in_with_new_password',
       backendSync:
         'Do not sync or store password material. Log only non-sensitive password-change metadata if an Okta event hook is enabled.',
     },
     {
       action: 'lost_phone_or_sms_factor_replacement',
+      enforcement: 'okta_account_management_policy',
       requiredProofs: ['okta_email_otp', 'security_question_challenge'],
       postCondition:
         'replace_phone_then_fresh_acme_sign_in_with_new_phone_sms_otp',
@@ -2315,18 +2348,21 @@ const accountSecurityPolicyIntent = {
     },
     {
       action: 'change_phone_or_sms_factor',
+      enforcement: 'acme_bff_step_up_then_user_scoped_myaccount_api',
       requiredProofs: ['current_password', 'okta_email_otp'],
       postCondition: 'sign_out_then_fresh_acme_sign_in_with_new_phone_sms_otp',
       backendSync:
         'After a fresh ACME sign-in with the unchanged email and the new phone/SMS OTP, sync verified phone metadata only when Okta exposes it through a profile claim, Management API lookup, or event hook.',
     },
   ],
-  oktaOnlySecrets: [
-    'password',
+  idxOnlySecrets: [
+    'authentication_password',
     'security_question_answer',
-    'security_question_hint',
     'otp_codes',
   ],
+  bffTransientSecrets: ['myaccount_current_password', 'myaccount_new_password'],
+  myAccountPolicyBoundary:
+    'Okta Account Management Policy does not support the MyAccount Email, Phone, or Password APIs. ACME BFF step-up validation is authoritative for those mutations.',
   userPrune: {
     enabled: userPrune.enabled === true,
     action: optionalString(userPrune.action) ?? 'deactivate',
@@ -2442,14 +2478,12 @@ const expectedTelephonyInlineHook = {
 const expectedWebApp = {
   label: `ACME LOS Web (${environment.environment})`,
   applicationType: 'browser',
-  grantTypes: ['authorization_code', 'refresh_token'],
+  grantTypes: ['authorization_code', 'interaction_code', 'refresh_token'],
   responseTypes: ['code'],
   redirectUris: allowedWebBaseUrls.map((baseUrl) =>
     toAbsoluteUrl(baseUrl, webRedirectPath),
   ),
-  postLogoutRedirectUris: allowedWebBaseUrls.map((baseUrl) =>
-    toAbsoluteUrl(baseUrl, webPostLogoutRedirectPath),
-  ),
+  postLogoutRedirectUris: webPostLogoutRedirectUris,
   payload: {
     name: 'oidc_client',
     label: `ACME LOS Web (${environment.environment})`,
@@ -2465,11 +2499,13 @@ const expectedWebApp = {
         redirect_uris: allowedWebBaseUrls.map((baseUrl) =>
           toAbsoluteUrl(baseUrl, webRedirectPath),
         ),
-        post_logout_redirect_uris: allowedWebBaseUrls.map((baseUrl) =>
-          toAbsoluteUrl(baseUrl, webPostLogoutRedirectPath),
-        ),
+        post_logout_redirect_uris: webPostLogoutRedirectUris,
         response_types: ['code'],
-        grant_types: ['authorization_code', 'refresh_token'],
+        grant_types: [
+          'authorization_code',
+          'interaction_code',
+          'refresh_token',
+        ],
         initiate_login_uri: deployedWebBaseUrl,
         logo_uri: toAbsoluteUrl(
           deployedWebBaseUrl,
@@ -2551,6 +2587,8 @@ const expectedAccountManagementPolicyRules =
     customerGroupName,
     telephonyEnabled,
   });
+const retiredAccountManagementPolicyRuleNames =
+  buildRetiredAccountManagementPolicyRuleNames(environmentName);
 const sessionAndAdaptivePolicyIntent = {
   session: {
     policyName: sessionPolicyName,
@@ -2564,13 +2602,14 @@ const sessionAndAdaptivePolicyIntent = {
   appSignIn: {
     policyName: accessPolicyName,
     scope: [expectedWebApp.label, expectedMobileApp.label],
-    standardRule:
-      'Password-first app sign-in. Keep-me-signed-in is allowed only when the environment manifest enables it.',
+    standardRule: fundingStepUpRequiresPassword
+      ? 'Password-first app authorization. Keep-me-signed-in is allowed only when the environment manifest enables it.'
+      : 'Fresh possession verification on each app authorization enables repeatable email or phone/SMS funding checks without password reauthentication. This is an app-wide one-client policy; the global session policy still controls primary authentication.',
     highRiskRule: hostedExperience.adaptiveMfaOnSignIn
       ? 'Okta risk score HIGH requires password-first 2FA with keep-me-signed-in disabled for that authentication event.'
       : 'Disabled by hostedExperience.adaptiveMfaOnSignIn=false.',
     signInSecurityQuestion:
-      'Security-question challenge/hint is not required during app sign-in; it is reserved for recovery and sensitive account-management changes.',
+      'Security question is reserved for account recovery. Okta recommends against using security questions in routine authentication.',
     deviceRiskBoundary:
       'New-device and anomalous-device signals are Okta risk inputs when the org supports them. Device assurance and device signal collection are org-level Okta features and are not currently provisioned by this bootstrap.',
   },
@@ -2620,6 +2659,7 @@ if (dryRun) {
     accountManagementPolicyRules: summarizeAccountManagementPolicyRules(
       expectedAccountManagementPolicyRules,
     ),
+    retiredAccountManagementPolicyRuleNames,
     accountSecurityPolicyIntent,
     sessionAndAdaptivePolicyIntent,
     telephony: {
@@ -3171,7 +3211,7 @@ const customProfileAttributesResult = await ensureUserProfileAttributes({
   acmeState: {
     title: 'State',
     description:
-      'Customer supported state captured during Okta-hosted registration.',
+      'Customer supported state captured during app-owned IDX registration.',
     minLength: 2,
     maxLength: 2,
     selfPermission: 'READ_WRITE',
@@ -3497,7 +3537,7 @@ results.accountManagementPolicyRules = [];
 
 if (!accountManagementPolicy) {
   throw new Error(
-    'Okta account-management policy was not found in ACCESS_POLICY results with resourceType END_USER_ACCOUNT_MANAGEMENT. Confirm Identity Engine account-management policy is enabled before relying on email, phone, or password lifecycle automation.',
+    'Okta account-management policy was not found in ACCESS_POLICY results with resourceType END_USER_ACCOUNT_MANAGEMENT. Confirm Identity Engine account-management policy is enabled before relying on password or authenticator recovery policy.',
   );
 }
 
@@ -3513,6 +3553,31 @@ for (const ruleDefinition of accountManagementPolicyRules) {
     name: ruleDefinition.name,
     scenarioIds: ruleDefinition.scenarioIds,
     expectedProofs: ruleDefinition.expectedProofs,
+  });
+}
+
+const existingAccountManagementRules = await listPolicyRules(
+  accountManagementPolicy.id,
+);
+results.retiredAccountManagementPolicyRules = [];
+for (const retiredRuleName of retiredAccountManagementPolicyRuleNames) {
+  const retiredRule = existingAccountManagementRules.find(
+    (rule) => rule.name === retiredRuleName,
+  );
+
+  if (!retiredRule || retiredRule.status === 'INACTIVE') {
+    results.retiredAccountManagementPolicyRules.push({
+      name: retiredRuleName,
+      mode: retiredRule ? 'already-inactive' : 'not-found',
+    });
+    continue;
+  }
+
+  await deactivatePolicyRule(accountManagementPolicy.id, retiredRule.id);
+  results.retiredAccountManagementPolicyRules.push({
+    id: retiredRule.id,
+    name: retiredRuleName,
+    mode: 'deactivated',
   });
 }
 
@@ -3630,7 +3695,7 @@ results.applicationAssignmentGroupId = customerGroupId;
 
 if (hostedExperience.rememberUser) {
   warnings.push(
-    "The hosted sign-in page uses the ACME Gen3 shell around native Okta controls, so Okta's built-in remember-user behavior is visible if enabled by the widget/org configuration. Customer session lifetime and remember-device behavior remain controlled by the scoped Okta session and access policies.",
+    'The hosted mobile/rollback sign-in page uses the ACME Gen3 shell around native Okta controls. The web app uses app-owned IDX controls. Customer session lifetime and remember-device behavior remain controlled by the scoped Okta session and access policies.',
   );
 }
 
@@ -3640,9 +3705,13 @@ if (mapPrimaryEmailToLogin) {
   );
 }
 
+warnings.push(
+  'Verify Okta Admin > Settings > Account > Embedded widget sign-in support has Interaction Code enabled. Bootstrap configures the web app and custom authorization-server rule, but Okta does not document a supported public setter for the org checkbox.',
+);
+
 if (hostedExperience.fundingRouteStepUp) {
   warnings.push(
-    `Funding step-up remains enforced by the application guard plus the Okta app sign-in policy. fundingStepUpRequiresPassword=${fundingStepUpRequiresPassword}; when false, the standard app authorization rule requires email or phone/SMS possession OTP every time without max_age=0 password reauthentication. Verify this behavior once after publishing the hosted page and policy changes.`,
+    `Funding step-up remains enforced by the application guard plus the Okta app sign-in policy. fundingStepUpRequiresPassword=${fundingStepUpRequiresPassword}; when false, the one-client app authorization policy requires a fresh email or phone/SMS possession factor on every authorization while the global session retains primary authentication. Verify this app-wide behavior after publishing the policy changes.`,
   );
 }
 
@@ -3688,6 +3757,8 @@ writeJsonFile(bootstrapOutputsPath, {
   orgLevelSettingsIntent: accountSecurityPolicyIntent.orgLevelSettings,
   accountManagementPolicy: results.accountManagementPolicy,
   accountManagementPolicyRules: results.accountManagementPolicyRules,
+  retiredAccountManagementPolicyRules:
+    results.retiredAccountManagementPolicyRules,
   accountSecurityPolicyIntent,
   sessionAndAdaptivePolicyIntent,
   securityQuestionAuthenticator: results.securityQuestionAuthenticator,

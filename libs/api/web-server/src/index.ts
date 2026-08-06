@@ -27,7 +27,6 @@ export {
 export {
   clearWebAuthLogoutArtifacts,
   clearWebAuthSession,
-  readLogoutHintIdToken,
   readWebAuthSession,
   requireAuthenticatedWebSession,
   touchWebAuthSession,
@@ -59,12 +58,22 @@ export {
 } from './lib/state-store';
 export { buildPublicRequestUrl, getRequestOrigin } from './lib/request-url';
 export {
+  clearPostChangeAuthIntent,
+  POST_CHANGE_AUTH_COOKIE_NAME,
+  POST_CHANGE_AUTH_MAX_AGE_SECONDS,
+  parsePostChangeAuthIntent,
+  readPostChangeAuthIntent,
+  writePostChangeAuthIntent,
+  type PostChangeAuthAction,
+  type PostChangeAuthIntent,
+} from './lib/post-change-auth';
+export {
   clearWebAuthTransaction,
   readWebAuthTransactionCookie,
   writeBffWebAuthTransaction,
-} from './lib/okta-auth-flow';
+} from './lib/auth-transaction-cookie';
 export {
-  completeBffAuthCallback,
-  startBffAuthFlow,
+  completeBffIdxAuthFlow,
+  startBffIdxAuthFlow,
   startBffLogout,
 } from './lib/bff-auth-session-client';

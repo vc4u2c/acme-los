@@ -12,6 +12,7 @@ param bffVersion string = '0.0.0'
 param authProvider string = 'okta'
 param oktaEnvironmentName string = appEnvironmentName
 param oktaIssuer string
+param oktaOrgUrl string = ''
 param oktaClientId string
 param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
@@ -202,6 +203,10 @@ var environmentVariables = concat(
     {
       name: 'ACME_OKTA_ISSUER'
       value: oktaIssuer
+    }
+    {
+      name: 'ACME_OKTA_ORG_URL'
+      value: oktaOrgUrl
     }
     {
       name: 'ACME_OKTA_CLIENT_ID'

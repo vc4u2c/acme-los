@@ -184,9 +184,22 @@ function writeFile(relativePath, contents) {
 }
 
 const issuer = requiredString(environment.okta?.issuer, 'okta.issuer');
-const oktaOrgUrl =
-  optionalString(environment.okta?.orgUrl) ??
-  new URL('/', issuer).toString().replace(/\/$/, '');
+const configuredOktaOrgUrl = new URL(
+  requiredString(environment.okta?.orgUrl, 'okta.orgUrl'),
+);
+if (
+  configuredOktaOrgUrl.protocol !== 'https:' ||
+  configuredOktaOrgUrl.username ||
+  configuredOktaOrgUrl.password ||
+  configuredOktaOrgUrl.pathname !== '/' ||
+  configuredOktaOrgUrl.search ||
+  configuredOktaOrgUrl.hash
+) {
+  throw new Error(
+    'Expected "okta.orgUrl" to be an HTTPS origin without credentials, path, query, or fragment.',
+  );
+}
+const oktaOrgUrl = configuredOktaOrgUrl.origin;
 const webClientId = resolveClientId(
   environment.okta?.webClientId,
   'web-client-id',
@@ -331,16 +344,16 @@ const webEnvContents = [
   `# Generated from infra/okta/environments/${environmentName}.json`,
   `# Policy intent: ${policySummary}`,
   'NEXT_PUBLIC_APP_ENVIRONMENT=local',
+  'ACME_AUTH_PROVIDER=okta',
   'NEXT_PUBLIC_AUTH_PROVIDER=okta',
-  `NEXT_PUBLIC_OKTA_ENVIRONMENT=${environment.environment}`,
+  `ACME_OKTA_ISSUER=${issuer}`,
+  `ACME_OKTA_ORG_URL=${oktaOrgUrl}`,
   `NEXT_PUBLIC_OKTA_ISSUER=${issuer}`,
-  `NEXT_PUBLIC_OKTA_ORG_URL=${oktaOrgUrl}`,
-  `NEXT_PUBLIC_OKTA_CLIENT_ID=${webClientId}`,
-  `NEXT_PUBLIC_OKTA_REDIRECT_URI=${webRedirectUri}`,
-  `NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI=${webPostLogoutRedirectUri}`,
-  `NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES=${fundingStepUpAcrValues}`,
+  `ACME_OKTA_CLIENT_ID=${webClientId}`,
+  `ACME_OKTA_REDIRECT_URI=${webRedirectUri}`,
+  `ACME_OKTA_POST_LOGOUT_REDIRECT_URI=${webPostLogoutRedirectUri}`,
+  `ACME_OKTA_FUNDING_ACR_VALUES=${fundingStepUpAcrValues}`,
   `ACME_OKTA_FUNDING_STEP_UP_METHOD=${fundingStepUpMethod}`,
-  `NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD=${fundingStepUpMethod}`,
   `ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD=${fundingStepUpRequiresPassword}`,
   `NEXT_PUBLIC_ACME_THEME_COOKIE_DOMAIN=${themeCookieDomain}`,
   '',
@@ -366,11 +379,15 @@ const bffSettings = {
     Okta: {
       Environment: environment.environment,
       Issuer: issuer,
+      OrgUrl: oktaOrgUrl,
       FundingStepUpAcrValues: fundingStepUpAcrValues,
-      LoginPath: requiredString(environment.bff?.loginPath, 'bff.loginPath'),
-      CallbackPath: requiredString(
-        environment.bff?.callbackPath,
-        'bff.callbackPath',
+      IdxStartPath: requiredString(
+        environment.bff?.idxStartPath,
+        'bff.idxStartPath',
+      ),
+      IdxCompletePath: requiredString(
+        environment.bff?.idxCompletePath,
+        'bff.idxCompletePath',
       ),
       LogoutPath: requiredString(environment.bff?.logoutPath, 'bff.logoutPath'),
       SessionPath: requiredString(

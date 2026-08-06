@@ -1,14 +1,15 @@
 import type {
   ClearWebAuthSessionResponse,
   CompleteAuthFlowResponse,
-  GetWebAuthLogoutHintResponse,
+  CompleteIdxAuthFlowRequest,
   GetWebAuthSessionResponse,
   RequireWebAuthSessionRequest,
   RequireWebAuthSessionResponse,
-  StartAuthFlowResponse,
+  StartIdxAuthFlowRequest,
+  StartIdxAuthFlowResponse,
+  StartLogoutRequest,
   StartLogoutResponse,
   TouchWebAuthSessionResponse,
-  WebAuthStepUpRequirement,
 } from '@acme-los/api/contracts';
 import type { NextRequest } from 'next/server';
 import {
@@ -172,101 +173,50 @@ function readBffMutationHeaders<T>(
 
 export async function readBffWebAuthSession(
   context: BffAuthRequestContext,
-  options: { includeDebug?: boolean } = {},
 ): Promise<GetWebAuthSessionResponse> {
-  const query = options.includeDebug ? '?includeDebug=1' : '';
-
   return (
     await fetchBffAuthJson<GetWebAuthSessionResponse>(
-      `/bff/auth/session${query}`,
+      '/bff/auth/session',
       context,
     )
   ).payload;
 }
 
-export async function startBffAuthFlow(
+export async function startBffIdxAuthFlow(
   request: NextRequest,
-  options: {
-    returnTo?: string;
-    minimumAssuranceLevel?: 'aal1' | 'aal2';
-    expectedUserId?: string;
-    leadId?: string;
-    stepUp?: WebAuthStepUpRequirement;
-    widgetFlow?: 'resetPassword' | 'unlockAccount' | 'signup';
-  },
-): Promise<StartAuthFlowResponse> {
-  const searchParams = new URLSearchParams();
-
-  if (options.returnTo) {
-    searchParams.set('returnTo', options.returnTo);
-  }
-
-  if (options.minimumAssuranceLevel) {
-    searchParams.set('aal', options.minimumAssuranceLevel);
-  }
-
-  if (options.expectedUserId) {
-    searchParams.set('expectedUserId', options.expectedUserId);
-  }
-
-  if (options.leadId) {
-    searchParams.set('leadId', options.leadId);
-  }
-
-  if (options.widgetFlow) {
-    searchParams.set('widgetFlow', options.widgetFlow);
-  }
-
-  if (options.stepUp) {
-    searchParams.set('stepUpReason', options.stepUp.reason);
-    searchParams.set(
-      'stepUpMaxAgeSeconds',
-      String(options.stepUp.maxAgeSeconds),
-    );
-    searchParams.set(
-      'stepUpConsumeOnSatisfied',
-      options.stepUp.consumeOnSatisfied ? 'true' : 'false',
-    );
-  }
-
-  const query = searchParams.size > 0 ? `?${searchParams.toString()}` : '';
-
+  payload: StartIdxAuthFlowRequest,
+): Promise<StartIdxAuthFlowResponse> {
   return (
-    await fetchBffAuthJson<StartAuthFlowResponse>(`/bff/auth/login${query}`, {
+    await fetchBffAuthJson<StartIdxAuthFlowResponse>('/bff/auth/idx/start', {
       request,
+      method: 'POST',
+      body: payload,
     })
   ).payload;
 }
 
-export async function completeBffAuthCallback(
+export async function completeBffIdxAuthFlow(
   request: NextRequest,
-  query: {
-    code: string;
-    state: string;
-  },
+  payload: CompleteIdxAuthFlowRequest,
 ): Promise<BffAuthMutation<CompleteAuthFlowResponse>> {
-  const searchParams = new URLSearchParams({
-    code: query.code,
-    state: query.state,
-  });
-
   return readBffMutationHeaders(
-    await fetchBffAuthJson<CompleteAuthFlowResponse>(
-      `/bff/auth/callback?${searchParams.toString()}`,
-      {
-        request,
-      },
-    ),
+    await fetchBffAuthJson<CompleteAuthFlowResponse>('/bff/auth/idx/complete', {
+      request,
+      method: 'POST',
+      body: payload,
+    }),
   );
 }
 
 export async function startBffLogout(
   request: NextRequest,
+  payload: StartLogoutRequest = {},
 ): Promise<StartLogoutResponse> {
   return (
     await fetchBffAuthJson<StartLogoutResponse>('/bff/auth/logout', {
       request,
       method: 'POST',
+      body: payload,
     })
   ).payload;
 }
@@ -315,17 +265,4 @@ export async function requireBffWebAuthSession(
       },
     )
   ).payload;
-}
-
-export async function readBffLogoutHintIdToken(
-  request: NextRequest,
-): Promise<string | null> {
-  return (
-    await fetchBffAuthJson<GetWebAuthLogoutHintResponse>(
-      '/bff/auth/logout-hint',
-      {
-        request,
-      },
-    )
-  ).payload.idToken;
 }

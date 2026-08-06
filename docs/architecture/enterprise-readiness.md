@@ -41,8 +41,8 @@ Security strengths:
 - browsers call the same-origin Next `/api/*` facade instead of the raw BFF
 - The BFF is the auth/session, CSRF, customer-profile, and
   application-flow authority behind that facade
-- Okta hosted sign-in uses server-side PKCE, nonce/state validation, and
-  server-side id-token validation
+- app-owned Okta IDX sign-in uses server-generated PKCE, nonce/state
+  validation, and server-side ID-token validation
 - tokens stay off the browser in the normal signed-in flow
 - opaque HTTP-only sessions and CSRF double-submit protection are in place
 - Redis holds shared server-side state in hardened local and Azure paths
@@ -90,7 +90,7 @@ Scalability gaps:
   load arrives
 - customer/application persistence still needs a durable backend system of
   record instead of temporary server-side workflow state
-- performance/load tests should be added for sign-in callback, session touch,
+- performance/load tests should be added for IDX completion, session touch,
   application save, and BFF proxy paths
 
 ## Fault Tolerance
@@ -143,7 +143,7 @@ Enterprise gaps to close next:
 - enable and verify `bffRuntime.serviceAuth.mode=entra` in `qa`, `stg`, and
   `prod` after each environment's BFF app registration is created; consider
   mTLS as an additional private-origin control after that
-- add server-side Measurement Protocol emission for auth callbacks and other
+- add server-side Measurement Protocol emission for auth completions and other
   events the browser cannot observe
 
 ## Practical Rating

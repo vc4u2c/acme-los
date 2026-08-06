@@ -23,16 +23,16 @@ export function buildAccountSecurityStepUpUrl(
     aal: 'aal2',
   });
 
-  return `/api/auth/start?${searchParams.toString()}`;
+  return `/account/sign-in?${searchParams.toString()}`;
 }
 
-export function buildHostedPasswordRecoveryUrl(
+export function buildPasswordRecoveryUrl(
   returnTo = '/account/profile?account_action=password',
 ): string {
   const searchParams = new URLSearchParams({
     returnTo,
-    widgetFlow: 'resetPassword',
+    flow: 'recoverPassword',
   });
 
-  return `/api/auth/start?${searchParams.toString()}`;
+  return `/account/sign-in?${searchParams.toString()}`;
 }

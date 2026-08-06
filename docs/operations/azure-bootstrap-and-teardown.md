@@ -298,7 +298,7 @@ npm run azure:custom-domain:web -- -EnvironmentName dev -Action verify-dns
 
 Only after DNS verification succeeds should
 `environments.dev.publicDomain.enabled` be set to `true` and the web runtime
-be deployed through Bicep while callbacks still use the ACA hostname. After
+be deployed through Bicep while Okta redirect URIs still use the ACA hostname. After
 `https://apply-dev.avanai.net/api/health` succeeds, change the Okta `dev`
 deployed base URL to `https://apply-dev.avanai.net`, run `okta:bootstrap`, and
 deploy the web runtime again. This enables round-trip light/dark preference

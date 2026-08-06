@@ -66,9 +66,12 @@ x-acme-bff-proxy-secret: {{TrustedProxySecret}}
 
 ###
 
-GET {{BffHost}}/bff/auth/logout-hint
+POST {{BffHost}}/bff/auth/logout
 Accept: application/json
+Content-Type: application/json
 x-acme-bff-proxy-secret: {{TrustedProxySecret}}
+
+{}
 
 ###
 

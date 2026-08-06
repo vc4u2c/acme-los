@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mail;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -54,9 +55,6 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
 {
   private const string OktaMyAccountAcceptMediaType =
     "application/json; okta-version=1.0.0";
-  private const string JsonMediaType = "application/json";
-  private const string OktaVersionParameterName = "okta-version";
-  private const string OktaMyAccountVersion = "1.0.0";
 
   private static readonly JsonSerializerOptions JsonOptions =
     new(JsonSerializerDefaults.Web);
@@ -116,7 +114,11 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
       accessToken,
       HttpMethod.Post,
       $"/idp/myaccount/emails/{Uri.EscapeDataString(emailId)}/challenge",
-      null,
+      new
+      {
+        state = Convert.ToHexString(RandomNumberGenerator.GetBytes(32))
+          .ToLowerInvariant(),
+      },
       cancellationToken);
     var challengeId = NormalizeOktaResponseChallengeId(
       challenge.ChallengeId
@@ -272,12 +274,6 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     if (body is not null)
     {
       request.Content = JsonContent.Create(body, options: JsonOptions);
-      request.Content.Headers.ContentType = CreateOktaJsonContentType();
-    }
-    else if (method == HttpMethod.Post || method == HttpMethod.Put)
-    {
-      request.Content = new ByteArrayContent(Array.Empty<byte>());
-      request.Content.Headers.ContentType = CreateOktaJsonContentType();
     }
 
     using var response = await _httpClientFactory.CreateClient().SendAsync(
@@ -301,17 +297,6 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
       ?? throw new OktaMyAccountException(
         "Okta returned an empty MyAccount response.",
         StatusCodes.Status502BadGateway);
-  }
-
-  private static MediaTypeHeaderValue CreateOktaJsonContentType()
-  {
-    var contentType = new MediaTypeHeaderValue(JsonMediaType);
-    contentType.Parameters.Add(
-      new NameValueHeaderValue(
-        OktaVersionParameterName,
-        OktaMyAccountVersion));
-
-    return contentType;
   }
 
   private static async ValueTask<OktaMyAccountException> BuildOktaExceptionAsync(

@@ -1,10 +1,19 @@
 import { getSafeAuthReturnTo } from '@acme-los/auth/core';
-import { getServerWebAuthSessionRequirementStatus } from '@acme-los/api/web-server';
-import { redirect } from 'next/navigation';
-import { CustomerAuthLaunchPage } from '../../../components/web/customer-auth-launch-page';
 import {
-  getApplicationAuthRequirementForPath,
+  getServerWebAuthConfig,
+  getServerWebAuthSessionRequirementStatus,
+  parsePostChangeAuthIntent,
+  POST_CHANGE_AUTH_COOKIE_NAME,
+} from '@acme-los/api/web-server';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { CustomerIdxAuthPage } from '../../../components/web/customer-idx-auth-page';
+import { CustomerMockSignInPage } from '../../../components/web/customer-mock-sign-in-page';
+import type { IdxJourneyFlow } from '../../../lib/idx-experience';
+import {
   getMinimumAssuranceLevelForApplicationPath,
+  getSignInAuthRequirementForPath,
+  shouldAlwaysStartInteractiveStepUpForPath,
 } from '../../../lib/application-auth';
 
 export default async function SignInPage({
@@ -14,7 +23,7 @@ export default async function SignInPage({
     returnTo?: string;
     aal?: string;
     authError?: string;
-    authRecovery?: string;
+    flow?: string;
   }>;
 }) {
   const resolvedSearchParams = await searchParams;
@@ -22,54 +31,64 @@ export default async function SignInPage({
     resolvedSearchParams.returnTo,
     '/account/profile',
   );
-  const routeRequirement = getApplicationAuthRequirementForPath(returnTo);
   const minimumAssuranceLevel = getMinimumAssuranceLevelForApplicationPath(
     returnTo,
     resolvedSearchParams.aal === 'aal2' ? 'aal2' : 'aal1',
   );
-  const signInRequirement = routeRequirement?.requiredStepUp
-    ? {
-        requiresAuthentication: true,
-        minimumAssuranceLevel,
-        requiredStepUp: routeRequirement.requiredStepUp,
-      }
-    : {
-        requiresAuthentication: true,
-        minimumAssuranceLevel,
-      };
+  const signInRequirement = getSignInAuthRequirementForPath(
+    returnTo,
+    minimumAssuranceLevel,
+  );
+  const shouldAlwaysStartInteractiveStepUp =
+    shouldAlwaysStartInteractiveStepUpForPath(returnTo);
   const authError = resolvedSearchParams.authError?.trim() || undefined;
-  const recoverableAuthError =
-    resolvedSearchParams.authRecovery === 'restart' && Boolean(authError);
+  const cookieStore = await cookies();
+  const postChange = Boolean(
+    parsePostChangeAuthIntent(
+      cookieStore.get(POST_CHANGE_AUTH_COOKIE_NAME)?.value,
+    ),
+  );
+  const requestedIdxFlow: IdxJourneyFlow = [
+    'register',
+    'recoverPassword',
+    'unlockAccount',
+  ].includes(resolvedSearchParams.flow ?? '')
+    ? (resolvedSearchParams.flow as IdxJourneyFlow)
+    : 'authenticate';
+  const idxFlow: IdxJourneyFlow = postChange
+    ? 'authenticate'
+    : requestedIdxFlow;
   const { session, isSatisfied } =
     await getServerWebAuthSessionRequirementStatus(signInRequirement);
 
-  if (session?.isAuthenticated && session.user !== null && isSatisfied) {
+  if (
+    idxFlow === 'authenticate' &&
+    session?.isAuthenticated &&
+    session.user !== null &&
+    isSatisfied &&
+    !shouldAlwaysStartInteractiveStepUp &&
+    !postChange
+  ) {
     redirect(returnTo);
   }
 
+  if (getServerWebAuthConfig().provider !== 'mock') {
+    return (
+      <CustomerIdxAuthPage
+        returnTo={returnTo}
+        minimumAssuranceLevel={minimumAssuranceLevel}
+        flow={idxFlow}
+        errorMessage={authError}
+        postChange={postChange}
+      />
+    );
+  }
+
   return (
-    <CustomerAuthLaunchPage
+    <CustomerMockSignInPage
       returnTo={returnTo}
       minimumAssuranceLevel={minimumAssuranceLevel}
-      eyebrow="Customer portal"
-      title="Opening secure sign in"
-      description="Use the hosted Okta customer portal to resume the application, review disclosures, and check funding updates in one secure place."
-      actionLabel={
-        recoverableAuthError
-          ? 'Continue to application'
-          : 'Continue to secure sign in'
-      }
-      launchingLabel={
-        recoverableAuthError
-          ? 'Opening the application...'
-          : 'Redirecting to secure sign in...'
-      }
-      errorMessage={
-        recoverableAuthError
-          ? 'That secure handoff took longer than expected. We can reopen Okta and continue without starting over.'
-          : authError
-      }
-      autoLaunchOnError={recoverableAuthError}
+      errorMessage={authError}
     />
   );
 }
