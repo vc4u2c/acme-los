@@ -1,4 +1,4 @@
-FROM node:24-bookworm-slim AS deps
+FROM node:24.18.1-bookworm-slim AS deps
 WORKDIR /repo
 COPY .npmrc package.json package-lock.json ./
 RUN npm ci
@@ -36,7 +36,7 @@ ENV NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_USER_DATA=$NEXT_PUBLIC_ACME_AN
 ENV NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_PERSONALIZATION=$NEXT_PUBLIC_ACME_ANALYTICS_CONSENT_DEFAULT_AD_PERSONALIZATION
 RUN npx next build apps/web-app
 
-FROM node:24-bookworm-slim AS runner
+FROM node:24.18.1-bookworm-slim AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
