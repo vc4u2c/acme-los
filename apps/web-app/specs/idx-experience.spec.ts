@@ -2,6 +2,8 @@ import {
   filterAuthenticatorOptions,
   getIdxJourneyContent,
   isRememberPreferenceInput,
+  selectInitialIdxStep,
+  shouldAutoAdvanceInitialIdxStep,
 } from '../src/lib/idx-experience';
 
 const authenticatorOptions = [
@@ -79,5 +81,39 @@ describe('IDX experience rules', () => {
     expect(isRememberPreferenceInput('rememberMe')).toBe(true);
     expect(isRememberPreferenceInput('verificationCode')).toBe(false);
     expect(isRememberPreferenceInput('consent')).toBe(false);
+  });
+
+  it('selects the journey-specific initial remediation in Auth JS 8 step mode', () => {
+    const availableSteps = [
+      { name: 'identify' },
+      { name: 'select-enroll-profile' },
+      { name: 'currentAuthenticator-recover' },
+      { name: 'unlock-account' },
+    ];
+
+    expect(selectInitialIdxStep(availableSteps, 'authenticate')?.name).toBe(
+      'identify',
+    );
+    expect(selectInitialIdxStep(availableSteps, 'register')?.name).toBe(
+      'select-enroll-profile',
+    );
+    expect(selectInitialIdxStep(availableSteps, 'recoverPassword')?.name).toBe(
+      'currentAuthenticator-recover',
+    );
+    expect(selectInitialIdxStep(availableSteps, 'unlockAccount')?.name).toBe(
+      'unlock-account',
+    );
+  });
+
+  it('auto-advances only structural journey actions, never OTP challenges', () => {
+    expect(
+      shouldAutoAdvanceInitialIdxStep({ name: 'select-enroll-profile' }),
+    ).toBe(true);
+    expect(
+      shouldAutoAdvanceInitialIdxStep({ name: 'currentAuthenticator-recover' }),
+    ).toBe(true);
+    expect(
+      shouldAutoAdvanceInitialIdxStep({ name: 'challenge-authenticator' }),
+    ).toBe(false);
   });
 });

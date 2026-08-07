@@ -5,7 +5,7 @@ import { CustomerIdxAuthPage } from '../src/components/web/customer-idx-auth-pag
 
 const startIdx = jest.fn();
 const proceed = jest.fn();
-const startTransaction = jest.fn();
+const start = jest.fn();
 
 jest.mock('@acme-los/api/web-client', () => ({
   createWebApiClient: () => ({
@@ -20,7 +20,7 @@ jest.mock('@acme-los/auth/web', () => ({
   createIdxAuthClient: () => ({
     idx: {
       proceed,
-      startTransaction,
+      start,
     },
   }),
   getStoredLeadId: () => null,
@@ -54,13 +54,15 @@ describe('CustomerIdxAuthPage', () => {
       maxAge: 1800,
       returnTo: '/apply/personal-info',
     });
-    startTransaction.mockResolvedValue({
+    start.mockResolvedValue({
       status: IdxStatus.PENDING,
-      nextStep: {
-        name: 'challenge-authenticator',
-        authenticator: { key: 'okta_email' },
-        inputs: [],
-      },
+      availableSteps: [
+        {
+          name: 'challenge-authenticator',
+          authenticator: { key: 'okta_email' },
+          inputs: [],
+        },
+      ],
     });
     proceed.mockResolvedValue({
       status: IdxStatus.PENDING,
@@ -76,6 +78,68 @@ describe('CustomerIdxAuthPage', () => {
         ],
       },
     });
+  });
+
+  it('renders the initial identify remediation returned by Auth JS 8 step mode', async () => {
+    start.mockResolvedValue({
+      status: IdxStatus.PENDING,
+      availableSteps: [
+        {
+          name: 'identify',
+          inputs: [{ name: 'identifier', required: true }],
+        },
+        { name: 'select-enroll-profile', inputs: [] },
+        { name: 'unlock-account', inputs: [] },
+      ],
+    });
+
+    render(
+      <CustomerIdxAuthPage
+        returnTo="/apply/personal-info"
+        minimumAssuranceLevel="aal1"
+      />,
+    );
+
+    expect(await screen.findByLabelText(/^email$/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /start again/i })).toBeNull();
+    expect(proceed).not.toHaveBeenCalled();
+  });
+
+  it('advances the structural registration step without sending a code', async () => {
+    const selectEnrollmentProfile = jest.fn().mockResolvedValue({
+      status: IdxStatus.PENDING,
+      nextStep: {
+        name: 'enroll-profile',
+        inputs: [
+          { name: 'firstName', required: true },
+          { name: 'lastName', required: true },
+          { name: 'email', required: true },
+        ],
+      },
+    });
+    start.mockResolvedValue({
+      status: IdxStatus.PENDING,
+      availableSteps: [
+        {
+          name: 'select-enroll-profile',
+          inputs: [],
+          action: selectEnrollmentProfile,
+        },
+        { name: 'identify', inputs: [{ name: 'identifier' }] },
+      ],
+    });
+
+    render(
+      <CustomerIdxAuthPage
+        returnTo="/apply/personal-info"
+        minimumAssuranceLevel="aal1"
+        flow="register"
+      />,
+    );
+
+    expect(await screen.findByLabelText(/first name/i)).toBeTruthy();
+    expect(selectEnrollmentProfile).toHaveBeenCalledTimes(1);
+    expect(proceed).not.toHaveBeenCalled();
   });
 
   it('allows a zero-input email remediation to send one code explicitly', async () => {
@@ -153,7 +217,7 @@ describe('CustomerIdxAuthPage', () => {
         ],
       },
     };
-    startTransaction.mockResolvedValue(authenticatorSelection);
+    start.mockResolvedValue(authenticatorSelection);
     proceed
       .mockResolvedValueOnce({
         status: IdxStatus.PENDING,

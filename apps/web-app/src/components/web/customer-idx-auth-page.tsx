@@ -31,6 +31,8 @@ import {
   filterAuthenticatorOptions,
   getIdxJourneyContent,
   isRememberPreferenceInput,
+  selectInitialIdxStep,
+  shouldAutoAdvanceInitialIdxStep,
   type IdxJourneyFlow,
 } from '../../lib/idx-experience';
 import { CustomerAuthFooter } from './customer-auth-footer';
@@ -69,11 +71,11 @@ const authenticatorContent = {
   },
 } as const;
 
-function getAuthenticatorKey(step?: NextStep): string | undefined {
+function getAuthenticatorKey(step?: NextStep | null): string | undefined {
   return step?.authenticator?.key ?? step?.relatesTo?.value.key;
 }
 
-function getStepTitle(step?: NextStep): string {
+function getStepTitle(step?: NextStep | null): string {
   if (!step) {
     return 'Preparing sign in';
   }
@@ -132,7 +134,7 @@ function getStepTitle(step?: NextStep): string {
   return 'Continue verification';
 }
 
-function getStepDescription(step?: NextStep): string | null {
+function getStepDescription(step?: NextStep | null): string | null {
   const authenticatorKey = getAuthenticatorKey(step);
   const inputNames = new Set(step?.inputs?.map((input) => input.name) ?? []);
 
@@ -234,7 +236,7 @@ function getAutoComplete(input: IdxInput): string {
   return 'off';
 }
 
-function getSubmitLabel(step?: NextStep): string {
+function getSubmitLabel(step?: NextStep | null): string {
   if (!step) {
     return 'Continue';
   }
@@ -359,6 +361,7 @@ export function CustomerIdxAuthPage({
   const [transaction, setTransaction] = React.useState<IdxTransaction | null>(
     null,
   );
+  const [currentStep, setCurrentStep] = React.useState<NextStep | null>(null);
   const [formValues, setFormValues] = React.useState<Record<string, FormValue>>(
     {},
   );
@@ -372,7 +375,6 @@ export function CustomerIdxAuthPage({
   const [completedRecovery, setCompletedRecovery] = React.useState(false);
 
   const journeyContent = getIdxJourneyContent(flow, stepUpReason);
-  const currentStep = transaction?.nextStep;
   const currentInputs = currentStep?.inputs ?? [];
   const authenticatorInput = currentInputs.find(
     (input) => input.name === 'authenticator' && input.options?.length,
@@ -415,55 +417,96 @@ export function CustomerIdxAuthPage({
   );
 
   const applyTransaction = React.useCallback(
-    async (nextTransaction: IdxTransaction) => {
-      setTransaction(nextTransaction);
+    async (initialTransaction: IdxTransaction) => {
+      let nextTransaction = initialTransaction;
 
-      if (
-        nextTransaction.status === IdxStatus.SUCCESS &&
-        nextTransaction.interactionCode
-      ) {
-        setIsBusy(true);
-        await completeTransaction(nextTransaction);
+      for (let transitionCount = 0; transitionCount < 4; transitionCount += 1) {
+        setTransaction(nextTransaction);
+
+        if (
+          nextTransaction.status === IdxStatus.SUCCESS &&
+          nextTransaction.interactionCode
+        ) {
+          setCurrentStep(null);
+          setIsBusy(true);
+          await completeTransaction(nextTransaction);
+          return;
+        }
+
+        if (nextTransaction.status === IdxStatus.TERMINAL) {
+          const errorMessage = (nextTransaction.messages ?? []).find(
+            (message) => message.class === 'ERROR',
+          )?.message;
+
+          setCurrentStep(null);
+          if (!errorMessage && flow !== 'authenticate') {
+            setCompletedRecovery(true);
+          } else if (!errorMessage) {
+            setClientError(
+              'Okta ended this sign-in attempt. Please start again.',
+            );
+          } else {
+            setClientError(
+              getFriendlyIdxError(
+                new Error(errorMessage),
+                'Okta could not complete this verification. Check the information and try again.',
+              ),
+            );
+          }
+          setIsBusy(false);
+          return;
+        }
+
+        if (
+          nextTransaction.status === IdxStatus.FAILURE ||
+          nextTransaction.status === IdxStatus.CANCELED
+        ) {
+          const errorMessage = (nextTransaction.messages ?? []).find(
+            (message) => message.class === 'ERROR',
+          )?.message;
+          setCurrentStep(null);
+          setClientError(
+            getFriendlyIdxError(
+              errorMessage ? new Error(errorMessage) : null,
+              'Okta could not continue this verification attempt. Start again.',
+            ),
+          );
+          setIsBusy(false);
+          return;
+        }
+
+        const selectedStep =
+          nextTransaction.nextStep ??
+          selectInitialIdxStep(nextTransaction.availableSteps, flow);
+        const isInitialStepModeResponse =
+          !nextTransaction.nextStep && Boolean(nextTransaction.availableSteps);
+
+        if (
+          selectedStep &&
+          isInitialStepModeResponse &&
+          shouldAutoAdvanceInitialIdxStep(selectedStep)
+        ) {
+          if (!selectedStep.action) {
+            throw new Error(
+              `Okta did not provide an action for ${selectedStep.name}.`,
+            );
+          }
+
+          nextTransaction = await selectedStep.action();
+          continue;
+        }
+
+        setCurrentStep(selectedStep ?? null);
+        if (!selectedStep) {
+          setClientError(
+            'Okta did not provide the next verification step. Start again or contact support.',
+          );
+        }
+        setIsBusy(false);
         return;
       }
 
-      if (nextTransaction.status === IdxStatus.TERMINAL) {
-        const errorMessage = (nextTransaction.messages ?? []).find(
-          (message) => message.class === 'ERROR',
-        )?.message;
-
-        if (!errorMessage && flow !== 'authenticate') {
-          setCompletedRecovery(true);
-        } else if (!errorMessage) {
-          setClientError(
-            'Okta ended this sign-in attempt. Please start again.',
-          );
-        } else {
-          setClientError(
-            getFriendlyIdxError(
-              new Error(errorMessage),
-              'Okta could not complete this verification. Check the information and try again.',
-            ),
-          );
-        }
-      }
-
-      if (
-        nextTransaction.status === IdxStatus.FAILURE ||
-        nextTransaction.status === IdxStatus.CANCELED
-      ) {
-        const errorMessage = (nextTransaction.messages ?? []).find(
-          (message) => message.class === 'ERROR',
-        )?.message;
-        setClientError(
-          getFriendlyIdxError(
-            errorMessage ? new Error(errorMessage) : null,
-            'Okta could not continue this verification attempt. Start again.',
-          ),
-        );
-      }
-
-      setIsBusy(false);
+      throw new Error('Okta returned too many automatic verification steps.');
     },
     [completeTransaction, flow],
   );
@@ -473,6 +516,8 @@ export function CustomerIdxAuthPage({
     setClientError(null);
     setCompletedRecovery(false);
     setHasVerifiedPassword(false);
+    setCurrentStep(null);
+    setTransaction(null);
 
     try {
       const response = await webApiClient.auth.startIdx({
@@ -486,7 +531,7 @@ export function CustomerIdxAuthPage({
       startResponseRef.current = response;
       setStepUpReason(response.stepUpReason);
 
-      const nextTransaction = await oktaAuth.idx.startTransaction({
+      const nextTransaction = await oktaAuth.idx.start({
         flow: getFlowIdentifier(flow),
         state: response.state,
         nonce: response.nonce,
@@ -557,7 +602,7 @@ export function CustomerIdxAuthPage({
   const proceed = React.useCallback(
     async (values: Record<string, FormValue>) => {
       const oktaAuth = oktaAuthRef.current;
-      const step = transaction?.nextStep;
+      const step = currentStep;
 
       if (!oktaAuth || !step) {
         return;
@@ -599,7 +644,7 @@ export function CustomerIdxAuthPage({
         setIsBusy(false);
       }
     },
-    [applyTransaction, transaction],
+    [applyTransaction, currentStep],
   );
 
   const proceedToStep = React.useCallback(
