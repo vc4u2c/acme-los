@@ -1,12 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
+import { primeAuthenticatedCustomer } from '../support/auth';
 
-const mockAuthStorageKey = 'acme-los-auth-mock-session';
 const csrfCookieName = 'acme-los.csrf-token';
-const mockAuthBaseUrl = process.env['BASE_URL'] || 'http://127.0.0.1:4200';
+const testBaseUrl = process.env['BASE_URL'] || 'http://127.0.0.1:4200';
 
-function createMockCustomerUser() {
+function createFixtureCustomerUser() {
   return {
-    id: 'mock-bff-customer-01',
+    id: 'e2e-bff-customer-01',
     email: 'bff.customer@acme-los.dev',
     displayName: 'Bff Customer',
     firstName: 'Bff',
@@ -17,30 +17,9 @@ function createMockCustomerUser() {
   };
 }
 
-async function primeAuthenticatedCustomer(page: Page) {
-  const user = createMockCustomerUser();
-  const serializedUser = JSON.stringify(user);
-
-  await page.context().addCookies([
-    {
-      name: mockAuthStorageKey,
-      value: encodeURIComponent(serializedUser),
-      url: mockAuthBaseUrl,
-      sameSite: 'Lax',
-    },
-  ]);
-
-  await page.addInitScript(
-    ({ key, user: authenticatedUser }) => {
-      const serializedAuthenticatedUser = JSON.stringify(authenticatedUser);
-      window.sessionStorage.setItem(key, serializedAuthenticatedUser);
-      document.cookie = `${key}=${encodeURIComponent(serializedAuthenticatedUser)}; path=/; samesite=lax`;
-    },
-    {
-      key: mockAuthStorageKey,
-      user,
-    },
-  );
+async function primeCustomer(page: Page) {
+  const user = createFixtureCustomerUser();
+  await primeAuthenticatedCustomer(page, user);
 }
 
 async function issueCsrfToken(page: Page) {
@@ -62,7 +41,7 @@ async function issueCsrfToken(page: Page) {
       httpOnly: true,
       name: csrfCookieName,
       sameSite: 'Lax',
-      url: mockAuthBaseUrl,
+      url: testBaseUrl,
       value: csrfCookieValue,
     },
   ]);
@@ -73,10 +52,10 @@ async function issueCsrfToken(page: Page) {
 test('customer and application routes proxy through the BFF', async ({
   page,
 }) => {
-  await primeAuthenticatedCustomer(page);
+  await primeCustomer(page);
   await page.goto('/account/profile');
   await expect(
-    page.getByRole('heading', { name: /Review your verified account/i }),
+    page.getByRole('heading', { name: /Account details/i }),
   ).toBeVisible();
 
   const csrf = await issueCsrfToken(page);

@@ -1,13 +1,7 @@
-import type {
-  AuthAssuranceLevel,
-  AuthSession,
-  AuthUser,
-} from '@acme-los/auth/contracts';
-
-export const MOCK_AUTH_STORAGE_KEY = 'acme-los-auth-mock-session';
+import type { AuthAssuranceLevel, AuthSession } from '@acme-los/auth/contracts';
 
 export const EMPTY_AUTH_SESSION: AuthSession = {
-  provider: 'mock',
+  provider: 'okta',
   status: 'loading',
   isAuthenticated: false,
   assuranceLevel: 'anonymous',
@@ -51,20 +45,4 @@ export function isAssuranceSatisfied(
   };
 
   return rank[currentLevel] >= rank[requiredLevel];
-}
-
-export function createMockAuthUser(
-  assuranceLevel: Exclude<AuthAssuranceLevel, 'anonymous'> = 'aal1',
-): AuthUser {
-  const authenticationMethods =
-    assuranceLevel === 'aal2' ? ['pwd', 'email', 'mfa'] : ['pwd'];
-
-  return {
-    id: 'mock-customer-01',
-    email: 'taylor.customer@acme-los.dev',
-    displayName: 'Taylor Customer',
-    firstName: 'Taylor',
-    lastName: 'Customer',
-    authenticationMethods,
-  };
 }

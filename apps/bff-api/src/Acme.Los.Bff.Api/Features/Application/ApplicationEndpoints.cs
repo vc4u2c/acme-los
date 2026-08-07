@@ -39,7 +39,7 @@ public static class ApplicationEndpoints
 
           var response = await bus.InvokeAsync<GetApplicationStepResponse>(
             new GetApplicationStepQuery(
-              identity.Provider,
+              BffTrustedIdentity.AuthenticationProvider,
               identity.UserId,
               identity.CustomerId,
               identity.LeadId,
@@ -100,7 +100,7 @@ public static class ApplicationEndpoints
 
           var response = await bus.InvokeAsync<SaveApplicationStepResponse>(
             new SaveApplicationStepCommand(
-              identity.Provider,
+              BffTrustedIdentity.AuthenticationProvider,
               identity.UserId,
               identity.CustomerId,
               identity.LeadId,

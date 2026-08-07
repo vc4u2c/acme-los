@@ -12,7 +12,7 @@ export const runtime = 'nodejs';
 function getSafePostLogoutRedirectUri(request: NextRequest): string {
   const config = getServerWebAuthConfig();
 
-  if (config.provider !== 'okta' || !config.okta) {
+  if (!config.okta) {
     return buildPublicRequestUrl(request, '/').toString();
   }
 

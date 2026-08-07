@@ -500,7 +500,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://auth.avanai.net/oauth2/default",
         ["ACME_OKTA_ORG_URL"] = "https://dev-123456.okta.com",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
@@ -556,7 +555,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://auth.avanai.net/oauth2/default",
         ["ACME_OKTA_ORG_URL"] = "https://dev-123456.okta.com",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
@@ -1082,7 +1080,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       "/bff/application/steps/personal-info");
 
     request.Headers.Add("x-csrf-token", csrfToken!.CsrfToken);
-    request.Headers.Add("x-acme-auth-provider", "okta");
     request.Headers.Add("x-acme-authenticated-user-id", "application-user-004");
     request.Content = JsonContent.Create(
       new SaveApplicationStepRequest(
@@ -1146,7 +1143,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       "/bff/application/steps/personal-info");
 
     saveRequest.Headers.Add("x-csrf-token", csrfToken!.CsrfToken);
-    saveRequest.Headers.Add("x-acme-auth-provider", "okta");
     saveRequest.Headers.Add("x-acme-authenticated-user-id", userId);
     saveRequest.Headers.Add(
       "Cookie",
@@ -1258,7 +1254,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1302,7 +1297,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1337,7 +1331,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1363,7 +1356,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1411,7 +1403,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1493,7 +1484,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1553,7 +1543,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1613,7 +1602,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1676,7 +1664,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1728,7 +1715,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1762,7 +1748,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1817,7 +1802,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1853,7 +1837,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
@@ -1987,7 +1970,6 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
       {
-        ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
         ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",

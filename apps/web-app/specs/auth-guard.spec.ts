@@ -1,5 +1,5 @@
 import { isRequiredStepUpFresh } from '@acme-los/auth/web';
-import type { AuthRequirement, AuthSession } from '@acme-los/auth/contracts';
+import type { AuthRequirement } from '@acme-los/auth/contracts';
 
 const fundingRequirement: AuthRequirement = {
   requiresAuthentication: true,
@@ -7,17 +7,6 @@ const fundingRequirement: AuthRequirement = {
   requiredStepUp: {
     reason: 'funding',
     maxAgeSeconds: 600,
-  },
-};
-
-const authenticatedAal2Session: AuthSession = {
-  provider: 'okta',
-  status: 'authenticated',
-  isAuthenticated: true,
-  assuranceLevel: 'aal2',
-  user: {
-    id: 'customer-1',
-    displayName: 'Ada Customer',
   },
 };
 
@@ -35,7 +24,6 @@ describe('auth guard step-up freshness', () => {
     expect(
       isRequiredStepUpFresh({
         requirement: fundingRequirement,
-        session: authenticatedAal2Session,
         sessionTiming: null,
       }),
     ).toBe(false);
@@ -47,7 +35,6 @@ describe('auth guard step-up freshness', () => {
     expect(
       isRequiredStepUpFresh({
         requirement: fundingRequirement,
-        session: authenticatedAal2Session,
         sessionTiming: {
           absoluteExpiresAt: currentEpochSeconds + 3600,
           idleExpiresAt: currentEpochSeconds + 900,

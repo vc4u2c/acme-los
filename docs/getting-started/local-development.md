@@ -64,9 +64,10 @@ npx.cmd nx run web-app:dev
 ## Run The Web App And BFF Together
 
 The BFF hop is server-side. The browser keeps calling the stable Next.js
-`/api/*` routes, and real Okta-backed route handlers proxy selected requests
-to the BFF when `ACME_BFF_BASE_URL` is configured. Explicit mock auth remains
-local for tests and lightweight UI work.
+`/api/*` routes, and Okta-backed route handlers proxy auth, session, profile,
+and application requests to the BFF configured by `ACME_BFF_BASE_URL`.
+Playwright uses an isolated BFF fixture under `apps/web-app-e2e`; production
+web code has no alternate mock identity provider.
 
 ### Preferred One-Command Path
 
@@ -96,7 +97,7 @@ that route delegates issuance to `/bff/security/csrf` server-side and relays
 the cookie back through the Next response.
 Open `/security` on the Next origin for the security inspector. With real Okta
 auth it shows the BFF-owned token/session state through the authenticated Next
-facade; with explicit mock auth it shows a token-free local snapshot.
+facade.
 If you need to override the one-command BFF URL, set
 `ACME_DEV_STACK_BFF_BASE_URL`; the script passes that value to the web app as
 `ACME_BFF_BASE_URL`.
@@ -221,12 +222,11 @@ To force it off even in `local` or `dev`, add this to `apps/web-app/.env.local`:
 ACME_ENABLE_SECURITY_INSPECTOR=false
 ```
 
-Security inspector authority expectations:
+Security inspector authority expectation:
 
-| Setting                   | What `/security` shows                    |
-| ------------------------- | ----------------------------------------- |
-| Real Okta auth            | BFF-owned auth/session and token snapshot |
-| `ACME_AUTH_PROVIDER=mock` | token-free local mock snapshot            |
+| Setting        | What `/security` shows                    |
+| -------------- | ----------------------------------------- |
+| Okta IDX + BFF | BFF-owned auth/session and token snapshot |
 
 The raw BFF inspector route is for server-to-server local/dev diagnostics. Do
 not use it from browser application code.

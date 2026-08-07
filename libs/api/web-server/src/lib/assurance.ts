@@ -21,8 +21,6 @@ export type WebAuthStepUpRequirement = {
   consumeOnSatisfied?: boolean;
 };
 
-export const MOCK_AUTH_STORAGE_KEY = 'acme-los-auth-mock-session';
-
 const DEFAULT_HIGH_ASSURANCE_ACR_VALUES = ['urn:okta:loa:2fa:any'];
 const SMS_FUNDING_AUTHENTICATION_METHODS = new Set([
   'sms',

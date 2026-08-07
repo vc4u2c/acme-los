@@ -9,7 +9,7 @@ export interface WebAuthSessionUser {
   authenticationMethods?: string[];
 }
 
-export type WebAuthSessionProvider = 'mock' | 'okta';
+export type WebAuthSessionProvider = 'okta';
 export type WebAuthSessionStatus =
   | 'loading'
   | 'authenticated'

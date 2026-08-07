@@ -4,8 +4,6 @@ import Page from '../src/app/page';
 import { AppProviders } from '../src/components/web/providers/app-providers';
 import type { AnalyticsRuntimeConfig } from '../src/lib/analytics/config';
 
-process.env.NEXT_PUBLIC_AUTH_PROVIDER = 'mock';
-
 const analyticsConfig: AnalyticsRuntimeConfig = {
   enabled: false,
   environment: 'test',

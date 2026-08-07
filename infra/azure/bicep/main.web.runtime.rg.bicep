@@ -25,7 +25,6 @@ param managedEnvironmentId string
 param userAssignedIdentityResourceId string
 param userAssignedIdentityClientId string = ''
 param appBuildId string
-param authProvider string = 'okta'
 param oktaEnvironmentName string = environmentName
 param oktaIssuer string
 param oktaOrgUrl string = ''
@@ -190,7 +189,6 @@ module containerApp './modules/web/container-app.bicep' = {
     containerImage: containerImage
     appEnvironmentName: environmentName
     appBuildId: appBuildId
-    authProvider: authProvider
     oktaEnvironmentName: oktaEnvironmentName
     oktaIssuer: oktaIssuer
     oktaClientId: oktaClientId
@@ -275,7 +273,6 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     appEnvironmentName: environmentName
     appBuildId: appBuildId
     bffVersion: bffVersion
-    authProvider: authProvider
     oktaEnvironmentName: oktaEnvironmentName
     oktaIssuer: oktaIssuer
     oktaOrgUrl: oktaOrgUrl

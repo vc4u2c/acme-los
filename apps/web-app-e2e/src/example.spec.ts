@@ -1,7 +1,5 @@
 import { test, expect, type Locator, type Page } from '@playwright/test';
-
-const mockAuthStorageKey = 'acme-los-auth-mock-session';
-const mockAuthBaseUrl = process.env['BASE_URL'] || 'http://127.0.0.1:4200';
+import { primeAuthenticatedCustomer } from '../support/auth';
 
 async function navigate(page: Page, path: string) {
   try {
@@ -64,28 +62,7 @@ test('shows the web home, rendering demos, and showcase route', async ({
 }) => {
   test.slow();
   const mockUser = createMockCustomerUser();
-  const serializedUser = JSON.stringify(mockUser);
-
-  await page.context().addCookies([
-    {
-      name: mockAuthStorageKey,
-      value: encodeURIComponent(serializedUser),
-      url: mockAuthBaseUrl,
-      sameSite: 'Lax',
-    },
-  ]);
-
-  await page.addInitScript(
-    ({ key, user }) => {
-      const serializedUser = JSON.stringify(user);
-      window.sessionStorage.setItem(key, serializedUser);
-      document.cookie = `${key}=${encodeURIComponent(serializedUser)}; path=/; samesite=lax`;
-    },
-    {
-      key: mockAuthStorageKey,
-      user: mockUser,
-    },
-  );
+  await primeAuthenticatedCustomer(page, mockUser);
 
   await navigate(page, '/');
   const hero = page.locator('main > section').first();

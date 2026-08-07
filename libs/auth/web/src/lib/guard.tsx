@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
-import type { AuthRequirement, AuthSession } from '@acme-los/auth/contracts';
+import type { AuthRequirement } from '@acme-los/auth/contracts';
 import type { WebAuthSessionTiming } from '@acme-los/api/contracts';
 import { isAssuranceSatisfied } from '@acme-los/auth/core';
 import { useAuthSession } from './provider';
@@ -17,18 +17,12 @@ function getReturnTo(
 
 export function isRequiredStepUpFresh({
   requirement,
-  session,
   sessionTiming,
 }: {
   requirement: AuthRequirement;
-  session: AuthSession;
   sessionTiming: WebAuthSessionTiming | null;
 }): boolean {
   if (!requirement.requiredStepUp) {
-    return true;
-  }
-
-  if (session.provider === 'mock') {
     return true;
   }
 
@@ -83,7 +77,6 @@ function RequireAuthContent({
     isAssuranceSatisfied(session.assuranceLevel, minimumAssuranceLevel) &&
     isRequiredStepUpFresh({
       requirement,
-      session,
       sessionTiming,
     });
 
@@ -111,7 +104,6 @@ function RequireAuthContent({
     requirement.requiresAuthentication,
     requirement.requiredStepUp,
     searchParams,
-    session.provider,
     session.status,
     sessionTiming,
     signIn,

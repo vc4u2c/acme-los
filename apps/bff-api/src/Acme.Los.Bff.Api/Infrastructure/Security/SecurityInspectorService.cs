@@ -41,7 +41,7 @@ public sealed class SecurityInspectorService : ISecurityInspectorService
         cancellationToken);
 
     return new SecurityInspectorServerSnapshot(
-      ResolveProvider(),
+      "okta",
       ResolveStateStoreMode(),
       DateTimeOffset.UtcNow.ToString("O"),
       request.Cookies
@@ -131,13 +131,6 @@ public sealed class SecurityInspectorService : ISecurityInspectorService
       : $"{normalized}{new string('=', 4 - (normalized.Length % 4))}";
 
     return Convert.FromBase64String(padded);
-  }
-
-  private string ResolveProvider()
-  {
-    var provider = Environment.GetEnvironmentVariable("ACME_AUTH_PROVIDER")?.Trim();
-
-    return string.IsNullOrWhiteSpace(provider) ? "okta" : provider;
   }
 
   private string ResolveStateStoreMode()
