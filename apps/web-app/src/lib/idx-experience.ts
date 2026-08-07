@@ -1,4 +1,5 @@
 import type { WebAuthStepUpReason } from '@acme-los/api/contracts';
+import type { NextStep } from '@okta/okta-auth-js';
 
 export type IdxJourneyFlow =
   | 'authenticate'
@@ -19,6 +20,62 @@ const rememberPreferenceInputNames = new Set([
   'rememberDevice',
   'rememberMe',
 ]);
+
+const initialStepNames: Record<IdxJourneyFlow, readonly string[]> = {
+  authenticate: [
+    'identify',
+    'select-authenticator-authenticate',
+    'challenge-authenticator',
+  ],
+  register: [
+    'select-enroll-profile',
+    'enroll-profile',
+    'select-authenticator-enroll',
+    'enroll-authenticator',
+  ],
+  recoverPassword: [
+    'currentAuthenticator-recover',
+    'currentAuthenticatorEnrollment-recover',
+    'identify-recovery',
+    'identify',
+    'select-authenticator-authenticate',
+    'challenge-authenticator',
+    'reset-authenticator',
+  ],
+  unlockAccount: [
+    'unlock-account',
+    'identify',
+    'select-authenticator-authenticate',
+    'challenge-authenticator',
+  ],
+};
+
+const automaticallyAdvancedInitialSteps = new Set([
+  'select-enroll-profile',
+  'currentAuthenticator-recover',
+  'currentAuthenticatorEnrollment-recover',
+  'unlock-account',
+]);
+
+export function selectInitialIdxStep(
+  availableSteps: NextStep[] | undefined,
+  flow: IdxJourneyFlow,
+): NextStep | undefined {
+  const steps = availableSteps ?? [];
+
+  for (const stepName of initialStepNames[flow]) {
+    const step = steps.find((candidate) => candidate.name === stepName);
+    if (step) {
+      return step;
+    }
+  }
+
+  return undefined;
+}
+
+export function shouldAutoAdvanceInitialIdxStep(step: NextStep): boolean {
+  return automaticallyAdvancedInitialSteps.has(step.name);
+}
 
 export function isRememberPreferenceInput(inputName: string): boolean {
   return rememberPreferenceInputNames.has(inputName);

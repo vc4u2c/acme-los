@@ -9,6 +9,7 @@ import {
   printAccountManagementPolicyRules,
   summarizeAccountManagementPolicyRules,
 } from './account-management-policy.mjs';
+import { buildOAuthClientReplacementPayload } from './client-replacement.mjs';
 import {
   buildHostedErrorPageContent,
   buildHostedSignInPageContent,
@@ -409,11 +410,16 @@ async function findApplicationByLabel(label) {
     q: label,
     limit: '200',
   });
-  return (
+  const matchingApplication =
     apps.find(
       (app) => app.label === label && app.signOnMode === 'OPENID_CONNECT',
-    ) ?? null
-  );
+    ) ?? null;
+
+  if (!matchingApplication) {
+    return null;
+  }
+
+  return oktaRequest('GET', `/api/v1/apps/${matchingApplication.id}`);
 }
 
 function extractClientId(app) {
@@ -485,8 +491,30 @@ async function createApplication(payload) {
   return oktaRequest('POST', '/api/v1/apps', payload);
 }
 
-async function updateApplication(appId, payload) {
-  return oktaRequest('PUT', `/api/v1/apps/${appId}`, payload);
+async function updateApplication(existingApplication, desiredPayload) {
+  const clientId = extractClientId(existingApplication);
+  if (!clientId) {
+    throw new Error(
+      `Unable to replace Okta OAuth client for application "${existingApplication.label ?? existingApplication.id}": client ID is missing.`,
+    );
+  }
+
+  const existingClient = await oktaRequest(
+    'GET',
+    `/oauth2/v1/clients/${clientId}`,
+  );
+  const replacementPayload = buildOAuthClientReplacementPayload(
+    existingClient,
+    desiredPayload,
+  );
+
+  await oktaRequest(
+    'PUT',
+    `/oauth2/v1/clients/${clientId}`,
+    replacementPayload,
+  );
+
+  return oktaRequest('GET', `/api/v1/apps/${existingApplication.id}`);
 }
 
 async function findTrustedOriginByOrigin(origin) {
@@ -2734,7 +2762,7 @@ for (const expectedApp of [expectedWebApp, expectedMobileApp]) {
     );
     if (mismatches.length > 0) {
       const updatedApp = await updateApplication(
-        existingApp.id,
+        existingApp,
         expectedApp.payload,
       );
 
