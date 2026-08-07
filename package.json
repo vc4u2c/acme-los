@@ -11,6 +11,7 @@
     "commitlint": "commitlint --edit",
     "validate:tags": "node tools/scripts/validate-project-tags.mjs",
     "agents:verify": "node tools/scripts/agents/verify-agent-system.mjs",
+    "harness:context": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/workspace/show-context.ps1",
     "redis:up": "nx run web-app:redis-up",
     "redis:down": "nx run web-app:redis-down",
     "web:dev:redis": "nx run web-app:dev-redis",

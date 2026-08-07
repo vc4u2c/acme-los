@@ -1,5 +1,13 @@
 # ACME LOS Agent Guide
 
+## Start Here
+
+1. Run `npm.cmd run harness:context` before broad repository discovery.
+2. Read only the owner documents it lists, plus the nearest scoped `AGENTS.md` for files being changed.
+3. Use `git ls-files` and `rg`; exclude generated and ignored directories such as `node_modules`, `.next`, `.nx`, `dist`, `coverage`, and `tmp`.
+4. Keep each change small enough to review as one coherent security or product increment.
+5. Run `npm.cmd run agents:verify` after changing agent instructions, skills, adapters, project agents, or harness routing.
+
 This repository is a lending experience monorepo with:
 
 - `apps/web-app`: Next.js 16 web app
@@ -13,6 +21,29 @@ This repository is a lending experience monorepo with:
 2. Treat Azure, Okta, and deployment changes as infrastructure work first, not one-off portal fixes.
 3. Keep docs aligned with the real deployed state, especially for `dev`.
 4. Favor small, reversible changes that preserve promotion safety.
+
+## Owner Documents
+
+- Current runtime: `docs/architecture/current-platform.md`
+- Auth and API contracts: `docs/architecture/auth-and-api-contracts.md`
+- Next server/client boundary: `docs/architecture/web-server-client-boundaries.md`
+- Visual direction: `docs/architecture/visual-design-system.md`
+- Agent context and review controls: `docs/architecture/agent-harness.md`
+- Change safety: `docs/architecture/change-safety-workflow.md`
+- Okta account security: `docs/operations/okta-account-security-and-profile-sync.md`
+- Azure lifecycle: `docs/operations/azure-bootstrap-and-teardown.md`
+- Release and delivery: `docs/operations/release-and-delivery.md`
+
+Update the owner document instead of repeating durable decisions elsewhere.
+
+## Non-Negotiable Boundaries
+
+- Derive user, customer, lead, and authorization scope from validated server state.
+- Keep OAuth tokens, credentials, OTPs, and transaction secrets out of browser storage, logs, fixtures, and commits.
+- Enforce auth, subject continuity, assurance, CSRF, and scope at the BFF boundary; client filtering is UX only.
+- Use Key Vault references and managed identities for secrets and Azure access.
+- Keep analytics and telemetry free of personal, customer, credential, and form data.
+- Treat Okta, Azure, user deletion, deployment, and destructive cleanup as explicit operations, never implicit review actions.
 
 ## Verification
 
@@ -53,6 +84,8 @@ This repo includes a curated subset of Codex skills under `.agents/skills` for:
 - documentation maintenance
 - dependency vulnerability management for npm and NuGet audit findings
 - security review
+- read-only adversarial codebase review
+- agent harness and context routing
 - verification loops
 - karpathy-guidelines for broad, ambiguous, architectural, or security-sensitive
   work where scope control and verification discipline matter

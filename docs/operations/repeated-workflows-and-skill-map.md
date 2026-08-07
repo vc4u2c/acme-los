@@ -38,6 +38,17 @@ After changing a skill or agent adapter, run:
 npm run agents:verify
 ```
 
+Before broad discovery, run:
+
+```powershell
+npm run harness:context
+```
+
+Use `audit-acme-codebase` for a cold, read-only, evidence-first review before
+promoting security-sensitive or cross-boundary changes. Use
+`manage-agent-harness` for context routing, skills, adapters, project agents,
+and validation. Review findings before starting a separate remediation pass.
+
 ## Repeated Workflows
 
 ### Azure Lifecycle

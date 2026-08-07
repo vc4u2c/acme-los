@@ -1,0 +1,6 @@
+interface:
+  display_name: 'Audit ACME LOS'
+  short_description: 'Read-only adversarial review of ACME LOS changes'
+  default_prompt: 'Use $audit-acme-codebase to perform a cold evidence-first review of this ACME LOS change before it is promoted.'
+policy:
+  allow_implicit_invocation: true

@@ -55,6 +55,9 @@ path:
 
 ## Architecture
 
+- [Agent harness and context engineering](./architecture/agent-harness.md)
+- [Change safety workflow](./architecture/change-safety-workflow.md)
+- [Web visual design system](./architecture/visual-design-system.md)
 - [Reference architecture demo report](./architecture/reference-architecture-demo-report.md)
 - [Current platform architecture](./architecture/current-platform.md)
 - [BFF rollout plan](./architecture/bff-rollout-plan.md)
