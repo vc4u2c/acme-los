@@ -70,18 +70,56 @@ const scenarios = [
     },
   },
   {
+    key: 'authenticatorChoices',
+    query: '?acme_audit_authenticator_choices=1',
+    expectedFlow: undefined,
+    expectedAuthState: 'accountProtection',
+    expectedTexts: [
+      'Protect your account',
+      'Email',
+      'Verify with a code sent to your email',
+      'Phone',
+      'Verify with a code sent to your US mobile phone',
+      'Security Question',
+      'Set up',
+      'Sign in',
+    ],
+    forbiddenTexts: [
+      'Set up another verification method',
+      'Set up another',
+      'Setup another',
+      'Back to authenticator',
+    ],
+    expectedContextTexts: [
+      'Account protection',
+      'Protect your account',
+      'sensitive account changes',
+    ],
+    expectedCustomHelpLink: {
+      text: 'Forgot password?',
+      widgetFlow: 'resetPassword',
+    },
+  },
+  {
     key: 'emailEnrollment',
     query: '?acme_audit_email_enrollment=1',
     expectedFlow: undefined,
     expectedAuthState: 'emailVerification',
     expectedTexts: [
       'Verify your email',
-      'Use the button to send a verification code to your email.',
-      'Send email code',
+      'We sent an email',
+      'Enter email code',
       'Choose another verification method',
-      'Set up another verification method',
     ],
-    forbiddenTexts: ['Email verification code', 'Verify email'],
+    forbiddenTexts: [
+      'Email verification code',
+      'Verify email',
+      'Send email code',
+      'Enter a verification code instead',
+      'Set up another verification method',
+      'Set up another',
+      'Setup another',
+    ],
     expectedContextTexts: [
       'Email verification',
       'Verify your email',
@@ -100,14 +138,16 @@ const scenarios = [
     expectedTexts: [
       'Verify your email',
       'Enter the code sent to your email.',
-      'Email verification code',
-      'Verify email',
+      'Verification code',
+      'Verify code',
       'Choose another verification method',
-      'Set up another verification method',
     ],
     forbiddenTexts: [
       'Use the button to send a verification code to your email.',
       'Send email code',
+      'Set up another verification method',
+      'Set up another',
+      'Setup another',
     ],
     expectedContextTexts: [
       'Email verification',
@@ -705,19 +745,21 @@ async function auditScenario(
         .join(', ')}`,
     );
   }
-  const isSignupScenario =
-    scenario.key === 'signup' || scenario.key === 'signupValidationError';
-  if (isSignupScenario) {
+  const shouldShowExistingAccountCue =
+    scenario.key === 'signup' ||
+    scenario.key === 'signupValidationError' ||
+    scenario.key === 'authenticatorChoices';
+  if (shouldShowExistingAccountCue) {
     if (
       !metrics.shellSignInLink?.visible ||
       metrics.shellSignInLink.linkText !== 'Sign in' ||
-      !/already have an account\? sign in/i.test(metrics.shellSignInLink.text)
+      metrics.shellSignInLink.text !== 'Sign in'
     ) {
-      failures.push('signup shell is missing the existing-account sign-in cue');
+      failures.push('registration shell is missing the sign-in cue');
     }
     if (metrics.shellSignInLink?.href !== expectedSignInStartUrl) {
       failures.push(
-        `signup shell sign-in cue should restart app sign-in: ${metrics.shellSignInLink?.href}`,
+        `registration shell sign-in cue should restart app sign-in: ${metrics.shellSignInLink?.href}`,
       );
     }
     const brokenSignInLinks = metrics.visibleLinks.filter((link) => {
@@ -729,11 +771,18 @@ async function auditScenario(
 
     if (brokenSignInLinks.length > 0) {
       failures.push(
-        `signup sign-in link should return to default sign-in: ${brokenSignInLinks
+        `registration sign-in link should return to default sign-in: ${brokenSignInLinks
           .map((link) => link.href)
           .join(', ')}`,
       );
     }
+  } else if (metrics.shellSignInLink?.visible) {
+    failures.push(
+      'existing-account sign-in cue should only show on registration/enrollment',
+    );
+  }
+
+  if (scenario.key === 'signup' || scenario.key === 'signupValidationError') {
     const primaryWidgetSignInLinks = metrics.visibleLinks.filter(
       (link) => link.dataSe === 'sign-in',
     );
@@ -768,8 +817,37 @@ async function auditScenario(
         'signup widget still uses legacy Back to secure sign in text',
       );
     }
-  } else if (metrics.shellSignInLink?.visible) {
-    failures.push('existing-account sign-in cue should only show on signup');
+  }
+
+  if (scenario.key === 'authenticatorChoices') {
+    const setupActions = metrics.visibleLinks.filter((link) =>
+      ['okta_email', 'phone_number', 'security_question'].includes(link.dataSe),
+    );
+    const signInReturns = metrics.visibleLinks.filter(
+      (link) => link.dataSe === 'delayed-sign-on',
+    );
+
+    if (
+      setupActions.length !== 3 ||
+      setupActions.some((link) => link.text !== 'Set up')
+    ) {
+      failures.push(
+        `authenticator choice setup links should all be labeled Set up: ${setupActions
+          .map((link) => `${link.dataSe}:${link.text}`)
+          .join(', ')}`,
+      );
+    }
+    if (
+      signInReturns.length !== 1 ||
+      signInReturns[0].text !== 'Sign in' ||
+      signInReturns[0].href !== expectedSignInStartUrl
+    ) {
+      failures.push(
+        `authenticator choice sign-in link should restart app sign-in: ${signInReturns
+          .map((link) => `${link.text}:${link.href}`)
+          .join(', ')}`,
+      );
+    }
   }
 
   return {
@@ -822,6 +900,8 @@ function isWidgetSignInReturnText(text) {
     'continue to sign in',
     'continue to sign on',
     'continue to secure sign in',
+    'have an account? sign in',
+    'already have an account? sign in',
     'go to homepage',
     'go to home page',
     'log in',

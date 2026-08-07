@@ -10,7 +10,10 @@ export type WebAuthStepUpReason =
   | 'funding'
   | 'account-email'
   | 'account-phone'
-  | 'account-password';
+  | 'account-password'
+  | 'post-email-change'
+  | 'post-phone-change'
+  | 'post-password-change';
 
 export type WebAuthStepUpRequirement = {
   reason: WebAuthStepUpReason;

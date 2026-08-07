@@ -1,4 +1,3 @@
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -76,10 +75,8 @@ internal sealed class OktaCustomerIdWritebackService
       return Skipped("disabled");
     }
 
-    var token = await _tokenClient.GetAccessTokenAsync(cancellationToken);
     var existingCustomerId = await ReadOktaCustomerIdAsync(
       userId,
-      token,
       cancellationToken);
 
     if (!string.IsNullOrWhiteSpace(existingCustomerId))
@@ -96,7 +93,6 @@ internal sealed class OktaCustomerIdWritebackService
     await WriteOktaCustomerIdAsync(
       userId,
       nextCustomerId,
-      token,
       cancellationToken);
 
     _logger.LogInformation(
@@ -121,7 +117,6 @@ internal sealed class OktaCustomerIdWritebackService
 
   private async Task<string?> ReadOktaCustomerIdAsync(
     string oktaUserId,
-    string token,
     CancellationToken cancellationToken)
   {
     using var request = new HttpRequestMessage(
@@ -129,9 +124,9 @@ internal sealed class OktaCustomerIdWritebackService
       BuildOktaUserUri(oktaUserId));
 
     request.Headers.Accept.ParseAdd("application/json");
-    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    using var response = await CreateHttpClient().SendAsync(
+    using var response = await _tokenClient.SendAuthorizedAsync(
+      CreateHttpClient(),
       request,
       cancellationToken);
 
@@ -150,7 +145,6 @@ internal sealed class OktaCustomerIdWritebackService
   private async Task WriteOktaCustomerIdAsync(
     string oktaUserId,
     string customerId,
-    string token,
     CancellationToken cancellationToken)
   {
     using var request = new HttpRequestMessage(
@@ -167,9 +161,9 @@ internal sealed class OktaCustomerIdWritebackService
     };
 
     request.Headers.Accept.ParseAdd("application/json");
-    request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
-    using var response = await CreateHttpClient().SendAsync(
+    using var response = await _tokenClient.SendAuthorizedAsync(
+      CreateHttpClient(),
       request,
       cancellationToken);
 

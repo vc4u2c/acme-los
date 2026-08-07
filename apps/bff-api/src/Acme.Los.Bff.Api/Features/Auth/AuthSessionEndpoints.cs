@@ -26,15 +26,9 @@ public static class AuthSessionEndpoints
                 return BffTrustedProxyBoundary.BuildRejectedResult();
               }
 
-              var includeDebug = string.Equals(
-                      request.Query["includeDebug"],
-                      "1",
-                      StringComparison.Ordinal);
-
               return Results.Json(
                       await authSessionService.ReadSessionAsync(
                         request,
-                        includeDebug,
                         cancellationToken));
             })
         .WithName("GetBffAuthSession")
@@ -136,25 +130,6 @@ public static class AuthSessionEndpoints
             })
         .WithName("RequireBffAuthSession")
         .Produces<RequireWebAuthSessionResponse>(StatusCodes.Status200OK)
-        .Produces(StatusCodes.Status403Forbidden);
-
-    authGroup.MapGet(
-            "/logout-hint",
-            async (
-                HttpContext context,
-                IAuthSessionService authSessionService) =>
-            {
-              if (!BffTrustedProxyBoundary.HasTrustedProxyBoundary(context.Request))
-              {
-                return BffTrustedProxyBoundary.BuildRejectedResult();
-              }
-
-              return Results.Json(await authSessionService.ReadLogoutHintAsync(
-                context.Request,
-                context.RequestAborted));
-            })
-        .WithName("GetBffAuthLogoutHint")
-        .Produces<GetWebAuthLogoutHintResponse>(StatusCodes.Status200OK)
         .Produces(StatusCodes.Status403Forbidden);
 
     return endpoints;

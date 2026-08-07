@@ -43,11 +43,10 @@ jest.mock('next/link', () => {
 describe('Page', () => {
   it('should render successfully', () => {
     const { baseElement } = render(
-      React.createElement(
-        AppProviders,
-        { analyticsConfig },
-        React.createElement(Page),
-      ),
+      React.createElement(AppProviders, {
+        analyticsConfig,
+        children: React.createElement(Page),
+      }),
     );
     expect(baseElement).toBeTruthy();
   });

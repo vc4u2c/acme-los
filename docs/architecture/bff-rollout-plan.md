@@ -160,7 +160,7 @@ Current bridge decision:
 - `ACME_BFF_BASE_URL` is server-side endpoint configuration for the Next facade
 - Next route handlers continue to own the same-origin browser route contract,
   redirects, browser cookie handoff, and CSRF checks while the BFF owns real
-  Okta-backed customer, application, auth transaction, Okta callback, and
+  Okta-backed customer, application, auth transaction, Interaction Code, and
   session behavior
 - trusted identity headers are accepted only inside a trusted proxy boundary;
   outside local development, use `ACME_BFF_TRUSTED_PROXY_SECRET` or an
@@ -168,7 +168,7 @@ Current bridge decision:
 - Azure environments can add Entra managed-identity service auth through
   `bffRuntime.serviceAuth.mode=entra`; the BFF validates tenant, audience, and
   the allowed web managed identity before `/bff/*` routes run
-- auth start, callback, session read/touch/clear, requirement checks, and logout
+- IDX start/completion, session read/touch/clear, requirement checks, and logout
   hints are BFF-owned for real Okta auth; Next remains the browser facade for
   the public redirect URLs, final `Set-Cookie` emission, and mock-auth
   development fixtures
@@ -234,7 +234,7 @@ Recommended initial BFF slices:
 - customer profile read and write
 - application step read and save
 - application submit
-- business validation that does not require rethinking the web callback path
+- business validation that does not require rethinking the web auth path
 
 Definition of done:
 
@@ -251,21 +251,21 @@ Goal:
 
 Current BFF-mode endpoints:
 
-- `GET /bff/auth/login`
-- `GET /bff/auth/callback`
+- `POST /bff/auth/idx/start`
+- `POST /bff/auth/idx/complete`
 - `POST /bff/auth/logout`
 - `GET /bff/auth/session`
 - `DELETE /bff/auth/session`
 - `POST /bff/auth/session/touch`
 - `POST /bff/auth/session/requirement`
-- `GET /bff/auth/logout-hint`
+- `POST /bff/auth/logout`
 - `GET /bff/security/csrf`
 - `GET /bff/security/inspector`
 
 Definition of done:
 
-- the BFF owns PKCE initiation, auth transaction state, Okta token exchange,
-  id-token validation, and callback handling for real Okta auth
+- the BFF owns PKCE initiation, auth transaction state, Interaction Code token
+  exchange, and id-token validation for real Okta auth
 - session storage, lookup, touch, requirement checks, and logout hints are stable
 - funding step-up rules are preserved
 - the dev-only security inspector reads BFF state for real Okta auth and a

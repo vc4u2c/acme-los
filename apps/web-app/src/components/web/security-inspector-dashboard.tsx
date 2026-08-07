@@ -289,8 +289,8 @@ export function SecurityInspectorDashboard(): React.ReactElement {
                 <AlertTitle>Current hardening posture</AlertTitle>
                 <AlertDescription className="space-y-2 text-[var(--foreground)]">
                   <p>
-                    Stronger now: server-side PKCE start, server-side callback
-                    exchange, opaque auth session cookie, server-side auth
+                    Stronger now: server-generated PKCE, server-side Interaction
+                    Code exchange, opaque auth session cookie, server-side auth
                     state, server-enforced idle expiry, and tokens off the
                     browser in the normal flow. In Azure, the shared auth
                     transaction, session, and demo state now sit behind Redis

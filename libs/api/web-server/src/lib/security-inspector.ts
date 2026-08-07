@@ -1,7 +1,7 @@
 import type { WebAuthSession } from '@acme-los/api/contracts';
 import type { NextRequest } from 'next/server';
 import type { SessionCookiePayload } from './auth-session';
-import type { WebAuthTransactionCookiePayload } from './okta-auth-flow';
+import type { WebAuthTransactionCookiePayload } from './auth-transaction-cookie';
 import { readSessionCookiePayload } from './auth-session';
 import {
   BFF_TRUSTED_PROXY_SECRET_HEADER,
@@ -14,7 +14,7 @@ import {
   AUTH_TRANSACTION_COOKIE_NAME,
 } from './cookies';
 import { getServerWebAuthConfig } from './config';
-import { readWebAuthTransactionCookie } from './okta-auth-flow';
+import { readWebAuthTransactionCookie } from './auth-transaction-cookie';
 import { getWebStateStoreMode } from './state-store';
 
 type SecurityInspectorTokenSnapshot = {

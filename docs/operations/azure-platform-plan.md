@@ -682,7 +682,7 @@ The base slice is now in place:
 The next slice should prove repeatability before adding edge complexity:
 
 1. deploy `qa` through the same stack-backed script path
-2. verify Okta `qa` callback and logout URLs against the deployed `qa` ACA URL
+2. verify Okta `qa` redirect and logout URLs against the deployed `qa` ACA URL
 3. wire notification receivers into the non-production action group
 4. decide how to invoke promotion beyond `dev`
 5. deploy `stg` only after `qa` is boring and repeatable

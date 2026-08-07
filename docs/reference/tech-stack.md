@@ -19,7 +19,7 @@ If you want the fastest path to running the repo, start at:
 | Web data/UI workflows | TanStack React Query, React Form, React Table, showcase grid/table system, shared web UI primitives                                          |
 | Mobile                | Expo 55, React Native 0.83, NativeWind, Gluestack, React Navigation, Expo Web e2e lane                                                       |
 | BFF                   | `.NET` 10 Minimal API, OpenAPI, Scalar UI, health/readiness, dev-only inspector, Wolverine-backed customer/application handlers              |
-| Auth                  | Okta hosted sign-in/registration, server-side PKCE, id-token validation, opaque sessions, funding step-up MFA                                |
+| Auth                  | App-owned Okta IDX web UI, hosted mobile/rollback UI, server-side Interaction Code exchange, opaque sessions, funding step-up MFA            |
 | Security              | HTTP-only cookies, CSRF double-submit protection, trusted Next-to-BFF proxy secret, optional Entra service auth, CSP, rate limits/audit logs |
 | State                 | Redis-backed server state in hardened local/Azure paths, local file fallback for Next, BFF in-memory fallback for scaffolding                |
 | Azure                 | ACA, Key Vault, Azure Managed Redis, ACS SMS, private endpoints, private DNS, NSGs, managed identity, environment-driven scale, budgets      |
@@ -112,16 +112,16 @@ If you want the fastest path to running the repo, start at:
 ### Identity
 
 - `Okta`
-  - hosted sign-in
-  - hosted registration
+  - app-owned Auth JS IDX sign-in and registration for web
+  - hosted Gen3 sign-in for mobile redirect and rollback only
   - MFA and funding step-up support
   - admin-plane docs:
     - [infra/okta/README.md](../../infra/okta/README.md)
 
 ### Web Auth Shape
 
-- server-side PKCE initiation
-- server-side callback exchange
+- server-generated PKCE and IDX transaction context
+- server-side Interaction Code exchange
 - opaque HTTP-only auth session cookie
 - CSRF protection on mutating web routes
 - centralized server-side state for auth, customer, and application flow

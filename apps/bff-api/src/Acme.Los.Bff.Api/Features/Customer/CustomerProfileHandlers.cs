@@ -3,7 +3,10 @@ using Acme.Los.Bff.Api.Contracts;
 
 namespace Acme.Los.Bff.Api.Features.Customer;
 
-public sealed record GetCustomerProfileQuery(string UserId, string? UserEmail);
+public sealed record GetCustomerProfileQuery(
+  string UserId,
+  string? UserEmail,
+  string? VerifiedPhone);
 
 public sealed record UpdateCustomerProfileCommand(
   string UserId,
@@ -67,29 +70,54 @@ public sealed class CustomerProfileHandler
   {
     var storedProfile = await _store.ReadAsync(query.UserId, cancellationToken);
     var authenticatedEmail = query.UserEmail?.Trim() ?? string.Empty;
+    var verifiedPhone = query.VerifiedPhone?.Trim() ?? string.Empty;
     var storedEmail = storedProfile?.Email?.Trim() ?? string.Empty;
+    var storedPhone = storedProfile?.Phone?.Trim() ?? string.Empty;
     var email = !string.IsNullOrWhiteSpace(authenticatedEmail)
       ? authenticatedEmail
       : storedEmail;
+    var phone = !string.IsNullOrWhiteSpace(verifiedPhone)
+      ? verifiedPhone
+      : storedPhone;
     var profile = storedProfile is null
-      ? EmptyProfile with { Email = email }
-      : storedProfile with { Email = email };
-    var synchronizedFromOkta =
+      ? EmptyProfile with { Email = email, Phone = phone }
+      : storedProfile with { Email = email, Phone = phone };
+    var synchronizedEmailFromOkta =
       !string.IsNullOrWhiteSpace(authenticatedEmail)
       && !string.Equals(
         storedEmail,
         authenticatedEmail,
         StringComparison.OrdinalIgnoreCase);
+    var synchronizedPhoneFromOkta =
+      !string.IsNullOrWhiteSpace(verifiedPhone)
+      && !string.Equals(
+        storedPhone,
+        verifiedPhone,
+        StringComparison.Ordinal);
+    var shouldPersistVerifiedValues =
+      (storedProfile is null
+        && (!string.IsNullOrWhiteSpace(email)
+          || !string.IsNullOrWhiteSpace(phone)))
+      || synchronizedEmailFromOkta
+      || synchronizedPhoneFromOkta;
 
-    if (storedProfile is not null && synchronizedFromOkta)
+    if (shouldPersistVerifiedValues)
     {
       await _store.WriteAsync(query.UserId, profile, cancellationToken);
 
-      if (!string.IsNullOrWhiteSpace(storedEmail))
+      if (synchronizedEmailFromOkta && !string.IsNullOrWhiteSpace(storedEmail))
       {
         _logger.LogInformation(
           "Synchronized customer profile email from the authenticated Okta session. Event={Event} UserId={UserId}",
           "customer.profile.email_changed",
+          query.UserId);
+      }
+
+      if (synchronizedPhoneFromOkta)
+      {
+        _logger.LogInformation(
+          "Synchronized customer profile phone from the authenticated Okta session. Event={Event} UserId={UserId}",
+          "customer.profile.phone_verified_synced",
           query.UserId);
       }
     }

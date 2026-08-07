@@ -34,7 +34,7 @@ const auditedRoutes = [
   },
   {
     path: '/account/profile',
-    waitFor: { role: 'heading', name: /Review your verified account/i },
+    waitFor: { role: 'heading', name: /Account details/i },
   },
   {
     path: '/logging-demo',
@@ -113,6 +113,26 @@ async function primeAuthenticatedCustomer(
 async function prepareRoute(page: Page, path: string) {
   if (path.startsWith('/apply/') || path === '/account/profile') {
     await primeAuthenticatedCustomer(page);
+  }
+
+  if (path === '/account/profile') {
+    await page.route('**/api/customer/profile', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          profile: {
+            email: 'taylor.customer@acme-los.dev',
+            phone: '+12145550186',
+            streetAddress: '1201 Commerce Row',
+            addressLine2: 'Suite 400',
+            city: 'Dallas',
+            state: 'TX',
+            zipCode: '75201',
+          },
+        }),
+      });
+    });
   }
 }
 

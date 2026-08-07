@@ -14,10 +14,11 @@ public static class AuthFlowEndpoints
   {
     var authGroup = endpoints.MapGroup("/bff/auth");
 
-    authGroup.MapGet(
-        "/login",
+    authGroup.MapPost(
+        "/idx/start",
         async (
           HttpContext context,
+          StartIdxAuthFlowRequest? payload,
           IAuthFlowService authFlowService) =>
         {
           try
@@ -27,9 +28,15 @@ public static class AuthFlowEndpoints
               return BffTrustedProxyBoundary.BuildRejectedResult();
             }
 
-            return Results.Json(await authFlowService.StartLoginAsync(
-              context.Request,
-              ReadStartAuthFlowParameters(context.Request),
+            payload ??= new StartIdxAuthFlowRequest();
+
+            return Results.Json(await authFlowService.StartIdxLoginAsync(
+              new StartAuthFlowParameters(
+                payload.ReturnTo,
+                payload.MinimumAssuranceLevel,
+                payload.ExpectedUserId,
+                payload.LeadId,
+                payload.StepUp),
               context.RequestAborted));
           }
           catch (Exception error)
@@ -39,15 +46,16 @@ public static class AuthFlowEndpoints
               statusCode: StatusCodes.Status400BadRequest);
           }
         })
-      .WithName("StartBffLogin")
-      .Produces<StartAuthFlowResponse>(StatusCodes.Status200OK)
+      .WithName("StartBffIdxLogin")
+      .Produces<StartIdxAuthFlowResponse>(StatusCodes.Status200OK)
       .Produces(StatusCodes.Status400BadRequest)
       .Produces(StatusCodes.Status403Forbidden);
 
-    authGroup.MapGet(
-        "/callback",
+    authGroup.MapPost(
+        "/idx/complete",
         async (
           HttpContext context,
+          CompleteIdxAuthFlowRequest? payload,
           IAuthFlowService authFlowService) =>
         {
           try
@@ -57,34 +65,19 @@ public static class AuthFlowEndpoints
               return BffTrustedProxyBoundary.BuildRejectedResult();
             }
 
-            var error = context.Request.Query["error_description"].ToString();
-
-            if (string.IsNullOrWhiteSpace(error))
-            {
-              error = context.Request.Query["error"].ToString();
-            }
-
-            if (!string.IsNullOrWhiteSpace(error))
+            if (payload is null
+              || string.IsNullOrWhiteSpace(payload.InteractionCode)
+              || string.IsNullOrWhiteSpace(payload.State))
             {
               return Results.Json(
-                new { error },
+                new { error = "The IDX completion did not include the expected interaction code and state." },
                 statusCode: StatusCodes.Status400BadRequest);
             }
 
-            var code = context.Request.Query["code"].ToString();
-            var state = context.Request.Query["state"].ToString();
-
-            if (string.IsNullOrWhiteSpace(code) || string.IsNullOrWhiteSpace(state))
-            {
-              return Results.Json(
-                new { error = "The Okta callback did not include the expected code and state." },
-                statusCode: StatusCodes.Status400BadRequest);
-            }
-
-            var syncedSession = await authFlowService.CompleteCallbackAsync(
+            var syncedSession = await authFlowService.CompleteIdxAsync(
               context,
-              code,
-              state,
+              payload.InteractionCode,
+              payload.State,
               context.RequestAborted);
 
             WriteAuthSessionHeaders(context, syncedSession);
@@ -98,7 +91,7 @@ public static class AuthFlowEndpoints
               statusCode: StatusCodes.Status400BadRequest);
           }
         })
-      .WithName("CompleteBffLoginCallback")
+      .WithName("CompleteBffIdxLogin")
       .Produces<CompleteAuthFlowResponse>(StatusCodes.Status200OK)
       .Produces(StatusCodes.Status400BadRequest)
       .Produces(StatusCodes.Status403Forbidden);
@@ -107,6 +100,7 @@ public static class AuthFlowEndpoints
         "/logout",
         async (
           HttpContext context,
+          StartLogoutRequest? payload,
           IAuthFlowService authFlowService) =>
         {
           try
@@ -118,6 +112,7 @@ public static class AuthFlowEndpoints
 
             return Results.Json(await authFlowService.StartLogoutAsync(
               context,
+              payload?.PostLogoutRedirectUri,
               context.RequestAborted));
           }
           catch (Exception error)
@@ -133,35 +128,6 @@ public static class AuthFlowEndpoints
       .Produces(StatusCodes.Status403Forbidden);
 
     return endpoints;
-  }
-
-  private static StartAuthFlowParameters ReadStartAuthFlowParameters(
-    HttpRequest request)
-  {
-    var minimumAssuranceLevel = request.Query["aal"].ToString();
-    var stepUpReason = request.Query["stepUpReason"].ToString();
-    var rawStepUpMaxAgeSeconds = request.Query["stepUpMaxAgeSeconds"].ToString();
-    var stepUp = !string.IsNullOrWhiteSpace(stepUpReason)
-      && int.TryParse(rawStepUpMaxAgeSeconds, out var stepUpMaxAgeSeconds)
-      && stepUpMaxAgeSeconds > 0
-        ? new WebAuthStepUpRequirement(
-          stepUpReason,
-          stepUpMaxAgeSeconds,
-          string.Equals(
-            request.Query["stepUpConsumeOnSatisfied"].ToString(),
-            "true",
-            StringComparison.OrdinalIgnoreCase))
-        : null;
-
-    return new StartAuthFlowParameters(
-      request.Query["returnTo"].ToString(),
-      string.IsNullOrWhiteSpace(minimumAssuranceLevel)
-        ? null
-        : minimumAssuranceLevel,
-      request.Query["expectedUserId"].ToString(),
-      request.Query["leadId"].ToString(),
-      stepUp,
-      request.Query["widgetFlow"].ToString());
   }
 
   private static void WriteAuthSessionHeaders(

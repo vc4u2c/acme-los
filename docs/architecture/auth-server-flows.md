@@ -14,8 +14,9 @@ Related docs:
 
 The web app now uses:
 
-- server-side PKCE initiation
-- server-side callback exchange
+- server-generated PKCE, state, and nonce
+- app-owned Auth JS IDX remediation
+- server-side Interaction Code exchange
 - one opaque auth session cookie
 - server-side session state
 - server-enforced idle session expiry
@@ -24,9 +25,9 @@ The web app now uses:
 
 The browser should not be the source of truth for authenticated state.
 
-The browser-facing route shape stays the same, but the BFF owns the PKCE
-transaction, callback exchange, auth session store, CSRF issuance, and
-logout-hint lookup behind the Next facade. Azure can add managed-identity
+The browser-facing route shape stays app-owned. The BFF owns the PKCE
+transaction, Interaction Code exchange, auth session store, CSRF issuance, and
+server-owned Okta end-session handling behind the Next facade. Azure can add managed-identity
 service auth between Next and the BFF without changing the browser routes.
 
 ## Main Cookies
@@ -38,7 +39,7 @@ Current browser-side auth shape:
 - `acme-los.csrf-token`
   - protects mutating web requests
 - short-lived auth transaction cookie
-  - only during the Okta redirect handshake
+  - only during the IDX transaction
   - contains an opaque transaction id and safe routing metadata
   - does not contain the PKCE `code_verifier`, Okta `state`, nonce, or step-up
     proof context
@@ -73,19 +74,19 @@ idle expiry.
 - a successful server-side refresh verifies the new ID token, updates the
   server token set, and extends the idle expiry without bypassing the active
   session checks
-- a successful hosted sign-in callback, including route-level step-up, writes a
+- a successful IDX Interaction Code completion, including route-level step-up, writes a
   replacement server auth session and retires the prior server auth-session
   record; application-flow state remains keyed by the customer identity rather
   than by the old token set
 - route-level step-up captures the current user id in the auth transaction,
-  asks Okta for a fresh login/assurance check, and rejects callbacks that return
-  a token for a different subject
+  asks Okta for a fresh login/assurance check, and rejects Interaction Code
+  completions that return a token for a different subject
 - funding step-up is intentionally fresh: an existing `aal2` session is not
   enough by itself, because each funding page entry consumes the latest funding
-  step-up marker; the callback must also include Okta `amr` evidence for email
+  step-up marker; completion must also include Okta `amr` evidence for email
   or phone/SMS OTP before the marker is written; funding save/submit APIs can
   still use that marker during the bounded 10-minute funding API window written
-  by the latest Okta callback
+  by the latest validated IDX completion
 
 Current defaults:
 
@@ -97,7 +98,9 @@ easy to test.
 
 ## Sign-In Flow
 
-This is the normal hosted Okta sign-in path for the web app.
+This is the app-owned IDX Interaction Code path for the web app. Auth JS sends
+identifiers, passwords, and OTPs directly to Okta. OAuth tokens never enter
+browser storage.
 
 ```mermaid
 sequenceDiagram
@@ -108,31 +111,28 @@ sequenceDiagram
   participant S as Server State Store
 
   U->>W: GET /account/sign-in?returnTo=/apply/personal-info
-  W->>U: Render sign-in launch page
-  U->>W: GET /api/auth/start?returnTo=/apply/personal-info
-  W->>W: Generate state, nonce, code_verifier, code_challenge
-  W->>S: Store auth transaction with 30-minute TTL
-  W->>U: Set opaque auth transaction cookie
-  W->>U: Redirect to Okta authorize endpoint
-  U->>O: Hosted sign-in
-  O->>U: Redirect back to /auth/callback with code + state
-  U->>W: GET /auth/callback?code=...&state=...
-  W->>U: Immediate redirect to /api/auth/callback
-  U->>W: GET /api/auth/callback?code=...&state=...
-  W->>S: Fetch auth transaction by opaque id
-  W->>W: Verify callback state
-  W->>S: Delete consumed auth transaction
-  W->>O: Exchange code for tokens
+  W->>U: Render ACME-owned IDX page
+  U->>W: POST /api/auth/idx/start
+  W->>W: Validate CSRF and derive route requirement
+  W->>S: Store verifier, state, nonce, subject, and step-up intent
+  W->>U: Return issuer, challenge, state, and nonce only
+  U->>O: Auth JS IDX remediations (credentials/OTP direct)
+  O-->>U: One-time interaction_code
+  U->>W: POST /api/auth/idx/complete with code + state
+  W->>S: Fetch auth transaction by opaque cookie
+  W->>W: Verify state and expected route/subject
+  W->>O: Exchange interaction_code with server-held verifier
   O-->>W: id_token, access_token, refresh_token?
-  W->>W: Verify nonce and token claims
+  W->>W: Verify signature, issuer, audience, nonce, subject, acr, and amr
   W->>S: Create server-side auth session
+  W->>S: Delete consumed auth transaction
   W->>U: Set opaque auth session cookie
   W->>U: Clear auth transaction cookie
   W->>U: Redirect to returnTo
 ```
 
-The small `/auth/callback` page is just a handoff route. The real code exchange
-and session write happen in `/api/auth/callback`.
+The hosted Gen3 page remains a mobile and rollback surface. The web app does
+not embed Gen3; it renders supported IDX remediations with Auth JS.
 
 ## Guarded Route Flow
 
@@ -183,7 +183,7 @@ Examples:
 ```mermaid
 flowchart TD
   A[Request arrives] --> B{Has valid session?}
-  B -- No --> C[Redirect to hosted sign-in]
+  B -- No --> C[Redirect to app-owned sign-in]
   B -- Yes --> D{Route requires stronger assurance?}
   D -- No --> E[Render route]
   D -- Yes --> F{Session meets required AAL?}
@@ -241,8 +241,8 @@ Authentication and authorization decisions are split like this:
 
 - identity and primary login
   - Okta
-- callback validation and session creation
-  - Next server in `next` mode; BFF behind the Next facade in `bff` mode
+- Interaction Code validation and session creation
+  - BFF behind the thin Next facade
 - guarded route checks
   - Next server
 - assurance-level decisions for sensitive routes

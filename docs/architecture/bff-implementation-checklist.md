@@ -42,14 +42,14 @@ BFF. Explicit mock auth remains local for development and Playwright fixtures.
 
 ### Auth And Session
 
-- `GET /bff/auth/login`
-- `GET /bff/auth/callback`
+- `POST /bff/auth/idx/start`
+- `POST /bff/auth/idx/complete`
 - `POST /bff/auth/logout`
 - `GET /bff/auth/session`
 - `DELETE /bff/auth/session`
 - `POST /bff/auth/session/touch`
 - `POST /bff/auth/session/requirement`
-- `GET /bff/auth/logout-hint`
+- `POST /bff/auth/logout`
 
 ### Security
 

@@ -103,6 +103,39 @@ export function getApplicationAuthRequirementForPath(
   return null;
 }
 
+export function getSignInAuthRequirementForPath(
+  path: string | undefined,
+  minimumAssuranceLevel: Exclude<
+    AuthRequirement['minimumAssuranceLevel'],
+    undefined
+  >,
+): AuthRequirement {
+  const routeRequirement = getApplicationAuthRequirementForPath(path);
+
+  return routeRequirement?.requiredStepUp
+    ? {
+        requiresAuthentication: true,
+        minimumAssuranceLevel,
+        requiredStepUp: {
+          ...routeRequirement.requiredStepUp,
+          consumeOnSatisfied: false,
+        },
+      }
+    : {
+        requiresAuthentication: true,
+        minimumAssuranceLevel,
+      };
+}
+
+export function shouldAlwaysStartInteractiveStepUpForPath(
+  path: string | undefined,
+): boolean {
+  return (
+    getApplicationAuthRequirementForPath(path)?.requiredStepUp
+      ?.consumeOnSatisfied === true
+  );
+}
+
 export function getAccountSecurityAuthRequirement(
   action: 'email' | 'phone' | 'password',
 ): AuthRequirement {

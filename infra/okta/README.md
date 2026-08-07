@@ -14,6 +14,13 @@ Source of truth:
 
 Secrets do not live here.
 
+Each environment must declare both `okta.issuer` and `okta.orgUrl`.
+`okta.issuer` is the exact authorization-server issuer used by customer OAuth
+and may use the ACME custom domain. `okta.orgUrl` is the canonical Okta tenant
+HTTPS origin used by bootstrap, live audit, scoped Management APIs, and the
+BFF's explicit issuer alias allowlist. Tooling fails closed when `orgUrl` is
+missing or contains credentials, a path, query, or fragment.
+
 Do not commit:
 
 - Okta API tokens
@@ -36,6 +43,7 @@ Use this quick rule:
 - want to remove the Okta apps for a clean-room retest -> `npm run okta:cleanup -- <env>`
 - want to deactivate or delete non-allowlisted Okta users -> `npm run okta:prune-users -- <env> --dry-run`
 - want to permanently delete exact Okta users -> `npm run okta:delete-users -- <env> --login <login> --dry-run`
+- want to verify/apply the scoped service-app admin role -> `npm run okta:ensure-service-app-role -- <env>`
 
 If you are unsure, use `okta:bootstrap`.
 
@@ -113,6 +121,39 @@ Use this after bootstrap, after hosted-page changes, and whenever Okta
 behavior looks different from the repo intent. A clean dev run should have no
 `fail` checks and no actionable `warn` checks.
 
+### `npm run okta:ensure-service-app-role -- <env>`
+
+Script:
+
+- `tools/scripts/okta/ensure-service-app-admin-role.mjs`
+
+Purpose:
+
+- calls the live Okta Admin APIs
+- uses `OKTA_MANAGEMENT_ACCESS_TOKEN`, `OKTA_API_TOKEN`, or
+  `--token-file <path>`
+- verifies the Okta service app from `infra/azure/config/platform.json`
+- assigns the standard `USER_ADMIN` role to that client app only when needed
+- scopes the role target to `acme-los-customers-<env>`
+- defaults to dry-run and writes a non-secret output report
+
+Dry-run first:
+
+```powershell
+node tools/scripts/okta/ensure-service-app-admin-role.mjs dev --token-file C:\secure\acme-los-okta-api-token.txt
+```
+
+After reviewing `tmp/okta/dev.service-app-role.outputs.json`, apply:
+
+```powershell
+node tools/scripts/okta/ensure-service-app-admin-role.mjs dev --token-file C:\secure\acme-los-okta-api-token.txt --confirm
+```
+
+This role assignment is required for the runtime service app to use its scoped
+OAuth token against the Users API. The app still only requests
+`okta.users.read okta.users.manage`, and the role target must stay limited to
+the ACME customer group.
+
 ### `npm run okta:bootstrap -- <env>`
 
 Script:
@@ -130,15 +171,17 @@ This is the **current practical write path**.
 
 It currently handles:
 
-- web SPA app
+- web OIDC app with Authorization Code, Interaction Code, and refresh-token
+  grants
 - mobile native app
 - trusted origin
 - default-brand rename to a neutral fallback
 - customer-brand creation or reuse
 - customer-brand theme colors
 - customer-brand hosted logo and favicon upload
-- customer-brand hosted sign-in and error page content from the repo template
-- customer-brand hosted sign-in page generation from
+- customer-brand hosted sign-in and error page content for the mobile redirect
+  and rollback baseline
+- customer-brand hosted sign-in page generation for those non-web surfaces from
   `hostedExperience.signInWidgetGeneration` and the exact
   `hostedExperience.signInWidgetVersion`; `G3` is required, the version must be
   pinned to an Okta-supported hosted-widget version such as `7.46`, and
@@ -152,11 +195,19 @@ It currently handles:
 - customer group
 - org-level email-as-username intent (`Map primary email to login attribute`)
   from `hostedExperience.mapPrimaryEmailToLogin`; bootstrap prints the desired
-  state, but Okta does not expose a public API setter for this org setting
+  state, but Okta does not expose a public API setter for this org setting.
+  Existing ACME users are kept aligned by the BFF post-email-OTP profile sync,
+  which updates `profile.login` to the verified email through the scoped Okta
+  service app when the ACME runtime switch is enabled.
+- org-level Interaction Code intent. Bootstrap enables `interaction_code` on
+  the existing web client and the custom authorization-server access rule, but
+  an administrator must verify `Settings > Account > Embedded widget sign-in
+support > Interaction Code` because Okta does not document a supported
+  public setter for that org checkbox
 - profile-enrollment registration target group and required profile fields
   (`email`, `firstName`, `lastName`, `acmeState`); email remains the customer
   login identifier. Phone is captured during Okta phone/SMS authenticator
-  enrollment, not on the hosted profile-enrollment form, so it is not requested
+  enrollment, not on the profile-enrollment form, so it is not requested
   twice.
   The visible State field is scripted as the ACME-owned `acmeState` enum limited
   to Missouri and Texas plus a UI-schema select control because Okta's built-in
@@ -172,17 +223,21 @@ It currently handles:
 - customer-group-scoped global session policy with a 60-day maximum lifetime
   and 120-minute idle timeout
 - app access policy
-- password-first standard sign-in policy wiring
+- possession-factor app authorization when passwordless funding step-up is
+  enabled; the global session policy remains responsible for primary
+  authentication
 - adaptive high-risk/new-device 2FA policy wiring when the org supports Okta
   risk-based conditions
-- Okta account-management policy rules for password, email, and phone/SMS
-  lifecycle scenarios
+- Okta account-management policy rules only for supported password and
+  phone/SMS recovery operations
+- deactivation of the retired ACME account-management rules that previously
+  claimed to protect MyAccount email, phone, and password mutations
 - policy and customer-group assignment to the created apps
 
 It also prints and writes a `policyPlan` summary that names each Okta policy,
 its scope, and what it configures. It also prints and writes the resolved
-`sessionAndAdaptivePolicyIntent` plus the account-management policy rule
-payloads for the six customer account scenarios.
+`sessionAndAdaptivePolicyIntent`, supported recovery rules, retired rule names,
+and the application-enforced MyAccount security boundary.
 Resolved IDs and client IDs are written back into the local generated files, and
 the environment manifest is updated when app client IDs are created.
 
@@ -200,16 +255,19 @@ Live dev org state last verified from the Admin API:
 - managed user profile attributes exist:
   - `leadId`
   - `customerId`
-  - `mobilePhone` reserved for future profile sync, not collected on hosted
-    registration
-  - `acmeState` for Okta-hosted registration State capture limited to Missouri
+  - `mobilePhone` reserved for future Okta profile-attribute sync, not
+    collected during registration; the current dashboard reads verified
+    SMS phone from the user-scoped Okta MyAccount phone API instead
+  - `acmeState` for registration State capture limited to Missouri
     and Texas
 - profile-enrollment UI schema is scripted as `email`, `firstName`, `lastName`,
   and `acmeState`; `acmeState` uses UI format `select`
 - `hostedExperience.mapPrimaryEmailToLogin` is source-controlled as `true`;
   verify Okta Admin > Security > General > Organization > Map primary email to
   login attribute is Enabled because the public Okta org API does not expose a
-  setter for this lifecycle switch
+  setter for this lifecycle switch. Run the live audit before demos; it fails
+  if scanned customer users have different `profile.login` and `profile.email`
+  values.
 - profile-enrollment registration rule targets only `acme-los-customers-dev`;
   live rule fields match `email`, `firstName`, `lastName`, and `acmeState`, and
   registration enrollment type includes `password`. If Okta rejects public
@@ -223,10 +281,9 @@ Live dev org state last verified from the Admin API:
 - phone/SMS factor enrollment is required in `dev` through the repo-managed mock
   telephony provider; the phone number is entered and verified on the Okta
   phone/SMS authenticator screen, not collected separately as profile phone
-- account-management lifecycle rules are repo-managed by bootstrap:
-  - `ACME LOS Password Lifecycle (dev)`
-  - `ACME LOS Email Lifecycle (dev)`
-  - `ACME LOS Phone Lifecycle (dev)`
+- account-management recovery rules are repo-managed by bootstrap:
+  - `ACME LOS Password Recovery (dev)`
+  - `ACME LOS Phone Recovery (dev)`
 - phone authenticator can be enabled in `dev` through the repo-managed mock
   telephony provider for demos; this logs Okta-generated OTPs in dev app logs
   and does not send real SMS
@@ -265,7 +322,7 @@ npm run okta:bootstrap -- dev
 npm run okta:audit-live -- dev
 ```
 
-1. Start the web app and test the hosted flow
+1. Start the web app and test the app-owned IDX flow
 
 This gives you the least manual work with the least amount of architectural weirdness.
 
@@ -325,7 +382,7 @@ For irreversible allowlist cleanup in dev only, set the manifest guard:
   "enabled": true,
   "action": "delete",
   "keepLogins": [],
-  "keepProfileContains": ["vinod", "gopi", "sasha"]
+  "keepProfileContains": ["vinod", "gopi"]
 }
 ```
 
@@ -388,8 +445,8 @@ Current limitations:
   telephony path is activated; `dev` can require phone/SMS through the
   repo-managed mock telephony provider for demos. Follow
   [Okta SMS MFA with Azure Communication Services](../../docs/operations/okta-sms-mfa-with-acs.md)
-- customer account-security policy intent, backend profile sync, and the manual
-  account-management policy checks are documented in
+- customer account-security policy intent, backend profile sync, and the
+  BFF/MyAccount boundary are documented in
   [Okta account security and profile sync](../../docs/operations/okta-account-security-and-profile-sync.md)
 - device assurance, device signal collection, and deeper device-risk controls
   are Okta org features; bootstrap scopes their consumption through ACME app
@@ -398,7 +455,9 @@ Current limitations:
 - the hosted sign-in page intentionally hides Okta's pre-auth "remember user"
   checkbox; customer session lifetime and remember-device behavior stay
   policy-driven
-- route-specific funding step-up still belongs in application runtime logic
+- route-specific funding and account-change proof still belongs in the ACME
+  transaction and BFF enforcement logic because one app policy cannot vary by
+  application route
 - custom-domain linking is still a manual tenant step because DNS ownership and certificate validation happen outside the repo bootstrap
 - profile-enrollment uses the Okta-managed catch-all rule. Bootstrap attempts to
   update that rule to target the ACME LOS customer group, remove retired
@@ -411,32 +470,31 @@ That means:
 - branding colors, logo, and favicon are automated
 - hosted sign-in and error page HTML/content are automated by
   `tools/scripts/okta/hosted-sign-in-page.mjs` after the custom domain is linked
-- the Okta-hosted page templates live in `tools/scripts/okta/templates`; the
-  sign-in template uses an ACME-styled Gen 3 shell while keeping Okta in charge
-  of all credential, registration, recovery, and authenticator controls
+- the Okta-hosted page templates remain for the mobile redirect experience and
+  rollback baseline. The web app renders its supported IDX remediations on an
+  ACME-owned page and sends IDX credentials and OTPs directly to Okta
 - hosted sign-in is locked to Okta Sign-In Widget Gen 3 and pinned to the exact
   version in `hostedExperience.signInWidgetVersion`. Okta documents Gen 3 as
-  Okta-hosted only, so ACME keeps redirect auth through Okta and does not
-  self-host or embed the widget in Next.js. The current repo template avoids
-  Gen 2 class-name DOM overrides and custom form controls; ACME styling is
-  limited to the surrounding shell plus scoped form/control normalization, and
-  the controller only selects supported widget flows for forgot-password,
-  unlock-account, and signup entry. If you need the matching Admin Console
+  Okta-hosted only, so the web app does not embed or imitate the widget. Its
+  app-owned experience uses Auth JS direct IDX remediation with the Interaction
+  Code grant. The hosted template avoids Gen 2 class-name DOM overrides and
+  remains the supported mobile/rollback surface. For the matching Admin Console
   check, go to
   `Customizations > Brands > ACME LOS Customer > Pages > Sign-in page > Settings > Sign-In Widget version`
   and verify `Use third generation` is active, the configured widget version
   matches the manifest, and the page is published.
-- hosted registration is controlled by the Okta profile-enrollment policy/rule
-  assigned to the app. If the sign-up link is missing, verify that profile
-  enrollment targets `acme-los-customers-<env>` and registration is enabled for
-  the app.
+- registration is controlled by the Okta profile-enrollment policy/rule
+  assigned to the app. Auth JS renders the IDX profile and authenticator
+  enrollment remediations returned by that policy. If registration is missing,
+  verify that profile enrollment targets `acme-los-customers-<env>` and is
+  enabled for the app.
 - password policy controls password requirements and lifecycle behavior; it
   does not control whether the hosted Gen 3 registration form shows a
   repeat/confirm-password field. ACME does not inject browser-only credential
   fields into the hosted page. If a true confirm-password field becomes a hard
   requirement, build an embedded/custom IDX registration experience instead of
   patching the Okta-hosted DOM.
-- hosted-page behavior is checked locally with
+- hosted mobile/rollback behavior is checked locally with
   `npm run okta:audit-hosted-pages -- <env>`; the audit renders the styled Gen
   3 shell and verifies that sign-in, signup, forgot-password, and
   unlock-account widget flows initialize without dead hosted/help routes.
@@ -451,15 +509,15 @@ That means:
 - the current dev org already has the custom domain linked manually:
   - `auth.avanai.net`
 - the current dev org uses `https://integrator-9373984.okta.com` as the
-  source-controlled `okta.orgUrl` for end-user settings links because the
-  custom auth domain serves hosted sign-in/error pages but not the end-user
-  settings app
+  source-controlled Okta Admin API origin; customer account changes never link
+  to the Okta end-user settings application
 - the `dev` manifest prepares `https://apply-dev.avanai.net` as an allowed
   origin, but theme continuity from app to Okta is not live until that hostname
   is DNS-validated, enabled through the Bicep-managed web custom-domain
   deployment, and made the deployed web base URL
 
-Current auth shape in this repo:
+Current target auth shape in this repo (apply bootstrap and deploy the web/BFF
+artifacts before treating this as live tenant state):
 
 - registration requires password, email, security-question, and phone/SMS
   enrollment for `dev` users in the ACME LOS customer group because the MFA
@@ -468,44 +526,54 @@ Current auth shape in this repo:
   The intended profile-enrollment email verification state is disabled so Okta
   does not send a separate profile email challenge on profile submit; bootstrap
   and the live audit fail closed if the tenant drifts from that setting.
-- Okta-hosted registration captures email, first name, last name, and visible
+- App-owned IDX registration captures email, first name, last name, and visible
   State in profile enrollment; State is backed by the ACME-owned `acmeState`
   dropdown limited to Missouri and Texas. Phone is captured once on the Okta
-  phone/SMS authenticator enrollment screen, where the customer explicitly
+  phone/SMS authenticator remediation, where the customer explicitly
   requests the SMS code.
   Password and password requirements are Okta password authenticator enrollment,
   not ACME profile fields. Confirm/repeat-password display is controlled by the
-  Okta hosted widget/org behavior, not by the ACME profile-enrollment schema.
-  Okta may still render password, email OTP, phone OTP, and security-question
-  enrollment as follow-up hosted steps.
+  Okta policy and IDX remediation, not by the ACME profile-enrollment schema.
 - Okta `sub` is the immutable ACME user key; email is mutable metadata synced to
   backend profile storage after a fresh Okta session
 - ACME account-security pages use Okta user-scoped MyAccount APIs for
-  signed-in password, email, and phone changes; forgot-password recovery remains
-  in the Okta-hosted Gen3 widget
-- account management uses opposite-channel proofing: password and email
-  lifecycle actions require phone/SMS OTP plus security question, while
-  phone/SMS lifecycle actions require email OTP plus security question
+  signed-in password, email, and phone changes; forgot-password recovery uses
+  the app-owned IDX page and remains controlled by Okta recovery policy
+- Okta Account Management Policy does not support the MyAccount Email, Phone,
+  or Password APIs. For those mutations, the ACME BFF authoritatively validates
+  transaction state, nonce, subject continuity, proof age, AAL, and exact AMR
+  evidence before forwarding the user-scoped token to Okta
+- opposite-channel proofing is application-enforced for MyAccount changes:
+  password and email changes require fresh password plus phone/SMS OTP; phone
+  changes require fresh password plus email OTP. Security question remains in
+  forgot-password and lost-factor recovery because Okta recommends against
+  using it for routine authentication
 - after email changes, ACME syncs the new email only after fresh sign-in with
   the new email and email OTP; after phone/SMS changes, ACME syncs verified
   phone metadata only after fresh sign-in with the unchanged email and the new
   phone/SMS OTP
 - customer global session policy has a 60-day maximum lifetime and a
   120-minute idle timeout for the ACME LOS customer group
-- standard sign-in is password-first
+- primary authentication is controlled by the global session policy; because
+  the web experience intentionally uses one OIDC client, the app authorization
+  policy requires a fresh possession factor on each authorization when
+  passwordless funding is enabled. This documented Okta policy pattern lets
+  repeat funding checks use email or phone/SMS OTP without re-entering the
+  password, and it applies app-wide rather than pretending to be route-scoped
 - adaptive sign-in, when the high-risk/new-device rule is supported and
   triggered, steps up to 2FA with password required as the first factor; it
   does not use security-question challenge/hint during sign-in
-- the funding step is still enforced in application runtime with `acr_values`;
-  when `hostedExperience.fundingStepUpRequiresPassword=false`, the app does not
-  send `max_age=0`, so Okta can step up the existing SSO session with a
-  possession OTP instead of asking for the password again. The configured
-  funding policy accepts one Okta possession OTP factor: email or phone/SMS
+- the funding step is still enforced in application runtime; when
+  `hostedExperience.fundingStepUpRequiresPassword=false`, the app sends neither
+  the two-factor `acr_values` request nor `max_age=0`. The possession-only Okta
+  app policy presents one email or phone/SMS OTP, and the BFF independently
+  validates the resulting subject and exact possession-factor `amr` evidence
 - an existing `aal2` web session does not by itself unlock funding; the current
-  server-side session needs the latest funding step-up marker, the callback
-  must include Okta `amr` evidence for email or phone/SMS OTP, funding page
+  server-side session needs the latest funding step-up marker, the Interaction
+  Code result must include Okta `amr` evidence for email or phone/SMS OTP, funding page
   entry consumes that marker, and funding APIs can use it during the bounded
-  10-minute API window written by the latest Okta callback
+  10-minute API window written by the latest validated Interaction Code
+  completion
 
 ## Current Admin Auth Path
 
@@ -542,4 +610,5 @@ If you want the simple mental model, read these in order:
 1. `infra/okta/brand/acme-los.json`
 1. `tools/scripts/okta/render-auth-config.mjs`
 1. `tools/scripts/okta/bootstrap-okta.mjs`
-1. `tools/scripts/okta/hosted-sign-in-page.mjs`
+1. `apps/web-app/src/components/web/customer-idx-auth-page.tsx`
+1. `apps/bff-api/src/Acme.Los.Bff.Api/Infrastructure/Auth/AuthFlowService.cs`

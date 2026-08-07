@@ -4,6 +4,7 @@ import type {
   TouchWebAuthSessionResponse,
   WebAuthSession,
   WebAuthSessionUser,
+  StartLogoutResponse,
 } from '@acme-los/api/contracts';
 import type { NextRequest, NextResponse } from 'next/server';
 import { clearApplicationFlow } from './application-flow';
@@ -15,9 +16,9 @@ import {
 } from './assurance';
 import {
   clearBffWebAuthSession,
-  readBffLogoutHintIdToken,
   readBffWebAuthSession,
   requireBffWebAuthSession,
+  startBffLogout,
   touchBffWebAuthSession,
 } from './bff-auth-session-client';
 import { getServerWebAuthConfig } from './config';
@@ -31,8 +32,6 @@ import {
   parseSignedCookieValue,
   setSignedCookie,
 } from './cookies';
-
-const LEGACY_AUTH_LOGOUT_HINT_COOKIE_NAME = 'acme-los.auth-logout';
 
 export type SessionCookiePayload = {
   sessionId: string;
@@ -110,7 +109,6 @@ function clearBrowserAuthCookies(
 ): void {
   clearCookie(response, request, MOCK_AUTH_STORAGE_KEY);
   clearCookie(response, request, AUTH_SESSION_COOKIE_NAME);
-  clearCookie(response, request, LEGACY_AUTH_LOGOUT_HINT_COOKIE_NAME);
   clearCookie(response, request, AUTH_TRANSACTION_COOKIE_NAME);
   clearCookie(response, request, CUSTOMER_PROFILE_COOKIE_NAME);
   clearCookie(response, request, CSRF_COOKIE_NAME);
@@ -118,29 +116,18 @@ function clearBrowserAuthCookies(
 
 export async function readWebAuthSession(
   request: NextRequest,
-  options: { includeDebug?: boolean } = {},
 ): Promise<GetWebAuthSessionResponse> {
   const mockSession = readMockRequestSession(request);
 
   if (mockSession) {
-    return {
-      session: mockSession,
-      ...(options.includeDebug
-        ? { debug: { idTokenClaims: null, accessTokenClaims: null } }
-        : {}),
-    };
+    return { session: mockSession };
   }
 
   if (getServerWebAuthConfig().provider === 'mock') {
-    return {
-      session: buildMockUnauthenticatedSession(),
-      ...(options.includeDebug
-        ? { debug: { idTokenClaims: null, accessTokenClaims: null } }
-        : {}),
-    };
+    return { session: buildMockUnauthenticatedSession() };
   }
 
-  return readBffWebAuthSession({ request }, options);
+  return readBffWebAuthSession({ request });
 }
 
 export function readSessionCookiePayload(
@@ -223,18 +210,33 @@ export async function clearWebAuthSession(
 export async function clearWebAuthLogoutArtifacts(
   request: NextRequest,
   response: NextResponse,
-): Promise<void> {
-  await clearWebAuthSession(request, response);
-}
+  postLogoutRedirectUri: string,
+): Promise<StartLogoutResponse | null> {
+  const mockSession = readMockRequestSession(request);
 
-export async function readLogoutHintIdToken(
-  request: NextRequest,
-): Promise<string | null> {
-  if (getServerWebAuthConfig().provider === 'mock') {
+  if (getServerWebAuthConfig().provider === 'mock' || mockSession) {
+    await clearWebAuthSession(request, response);
     return null;
   }
 
-  return readBffLogoutHintIdToken(request);
+  const sessionResponse = await readBffWebAuthSession({ request }).catch(
+    () => null,
+  );
+  const logout = await startBffLogout(request, {
+    postLogoutRedirectUri,
+  }).catch(async () => {
+    await clearBffWebAuthSession(request).catch(() => undefined);
+    return null;
+  });
+
+  if (sessionResponse?.session.isAuthenticated) {
+    await clearApplicationFlow(sessionResponse.session, request, response);
+  } else {
+    clearCookie(response, request, APPLICATION_FLOW_COOKIE_NAME);
+  }
+
+  clearBrowserAuthCookies(request, response);
+  return logout;
 }
 
 export async function requireAuthenticatedWebSession(

@@ -2,6 +2,7 @@
   "environment": "stg",
   "okta": {
     "issuer": "https://stg-org.okta.com/oauth2/default",
+    "orgUrl": "https://stg-org.okta.com",
     "webClientId": "replace-with-stg-web-client-id",
     "mobileClientId": "replace-with-stg-mobile-client-id",
     "fundingStepUpAcrValues": "urn:okta:loa:2fa:any",
@@ -17,8 +18,8 @@
     "hostedExperience": {
       "signInWidgetGeneration": "G3",
       "signInWidgetVersion": "7.46",
-      "rememberUser": true,
-      "keepMeSignedIn": true,
+      "rememberUser": false,
+      "keepMeSignedIn": false,
       "customerSessionMaxLifetimeDays": 60,
       "registrationRequiresEmailVerification": true,
       "registrationProfileEmailVerification": false,
@@ -35,7 +36,7 @@
   },
   "web": {
     "baseUrl": "https://stg.acme-los.dev",
-    "redirectPath": "/auth/callback",
+    "redirectPath": "/account/sign-in",
     "postLogoutRedirectPath": "/"
   },
   "mobile": {
@@ -44,8 +45,8 @@
   },
   "bff": {
     "baseUrl": "https://stg-api.acme-los.dev",
-    "loginPath": "/bff/auth/login",
-    "callbackPath": "/bff/auth/callback",
+    "idxStartPath": "/bff/auth/idx/start",
+    "idxCompletePath": "/bff/auth/idx/complete",
     "logoutPath": "/bff/auth/logout",
     "sessionPath": "/bff/auth/session"
   }

@@ -1,6 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mail;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -11,6 +12,10 @@ namespace Acme.Los.Bff.Api.Features.AccountSecurity;
 
 public interface IOktaMyAccountService
 {
+  ValueTask<IReadOnlyList<MyAccountPhone>> ListPhonesAsync(
+    string accessToken,
+    CancellationToken cancellationToken);
+
   ValueTask<StartEmailChangeResponse> StartEmailChangeAsync(
     string accessToken,
     StartEmailChangeRequest? request,
@@ -37,11 +42,19 @@ public interface IOktaMyAccountService
     CancellationToken cancellationToken);
 }
 
+public sealed record MyAccountPhone(
+  string Id,
+  string Status,
+  string PhoneNumber)
+{
+  public bool IsVerified =>
+    string.Equals(Status, "VERIFIED", StringComparison.OrdinalIgnoreCase);
+}
+
 public sealed class OktaMyAccountService : IOktaMyAccountService
 {
   private const string OktaMyAccountAcceptMediaType =
     "application/json; okta-version=1.0.0";
-  private const string JsonMediaType = "application/json";
 
   private static readonly JsonSerializerOptions JsonOptions =
     new(JsonSerializerDefaults.Web);
@@ -55,6 +68,24 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
   public OktaMyAccountService(IHttpClientFactory httpClientFactory)
   {
     _httpClientFactory = httpClientFactory;
+  }
+
+  public async ValueTask<IReadOnlyList<MyAccountPhone>> ListPhonesAsync(
+    string accessToken,
+    CancellationToken cancellationToken)
+  {
+    var phoneTransactions = await SendAsync<List<OktaPhoneTransaction>>(
+      accessToken,
+      HttpMethod.Get,
+      "/idp/myaccount/phones",
+      null,
+      cancellationToken);
+
+    return phoneTransactions
+      .Select(TryBuildMyAccountPhone)
+      .Where(phone => phone is not null)
+      .Select(phone => phone!)
+      .ToArray();
   }
 
   public async ValueTask<StartEmailChangeResponse> StartEmailChangeAsync(
@@ -83,7 +114,11 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
       accessToken,
       HttpMethod.Post,
       $"/idp/myaccount/emails/{Uri.EscapeDataString(emailId)}/challenge",
-      null,
+      new
+      {
+        state = Convert.ToHexString(RandomNumberGenerator.GetBytes(32))
+          .ToLowerInvariant(),
+      },
       cancellationToken);
     var challengeId = NormalizeOktaResponseChallengeId(
       challenge.ChallengeId
@@ -122,7 +157,17 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
       cancellationToken,
       expectBody: false);
 
-    return new VerifyEmailChangeResponse("verified");
+    var emailTransaction = await SendAsync<OktaEmailTransaction>(
+      accessToken,
+      HttpMethod.Get,
+      $"/idp/myaccount/emails/{Uri.EscapeDataString(emailId)}",
+      null,
+      cancellationToken);
+    var verifiedEmail = NormalizeOktaResponseEmail(
+      emailTransaction.Profile?.Email,
+      "verified email address");
+
+    return new VerifyEmailChangeResponse("verified", verifiedEmail);
   }
 
   public async ValueTask<StartPhoneChangeResponse> StartPhoneChangeAsync(
@@ -229,7 +274,6 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     if (body is not null)
     {
       request.Content = JsonContent.Create(body, options: JsonOptions);
-      request.Content.Headers.ContentType = new MediaTypeHeaderValue(JsonMediaType);
     }
 
     using var response = await _httpClientFactory.CreateClient().SendAsync(
@@ -385,6 +429,31 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     return email;
   }
 
+  private static string NormalizeOktaResponseEmail(string? value, string label)
+  {
+    var email = value?.Trim() ?? string.Empty;
+
+    if (string.IsNullOrWhiteSpace(email))
+    {
+      throw new OktaMyAccountException(
+        $"Okta did not return a valid {label}.",
+        StatusCodes.Status502BadGateway);
+    }
+
+    try
+    {
+      _ = new MailAddress(email);
+    }
+    catch (FormatException)
+    {
+      throw new OktaMyAccountException(
+        $"Okta did not return a valid {label}.",
+        StatusCodes.Status502BadGateway);
+    }
+
+    return email;
+  }
+
   private static string NormalizePhoneNumber(string? value)
   {
     var phoneNumber = value?.Trim() ?? string.Empty;
@@ -411,6 +480,46 @@ public sealed class OktaMyAccountService : IOktaMyAccountService
     }
 
     return compactPhoneNumber;
+  }
+
+  private static MyAccountPhone? TryBuildMyAccountPhone(
+    OktaPhoneTransaction transaction)
+  {
+    var id = transaction.Id?.Trim() ?? string.Empty;
+    var status = transaction.Status?.Trim() ?? string.Empty;
+    var phoneNumber = TryNormalizeOktaResponsePhoneNumber(
+      transaction.Profile?.PhoneNumber);
+
+    if (!SafeOktaIdPattern.IsMatch(id)
+      || string.IsNullOrWhiteSpace(status)
+      || phoneNumber is null)
+    {
+      return null;
+    }
+
+    return new MyAccountPhone(id, status, phoneNumber);
+  }
+
+  private static string? TryNormalizeOktaResponsePhoneNumber(string? value)
+  {
+    var phoneNumber = value?.Trim() ?? string.Empty;
+    var compactPhoneNumber = Regex.Replace(phoneNumber, "[^0-9+]", "");
+
+    if (compactPhoneNumber.Length == 10 && compactPhoneNumber.All(char.IsDigit))
+    {
+      compactPhoneNumber = $"+1{compactPhoneNumber}";
+    }
+    else if (
+      compactPhoneNumber.Length == 11
+      && compactPhoneNumber.StartsWith('1')
+      && compactPhoneNumber.All(char.IsDigit))
+    {
+      compactPhoneNumber = $"+{compactPhoneNumber}";
+    }
+
+    return Regex.IsMatch(compactPhoneNumber, "^\\+[1-9][0-9]{7,14}$")
+      ? compactPhoneNumber
+      : null;
   }
 
   private static string NormalizeVerificationCode(string? value)

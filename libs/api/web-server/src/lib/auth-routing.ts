@@ -14,11 +14,34 @@ function normalizeAuthReturnTo(returnTo: string): string {
   return returnTo;
 }
 
+function hasControlCharacter(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const characterCode = character.charCodeAt(0);
+    return characterCode <= 0x1f || characterCode === 0x7f;
+  });
+}
+
 export function getSafeServerAuthReturnTo(
   returnTo?: string,
   fallback = FIRST_APPLICATION_STEP_PATH,
 ): string {
-  if (!returnTo || !returnTo.startsWith('/') || returnTo.startsWith('//')) {
+  if (
+    !returnTo ||
+    !returnTo.startsWith('/') ||
+    returnTo.includes('\\') ||
+    hasControlCharacter(returnTo)
+  ) {
+    return fallback;
+  }
+
+  try {
+    const expectedOrigin = new URL('https://acme-los.invalid');
+    const resolvedReturnTo = new URL(returnTo, expectedOrigin);
+
+    if (resolvedReturnTo.origin !== expectedOrigin.origin) {
+      return fallback;
+    }
+  } catch {
     return fallback;
   }
 
@@ -29,12 +52,10 @@ export function buildSignInRedirectPath({
   returnTo,
   minimumAssuranceLevel = 'aal1',
   authError,
-  authRecovery,
 }: {
   returnTo: string;
   minimumAssuranceLevel?: Exclude<WebAuthSessionAssuranceLevel, 'anonymous'>;
   authError?: string;
-  authRecovery?: 'restart';
 }): string {
   const searchParams = new URLSearchParams({
     returnTo: getSafeServerAuthReturnTo(returnTo),
@@ -47,10 +68,6 @@ export function buildSignInRedirectPath({
   const normalizedError = authError?.trim();
   if (normalizedError) {
     searchParams.set('authError', normalizedError);
-  }
-
-  if (authRecovery) {
-    searchParams.set('authRecovery', authRecovery);
   }
 
   return `/account/sign-in?${searchParams.toString()}`;

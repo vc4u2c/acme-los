@@ -1,6 +1,6 @@
 # ACME LOS Reference Architecture Demo Report
 
-ACME LOS is a production-shaped lending reference architecture. It demonstrates a modern borrower experience, hosted identity, a secure BFF pattern, Azure landing-zone deployment, observability, analytics, release automation, and source-owned platform configuration.
+ACME LOS is a production-shaped lending reference architecture. It demonstrates a modern borrower experience, app-owned Okta IDX identity journeys, a secure BFF pattern, Azure landing-zone deployment, observability, analytics, release automation, and source-owned platform configuration.
 
 This report is both a demo guide and a capability inventory. It is intentionally broad so foundational features, including CSRF, UI grid behavior, managed identity, release notes, Okta branding, and vulnerability gates, stay visible during architecture review.
 
@@ -15,7 +15,7 @@ ACME LOS is organized around six reference architecture demo domains, flattened 
 5. Azure landing zone, runtime infrastructure, and managed identity.
 6. Observability, analytics, operations, and admin tooling.
 
-The current implementation is strongest as a development and pre-production reference architecture. It already shows the right enterprise shape: source-controlled infrastructure, automated checks, hosted Okta journeys, server-side PKCE, opaque sessions, Redis-backed auth state, managed identity, Key Vault, private endpoints, Azure Container Apps, structured observability, and GA4/GTM instrumentation.
+The current implementation is strongest as a development and pre-production reference architecture. It already shows the right enterprise shape: source-controlled infrastructure, automated checks, app-owned Okta IDX journeys, server-side PKCE, opaque sessions, Redis-backed auth state, managed identity, Key Vault, private endpoints, Azure Container Apps, structured observability, and GA4/GTM instrumentation.
 
 The known production-hardening backlog is also explicit: fully proven QA and higher-environment promotion, Front Door/WAF/private origin, production secret rotation runbooks, load and resilience testing, multi-region disaster recovery, and final system-of-record integration for lending data.
 
@@ -28,7 +28,7 @@ Use this positioning when presenting the work:
 1. Start with the borrower and business problem: a secure lending application experience with account recovery, profile management, funding assurance, and operational visibility.
 2. Show the engineering system: monorepo structure, automated quality gates, release records, versioning, and vulnerability management.
 3. Show the product system: Next.js, React, mobile shell, shared UI primitives, layout grid, data grid, forms, and dashboard workflows.
-4. Show the security system: Okta hosted identity, BFF, server-side PKCE, Redis-backed session state, CSRF, token hardening, and managed secrets.
+4. Show the security system: app-owned Okta IDX identity, BFF, server-side PKCE, Redis-backed session state, CSRF, token hardening, and managed secrets.
 5. Show the cloud platform: Azure landing-zone assets, Container Apps, Key Vault, Redis, private endpoints, managed identity, Bicep, and GitHub OIDC.
 6. Show the operating model: App Insights, Log Analytics, workbooks, alerts, GA4/GTM, admin scripts, bootstrap tooling, docs, and known production gaps.
 
@@ -114,12 +114,12 @@ That framing makes the project read as architecture, implementation, automation,
 - The web app respects the current server/client split for Next.js.
 - The `/api/*` facade keeps browser calls aligned with the BFF boundary.
 
-## Reference Architecture Demo 11 - Identity, Okta, MFA, and account security - Okta hosted identity
+## Reference Architecture Demo 11 - Identity, Okta, MFA, and account security - App-owned IDX
 
-- Okta hosted sign-in is white-labeled for ACME LOS.
-- Hosted registration captures the customer profile fields needed for the demo.
+- The ACME web app renders direct Okta IDX sign-in and remediation.
+- IDX registration captures the customer profile fields needed for the demo.
 - Email is treated as the simple customer login identifier.
-- Okta-hosted pages are maintained as templates and audited across important states.
+- Okta-hosted pages remain a tested mobile and rollback baseline.
 - Bootstrap tooling keeps Okta configuration source-owned instead of portal-only.
 
 ## Reference Architecture Demo 12 - Identity, Okta, MFA, and account security - Registration and profile enrollment
@@ -148,7 +148,7 @@ That framing makes the project read as architecture, implementation, automation,
 
 ## Reference Architecture Demo 15 - Identity, Okta, MFA, and account security - Account security CTAs and policy scope
 
-- Account security actions in the customer profile route are intended to navigate to hosted Okta self-service flows.
+- Account security actions stay in the ACME web experience and use direct IDX step-up plus server-side Okta MyAccount calls.
 - Change and recovery journeys are policy-driven where Okta supports them.
 - The implementation documents which policies can be app-scoped and which are org-level Okta settings.
 - Dashboard/profile CTAs avoid Okta jargon in user-facing copy.
@@ -175,9 +175,9 @@ That framing makes the project read as architecture, implementation, automation,
 
 - Browser tokens are kept out of client JavaScript.
 - PKCE verifier, nonce, and state are stored server-side, not in local browser storage.
-- Redis backs auth transaction state so multiple Next.js instances can complete callback handshakes.
+- Redis backs auth transaction state so multiple BFF instances can complete Interaction Code exchanges.
 - Opaque HTTP-only cookies point to server-owned session state.
-- Auth transaction state is consumed and deleted after successful callback handling.
+- Auth transaction state is consumed and deleted after successful Interaction Code completion.
 
 ## Reference Architecture Demo 19 - BFF, API, session, and token security - Session, CSRF, and browser hardening
 
@@ -185,7 +185,7 @@ That framing makes the project read as architecture, implementation, automation,
 - Server-enforced idle and absolute expiry protect long-running sessions.
 - CSRF protection uses a double-submit pattern for state-changing browser requests.
 - CSP headers reduce script and data exfiltration risk.
-- Server logout clears local state and coordinates with hosted identity logout.
+- Server logout clears local state and coordinates with Okta identity-provider logout.
 
 ## Reference Architecture Demo 20 - BFF, API, session, and token security - Token and access hardening
 
@@ -331,13 +331,13 @@ That framing makes the project read as architecture, implementation, automation,
 - Sorting, filtering, pagination, editable rows, and collapsible rows.
 - Responsive layout behavior.
 - Light/dark theme support where implemented.
-- Hosted Okta page styling aligned to ACME LOS.
+- App-owned Okta IDX styling aligned to ACME LOS.
 
 ### Identity and access
 
-- Okta hosted sign-in.
-- Okta hosted registration.
-- Okta hosted recovery and account management flows.
+- App-owned Okta IDX sign-in.
+- App-owned Okta IDX registration and recovery.
+- App-owned account management with policy-bound IDX step-up.
 - Okta custom branding and white labeling.
 - Okta custom domain support.
 - Okta customer group and app assignment automation.
@@ -363,7 +363,7 @@ That framing makes the project read as architecture, implementation, automation,
 - Next.js `/api/*` browser facade.
 - BFF-backed Next facade for real auth/session/customer/application behavior.
 - Server-side PKCE.
-- Server-side callback state.
+- Server-side IDX transaction state.
 - Redis-backed auth transaction storage.
 - Opaque HTTP-only session cookies.
 - Server-enforced idle and absolute expiry.
@@ -511,7 +511,7 @@ Use this sequence for a clean architecture walkthrough:
 
 1. Start with the Nx monorepo, CI/CD, release records, tests, and vulnerability gates.
 2. Show the borrower web experience, dashboard, UI component library, and grid system.
-3. Walk through Okta hosted sign-in, registration, recovery, MFA, and account security.
+3. Walk through app-owned Okta IDX sign-in, registration, recovery, MFA, and account security.
 4. Explain the BFF pattern: Next facade, .NET BFF, server-side PKCE, Redis, opaque sessions, CSRF, and token hardening.
 5. Walk the Azure runtime: ACA, Key Vault, Redis, private endpoints, managed identity, Bicep, environment wrappers, and cost-control scripts.
 6. Finish with operations: App Insights, Log Analytics, workbooks, alerts, GA4/GTM, admin bootstrap tools, docs, and the production-hardening backlog.

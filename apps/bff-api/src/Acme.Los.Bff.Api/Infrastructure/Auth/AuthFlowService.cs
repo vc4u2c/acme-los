@@ -14,19 +14,19 @@ namespace Acme.Los.Bff.Api.Infrastructure.Auth;
 
 public interface IAuthFlowService
 {
-  ValueTask<StartAuthFlowResponse> StartLoginAsync(
-    HttpRequest request,
+  ValueTask<StartIdxAuthFlowResponse> StartIdxLoginAsync(
     StartAuthFlowParameters parameters,
     CancellationToken cancellationToken);
 
-  ValueTask<AuthSessionMutationResult> CompleteCallbackAsync(
+  ValueTask<AuthSessionMutationResult> CompleteIdxAsync(
     HttpContext context,
-    string code,
+    string interactionCode,
     string state,
     CancellationToken cancellationToken);
 
   ValueTask<StartLogoutResponse> StartLogoutAsync(
     HttpContext context,
+    string? postLogoutRedirectUri,
     CancellationToken cancellationToken);
 }
 
@@ -35,8 +35,12 @@ public sealed record StartAuthFlowParameters(
   string? MinimumAssuranceLevel,
   string? ExpectedUserId,
   string? LeadId,
-  WebAuthStepUpRequirement? StepUp,
-  string? WidgetFlow);
+  WebAuthStepUpRequirement? StepUp);
+
+internal sealed record StartedAuthTransaction(
+  OktaAuthOptions Options,
+  StoredAuthTransaction Transaction,
+  string CodeChallenge);
 
 public sealed class BffAuthFlowService : IAuthFlowService
 {
@@ -62,8 +66,217 @@ public sealed class BffAuthFlowService : IAuthFlowService
     _environment = environment;
   }
 
-  public async ValueTask<StartAuthFlowResponse> StartLoginAsync(
-    HttpRequest request,
+  public async ValueTask<StartIdxAuthFlowResponse> StartIdxLoginAsync(
+    StartAuthFlowParameters parameters,
+    CancellationToken cancellationToken)
+  {
+    var startedTransaction = await StartTransactionAsync(
+      parameters,
+      cancellationToken);
+    var options = startedTransaction.Options;
+    var transaction = startedTransaction.Transaction;
+    var requiresPrimaryReauthentication =
+      transaction.MinimumAssuranceLevel == "aal2"
+      && ShouldForcePrimaryReauthentication(options, transaction.StepUp);
+    var isPasswordlessFundingStepUp =
+      string.Equals(transaction.StepUp?.Reason, "funding", StringComparison.Ordinal)
+      && !options.FundingStepUpRequiresPassword;
+
+    return new StartIdxAuthFlowResponse(
+      options.Issuer,
+      options.ClientId,
+      options.RedirectUri,
+      options.Scopes,
+      transaction.State,
+      transaction.Nonce,
+      startedTransaction.CodeChallenge,
+      "S256",
+      transaction.MinimumAssuranceLevel == "aal2"
+        && !isPasswordlessFundingStepUp
+        ? options.FundingAcrValues
+        : null,
+      requiresPrimaryReauthentication ? 0 : null,
+      transaction.TransactionId,
+      AuthTransactionMaxAgeSeconds,
+      transaction.ReturnTo,
+      transaction.StepUp?.Reason);
+  }
+
+  public async ValueTask<AuthSessionMutationResult> CompleteIdxAsync(
+    HttpContext context,
+    string interactionCode,
+    string state,
+    CancellationToken cancellationToken)
+  {
+    return await CompleteIdxTransactionAsync(
+      context,
+      interactionCode,
+      state,
+      cancellationToken);
+  }
+
+  private async ValueTask<AuthSessionMutationResult> CompleteIdxTransactionAsync(
+    HttpContext context,
+    string interactionCode,
+    string state,
+    CancellationToken cancellationToken)
+  {
+    var options = OktaAuthOptions.FromEnvironment();
+    var transactionId = TryReadTransactionId(context.Request);
+
+    if (string.IsNullOrWhiteSpace(transactionId))
+    {
+      throw new InvalidOperationException(
+        "Your secure sign-in session expired. Please start sign-in again.");
+    }
+
+    var transaction = await _transactionStore.ReadAsync(
+      transactionId,
+      cancellationToken);
+
+    if (transaction is null || transaction.ExpiresAt <= GetCurrentEpochSeconds())
+    {
+      throw new InvalidOperationException(
+        "Your secure sign-in session expired. Please start sign-in again.");
+    }
+
+    if (!string.Equals(state, transaction.State, StringComparison.Ordinal))
+    {
+      await _transactionStore.DeleteAsync(transaction.TransactionId, cancellationToken);
+      throw new InvalidOperationException(
+        "The Okta IDX state did not match this sign-in attempt.");
+    }
+
+    await _transactionStore.DeleteAsync(
+      transaction.TransactionId,
+      cancellationToken);
+
+    var tokenResponse = await ExchangeInteractionCodeAsync(
+      options,
+      transaction,
+      interactionCode,
+      cancellationToken);
+    var idToken = string.IsNullOrWhiteSpace(tokenResponse.IdToken)
+      ? throw new InvalidOperationException(
+        "Okta did not return an id token for this IDX completion.")
+      : tokenResponse.IdToken;
+    var claims = await ValidateIdTokenAsync(
+      options,
+      idToken,
+      transaction.Nonce,
+      cancellationToken);
+    var session = BuildAuthenticatedSession(
+      claims,
+      transaction.LeadId,
+      transaction.MinimumAssuranceLevel == "aal2"
+        ? new[] { options.FundingAcrValues }
+        : null);
+
+    EnforceSessionRequirement(session, transaction, options);
+
+    var expiresAt = TryReadIntClaim(claims, "exp")
+      ?? GetCurrentEpochSeconds() + (tokenResponse.ExpiresIn ?? 60 * 60);
+    var syncedSession = await _authSessionService.SyncSessionAsync(
+      context,
+      new SyncWebAuthSessionRequest(
+        idToken,
+        transaction.LeadId,
+        Session: session,
+        ExpiresAt: expiresAt,
+        ServerTokens: new WebAuthSessionTokenSet(
+          idToken,
+          tokenResponse.AccessToken,
+          tokenResponse.RefreshToken,
+          tokenResponse.TokenType,
+          tokenResponse.Scope ?? string.Join(" ", options.Scopes),
+          tokenResponse.ExpiresIn),
+        StepUp: transaction.StepUp),
+      cancellationToken);
+
+    return syncedSession with
+    {
+      Response = new CompleteAuthFlowResponse(
+        session,
+        transaction.ReturnTo,
+        ((SyncWebAuthSessionResponse)syncedSession.Response).SessionTiming),
+    };
+  }
+
+  public async ValueTask<StartLogoutResponse> StartLogoutAsync(
+    HttpContext context,
+    string? postLogoutRedirectUri,
+    CancellationToken cancellationToken)
+  {
+    var options = OktaAuthOptions.TryFromEnvironment();
+    var logoutHintIdToken =
+      await _authSessionService.ReadLogoutHintIdTokenAsync(
+        context.Request,
+        cancellationToken);
+    var response =
+      await _authSessionService.ClearSessionAsync(context, cancellationToken);
+    var safePostLogoutRedirectUri = options is null
+      ? "/"
+      : ResolvePostLogoutRedirectUri(options, postLogoutRedirectUri);
+    var logoutUrl = options is not null && !string.IsNullOrWhiteSpace(logoutHintIdToken)
+      ? BuildOktaLogoutUrl(options, logoutHintIdToken, safePostLogoutRedirectUri)
+      : safePostLogoutRedirectUri;
+
+    return new StartLogoutResponse(
+      response.Session,
+      response.Cleared,
+      logoutUrl,
+      options is not null && !string.IsNullOrWhiteSpace(logoutHintIdToken));
+  }
+
+  private string? TryReadTransactionId(HttpRequest request)
+  {
+    var payload = SignedCookie.TryRead<AuthTransactionCookiePayload>(
+      request.Cookies.TryGetValue(CookieNames.AuthTransaction, out var rawCookieValue)
+        ? rawCookieValue
+        : null,
+      _environment);
+
+    return string.IsNullOrWhiteSpace(payload?.TransactionId)
+      ? null
+      : payload.TransactionId;
+  }
+
+  private async ValueTask<OktaTokenResponse> ExchangeInteractionCodeAsync(
+    OktaAuthOptions options,
+    StoredAuthTransaction transaction,
+    string interactionCode,
+    CancellationToken cancellationToken)
+  {
+    var formValues = new Dictionary<string, string>
+    {
+      ["grant_type"] = "interaction_code",
+      ["client_id"] = options.ClientId,
+      ["redirect_uri"] = options.RedirectUri,
+      ["code_verifier"] = transaction.CodeVerifier,
+      ["interaction_code"] = interactionCode,
+    };
+    using var requestBody = new FormUrlEncodedContent(formValues);
+    using var response = await _httpClientFactory.CreateClient().PostAsync(
+      BuildIssuerEndpoint(options.Issuer, "token"),
+      requestBody,
+      cancellationToken);
+    var body =
+      await response.Content.ReadFromJsonAsync<OktaTokenResponse>(
+        cancellationToken: cancellationToken)
+      ?? new OktaTokenResponse();
+
+    if (!response.IsSuccessStatusCode)
+    {
+      throw new InvalidOperationException(
+        body.ErrorDescription
+        ?? body.Error
+        ?? $"Okta token exchange failed ({(int)response.StatusCode}).");
+    }
+
+    return body;
+  }
+
+  private async ValueTask<StartedAuthTransaction> StartTransactionAsync(
     StartAuthFlowParameters parameters,
     CancellationToken cancellationToken)
   {
@@ -99,197 +312,10 @@ public sealed class BffAuthFlowService : IAuthFlowService
       TimeSpan.FromSeconds(AuthTransactionMaxAgeSeconds),
       cancellationToken);
 
-    var authorizeQuery = new Dictionary<string, string>
-    {
-      ["client_id"] = options.ClientId,
-      ["redirect_uri"] = options.RedirectUri,
-      ["response_type"] = "code",
-      ["response_mode"] = "query",
-      ["scope"] = string.Join(" ", options.Scopes),
-      ["state"] = state,
-      ["nonce"] = nonce,
-      ["code_challenge"] = ToBase64Url(
-        SHA256.HashData(Encoding.UTF8.GetBytes(codeVerifier))),
-      ["code_challenge_method"] = "S256",
-    };
-
-    if (minimumAssuranceLevel == "aal2")
-    {
-      authorizeQuery["acr_values"] = options.FundingAcrValues;
-    }
-
-    if (minimumAssuranceLevel == "aal2"
-      && ShouldForcePrimaryReauthentication(options, parameters.StepUp))
-    {
-      authorizeQuery["max_age"] = "0";
-    }
-
-    var widgetFlow = NormalizeHostedWidgetFlow(parameters.WidgetFlow);
-    if (widgetFlow is not null)
-    {
-      authorizeQuery["acme_widget_flow"] = widgetFlow;
-    }
-
-    return new StartAuthFlowResponse(
-      BuildUrlWithQuery(BuildIssuerEndpoint(options.Issuer, "authorize"), authorizeQuery),
-      transactionId,
-      AuthTransactionMaxAgeSeconds,
-      safeReturnTo);
-  }
-
-  public async ValueTask<AuthSessionMutationResult> CompleteCallbackAsync(
-    HttpContext context,
-    string code,
-    string state,
-    CancellationToken cancellationToken)
-  {
-    var options = OktaAuthOptions.FromEnvironment();
-    var transactionId = TryReadTransactionId(context.Request);
-
-    if (string.IsNullOrWhiteSpace(transactionId))
-    {
-      throw new InvalidOperationException(
-        "Your secure sign-in session expired. Please start the hosted sign-in flow again.");
-    }
-
-    var transaction = await _transactionStore.ReadAsync(
-      transactionId,
-      cancellationToken);
-
-    if (transaction is null || transaction.ExpiresAt <= GetCurrentEpochSeconds())
-    {
-      throw new InvalidOperationException(
-        "Your secure sign-in session expired. Please start the hosted sign-in flow again.");
-    }
-
-    if (!string.Equals(state, transaction.State, StringComparison.Ordinal))
-    {
-      await _transactionStore.DeleteAsync(transaction.TransactionId, cancellationToken);
-      throw new InvalidOperationException(
-        "The Okta callback state did not match this sign-in attempt.");
-    }
-
-    var tokenResponse = await ExchangeAuthorizationCodeAsync(
+    return new StartedAuthTransaction(
       options,
-      code,
-      transaction.CodeVerifier,
-      cancellationToken);
-    var idToken = string.IsNullOrWhiteSpace(tokenResponse.IdToken)
-      ? throw new InvalidOperationException(
-        "Okta did not return an id token for this callback.")
-      : tokenResponse.IdToken;
-    var claims = await ValidateIdTokenAsync(
-      options,
-      idToken,
-      transaction.Nonce,
-      cancellationToken);
-    var session = BuildAuthenticatedSession(
-      claims,
-      transaction.LeadId,
-      transaction.MinimumAssuranceLevel == "aal2"
-        ? new[] { options.FundingAcrValues }
-        : null);
-
-    EnforceSessionRequirement(session, transaction, options);
-
-    var expiresAt = TryReadIntClaim(claims, "exp")
-      ?? GetCurrentEpochSeconds() + (tokenResponse.ExpiresIn ?? 60 * 60);
-    var syncedSession = await _authSessionService.SyncSessionAsync(
-      context,
-      new SyncWebAuthSessionRequest(
-        idToken,
-        transaction.LeadId,
-        Session: session,
-        ExpiresAt: expiresAt,
-        ServerTokens: new WebAuthSessionTokenSet(
-          idToken,
-          tokenResponse.AccessToken,
-          tokenResponse.RefreshToken,
-          tokenResponse.TokenType,
-          tokenResponse.Scope,
-          tokenResponse.ExpiresIn),
-        StepUp: transaction.StepUp),
-      cancellationToken);
-
-    await _transactionStore.DeleteAsync(transaction.TransactionId, cancellationToken);
-
-    return syncedSession with
-    {
-      Response = new CompleteAuthFlowResponse(
-        session,
-        transaction.ReturnTo,
-        ((SyncWebAuthSessionResponse)syncedSession.Response).SessionTiming),
-    };
-  }
-
-  public async ValueTask<StartLogoutResponse> StartLogoutAsync(
-    HttpContext context,
-    CancellationToken cancellationToken)
-  {
-    var options = OktaAuthOptions.TryFromEnvironment();
-    var logoutHint =
-      await _authSessionService.ReadLogoutHintAsync(
-        context.Request,
-        cancellationToken);
-    var response =
-      await _authSessionService.ClearSessionAsync(context, cancellationToken);
-    var logoutUrl = options is not null && !string.IsNullOrWhiteSpace(logoutHint.IdToken)
-      ? BuildOktaLogoutUrl(options, logoutHint.IdToken)
-      : options?.PostLogoutRedirectUri ?? "/";
-
-    return new StartLogoutResponse(
-      response.Session,
-      response.Cleared,
-      logoutUrl,
-      options is not null && !string.IsNullOrWhiteSpace(logoutHint.IdToken));
-  }
-
-  private string? TryReadTransactionId(HttpRequest request)
-  {
-    var payload = SignedCookie.TryRead<AuthTransactionCookiePayload>(
-      request.Cookies.TryGetValue(CookieNames.AuthTransaction, out var rawCookieValue)
-        ? rawCookieValue
-        : null,
-      _environment);
-
-    return string.IsNullOrWhiteSpace(payload?.TransactionId)
-      ? null
-      : payload.TransactionId;
-  }
-
-  private async ValueTask<OktaTokenResponse> ExchangeAuthorizationCodeAsync(
-    OktaAuthOptions options,
-    string code,
-    string codeVerifier,
-    CancellationToken cancellationToken)
-  {
-    using var requestBody = new FormUrlEncodedContent(
-      new Dictionary<string, string>
-      {
-        ["grant_type"] = "authorization_code",
-        ["client_id"] = options.ClientId,
-        ["redirect_uri"] = options.RedirectUri,
-        ["code"] = code,
-        ["code_verifier"] = codeVerifier,
-      });
-    using var response = await _httpClientFactory.CreateClient().PostAsync(
-      BuildIssuerEndpoint(options.Issuer, "token"),
-      requestBody,
-      cancellationToken);
-    var body =
-      await response.Content.ReadFromJsonAsync<OktaTokenResponse>(
-        cancellationToken: cancellationToken)
-      ?? new OktaTokenResponse();
-
-    if (!response.IsSuccessStatusCode)
-    {
-      throw new InvalidOperationException(
-        body.ErrorDescription
-        ?? body.Error
-        ?? $"Okta token exchange failed ({(int)response.StatusCode}).");
-    }
-
-    return body;
+      transaction,
+      ToBase64Url(SHA256.HashData(Encoding.UTF8.GetBytes(codeVerifier))));
   }
 
   private async ValueTask<Dictionary<string, string[]>> ValidateIdTokenAsync(
@@ -302,7 +328,10 @@ public sealed class BffAuthFlowService : IAuthFlowService
     var tokenIssuer = unvalidatedToken?.Issuer;
 
     if (string.IsNullOrWhiteSpace(tokenIssuer)
-      || !OktaIssuerPolicy.IsAllowedIssuer(options.Issuer, tokenIssuer))
+      || !OktaIssuerPolicy.IsAllowedIssuer(
+        options.Issuer,
+        tokenIssuer,
+        options.CanonicalOrgUrl))
     {
       throw new InvalidOperationException(
         "The Okta id token issuer does not match this app.");
@@ -348,7 +377,7 @@ public sealed class BffAuthFlowService : IAuthFlowService
     if (!string.Equals(nonce, expectedNonce, StringComparison.Ordinal))
     {
       throw new InvalidOperationException(
-        "The Okta callback nonce did not match this sign-in attempt.");
+        "The Okta IDX nonce did not match this sign-in attempt.");
     }
 
     return claims;
@@ -447,35 +476,54 @@ public sealed class BffAuthFlowService : IAuthFlowService
         "Funding step-up must be completed with email or phone OTP.");
     }
 
+    if (transaction.StepUp?.Reason is
+        "account-email"
+        or "account-password"
+        or "account-phone"
+        or "post-email-change"
+        or "post-phone-change"
+        or "post-password-change"
+      && !AuthAssurance.IsPasswordAuthenticationMethodSatisfied(
+        session.User?.AuthenticationMethods))
+    {
+      throw new InvalidOperationException(
+        "Account security step-up must include fresh password verification.");
+    }
+
     if ((string.Equals(transaction.StepUp?.Reason, "account-email", StringComparison.Ordinal)
-        || string.Equals(transaction.StepUp?.Reason, "account-password", StringComparison.Ordinal))
+        || string.Equals(transaction.StepUp?.Reason, "account-password", StringComparison.Ordinal)
+        || string.Equals(transaction.StepUp?.Reason, "post-phone-change", StringComparison.Ordinal)
+        || string.Equals(transaction.StepUp?.Reason, "post-password-change", StringComparison.Ordinal))
       && !AuthAssurance.IsSmsAuthenticationMethodSatisfied(
         session.User?.AuthenticationMethods))
     {
       throw new InvalidOperationException(
-        string.Equals(transaction.StepUp?.Reason, "account-password", StringComparison.Ordinal)
-          ? "Password change step-up must be completed with phone/SMS OTP."
-          : "Email change step-up must be completed with phone/SMS OTP.");
+        "This account-security sign-in must be completed with phone/SMS OTP.");
     }
 
-    if (string.Equals(transaction.StepUp?.Reason, "account-phone", StringComparison.Ordinal)
+    if ((string.Equals(transaction.StepUp?.Reason, "account-phone", StringComparison.Ordinal)
+        || string.Equals(transaction.StepUp?.Reason, "post-email-change", StringComparison.Ordinal))
       && !AuthAssurance.IsEmailAuthenticationMethodSatisfied(
         session.User?.AuthenticationMethods))
     {
       throw new InvalidOperationException(
-        "Phone change step-up must be completed with email OTP.");
+        "This account-security sign-in must be completed with email OTP.");
     }
   }
 
   private static string BuildOktaLogoutUrl(
     OktaAuthOptions options,
-    string idToken)
+    string idToken,
+    string postLogoutRedirectUri)
   {
     var issuer = options.Issuer;
     var tokenIssuer = TryReadIssuerFromIdToken(idToken);
 
-    if (new Uri(options.Issuer).Host.EndsWith(".okta.com", StringComparison.OrdinalIgnoreCase)
-      && !string.IsNullOrWhiteSpace(tokenIssuer))
+    if (!string.IsNullOrWhiteSpace(tokenIssuer)
+      && OktaIssuerPolicy.IsAllowedIssuer(
+        options.Issuer,
+        tokenIssuer,
+        options.CanonicalOrgUrl))
     {
       issuer = tokenIssuer;
     }
@@ -485,8 +533,43 @@ public sealed class BffAuthFlowService : IAuthFlowService
       new Dictionary<string, string>
       {
         ["id_token_hint"] = idToken,
-        ["post_logout_redirect_uri"] = options.PostLogoutRedirectUri,
+        ["post_logout_redirect_uri"] = postLogoutRedirectUri,
       });
+  }
+
+  private static string ResolvePostLogoutRedirectUri(
+    OktaAuthOptions options,
+    string? requestedPostLogoutRedirectUri)
+  {
+    if (string.IsNullOrWhiteSpace(requestedPostLogoutRedirectUri)
+      || !Uri.TryCreate(
+        requestedPostLogoutRedirectUri,
+        UriKind.Absolute,
+        out var requestedUri)
+      || !Uri.TryCreate(
+        options.PostLogoutRedirectUri,
+        UriKind.Absolute,
+        out var configuredUri)
+      || !string.Equals(
+        requestedUri.Scheme,
+        configuredUri.Scheme,
+        StringComparison.OrdinalIgnoreCase)
+      || !string.Equals(
+        requestedUri.Authority,
+        configuredUri.Authority,
+        StringComparison.OrdinalIgnoreCase)
+      || !string.IsNullOrEmpty(requestedUri.Query)
+      || !string.IsNullOrEmpty(requestedUri.Fragment))
+    {
+      return options.PostLogoutRedirectUri;
+    }
+
+    return requestedUri.AbsolutePath switch
+    {
+      "/" or "/account/sign-in" =>
+        requestedUri.ToString(),
+      _ => options.PostLogoutRedirectUri,
+    };
   }
 
   private static string? TryReadIssuerFromIdToken(string idToken)
@@ -534,17 +617,6 @@ public sealed class BffAuthFlowService : IAuthFlowService
     return builder.Uri.ToString();
   }
 
-  private static string? NormalizeHostedWidgetFlow(string? widgetFlow)
-  {
-    return widgetFlow switch
-    {
-      "resetPassword" => "resetPassword",
-      "unlockAccount" => "unlockAccount",
-      "signup" => "signup",
-      _ => null,
-    };
-  }
-
   private static bool ShouldForcePrimaryReauthentication(
     OktaAuthOptions options,
     WebAuthStepUpRequirement? stepUp)
@@ -564,9 +636,22 @@ public sealed class BffAuthFlowService : IAuthFlowService
 
   private static string GetSafeReturnTo(string? returnTo)
   {
+    var expectedOrigin = new Uri("https://acme-los.invalid/");
+
     if (string.IsNullOrWhiteSpace(returnTo)
       || !returnTo.StartsWith("/", StringComparison.Ordinal)
-      || returnTo.StartsWith("//", StringComparison.Ordinal))
+      || returnTo.Contains('\\')
+      || returnTo.Any(char.IsControl)
+      || !Uri.TryCreate(expectedOrigin, returnTo, out var resolvedReturnTo)
+      || !string.Equals(
+        resolvedReturnTo.Scheme,
+        expectedOrigin.Scheme,
+        StringComparison.OrdinalIgnoreCase)
+      || !string.Equals(
+        resolvedReturnTo.Host,
+        expectedOrigin.Host,
+        StringComparison.OrdinalIgnoreCase)
+      || resolvedReturnTo.Port != expectedOrigin.Port)
     {
       return "/apply/personal-info";
     }
@@ -662,7 +747,8 @@ internal sealed record OktaAuthOptions(
   string[] Scopes,
   string FundingAcrValues,
   string FundingStepUpMethod,
-  bool FundingStepUpRequiresPassword)
+  bool FundingStepUpRequiresPassword,
+  string? CanonicalOrgUrl)
 {
   internal static OktaAuthOptions FromEnvironment()
   {
@@ -673,9 +759,7 @@ internal sealed record OktaAuthOptions(
 
   internal static OktaAuthOptions? TryFromEnvironment()
   {
-    var provider = ReadConfigValue(
-      "ACME_AUTH_PROVIDER",
-      "NEXT_PUBLIC_AUTH_PROVIDER");
+    var provider = ReadConfigValue("ACME_AUTH_PROVIDER");
 
     if (!string.IsNullOrWhiteSpace(provider)
       && !string.Equals(provider, "okta", StringComparison.Ordinal))
@@ -683,14 +767,11 @@ internal sealed record OktaAuthOptions(
       return null;
     }
 
-    var issuer = ReadConfigValue("ACME_OKTA_ISSUER", "NEXT_PUBLIC_OKTA_ISSUER");
-    var clientId = ReadConfigValue("ACME_OKTA_CLIENT_ID", "NEXT_PUBLIC_OKTA_CLIENT_ID");
-    var redirectUri = ReadConfigValue(
-      "ACME_OKTA_REDIRECT_URI",
-      "NEXT_PUBLIC_OKTA_REDIRECT_URI");
+    var issuer = ReadConfigValue("ACME_OKTA_ISSUER");
+    var clientId = ReadConfigValue("ACME_OKTA_CLIENT_ID");
+    var redirectUri = ReadConfigValue("ACME_OKTA_REDIRECT_URI");
     var postLogoutRedirectUri = ReadConfigValue(
-      "ACME_OKTA_POST_LOGOUT_REDIRECT_URI",
-      "NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI");
+      "ACME_OKTA_POST_LOGOUT_REDIRECT_URI");
 
     return string.IsNullOrWhiteSpace(issuer)
       || string.IsNullOrWhiteSpace(clientId)
@@ -714,41 +795,27 @@ internal sealed record OktaAuthOptions(
             "okta.myAccount.password.read",
             "okta.myAccount.password.manage",
           ],
-          ReadConfigValue(
-            "ACME_OKTA_FUNDING_ACR_VALUES",
-            "NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES")
+          ReadConfigValue("ACME_OKTA_FUNDING_ACR_VALUES")
           ?? "urn:okta:loa:2fa:any",
-          ReadConfigValue(
-            "ACME_OKTA_FUNDING_STEP_UP_METHOD",
-            "NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD")
+          ReadConfigValue("ACME_OKTA_FUNDING_STEP_UP_METHOD")
           ?? "email_or_sms",
           ReadBooleanConfigValue(
             "ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD",
-            "NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD",
-            false));
+            false),
+          ReadConfigValue("ACME_OKTA_ORG_URL"));
   }
 
-  private static string? ReadConfigValue(
-    string runtimeName,
-    string legacyPublicName)
+  private static string? ReadConfigValue(string runtimeName)
   {
-    var runtimeValue = Environment.GetEnvironmentVariable(runtimeName)?.Trim();
-    var legacyPublicValue =
-      Environment.GetEnvironmentVariable(legacyPublicName)?.Trim();
-
-    return !string.IsNullOrWhiteSpace(runtimeValue)
-      ? runtimeValue
-      : string.IsNullOrWhiteSpace(legacyPublicValue)
-        ? null
-        : legacyPublicValue;
+    var value = Environment.GetEnvironmentVariable(runtimeName)?.Trim();
+    return string.IsNullOrWhiteSpace(value) ? null : value;
   }
 
   private static bool ReadBooleanConfigValue(
     string runtimeName,
-    string legacyPublicName,
     bool defaultValue)
   {
-    var value = ReadConfigValue(runtimeName, legacyPublicName);
+    var value = ReadConfigValue(runtimeName);
 
     return string.IsNullOrWhiteSpace(value)
       ? defaultValue

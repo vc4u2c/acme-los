@@ -21,6 +21,7 @@ export interface VerifyEmailChangeRequest {
 
 export interface VerifyEmailChangeResponse {
   status: 'verified';
+  email: string;
 }
 
 export interface StartPhoneChangeRequest {

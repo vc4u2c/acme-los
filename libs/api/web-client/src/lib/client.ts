@@ -3,6 +3,8 @@ import type {
   ChangePasswordRequest,
   ChangePasswordResponse,
   ClearWebAuthSessionResponse,
+  CompleteAuthFlowResponse,
+  CompleteIdxAuthFlowRequest,
   GetApplicationStepResponse,
   GetCustomerProfileResponse,
   GetWebAuthSessionResponse,
@@ -11,6 +13,8 @@ import type {
   SaveApplicationStepResponse,
   StartEmailChangeRequest,
   StartEmailChangeResponse,
+  StartIdxAuthFlowRequest,
+  StartIdxAuthFlowResponse,
   StartPhoneChangeRequest,
   StartPhoneChangeResponse,
   SubmitApplicationRequest,
@@ -87,6 +91,7 @@ export function createWebApiClient({
 }: WebApiClientOptions = {}) {
   const authSessionUrl = `${baseUrl}/api/auth/session`;
   const authSessionTouchUrl = `${authSessionUrl}/touch`;
+  const idxAuthUrl = `${baseUrl}/api/auth/idx`;
   const csrfUrl = `${baseUrl}/api/security/csrf`;
   const customerProfileUrl = `${baseUrl}/api/customer/profile`;
   const accountSecurityUrl = `${baseUrl}/api/account/security`;
@@ -123,14 +128,10 @@ export function createWebApiClient({
 
   return {
     auth: {
-      getSession(
-        options: { includeDebug?: boolean } = {},
-      ): Promise<GetWebAuthSessionResponse> {
-        const search = options.includeDebug === true ? '?includeDebug=1' : '';
-
+      getSession(): Promise<GetWebAuthSessionResponse> {
         return requestJson<GetWebAuthSessionResponse>(
           fetchImpl,
-          `${authSessionUrl}${search}`,
+          authSessionUrl,
         );
       },
       clearSession(): Promise<ClearWebAuthSessionResponse> {
@@ -143,6 +144,28 @@ export function createWebApiClient({
           authSessionTouchUrl,
           {
             method: 'POST',
+          },
+        );
+      },
+      startIdx(
+        payload: StartIdxAuthFlowRequest,
+      ): Promise<StartIdxAuthFlowResponse> {
+        return requestWithCsrf<StartIdxAuthFlowResponse>(
+          `${idxAuthUrl}/start`,
+          {
+            method: 'POST',
+            body: JSON.stringify(payload),
+          },
+        );
+      },
+      completeIdx(
+        payload: CompleteIdxAuthFlowRequest,
+      ): Promise<CompleteAuthFlowResponse> {
+        return requestWithCsrf<CompleteAuthFlowResponse>(
+          `${idxAuthUrl}/complete`,
+          {
+            method: 'POST',
+            body: JSON.stringify(payload),
           },
         );
       },

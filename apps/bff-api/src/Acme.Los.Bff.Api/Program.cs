@@ -64,6 +64,9 @@ builder.Services.AddSingleton<IOktaManagementTokenClient, OktaManagementTokenCli
 builder.Services.AddSingleton<
   IOktaCustomerIdWritebackService,
   OktaCustomerIdWritebackService>();
+builder.Services.AddSingleton<
+  IOktaAccountProfileSyncService,
+  OktaAccountProfileSyncService>();
 
 if (stateStoreOptions.UsesRedis)
 {

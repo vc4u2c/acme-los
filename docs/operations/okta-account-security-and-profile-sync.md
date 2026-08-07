@@ -1,7 +1,7 @@
 # Okta Account Security And Profile Sync
 
-This runbook describes the customer account-security model for Okta-hosted
-email, phone, password, and security-question changes.
+This runbook describes the customer account-security model for the app-owned
+IDX web experience, Okta MyAccount mutations, and recovery policy.
 
 Okta Integrator Admin org: <https://integrator-9373984.okta.com/>
 
@@ -12,7 +12,8 @@ systems are the source of truth for customer and lending records.
 
 - Okta `sub` is the immutable user key.
 - Email is mutable contact and login metadata.
-- Registration email is the customer login identifier in the hosted flow.
+- Registration email is the customer login identifier in the app-owned IDX
+  flow.
 - Registration phone is captured once during Okta phone/SMS authenticator
   enrollment, not on the Okta profile-enrollment form. Okta phone/SMS becomes
   trusted only after the customer explicitly requests a code and verifies the
@@ -38,7 +39,7 @@ npm run okta:policy-plan -- dev
 `sessionAndAdaptivePolicyIntent`, and `accountSecurityPolicyIntent` during
 dry-run and live bootstrap.
 
-The intended Okta-hosted registration profile enrollment captures these required
+The intended IDX registration profile enrollment captures these required
 fields:
 
 - email: used as the login identifier
@@ -51,7 +52,7 @@ Password is not a profile-enrollment attribute. ACME configures password as
 required Okta password-authenticator enrollment and records the profile
 enrollment rule's password enrollment type when Okta exposes it. Okta owns
 password entry, password requirements, confirm-password behavior when present,
-and any password-policy messaging in the hosted flow.
+and any password-policy messaging in the IDX remediation.
 
 Dev desired state: bootstrap creates/updates `acmeState` with only Missouri and
 Texas enum values. The profile-enrollment rule and UI schema both use `email`,
@@ -75,8 +76,23 @@ setter for this lifecycle switch, so verify the Admin Console value:
 
 This setting makes `profile.login` follow `profile.email` for new
 self-service registration users. It doesn't rewrite existing users by itself;
-for dev, the current ACME customer-group users have already been verified with
-matching `login` and `email` values.
+the ACME BFF therefore performs an app-controlled post-verification login sync
+for change-email flows after Okta verifies the new primary email OTP.
+`npm run okta:audit-live -- <env>` fails if customer-group users have
+different `login` and `email` values.
+
+For a deliberate dev/demo tenant repair, use the scoped Okta service app rather
+than an SSWS token:
+
+```powershell
+node tools/scripts/okta/sync-user-login-email.mjs dev --user-id "<audited okta user id>" --private-key-pem-path "C:\secure\acme bff management.pem"
+node tools/scripts/okta/sync-user-login-email.mjs dev --user-id "<audited okta user id>" --private-key-pem-path "C:\secure\acme bff management.pem" --confirm
+```
+
+The script only touches users in `acme-los-customers-<env>`, defaults to
+dry-run, and requires `okta.users.read okta.users.manage`. If the service app
+also has group-read permission, use `--all-customers`; otherwise pass explicit
+user IDs reported by the latest live audit.
 
 The intended initial hosted-registration authenticator enrollment is:
 
@@ -96,8 +112,8 @@ The intended session and adaptive sign-in posture is:
 - Standard app sign-in: password-first.
 - High-risk or new-device sign-in: Okta risk score `HIGH` requires
   password-first 2FA, with keep-me-signed-in disabled for that event.
-- Security question is not required during app sign-in. It is reserved for
-  recovery and sensitive account-management changes.
+- Security question is not required during app sign-in or routine signed-in
+  account changes. It is reserved for recovery.
 - Device assurance and device signal collection are Okta org features. When
   the org supports them, ACME scopes their use through the app sign-in policy;
   if the org cannot support or accept those rules, the limitation must be
@@ -105,32 +121,51 @@ The intended session and adaptive sign-in posture is:
 
 The intended sensitive-change and recovery scenarios are:
 
-- Forgot email: require phone/SMS OTP plus the Okta security-question
-  challenge/hint, then show the recovered sign-in email and require a fresh
-  ACME sign-in.
-- Change email: require phone/SMS OTP plus the Okta security-question
-  challenge/hint before sign-off, then require sign-in with the new email and
-  email OTP before ACME syncs the mutable email claim.
+- Change email: require current password plus phone/SMS OTP before sign-off,
+  then require sign-in with the new email and email OTP before ACME syncs the
+  mutable email claim.
 - Forgot password: require phone/SMS OTP plus the Okta security-question
   challenge/hint before reset, then sign out and require sign-in with the new
   password. The customer-scoped `ACME LOS Password Policy (<env>)` rule must
   allow self-service password reset with SMS as the primary recovery method when
   telephony is enabled and `accessControl=AUTH_POLICY`; the Okta Account
   Management policy then owns the security-question and OTP proof requirements.
-- Change password: require current password, phone/SMS OTP, and the Okta
-  security-question challenge/hint before reset, then sign out and require a
-  fresh ACME sign-in.
+- Change password: require current password plus phone/SMS OTP before the
+  mutation, then sign out and require a fresh ACME sign-in with the new
+  password plus phone/SMS OTP.
 - Lost phone/SMS factor: require email OTP plus the Okta security-question
   challenge/hint, then allow phone replacement and require a fresh ACME sign-in
   with the unchanged email and the new phone/SMS OTP before any verified-phone
   sync.
-- Change phone/SMS: require email OTP plus the Okta security-question
-  challenge/hint before sign-off, then require a fresh ACME sign-in with the
-  unchanged email and the new phone/SMS OTP before any verified-phone sync.
+- Change phone/SMS: require current password plus email OTP before sign-off,
+  then require a fresh ACME sign-in with the unchanged email and the new
+  phone/SMS OTP before any verified-phone sync.
 
 ## Backend Sync
 
-Email sync is implemented on the customer-profile read path:
+Email/login sync is split between Okta and ACME:
+
+The BFF receives `ACME_OKTA_ISSUER` and the exact canonical tenant URL in
+`ACME_OKTA_ORG_URL` from the environment manifest through Bicep. The issuer is
+used for customer authorization; the canonical org URL is used for scoped Okta
+Management API calls and is the only allowed issuer alias for custom-domain ID
+tokens. These URLs are non-secret. The OAuth service-app private key remains a
+Key Vault secret reference and is never emitted into browser configuration.
+
+1. New self-service registration users rely on Okta's org-level **Map primary
+   email to login attribute** setting so `profile.login` starts as the email.
+2. Change-email users call Okta MyAccount with their own scoped access token.
+   ACME creates the primary email transaction with `sendEmail=false`, then sends
+   the email challenge only after the customer clicks the ACME button.
+3. After Okta verifies the new-email OTP, the BFF reads the verified email back
+   from MyAccount and, when `ACME_OKTA_EMAIL_LOGIN_SYNC_ENABLED=true`, uses the
+   Key Vault-backed Okta service app to update that same Okta user's
+   `profile.email` and `profile.login` to the verified value.
+4. The customer must sign in again with the new email so Okta issues fresh
+   tokens and ACME starts a clean secure session.
+
+Customer-profile email sync is then implemented on the customer-profile read
+path:
 
 1. User changes email from the ACME account-security email page.
 2. User refreshes the ACME secure session through the normal Okta redirect.
@@ -143,19 +178,29 @@ Email sync is implemented on the customer-profile read path:
 The log intentionally records the event and user context, not the old or new
 email value.
 
-Phone/SMS sync needs one of these sources before backend systems can update a
-verified phone number:
+Phone/SMS sync uses Okta MyAccount phone read with the active user's
+server-side access token:
 
-- an Okta profile claim that contains the verified phone value
-- a trusted Okta Management API lookup
-- an Okta Event Hook that reports factor/profile changes
+1. User signs in through the app-owned Okta IDX flow and completes phone/SMS
+   enrollment or verification.
+2. The BFF reads the server-side session token from Redis or the in-memory
+   session store. The browser never receives that token.
+3. The BFF calls `GET /idp/myaccount/phones` with
+   `okta.myAccount.phone.read`.
+4. If Okta returns a `VERIFIED` phone, ACME displays it on the read-only
+   customer dashboard and syncs it to the customer profile record without
+   logging the number.
 
-Until one is enabled, ACME can show and save an application servicing phone
-number, but it must not claim that value is the verified Okta SMS factor.
+This is a user-scoped MyAccount read, not a super/admin Users API lookup.
+If the token is missing the phone-read scope, expired, or not for the same Okta
+`sub` as the trusted Next-to-BFF identity header, ACME leaves the dashboard
+phone empty or falls back to the existing stored profile phone.
 
 No inbound Okta Event Hook is currently enabled for email, phone, password, or
-security-question changes. The implemented email sync happens after a fresh ACME
-session; passwords, OTPs, and security-question material never sync.
+security-question changes. The implemented email claim/customer-profile sync
+happens after a fresh ACME session; the implemented phone sync happens after a
+fresh session with a verified Okta MyAccount phone. Passwords, OTPs, and
+security-question material never sync.
 
 ## Application Customer ID Write-Back
 
@@ -189,8 +234,27 @@ effective `customerId` immediately; the raw Okta token claim appears after Okta
 mints a new token through refresh or fresh sign-in.
 
 Before enabling this path, create an Okta API Service app, register a signing
-key, and grant the app the `okta.users.manage` scope for the org authorization
-server.
+key, and grant the app the `okta.users.read okta.users.manage` scopes for the
+org authorization server.
+
+Scopes are necessary but not sufficient for Okta Management APIs. The service
+app also needs an Okta admin role assignment. Prefer a least-privilege
+`USER_ADMIN` role assignment targeted to `acme-los-customers-<env>` instead of
+Super Admin. If the live dry-run returns Okta `E0000006`, the service app can
+mint a token but still lacks the admin role or resource target required to read
+and update the user.
+
+Use the repo-managed role script for that admin-plane setup instead of a
+portal-only change:
+
+```powershell
+node tools/scripts/okta/ensure-service-app-admin-role.mjs dev --token-file C:\secure\acme-los-okta-api-token.txt
+node tools/scripts/okta/ensure-service-app-admin-role.mjs dev --token-file C:\secure\acme-los-okta-api-token.txt --confirm
+```
+
+The script defaults to dry-run, verifies that the target group is exactly
+`acme-los-customers-<env>`, assigns only `USER_ADMIN`, and writes
+`tmp/okta/<env>.service-app-role.outputs.json` without secrets.
 
 Pre-deployment checklist for the sample bridge:
 
@@ -198,10 +262,12 @@ Pre-deployment checklist for the sample bridge:
    environment.
 2. Register the service-app public key and keep the private key outside the
    repo, such as under `C:\Secured`.
-3. Grant only `okta.users.manage` on the service app's Okta API Scopes tab.
+3. Grant only `okta.users.read` and `okta.users.manage` on the service app's
+   Okta API Scopes tab.
 4. If the org requires admin roles for service apps, assign the narrowest
    admin role/resource set that can manage the app-owned `customerId` profile
-   attribute for the target users.
+   attribute and align `profile.login` with verified email for the target
+   users.
 5. Record the service-app `clientId` and signing key id (`kid`).
    Copy the `kid` exactly as Okta shows it, including any leading underscore.
 6. Set `oktaCustomerIdWriteback.mode` to `sample` only after the service app,
@@ -224,7 +290,10 @@ Current `dev` shape:
   "mode": "sample",
   "clientId": "<okta service app client id>",
   "privateKeyId": "<okta service app signing key id>",
-  "scopes": "okta.users.manage"
+  "scopes": "okta.users.read okta.users.manage"
+},
+"oktaAccountProfileSync": {
+  "emailLoginSyncEnabled": true
 }
 ```
 
@@ -253,11 +322,13 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/az
 
 The deploy stores the private key in Key Vault as
 `sec-acme-los-okta-management-private-key` and injects it into the BFF ACA as
-`ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` only while
-`oktaCustomerIdWriteback.mode` is `sample`. Keep this sample bridge out of
-higher environments until the real customer-id issuer is finalized; the final
-production security shape remains BFF-owned OAuth with the least Okta
-management scope required for the specific profile attribute.
+`ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM` while either
+`oktaCustomerIdWriteback.mode` is `sample` or
+`oktaAccountProfileSync.emailLoginSyncEnabled` is enabled. Keep sample
+customer-id write-back out of higher environments until the real customer-id
+issuer is finalized; the final production security shape remains BFF-owned
+OAuth with the least Okta management scope required for the specific profile
+attribute.
 
 ## Okta Policy Automation And Checks
 
@@ -300,69 +371,47 @@ Scoping expectations:
 | Authorization server policy/rules                                                                              | ACME apps plus customer group | Token policy rules stay scoped to the app clients and customer group.                                                                                               |
 | Authenticator activation, risk scoring, device assurance, device signal collection, hosted brand/custom domain | Okta org feature              | These cannot always be app-scoped directly. The repo scopes consumption through customer/app policies where Okta allows it, and documents any org-level dependency. |
 
-Okta-hosted registration is one hosted flow, but Okta Identity Engine may still
-render profile enrollment, password setup, email OTP, security-question
-enrollment, and phone/SMS enrollment as separate hosted steps.
+The app-owned registration page renders Okta Identity Engine remediation, and
+Okta may still require profile enrollment, password setup, email OTP,
+security-question enrollment, and phone/SMS enrollment as separate steps.
 The repo-managed profile-enrollment rule captures email as the login identifier,
 first name, last name, and a Missouri/Texas State dropdown; the
 authenticator-enrollment policy controls password, email verification, security
 question, and phone/SMS enrollment. Phone is entered on the Okta phone/SMS
 authenticator screen, where the customer explicitly requests the code; ACME does
-not also collect profile phone in the hosted profile-enrollment form. Password
-is an Okta authenticator-enrollment input, not an ACME profile field;
-confirm/repeat-password display is Okta-hosted widget behavior when available.
+not also collect profile phone in the profile-enrollment form. Password is an
+Okta authenticator-enrollment input, not an ACME profile field.
 
 If bootstrap reports `manual-required` for the profile-enrollment rule, do not
 use a broader admin token or private Admin Console endpoint as a workaround.
 Use Okta Admin to edit the default registration form fields and keep the target
 group scoped to the ACME customer group.
 
-### Hosted Page State Model
+### IDX State Model
 
-ACME uses one Okta-hosted Sign-In Widget shell for customer auth. Registration,
-forgot password, password reset, security question, email/SMS OTP, and factor
-enrollment are Okta Identity Engine remediation states inside that hosted shell,
-not separate ACME-owned pages. This keeps passwords, OTPs, security-question
-answers, and authenticator enrollment inside Okta.
+The web app renders supported Identity Engine remediations on the ACME-owned
+`/account/sign-in` surface with Auth JS. Auth JS sends identifiers, passwords,
+security-question answers, and OTPs directly to Okta. The BFF generates and
+stores PKCE verifier, state, nonce, expected subject, and step-up intent, then
+redeems the one-time Interaction Code. OAuth tokens remain server-side.
 
-The hosted page template in `tools/scripts/okta/templates` is currently an
-ACME-styled Gen 3 shell around native Okta controls. Okta owns these remediation
-states and their controls; ACME policy/bootstrap owns which states are
-available and how they are scoped:
+The Gen3 hosted template under `tools/scripts/okta/templates` remains the mobile
+redirect and rollback baseline. Run `npm run okta:audit-hosted-pages -- <env>`
+after changing that template, but do not use hosted-page DOM customization to
+implement web account actions.
 
-| Okta state | Okta-owned flow                                                | ACME-owned responsibility                                      |
-| ---------- | -------------------------------------------------------------- | -------------------------------------------------------------- |
-| `signIn`   | Standard app sign-in                                           | App/client scoping, token claims, recovery/signup entry        |
-| `signUp`   | Profile enrollment and registration                            | Required profile attributes, customer-group target, state enum |
-| `enroll`   | Password, email, security-question, and phone/SMS enrollment   | Authenticator enrollment policy and provider readiness         |
-| `verify`   | Email/SMS OTP, push, or other factor challenge                 | Factor policy, mock/real telephony, backend assurance handling |
-| `recovery` | Forgot password, unlock, forgot email, or lost factor recovery | Account-management policy and opposite-factor intent           |
-| `password` | Password reset or password setup                               | Password policy and post-change sign-in expectations           |
+`npm run okta:bootstrap -- <env>` manages only the recovery operations that the
+Okta Account Management Policy supports:
 
-Run `npm run okta:audit-hosted-pages -- <env>` after changing the hosted page
-template or controller. The current audit renders the styled shell plus native
-sign-in, signup, forgot-password, and unlock-account entry at mobile and desktop
-sizes, writes screenshots to `tmp/okta-hosted-state-audit`, and fails on blank
-widget renders, horizontal overflow, duplicate/missing recovery entry, or
-recovery links pointed at dead hosted/help routes.
+- `ACME LOS Password Recovery (<env>)`: security question plus phone/SMS OTP,
+  with documented email fallback where telephony is disabled.
+- `ACME LOS Phone Recovery (<env>)`: security question plus email OTP for a lost
+  phone factor.
 
-The app should link users into Okta-hosted account actions rather than building
-local forms for these states. ACME may add CTAs and explanatory copy, but Okta
-remains the form authority for registration, recovery, credentials, and factors.
-The hosted page must not inject browser-only password, OTP, or authenticator
-fields. Password policy owns requirements and lifecycle behavior, but it does
-not control whether Okta-hosted Gen 3 registration renders a repeat/confirm
-password control. If ACME needs that control as a hard product requirement, use
-an embedded/custom IDX registration flow where ACME owns the full form and
-server-side verification boundary.
-
-`npm run okta:bootstrap -- <env>` manages three Okta account-management policy
-rules through the public Policy API:
-
-- `ACME LOS Password Lifecycle (<env>)`: forgot password and change password.
-- `ACME LOS Email Lifecycle (<env>)`: forgot email and change email.
-- `ACME LOS Phone Lifecycle (<env>)`: lost phone/SMS factor replacement and
-  change phone; live in dev only when the mock or real SMS provider is enabled.
+Bootstrap deactivates the exact retired ACME password-change, email-recovery,
+email-change, and phone-change rules. MyAccount Email, Phone, and Password APIs
+are outside the Account Management Policy; the ACME BFF step-up and AMR checks
+are authoritative for those signed-in mutations.
 
 For a scoped Okta automation token, prefer `OKTA_MANAGEMENT_ACCESS_TOKEN` with
 the Okta management scopes required by the bootstrap, including
@@ -372,50 +421,53 @@ bootstrap work.
 After running the bootstrap, confirm in Okta Admin Console:
 
 1. Go to `Security` > `Authenticators` > `Setup`.
-2. Confirm `Security Question` is active and configured for authentication and
-   recovery if the environment requires both.
-3. Go to `Security` > `Authenticators` > `Enrollment`.
-4. Confirm the ACME LOS enrollment policy requires password, email, security
+1. Confirm `Security Question` is active for recovery and is not required in
+   routine authentication or signed-in account changes.
+1. Go to `Security` > `Authenticators` > `Enrollment`.
+1. Confirm the ACME LOS enrollment policy requires password, email, security
    question, and phone/SMS only for the `acme-los-customers-<env>` customer
    group. In higher environments, phone/SMS should stay disabled until the real
    SMS sender/provider rollout is ready.
-5. Confirm the profile-enrollment form requires email, first name, last name,
+1. Confirm the profile-enrollment form requires email, first name, last name,
    and visible State for new registrations. The State field should be backed by
    `acmeState`, not Okta's built-in base `state` string, and should only offer
    Missouri and Texas. Phone is captured on the Okta phone/SMS authenticator
    enrollment screen instead.
-6. Confirm the profile-enrollment registration rule targets only the
+1. Confirm the profile-enrollment registration rule targets only the
    `acme-los-customers-<env>` customer group, especially if bootstrap failed
    with a `manual-required` profile-enrollment gate.
-7. Confirm phone/SMS factor enrollment is required in `dev` because
+1. Confirm phone/SMS factor enrollment is required in `dev` because
    `registrationRequiresPhoneVerification` is enabled and the mock telephony
    provider is active. For higher environments, keep it disabled until the real
    SMS sender/provider rollout is ready.
-8. Go to the Okta account-management policy.
-9. Confirm the three ACME LOS lifecycle rules exist, are scoped to the ACME
+1. Go to the Okta account-management policy.
+1. Confirm the ACME LOS account-management recovery rules exist, are scoped to the ACME
    customer group, and match the rendered `policyPlan` scenarios.
-10. Confirm recovery/change flows require the expected opposite-channel OTP
-    proof plus the Okta security-question challenge/hint: password and email
-    lifecycle use phone/SMS OTP, while phone/SMS lifecycle uses email OTP.
-    Confirm each sensitive change forces sign-off/fresh sign-in where the
-    scenario requires it.
-11. Confirm password and security-question changes do not send secret material to
-    ACME systems.
-12. Confirm `customerId` remains an app-owned custom profile attribute and is
-    not editable by end users.
-13. Confirm admin users are not in the ACME LOS customer group unless they are
-    intentionally being used as customer test accounts.
-14. Go to `Security` > `Global Session Policy` and confirm the ACME LOS
-    customer policy is scoped to `acme-los-customers-<env>`, has a 60-day
-    maximum session lifetime, and has a 120-minute idle timeout.
-15. Go to `Security` > `Authentication Policies` > `App sign-in` and confirm
-    the ACME LOS app policy is assigned only to the ACME web and mobile apps.
-16. Confirm the high-risk/new-device app rule requires password-first 2FA and
-    does not require the security-question answer during sign-in.
-17. If device assurance, device signal collection, Identity Threat Protection,
-    or another device-risk feature is enabled in the org, confirm whether it is
-    org-level only or consumed by the ACME app policy. Record any part that
-    cannot be app-scoped.
+1. Confirm recovery flows require the expected opposite-channel OTP proof plus
+   the Okta security-question challenge/hint.
+1. Confirm dashboard change flows require fresh password reauthentication plus
+   the opposite-channel OTP proof: email changes use phone/SMS OTP, phone/SMS
+   changes use email OTP, and password changes use phone/SMS OTP.
+   Confirm each sensitive change forces sign-off/fresh sign-in where the
+   scenario requires it.
+1. Confirm IDX passwords, security answers, and OTPs go directly to Okta.
+   MyAccount password values may transit the TLS-protected BFF request but are
+   never persisted or logged.
+1. Confirm `customerId` remains an app-owned custom profile attribute and is
+   not editable by end users.
+1. Confirm admin users are not in the ACME LOS customer group unless they are
+   intentionally being used as customer test accounts.
+1. Go to `Security` > `Global Session Policy` and confirm the ACME LOS
+   customer policy is scoped to `acme-los-customers-<env>`, has a 60-day
+   maximum session lifetime, and has a 120-minute idle timeout.
+1. Go to `Security` > `Authentication Policies` > `App sign-in` and confirm
+   the ACME LOS app policy is assigned only to the ACME web and mobile apps.
+1. Confirm the high-risk/new-device app rule requires password-first 2FA and
+   does not require the security-question answer during sign-in.
+1. If device assurance, device signal collection, Identity Threat Protection,
+   or another device-risk feature is enabled in the org, confirm whether it is
+   org-level only or consumed by the ACME app policy. Record any part that
+   cannot be app-scoped.
 
 ## User Prune Allowlist
 
@@ -436,10 +488,9 @@ Configure exact retained Okta logins in
   "keepLogins": [
     "you@example.com",
     "vinod@example.com",
-    "gopi@example.com",
-    "sasha@example.com"
+    "gopi@example.com"
   ],
-  "keepProfileContains": ["vinod", "gopi", "sasha"]
+  "keepProfileContains": ["vinod", "gopi"]
 }
 ```
 
@@ -489,27 +540,45 @@ It sends customer account changes to ACME-branded account-security routes for:
 - change sign-in email
 - change phone/SMS factor
 
-Password recovery uses the Okta-hosted Gen3 widget through
-`/api/auth/start?...&widgetFlow=resetPassword`. Signed-in password, email, and
-phone changes use Okta's user-scoped MyAccount API through the BFF with the
-active user's access token, not an admin Users API patch. The browser calls ACME
-endpoints under `/api/account/security/*`; the Next facade checks CSRF and the
-account-action step-up marker, then proxies to the BFF.
+Password recovery and signed-in step-up use the ACME-owned Auth JS IDX page.
+Identifiers, passwords, security answers, and OTPs go directly from Auth JS to
+Okta. Signed-in password, email, and phone mutations use Okta's user-scoped
+MyAccount API through the BFF with the active user's access token. The browser
+calls ACME endpoints under `/api/account/security/*`; the Next facade checks
+CSRF and the account-action step-up marker, then proxies to the BFF.
+
+After Okta verifies a new primary email, the BFF aligns `profile.login` through
+the OAuth service app only when email-login sync is enabled. That service
+credential is Key Vault-backed and uses Okta OAuth scopes; the browser never
+receives it. This server-side alignment complements the org-level `Map primary
+email to login attribute` setting and is separate from the user-scoped
+MyAccount mutation.
+The read-only dashboard also uses the BFF to read verified phone/SMS enrollment
+from Okta MyAccount; it does not call Okta from browser JavaScript.
 
 The account-security routes have distinct step-up reasons:
 
-- `/account/security/email` requires a fresh `account-email` marker, which must
-  be satisfied with phone/SMS OTP before the form appears. Okta then sends the
-  final OTP to the new email through MyAccount verification.
+- `/account/security/email` requires current password plus a fresh phone/SMS
+  OTP before the form appears. Okta then sends exactly one final OTP to the new
+  email when the customer clicks `Send email code`.
 - `/account/security/phone` requires a fresh `account-phone` marker, which must
-  be satisfied with email OTP before the form appears. Okta then sends the final
-  OTP to the new phone through MyAccount verification.
+  be satisfied with current password plus email OTP before the form appears.
+  Okta sends the final OTP to the new phone only after the customer clicks
+  `Send SMS code`.
 - `/account/security/password` requires a fresh `account-password` marker,
-  which must be satisfied with phone/SMS OTP before the form appears. The BFF
-  forwards the current password as `oldPassword` and the new password as
-  `newPassword` directly to Okta MyAccount
+  which must be satisfied with current password plus phone/SMS OTP before the
+  form appears. Security question is reserved for recovery. The BFF forwards
+  the current password as `oldPassword` and the new password as `newPassword`
+  directly to Okta MyAccount
   `POST /idp/myaccount/password/change-password`; it must not store or log
   either value.
+- a successful mutation issues a short-lived signed, HttpOnly post-change
+  intent. After Okta logout, the single `/account/sign-in` surface and
+  `/api/auth/idx/start` endpoint recognize it and bind the new transaction to
+  the same immutable Okta subject. Browser-supplied return paths and assurance
+  values are ignored in this mode. Email change requires password plus
+  new-email OTP; phone change requires password plus new-phone SMS OTP;
+  password change requires the new password plus SMS OTP
 
 The BFF account-security endpoints emit non-sensitive action-state logs for
 `email.start`, `email.verify`, `phone.start`, `phone.verify`, and

@@ -1,7 +1,7 @@
 import {
   buildAccountSecurityActionUrl,
   buildAccountSecurityStepUpUrl,
-  buildHostedPasswordRecoveryUrl,
+  buildPasswordRecoveryUrl,
 } from '../src/lib/okta-account-actions';
 
 describe('Okta account action links', () => {
@@ -19,22 +19,22 @@ describe('Okta account action links', () => {
 
   it('starts dashboard account actions through the exact protected step-up route', () => {
     expect(buildAccountSecurityStepUpUrl('password')).toBe(
-      '/api/auth/start?returnTo=%2Faccount%2Fsecurity%2Fpassword&aal=aal2',
+      '/account/sign-in?returnTo=%2Faccount%2Fsecurity%2Fpassword&aal=aal2',
     );
     expect(buildAccountSecurityStepUpUrl('change-email')).toBe(
-      '/api/auth/start?returnTo=%2Faccount%2Fsecurity%2Femail&aal=aal2',
+      '/account/sign-in?returnTo=%2Faccount%2Fsecurity%2Femail&aal=aal2',
     );
     expect(buildAccountSecurityStepUpUrl('change-phone')).toBe(
-      '/api/auth/start?returnTo=%2Faccount%2Fsecurity%2Fphone&aal=aal2',
+      '/account/sign-in?returnTo=%2Faccount%2Fsecurity%2Fphone&aal=aal2',
     );
   });
 
-  it('builds the hosted widget password recovery path', () => {
-    expect(buildHostedPasswordRecoveryUrl()).toBe(
-      '/api/auth/start?returnTo=%2Faccount%2Fprofile%3Faccount_action%3Dpassword&widgetFlow=resetPassword',
+  it('builds the app-owned IDX password recovery path', () => {
+    expect(buildPasswordRecoveryUrl()).toBe(
+      '/account/sign-in?returnTo=%2Faccount%2Fprofile%3Faccount_action%3Dpassword&flow=recoverPassword',
     );
-    expect(buildHostedPasswordRecoveryUrl('/account/security/password')).toBe(
-      '/api/auth/start?returnTo=%2Faccount%2Fsecurity%2Fpassword&widgetFlow=resetPassword',
+    expect(buildPasswordRecoveryUrl('/account/security/password')).toBe(
+      '/account/sign-in?returnTo=%2Faccount%2Fsecurity%2Fpassword&flow=recoverPassword',
     );
   });
 });

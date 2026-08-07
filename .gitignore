@@ -63,6 +63,7 @@ cache/
 # Playwright
 playwright-report/
 test-results/
+/apps/web-app-e2e/debug.log
 
 # Generated local auth config
 apps/web-app/.env.local

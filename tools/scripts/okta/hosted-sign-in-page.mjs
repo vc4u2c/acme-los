@@ -93,7 +93,7 @@ export function buildHostedSignInStartUrl(
   fieldName = 'web.deployedBaseUrl',
 ) {
   const url = new URL(
-    '/api/auth/start',
+    '/account/sign-in',
     requiredAbsoluteHttpUrl(webBaseUrl, fieldName),
   );
 

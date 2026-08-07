@@ -94,8 +94,8 @@ facade and the `/security` page for authenticated local/dev inspection.
 
 ## Authenticated Browser Testing
 
-Use the browser for hosted Okta sign-in, session, logout, and security inspector
-flows:
+Use the browser for the app-owned Okta IDX sign-in, session, logout, and
+security inspector flows:
 
 - local: `http://localhost:3000/security`
 - dev:

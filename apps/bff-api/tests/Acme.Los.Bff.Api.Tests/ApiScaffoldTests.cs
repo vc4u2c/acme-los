@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -416,7 +417,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
-  public async Task BffAuthSession_CanReadTouchAndReturnLogoutHint()
+  public async Task BffAuthSession_CanReadTouchAndLogout()
   {
     using var client = _factory.CreateClient();
     var storedSession = await CreateStoredAuthSessionAsync(
@@ -472,20 +473,134 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.NotNull(touchPayload);
     Assert.True(touchPayload!.Touched);
 
-    using var logoutHintRequest = new HttpRequestMessage(
-      HttpMethod.Get,
-      "/bff/auth/logout-hint");
+    using var logoutRequest = new HttpRequestMessage(
+      HttpMethod.Post,
+      "/bff/auth/logout")
+    {
+      Content = JsonContent.Create(new StartLogoutRequest()),
+    };
 
-    logoutHintRequest.Headers.Add(
+    logoutRequest.Headers.Add(
       "Cookie",
       $"acme-los.auth-session={sessionCookie}");
 
-    using var logoutHintResponse = await client.SendAsync(logoutHintRequest);
-    var logoutHint =
-      await logoutHintResponse.Content.ReadFromJsonAsync<GetWebAuthLogoutHintResponse>();
+    using var logoutResponse = await client.SendAsync(logoutRequest);
+    var logout =
+      await logoutResponse.Content.ReadFromJsonAsync<StartLogoutResponse>();
 
-    Assert.Equal(HttpStatusCode.OK, logoutHintResponse.StatusCode);
-    Assert.Equal("id-token-123", logoutHint!.IdToken);
+    Assert.Equal(HttpStatusCode.OK, logoutResponse.StatusCode);
+    Assert.NotNull(logout);
+    Assert.True(logout!.Cleared);
+    Assert.False(logout.Session.IsAuthenticated);
+  }
+
+  [Fact]
+  public async Task PostBffLogout_UsesAllowlistedTokenIssuerAndRejectsExternalRedirect()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://auth.avanai.net/oauth2/default",
+        ["ACME_OKTA_ORG_URL"] = "https://dev-123456.okta.com",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var client = _factory.CreateClient();
+    var idToken = CreateUnsignedJwt(new
+    {
+      iss = "https://dev-123456.okta.com/oauth2/default",
+    });
+    var storedSession = await CreateStoredAuthSessionAsync(
+      _factory,
+      idToken,
+      new WebAuthSession(
+        "okta",
+        "authenticated",
+        true,
+        "aal2",
+        new WebAuthSessionUser(
+          "user-123",
+          "User Test",
+          "user@example.com")),
+      (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+      new WebAuthSessionTokenSet(idToken));
+    using var request = new HttpRequestMessage(HttpMethod.Post, "/bff/auth/logout")
+    {
+      Content = JsonContent.Create(
+        new StartLogoutRequest("https://attacker.example/account/sign-in")),
+    };
+
+    request.Headers.Add(
+      "Cookie",
+      $"acme-los.auth-session={CreateSignedSessionCookie(storedSession.StoredSessionId)}");
+
+    using var response = await client.SendAsync(request);
+    var payload = await response.Content.ReadFromJsonAsync<StartLogoutResponse>();
+    var logoutUri = new Uri(payload!.LogoutUrl);
+    var query = QueryHelpers.ParseQuery(logoutUri.Query);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    Assert.True(payload.UsedOktaLogout);
+    Assert.Equal("dev-123456.okta.com", logoutUri.Host);
+    Assert.Equal("/oauth2/default/v1/logout", logoutUri.AbsolutePath);
+    Assert.Equal(
+      "https://los.example.test/",
+      query["post_logout_redirect_uri"].ToString());
+  }
+
+  [Fact]
+  public async Task PostBffLogout_AllowsKnownSameOriginSignInRedirect()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://auth.avanai.net/oauth2/default",
+        ["ACME_OKTA_ORG_URL"] = "https://dev-123456.okta.com",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var client = _factory.CreateClient();
+    var idToken = CreateUnsignedJwt(new
+    {
+      iss = "https://auth.avanai.net/oauth2/default",
+    });
+    var storedSession = await CreateStoredAuthSessionAsync(
+      _factory,
+      idToken,
+      new WebAuthSession(
+        "okta",
+        "authenticated",
+        true,
+        "aal2",
+        new WebAuthSessionUser(
+          "user-123",
+          "User Test",
+          "user@example.com")),
+      (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+      new WebAuthSessionTokenSet(idToken));
+    const string requestedRedirect =
+      "https://los.example.test/account/sign-in";
+    using var request = new HttpRequestMessage(HttpMethod.Post, "/bff/auth/logout")
+    {
+      Content = JsonContent.Create(new StartLogoutRequest(requestedRedirect)),
+    };
+
+    request.Headers.Add(
+      "Cookie",
+      $"acme-los.auth-session={CreateSignedSessionCookie(storedSession.StoredSessionId)}");
+
+    using var response = await client.SendAsync(request);
+    var payload = await response.Content.ReadFromJsonAsync<StartLogoutResponse>();
+    var query = QueryHelpers.ParseQuery(new Uri(payload!.LogoutUrl).Query);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    Assert.Equal(
+      requestedRedirect,
+      query["post_logout_redirect_uri"].ToString());
   }
 
   [Fact]
@@ -524,6 +639,78 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.NotNull(payload);
     Assert.Equal("user@example.com", payload!.Profile.Email);
     Assert.Equal(string.Empty, payload.Profile.Phone);
+  }
+
+  [Fact]
+  public async Task GetBffCustomerProfile_WithVerifiedOktaPhone_ReturnsPhone()
+  {
+    var oktaMyAccountService = new StubOktaMyAccountService(
+      [new MyAccountPhone("phone-123", "VERIFIED", "+13145550123")]);
+    using var factory = _factory.WithWebHostBuilder(builder =>
+    {
+      builder.ConfigureServices(services =>
+      {
+        services.RemoveAll<IOktaMyAccountService>();
+        services.AddSingleton<IOktaMyAccountService>(oktaMyAccountService);
+      });
+    });
+    using var client = factory.CreateClient();
+    var idToken = CreateUnsignedJwt(new
+    {
+      sub = "user-verified-phone",
+      email = "user@example.com",
+    });
+    var accessToken = CreateUnsignedJwt(new
+    {
+      sub = "user-verified-phone",
+      scp = new[]
+      {
+        "openid",
+        "profile",
+        "okta.myAccount.phone.read",
+      },
+    });
+    var storedSession = await CreateStoredAuthSessionAsync(
+      factory,
+      idToken,
+      new WebAuthSession(
+        "okta",
+        "authenticated",
+        true,
+        "aal1",
+        new WebAuthSessionUser(
+          "user-verified-phone",
+          "User Test",
+          "user@example.com")),
+      (int)DateTimeOffset.UtcNow.AddHours(1).ToUnixTimeSeconds(),
+      new WebAuthSessionTokenSet(
+        idToken,
+        accessToken,
+        "refresh-token-123",
+        "Bearer",
+        "openid profile okta.myAccount.phone.read",
+        3600));
+    using var request = new HttpRequestMessage(
+      HttpMethod.Get,
+      "/bff/customer/profile");
+
+    request.Headers.Add(
+      "Cookie",
+      $"acme-los.auth-session={CreateSignedSessionCookie(storedSession.StoredSessionId)}");
+    request.Headers.Add("x-acme-authenticated-user-id", "user-verified-phone");
+    request.Headers.Add("x-acme-authenticated-user-email", "user@example.com");
+
+    using var response = await client.SendAsync(request);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var payload =
+      await response.Content.ReadFromJsonAsync<GetCustomerProfileResponse>();
+
+    Assert.NotNull(payload);
+    Assert.Equal("user@example.com", payload!.Profile.Email);
+    Assert.Equal("+13145550123", payload.Profile.Phone);
+    Assert.Equal(accessToken, oktaMyAccountService.LastAccessToken);
   }
 
   [Fact]
@@ -1066,7 +1253,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
-  public async Task GetBffAuthLogin_ReturnsAuthorizeUrl()
+  public async Task PostBffIdxStart_ReturnsPublicInteractionMetadataAndKeepsVerifierServerSide()
   {
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
@@ -1074,138 +1261,100 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
         ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
       });
     using var client = _factory.CreateClient();
-    using var response = await client.GetAsync(
-      "/bff/auth/login?returnTo=/apply&aal=aal2&leadId=lead-123&widgetFlow=resetPassword");
+    using var response = await client.PostAsJsonAsync(
+      "/bff/auth/idx/start",
+      new StartIdxAuthFlowRequest(
+        "/account/security/password",
+        "aal2",
+        "user-123",
+        "lead-123",
+        new WebAuthStepUpRequirement("account-password", 600)));
 
     Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
     var payload =
-      await response.Content.ReadFromJsonAsync<StartAuthFlowResponse>();
+      await response.Content.ReadFromJsonAsync<StartIdxAuthFlowResponse>();
+
+    Assert.NotNull(payload);
+    Assert.Equal("https://dev-123456.okta.com/oauth2/default", payload!.Issuer);
+    Assert.Equal("client-123", payload.ClientId);
+    Assert.Equal("https://los.example.test/account/sign-in", payload.RedirectUri);
+    Assert.Equal("S256", payload.CodeChallengeMethod);
+    Assert.False(string.IsNullOrWhiteSpace(payload.CodeChallenge));
+    Assert.False(string.IsNullOrWhiteSpace(payload.State));
+    Assert.False(string.IsNullOrWhiteSpace(payload.Nonce));
+    Assert.Equal("urn:okta:loa:2fa:any", payload.AcrValues);
+    Assert.Equal(0, payload.MaxAgeSeconds);
+    Assert.Equal("account-password", payload.StepUpReason);
+    Assert.Equal("/account/security/password", payload.ReturnTo);
+    Assert.Equal(30 * 60, payload.MaxAge);
+    Assert.DoesNotContain("verifier", await response.Content.ReadAsStringAsync(),
+      StringComparison.OrdinalIgnoreCase);
+  }
+
+  [Fact]
+  public async Task PostBffIdxStart_PasswordlessFundingOmitsTwoFactorAcrAndMaxAge()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+        ["ACME_OKTA_FUNDING_ACR_VALUES"] = "urn:okta:loa:2fa:any",
+        ["ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD"] = "false",
+      });
+    using var client = _factory.CreateClient();
+    using var response = await client.PostAsJsonAsync(
+      "/bff/auth/idx/start",
+      new StartIdxAuthFlowRequest(
+        "/apply/funding",
+        "aal2",
+        "user-123",
+        "lead-123",
+        new WebAuthStepUpRequirement("funding", 600)));
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var payload =
+      await response.Content.ReadFromJsonAsync<StartIdxAuthFlowResponse>();
+
+    Assert.NotNull(payload);
+    Assert.Equal("funding", payload!.StepUpReason);
+    Assert.Null(payload.AcrValues);
+    Assert.Null(payload.MaxAgeSeconds);
+  }
+
+  [Fact]
+  public async Task PostBffIdxStart_RejectsBackslashBasedExternalReturnPath()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var client = _factory.CreateClient();
+    using var response = await client.PostAsJsonAsync(
+      "/bff/auth/idx/start",
+      new StartIdxAuthFlowRequest("/\\attacker.example/path"));
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+    var payload =
+      await response.Content.ReadFromJsonAsync<StartIdxAuthFlowResponse>();
 
     Assert.NotNull(payload);
     Assert.Equal("/apply/personal-info", payload!.ReturnTo);
-    Assert.False(string.IsNullOrWhiteSpace(payload.TransactionId));
-    Assert.Equal(30 * 60, payload.MaxAge);
-
-    var authorizeUrl = new Uri(payload.AuthorizeUrl);
-    var query = QueryHelpers.ParseQuery(authorizeUrl.Query);
-
-    Assert.Equal("dev-123456.okta.com", authorizeUrl.Host);
-    Assert.Equal("/oauth2/default/v1/authorize", authorizeUrl.AbsolutePath);
-    Assert.Equal("client-123", query["client_id"].ToString());
-    Assert.Equal(
-      "https://los.example.test/auth/callback",
-      query["redirect_uri"].ToString());
-    Assert.Equal("code", query["response_type"].ToString());
-    Assert.Equal("S256", query["code_challenge_method"].ToString());
-    Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
-    Assert.Equal("resetPassword", query["acme_widget_flow"].ToString());
-    var requestedScopes = query["scope"].ToString().Split(' ');
-
-    Assert.Contains("okta.myAccount.email.manage", requestedScopes);
-    Assert.Contains("okta.myAccount.phone.manage", requestedScopes);
-    Assert.Contains("okta.myAccount.password.manage", requestedScopes);
-    Assert.False(query.ContainsKey("prompt"));
-    Assert.False(query.ContainsKey("max_age"));
-  }
-
-  [Fact]
-  public async Task GetBffAuthLogin_WithFundingStepUp_DoesNotForcePasswordReentry()
-  {
-    using var environment = new TemporaryEnvironmentVariables(
-      new Dictionary<string, string?>
-      {
-        ["ACME_AUTH_PROVIDER"] = "okta",
-        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
-        ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
-        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
-      });
-    using var client = _factory.CreateClient();
-    using var response = await client.GetAsync(
-      "/bff/auth/login?returnTo=/apply/funding&aal=aal2&stepUpReason=funding&stepUpMaxAgeSeconds=600&stepUpConsumeOnSatisfied=true");
-
-    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-    var payload =
-      await response.Content.ReadFromJsonAsync<StartAuthFlowResponse>();
-
-    Assert.NotNull(payload);
-    Assert.Equal(30 * 60, payload!.MaxAge);
-
-    var authorizeUrl = new Uri(payload.AuthorizeUrl);
-    var query = QueryHelpers.ParseQuery(authorizeUrl.Query);
-
-    Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
-    Assert.False(query.ContainsKey("max_age"));
-    Assert.False(query.ContainsKey("prompt"));
-  }
-
-  [Fact]
-  public async Task GetBffAuthLogin_WithFundingStepUpRequiresPassword_ForcesFreshOktaAuthentication()
-  {
-    using var environment = new TemporaryEnvironmentVariables(
-      new Dictionary<string, string?>
-      {
-        ["ACME_AUTH_PROVIDER"] = "okta",
-        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
-        ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
-        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
-        ["ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD"] = "true",
-      });
-    using var client = _factory.CreateClient();
-    using var response = await client.GetAsync(
-      "/bff/auth/login?returnTo=/apply/funding&aal=aal2&stepUpReason=funding&stepUpMaxAgeSeconds=600&stepUpConsumeOnSatisfied=true");
-
-    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-    var payload =
-      await response.Content.ReadFromJsonAsync<StartAuthFlowResponse>();
-
-    Assert.NotNull(payload);
-
-    var authorizeUrl = new Uri(payload!.AuthorizeUrl);
-    var query = QueryHelpers.ParseQuery(authorizeUrl.Query);
-
-    Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
-    Assert.Equal("0", query["max_age"].ToString());
-    Assert.False(query.ContainsKey("prompt"));
-  }
-
-  [Fact]
-  public async Task GetBffAuthLogin_WithAccountPasswordStepUp_ForcesFreshOktaAuthentication()
-  {
-    using var environment = new TemporaryEnvironmentVariables(
-      new Dictionary<string, string?>
-      {
-        ["ACME_AUTH_PROVIDER"] = "okta",
-        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
-        ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
-        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
-      });
-    using var client = _factory.CreateClient();
-    using var response = await client.GetAsync(
-      "/bff/auth/login?returnTo=/account/security/password&aal=aal2&stepUpReason=account-password&stepUpMaxAgeSeconds=600");
-
-    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-
-    var payload =
-      await response.Content.ReadFromJsonAsync<StartAuthFlowResponse>();
-
-    Assert.NotNull(payload);
-
-    var authorizeUrl = new Uri(payload!.AuthorizeUrl);
-    var query = QueryHelpers.ParseQuery(authorizeUrl.Query);
-
-    Assert.Equal("urn:okta:loa:2fa:any", query["acr_values"].ToString());
-    Assert.Equal("0", query["max_age"].ToString());
-    Assert.False(query.ContainsKey("prompt"));
   }
 
   [Fact]
@@ -1217,7 +1366,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
         ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
       });
     using var handler = new CapturingHttpMessageHandler(
@@ -1265,7 +1414,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
         ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
       });
     using var handler = new CapturingHttpMessageHandler(
@@ -1319,7 +1468,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal(
       "https://dev-123456.okta.com/idp/myaccount/emails/email-change-123/challenge",
       handler.Requests[1].RequestUri?.ToString());
-    AssertOktaMyAccountJsonHeaders(handler.Requests[1], hasJsonBody: false);
+    AssertOktaMyAccountJsonHeaders(handler.Requests[1]);
 
     var body = await handler.Requests[0].Content!.ReadAsStringAsync();
     using var json = JsonDocument.Parse(body);
@@ -1328,6 +1477,13 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     Assert.Equal("new-user@example.com", profile.GetProperty("email").GetString());
     Assert.False(json.RootElement.GetProperty("sendEmail").GetBoolean());
     Assert.Equal("PRIMARY", json.RootElement.GetProperty("role").GetString());
+
+    var challengeBody = await handler.Requests[1].Content!.ReadAsStringAsync();
+    using var challengeJson = JsonDocument.Parse(challengeBody);
+    var challengeState = challengeJson.RootElement.GetProperty("state").GetString();
+
+    Assert.NotNull(challengeState);
+    Assert.Matches("^[a-f0-9]{64}$", challengeState!);
   }
 
   [Fact]
@@ -1340,7 +1496,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
         ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
       });
     using var handler = new CapturingHttpMessageHandler(
@@ -1400,7 +1556,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
         ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
       });
     using var handler = new CapturingHttpMessageHandler(
@@ -1460,11 +1616,29 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
         ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
       });
     using var handler = new CapturingHttpMessageHandler(
-      _ => new HttpResponseMessage(HttpStatusCode.NoContent));
+      request =>
+      {
+        return request.RequestUri?.AbsolutePath switch
+        {
+          "/idp/myaccount/emails/email-change-123/challenge/myaccount.IDseIErVSEiFlLyAbzSp5Q/verify" =>
+            new HttpResponseMessage(HttpStatusCode.NoContent),
+          "/idp/myaccount/emails/email-change-123" =>
+            new HttpResponseMessage(HttpStatusCode.OK)
+            {
+              Content = JsonContent.Create(new
+              {
+                id = "email-change-123",
+                status = "VERIFIED",
+                profile = new { email = "new-user@example.com" },
+              }),
+            },
+          _ => new HttpResponseMessage(HttpStatusCode.NotFound),
+        };
+      });
     using var httpClient = new HttpClient(handler);
     var service = new OktaMyAccountService(
       new StaticHttpClientFactory(httpClient));
@@ -1478,14 +1652,22 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       CancellationToken.None);
 
     Assert.Equal("verified", result.Status);
+    Assert.Equal("new-user@example.com", result.Email);
 
-    var request = Assert.Single(handler.Requests);
+    Assert.Equal(2, handler.Requests.Count);
+    var request = handler.Requests[0];
 
     Assert.Equal(HttpMethod.Post, request.Method);
     Assert.Equal(
       $"https://dev-123456.okta.com/idp/myaccount/emails/email-change-123/challenge/{challengeId}/verify",
       request.RequestUri?.ToString());
     AssertOktaMyAccountJsonHeaders(request);
+
+    Assert.Equal(HttpMethod.Get, handler.Requests[1].Method);
+    Assert.Equal(
+      "https://dev-123456.okta.com/idp/myaccount/emails/email-change-123",
+      handler.Requests[1].RequestUri?.ToString());
+    AssertOktaMyAccountJsonHeaders(handler.Requests[1], hasJsonBody: false);
   }
 
   [Fact]
@@ -1497,7 +1679,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
         ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
       });
     using var handler = new CapturingHttpMessageHandler(
@@ -1549,7 +1731,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
         ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
       });
     using var handler = new CapturingHttpMessageHandler(
@@ -1575,6 +1757,61 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
+  public async Task OktaMyAccountService_ListPhones_UsesScopedMyAccountPhoneReadApi()
+  {
+    using var environment = new TemporaryEnvironmentVariables(
+      new Dictionary<string, string?>
+      {
+        ["ACME_AUTH_PROVIDER"] = "okta",
+        ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+        ["ACME_OKTA_CLIENT_ID"] = "client-123",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
+        ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
+      });
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.OK)
+      {
+        Content = JsonContent.Create(new[]
+        {
+          new
+          {
+            id = "phone-unverified",
+            status = "UNVERIFIED",
+            profile = new { phoneNumber = "+13145550000" },
+          },
+          new
+          {
+            id = "phone-verified",
+            status = "VERIFIED",
+            profile = new { phoneNumber = "+13145550123" },
+          },
+        }),
+      });
+    using var httpClient = new HttpClient(handler);
+    var service = new OktaMyAccountService(
+      new StaticHttpClientFactory(httpClient));
+
+    var phones = await service.ListPhonesAsync(
+      "access-token-123",
+      CancellationToken.None);
+
+    Assert.Equal(2, phones.Count);
+    Assert.Contains(
+      phones,
+      phone => phone.IsVerified && phone.PhoneNumber == "+13145550123");
+
+    var request = Assert.Single(handler.Requests);
+
+    Assert.Equal(HttpMethod.Get, request.Method);
+    Assert.Equal(
+      "https://dev-123456.okta.com/idp/myaccount/phones",
+      request.RequestUri?.ToString());
+    Assert.Equal("Bearer", request.Headers.Authorization?.Scheme);
+    Assert.Equal("access-token-123", request.Headers.Authorization?.Parameter);
+    AssertOktaMyAccountJsonHeaders(request, hasJsonBody: false);
+  }
+
+  [Fact]
   public async Task OktaMyAccountService_EmailConflict_ReturnsClientSafeMessage()
   {
     using var environment = new TemporaryEnvironmentVariables(
@@ -1583,7 +1820,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
         ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
       });
     using var handler = new CapturingHttpMessageHandler(
@@ -1619,7 +1856,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
         ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
       });
     using var handler = new CapturingHttpMessageHandler(
@@ -1699,7 +1936,53 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
-  public async Task GetBffAuthCallback_WithoutTransaction_ReturnsBadRequest()
+  public void AuthAssurance_PasswordEvidence_DoesNotAcceptPossessionOnly()
+  {
+    Assert.True(
+      AuthAssurance.IsPasswordAuthenticationMethodSatisfied(
+        new[] { "pwd", "sms" }));
+
+    Assert.True(
+      AuthAssurance.IsPasswordAuthenticationMethodSatisfied(
+        new[] { "okta_password", "email" }));
+
+    Assert.False(
+      AuthAssurance.IsPasswordAuthenticationMethodSatisfied(
+        new[] { "sms", "email" }));
+  }
+
+  [Fact]
+  public async Task InMemoryAuthSessionStore_RevokedSessionIsInactiveButRetainsLogoutHint()
+  {
+    var now = (int)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    var store = new InMemoryAuthSessionStore();
+    var storedSession = new StoredWebAuthSession(
+      "session-123",
+      new WebAuthSession(
+        "okta",
+        "authenticated",
+        true,
+        "aal2",
+        new WebAuthSessionUser("user-123", "Test User")),
+      new WebAuthSessionTokenSet("id-token-123", "access-token-123"),
+      now + 3600,
+      now * 1000L,
+      now,
+      now + 1800,
+      RevokedAt: now);
+
+    await store.WriteAsync(storedSession, CancellationToken.None);
+
+    Assert.Null(
+      await store.ReadActiveAsync("session-123", CancellationToken.None));
+    Assert.Equal(
+      "id-token-123",
+      (await store.ReadForLogoutAsync("session-123", CancellationToken.None))
+        ?.Tokens.IdToken);
+  }
+
+  [Fact]
+  public async Task PostBffIdxComplete_WithoutTransaction_ReturnsBadRequest()
   {
     using var environment = new TemporaryEnvironmentVariables(
       new Dictionary<string, string?>
@@ -1707,12 +1990,13 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
         ["ACME_AUTH_PROVIDER"] = "okta",
         ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
         ["ACME_OKTA_CLIENT_ID"] = "client-123",
-        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/auth/callback",
+        ["ACME_OKTA_REDIRECT_URI"] = "https://los.example.test/account/sign-in",
         ["ACME_OKTA_POST_LOGOUT_REDIRECT_URI"] = "https://los.example.test/",
       });
     using var client = _factory.CreateClient();
-    using var response = await client.GetAsync(
-      "/bff/auth/callback?code=code-123&state=state-123");
+    using var response = await client.PostAsJsonAsync(
+      "/bff/auth/idx/complete",
+      new CompleteIdxAuthFlowRequest("interaction-code-123", "state-123"));
 
     Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
   }
@@ -1853,6 +2137,7 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
             {
               ["ACME_OKTA_CUSTOMER_ID_WRITEBACK_MODE"] = "sample",
               ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+              ["ACME_OKTA_ORG_URL"] = "https://dev-123456.okta.com",
               ["ACME_OKTA_MANAGEMENT_CLIENT_ID"] = "service-client-id",
               ["ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM"] = CreatePrivateKeyPem(),
               ["ACME_OKTA_MANAGEMENT_SCOPES"] = "okta.users.read",
@@ -1860,6 +2145,91 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
           .Build()));
 
     Assert.Contains("okta.users.manage", exception.Message);
+  }
+
+  [Fact]
+  public void OktaCustomerIdWritebackOptions_WhenEmailLoginSyncEnabled_RequiresManageScope()
+  {
+    var exception = Assert.Throws<InvalidOperationException>(() =>
+      OktaCustomerIdWritebackOptions.FromConfiguration(
+        new ConfigurationBuilder()
+          .AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+              ["ACME_OKTA_EMAIL_LOGIN_SYNC_ENABLED"] = "true",
+              ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+              ["ACME_OKTA_ORG_URL"] = "https://dev-123456.okta.com",
+              ["ACME_OKTA_MANAGEMENT_CLIENT_ID"] = "service-client-id",
+              ["ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM"] = CreatePrivateKeyPem(),
+              ["ACME_OKTA_MANAGEMENT_SCOPES"] = "okta.users.read",
+            })
+          .Build()));
+
+    Assert.Contains("okta.users.manage", exception.Message);
+  }
+
+  [Fact]
+  public void OktaCustomerIdWritebackOptions_WhenEmailLoginSyncEnabled_RequiresReadScope()
+  {
+    var exception = Assert.Throws<InvalidOperationException>(() =>
+      OktaCustomerIdWritebackOptions.FromConfiguration(
+        new ConfigurationBuilder()
+          .AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+              ["ACME_OKTA_EMAIL_LOGIN_SYNC_ENABLED"] = "true",
+              ["ACME_OKTA_ISSUER"] = "https://dev-123456.okta.com/oauth2/default",
+              ["ACME_OKTA_ORG_URL"] = "https://dev-123456.okta.com",
+              ["ACME_OKTA_MANAGEMENT_CLIENT_ID"] = "service-client-id",
+              ["ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM"] = CreatePrivateKeyPem(),
+              ["ACME_OKTA_MANAGEMENT_SCOPES"] = "okta.users.manage",
+            })
+          .Build()));
+
+    Assert.Contains("okta.users.read", exception.Message);
+  }
+
+  [Fact]
+  public void OktaCustomerIdWritebackOptions_WhenEnabled_RequiresExplicitOrgUrl()
+  {
+    var exception = Assert.Throws<InvalidOperationException>(() =>
+      OktaCustomerIdWritebackOptions.FromConfiguration(
+        new ConfigurationBuilder()
+          .AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+              ["ACME_OKTA_CUSTOMER_ID_WRITEBACK_MODE"] = "sample",
+              ["ACME_OKTA_ISSUER"] = "https://auth.avanai.net/oauth2/default",
+              ["ACME_OKTA_MANAGEMENT_CLIENT_ID"] = "service-client-id",
+              ["ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM"] = CreatePrivateKeyPem(),
+              ["ACME_OKTA_MANAGEMENT_SCOPES"] =
+                "okta.users.read okta.users.manage",
+            })
+          .Build()));
+
+    Assert.Contains("ACME_OKTA_ORG_URL", exception.Message);
+  }
+
+  [Fact]
+  public void OktaCustomerIdWritebackOptions_WhenEnabled_RejectsOrgUrlWithPath()
+  {
+    var exception = Assert.Throws<InvalidOperationException>(() =>
+      OktaCustomerIdWritebackOptions.FromConfiguration(
+        new ConfigurationBuilder()
+          .AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+              ["ACME_OKTA_CUSTOMER_ID_WRITEBACK_MODE"] = "sample",
+              ["ACME_OKTA_ORG_URL"] =
+                "https://dev-123456.okta.com/oauth2/default",
+              ["ACME_OKTA_MANAGEMENT_CLIENT_ID"] = "service-client-id",
+              ["ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM"] = CreatePrivateKeyPem(),
+              ["ACME_OKTA_MANAGEMENT_SCOPES"] =
+                "okta.users.read okta.users.manage",
+            })
+          .Build()));
+
+    Assert.Contains("HTTPS origin", exception.Message);
   }
 
   [Fact]
@@ -1878,11 +2248,12 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     using var httpClient = new HttpClient(handler);
     var options = new OktaCustomerIdWritebackOptions(
       OktaCustomerIdWritebackMode.Sample,
-      "https://dev-123456.okta.com/oauth2/default",
       "service-client-id",
       CreatePrivateKeyPem(),
       "key-1",
-      ["okta.users.manage"]);
+      ["okta.users.read", "okta.users.manage"],
+      EmailLoginSyncEnabled: false,
+      OrgUrl: "https://dev-123456.okta.com");
     var tokenClient = new OktaManagementTokenClient(
       new StaticHttpClientFactory(httpClient),
       options);
@@ -1897,11 +2268,153 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     var form = QueryHelpers.ParseQuery(body);
 
     Assert.Equal("client_credentials", form["grant_type"].ToString());
-    Assert.Equal("okta.users.manage", form["scope"].ToString());
+    Assert.Equal("okta.users.read okta.users.manage", form["scope"].ToString());
     Assert.Equal(
       "urn:ietf:params:oauth:client-assertion-type:jwt-bearer",
       form["client_assertion_type"].ToString());
     Assert.False(string.IsNullOrWhiteSpace(form["client_assertion"].ToString()));
+    Assert.True(request.Headers.TryGetValues("DPoP", out var dpopHeaders));
+    Assert.False(string.IsNullOrWhiteSpace(dpopHeaders.Single()));
+  }
+
+  [Fact]
+  public async Task OktaManagementTokenClient_RetriesTokenRequestWithDpopNonce()
+  {
+    var tokenRequestCount = 0;
+    using var handler = new CapturingHttpMessageHandler(
+      _ =>
+      {
+        tokenRequestCount++;
+        if (tokenRequestCount == 1)
+        {
+          var nonceResponse = new HttpResponseMessage(HttpStatusCode.BadRequest)
+          {
+            Content = JsonContent.Create(new
+            {
+              error = "use_dpop_nonce",
+            }),
+          };
+
+          nonceResponse.Headers.Add("DPoP-Nonce", "nonce-123");
+
+          return nonceResponse;
+        }
+
+        return new HttpResponseMessage(HttpStatusCode.OK)
+        {
+          Content = JsonContent.Create(new
+          {
+            access_token = "management-dpop-token",
+            token_type = "DPoP",
+            expires_in = 3600,
+          }),
+        };
+      });
+    using var httpClient = new HttpClient(handler);
+    var options = new OktaCustomerIdWritebackOptions(
+      OktaCustomerIdWritebackMode.Sample,
+      "service-client-id",
+      CreatePrivateKeyJwk("jwk-key-1"),
+      ManagementPrivateKeyId: null,
+      ["okta.users.read", "okta.users.manage"],
+      EmailLoginSyncEnabled: false,
+      OrgUrl: "https://dev-123456.okta.com");
+    var tokenClient = new OktaManagementTokenClient(
+      new StaticHttpClientFactory(httpClient),
+      options);
+
+    var accessToken = await tokenClient.GetAccessTokenAsync(CancellationToken.None);
+
+    Assert.Equal("management-dpop-token", accessToken);
+    Assert.Equal(2, tokenRequestCount);
+    Assert.Equal(2, handler.Requests.Count);
+
+    var firstDpop = Assert.Single(handler.Requests[0].Headers.GetValues("DPoP"));
+    using var firstPayload = ReadJwtPayload(firstDpop);
+
+    Assert.False(firstPayload.RootElement.TryGetProperty("nonce", out _));
+
+    var secondDpop = Assert.Single(handler.Requests[1].Headers.GetValues("DPoP"));
+    using var secondPayload = ReadJwtPayload(secondDpop);
+
+    Assert.Equal(
+      "nonce-123",
+      secondPayload.RootElement.GetProperty("nonce").GetString());
+
+    var firstForm = QueryHelpers.ParseQuery(
+      await handler.Requests[0].Content!.ReadAsStringAsync());
+    var secondForm = QueryHelpers.ParseQuery(
+      await handler.Requests[1].Content!.ReadAsStringAsync());
+
+    Assert.NotEqual(
+      firstForm["client_assertion"].ToString(),
+      secondForm["client_assertion"].ToString());
+  }
+
+  [Fact]
+  public async Task OktaManagementTokenClient_SendsDpopResourceProofForDpopToken()
+  {
+    using var handler = new CapturingHttpMessageHandler(
+      request => request.RequestUri?.AbsolutePath == "/oauth2/v1/token"
+        ? new HttpResponseMessage(HttpStatusCode.OK)
+        {
+          Content = JsonContent.Create(new
+          {
+            access_token = "management-dpop-token",
+            token_type = "DPoP",
+            expires_in = 3600,
+          }),
+        }
+        : new HttpResponseMessage(HttpStatusCode.OK)
+        {
+          Content = JsonContent.Create(new
+          {
+            profile = new { },
+          }),
+        });
+    using var httpClient = new HttpClient(handler);
+    var options = new OktaCustomerIdWritebackOptions(
+      OktaCustomerIdWritebackMode.Sample,
+      "service-client-id",
+      CreatePrivateKeyJwk("jwk-key-2"),
+      ManagementPrivateKeyId: null,
+      ["okta.users.read", "okta.users.manage"],
+      EmailLoginSyncEnabled: false,
+      OrgUrl: "https://dev-123456.okta.com");
+    var tokenClient = new OktaManagementTokenClient(
+      new StaticHttpClientFactory(httpClient),
+      options);
+    using var request = new HttpRequestMessage(
+      HttpMethod.Get,
+      "https://dev-123456.okta.com/api/v1/users/00u-application-user-001?expand=groups");
+
+    using var response = await tokenClient.SendAuthorizedAsync(
+      httpClient,
+      request,
+      CancellationToken.None);
+
+    Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    Assert.Equal(2, handler.Requests.Count);
+
+    var resourceRequest = handler.Requests[1];
+
+    Assert.Equal("DPoP", resourceRequest.Headers.Authorization?.Scheme);
+    Assert.Equal(
+      "management-dpop-token",
+      resourceRequest.Headers.Authorization?.Parameter);
+
+    var dpop = Assert.Single(resourceRequest.Headers.GetValues("DPoP"));
+    using var payload = ReadJwtPayload(dpop);
+    var expectedAccessTokenHash = ToBase64Url(
+      SHA256.HashData(Encoding.UTF8.GetBytes("management-dpop-token")));
+
+    Assert.Equal("GET", payload.RootElement.GetProperty("htm").GetString());
+    Assert.Equal(
+      "https://dev-123456.okta.com/api/v1/users/00u-application-user-001",
+      payload.RootElement.GetProperty("htu").GetString());
+    Assert.Equal(
+      expectedAccessTokenHash,
+      payload.RootElement.GetProperty("ath").GetString());
   }
 
   [Fact]
@@ -1984,11 +2497,127 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   }
 
   [Fact]
-  public void OktaIssuerPolicy_AcceptsKnownOktaIssuerBehindCustomDomain()
+  public async Task OktaAccountProfileSyncService_WhenDisabled_DoesNotCallOkta()
+  {
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.InternalServerError));
+    using var httpClient = new HttpClient(handler);
+    var service = CreateOktaAccountProfileSyncService(
+      httpClient,
+      emailLoginSyncEnabled: false);
+
+    var result = await service.SyncVerifiedEmailLoginAsync(
+      "00u-application-user-001",
+      "new-user@example.com",
+      CancellationToken.None);
+
+    Assert.False(result.Written);
+    Assert.Equal("disabled", result.SkippedReason);
+    Assert.Empty(handler.Requests);
+  }
+
+  [Fact]
+  public async Task OktaAccountProfileSyncService_WritesVerifiedEmailAndLogin()
+  {
+    using var handler = new CapturingHttpMessageHandler(
+      request => request.Method == HttpMethod.Get
+        ? new HttpResponseMessage(HttpStatusCode.OK)
+        {
+          Content = JsonContent.Create(new
+          {
+            profile = new
+            {
+              email = "old-user@example.com",
+              login = "old-user@example.com",
+            },
+          }),
+        }
+        : new HttpResponseMessage(HttpStatusCode.OK)
+        {
+          Content = JsonContent.Create(new
+          {
+            profile = new { },
+          }),
+        });
+    using var httpClient = new HttpClient(handler);
+    var service = CreateOktaAccountProfileSyncService(
+      httpClient,
+      emailLoginSyncEnabled: true);
+
+    var result = await service.SyncVerifiedEmailLoginAsync(
+      "00u-application-user-001",
+      "new-user@example.com",
+      CancellationToken.None);
+
+    Assert.True(result.Written);
+    Assert.Null(result.SkippedReason);
+    Assert.Equal(2, handler.Requests.Count);
+    Assert.Equal(HttpMethod.Get, handler.Requests[0].Method);
+    Assert.Equal(
+      "https://dev-123456.okta.com/api/v1/users/00u-application-user-001",
+      handler.Requests[0].RequestUri?.ToString());
+    Assert.Equal(HttpMethod.Post, handler.Requests[1].Method);
+    Assert.Equal("Bearer", handler.Requests[1].Headers.Authorization?.Scheme);
+    Assert.Equal(
+      "management-access-token",
+      handler.Requests[1].Headers.Authorization?.Parameter);
+
+    var body = await handler.Requests[1].Content!.ReadAsStringAsync();
+    using var json = JsonDocument.Parse(body);
+    var profile = json.RootElement.GetProperty("profile");
+
+    Assert.Equal("new-user@example.com", profile.GetProperty("email").GetString());
+    Assert.Equal("new-user@example.com", profile.GetProperty("login").GetString());
+  }
+
+  [Fact]
+  public async Task OktaAccountProfileSyncService_WhenAlreadySynced_DoesNotWrite()
+  {
+    using var handler = new CapturingHttpMessageHandler(
+      _ => new HttpResponseMessage(HttpStatusCode.OK)
+      {
+        Content = JsonContent.Create(new
+        {
+          profile = new
+          {
+            email = "new-user@example.com",
+            login = "new-user@example.com",
+          },
+        }),
+      });
+    using var httpClient = new HttpClient(handler);
+    var service = CreateOktaAccountProfileSyncService(
+      httpClient,
+      emailLoginSyncEnabled: true);
+
+    var result = await service.SyncVerifiedEmailLoginAsync(
+      "00u-application-user-001",
+      "new-user@example.com",
+      CancellationToken.None);
+
+    Assert.False(result.Written);
+    Assert.Equal("already-synced", result.SkippedReason);
+    var request = Assert.Single(handler.Requests);
+
+    Assert.Equal(HttpMethod.Get, request.Method);
+  }
+
+  [Fact]
+  public void OktaIssuerPolicy_AcceptsExplicitCanonicalIssuerBehindCustomDomain()
   {
     Assert.True(OktaIssuerPolicy.IsAllowedIssuer(
       "https://auth.avanai.net/oauth2/default",
-      "https://dev-123456.okta.com/oauth2/default"));
+      "https://dev-123456.okta.com/oauth2/default",
+      "https://dev-123456.okta.com"));
+  }
+
+  [Fact]
+  public void OktaIssuerPolicy_RejectsUnconfiguredOktaOrg()
+  {
+    Assert.False(OktaIssuerPolicy.IsAllowedIssuer(
+      "https://auth.avanai.net/oauth2/default",
+      "https://other-org.okta.com/oauth2/default",
+      "https://dev-123456.okta.com"));
   }
 
   [Fact]
@@ -1996,7 +2625,8 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
   {
     Assert.False(OktaIssuerPolicy.IsAllowedIssuer(
       "https://auth.avanai.net/oauth2/default",
-      "https://dev-123456.okta.com/oauth2/other"));
+      "https://dev-123456.okta.com/oauth2/other",
+      "https://dev-123456.okta.com"));
   }
 
   [Fact]
@@ -2061,6 +2691,27 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     return PemEncoding.WriteString("PRIVATE KEY", rsa.ExportPkcs8PrivateKey());
   }
 
+  private static string CreatePrivateKeyJwk(string keyId)
+  {
+    using var rsa = RSA.Create(2048);
+    var parameters = rsa.ExportParameters(true);
+
+    return JsonSerializer.Serialize(
+      new
+      {
+        kty = "RSA",
+        kid = keyId,
+        n = ToBase64Url(parameters.Modulus!),
+        e = ToBase64Url(parameters.Exponent!),
+        d = ToBase64Url(parameters.D!),
+        p = ToBase64Url(parameters.P!),
+        q = ToBase64Url(parameters.Q!),
+        dp = ToBase64Url(parameters.DP!),
+        dq = ToBase64Url(parameters.DQ!),
+        qi = ToBase64Url(parameters.InverseQ!),
+      });
+  }
+
   private static void AssertOktaMyAccountJsonHeaders(
     HttpRequestMessage request,
     bool hasJsonBody = true)
@@ -2084,7 +2735,12 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
 
     Assert.NotNull(contentType);
     Assert.Equal("application/json", contentType!.MediaType);
-    Assert.Empty(contentType.Parameters);
+    Assert.DoesNotContain(
+      contentType.Parameters,
+      parameter => string.Equals(
+        parameter.Name,
+        "okta-version",
+        StringComparison.OrdinalIgnoreCase));
   }
 
   private static OktaCustomerIdWritebackService CreateOktaCustomerIdWritebackService(
@@ -2096,11 +2752,30 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       new StaticOktaManagementTokenClient("management-access-token"),
       new OktaCustomerIdWritebackOptions(
         OktaCustomerIdWritebackMode.Sample,
-        "https://dev-123456.okta.com/oauth2/default",
         "service-client-id",
         CreatePrivateKeyPem(),
         "key-1",
-        ["okta.users.manage"]));
+        ["okta.users.read", "okta.users.manage"],
+        EmailLoginSyncEnabled: false,
+        OrgUrl: "https://dev-123456.okta.com"));
+  }
+
+  private static OktaAccountProfileSyncService CreateOktaAccountProfileSyncService(
+    HttpClient httpClient,
+    bool emailLoginSyncEnabled)
+  {
+    return new OktaAccountProfileSyncService(
+      new StaticHttpClientFactory(httpClient),
+      NullLogger<OktaAccountProfileSyncService>.Instance,
+      new StaticOktaManagementTokenClient("management-access-token"),
+      new OktaCustomerIdWritebackOptions(
+        OktaCustomerIdWritebackMode.Disabled,
+        "service-client-id",
+        CreatePrivateKeyPem(),
+        "key-1",
+        ["okta.users.read", "okta.users.manage"],
+        EmailLoginSyncEnabled: emailLoginSyncEnabled,
+        OrgUrl: "https://dev-123456.okta.com"));
   }
 
   private static async Task<AuthSessionMutationResult> CreateStoredAuthSessionAsync(
@@ -2152,6 +2827,16 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
       ToBase64Url(Encoding.UTF8.GetBytes("""{"alg":"none"}""")),
       ToBase64Url(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(payload))),
       "signature");
+  }
+
+  private static JsonDocument ReadJwtPayload(string jwt)
+  {
+    var parts = jwt.Split('.');
+
+    Assert.True(parts.Length >= 2);
+
+    return JsonDocument.Parse(
+      Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(parts[1])));
   }
 
   private static string CreateJwks(string keyId)
@@ -2240,6 +2925,18 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
     {
       return Task.FromResult(_accessToken);
     }
+
+    public Task<HttpResponseMessage> SendAuthorizedAsync(
+      HttpClient httpClient,
+      HttpRequestMessage request,
+      CancellationToken cancellationToken)
+    {
+      request.Headers.Authorization = new AuthenticationHeaderValue(
+        "Bearer",
+        _accessToken);
+
+      return httpClient.SendAsync(request, cancellationToken);
+    }
   }
 
   private sealed class CapturingCustomerIdWritebackService
@@ -2276,6 +2973,58 @@ public sealed class ApiScaffoldTests : IClassFixture<WebApplicationFactory<globa
           Source: "test",
           SkippedReason: null));
     }
+  }
+
+  private sealed class StubOktaMyAccountService : IOktaMyAccountService
+  {
+    private readonly IReadOnlyList<MyAccountPhone> _phones;
+
+    internal StubOktaMyAccountService(IReadOnlyList<MyAccountPhone> phones)
+    {
+      _phones = phones;
+    }
+
+    internal string? LastAccessToken { get; private set; }
+
+    public ValueTask<IReadOnlyList<MyAccountPhone>> ListPhonesAsync(
+      string accessToken,
+      CancellationToken cancellationToken)
+    {
+      cancellationToken.ThrowIfCancellationRequested();
+      LastAccessToken = accessToken;
+
+      return ValueTask.FromResult(_phones);
+    }
+
+    public ValueTask<StartEmailChangeResponse> StartEmailChangeAsync(
+      string accessToken,
+      StartEmailChangeRequest? request,
+      CancellationToken cancellationToken) =>
+      throw new NotSupportedException();
+
+    public ValueTask<VerifyEmailChangeResponse> VerifyEmailChangeAsync(
+      string accessToken,
+      VerifyEmailChangeRequest? request,
+      CancellationToken cancellationToken) =>
+      throw new NotSupportedException();
+
+    public ValueTask<StartPhoneChangeResponse> StartPhoneChangeAsync(
+      string accessToken,
+      StartPhoneChangeRequest? request,
+      CancellationToken cancellationToken) =>
+      throw new NotSupportedException();
+
+    public ValueTask<VerifyPhoneChangeResponse> VerifyPhoneChangeAsync(
+      string accessToken,
+      VerifyPhoneChangeRequest? request,
+      CancellationToken cancellationToken) =>
+      throw new NotSupportedException();
+
+    public ValueTask<ChangePasswordResponse> ChangePasswordAsync(
+      string accessToken,
+      ChangePasswordRequest? request,
+      CancellationToken cancellationToken) =>
+      throw new NotSupportedException();
   }
 
   private sealed class CapturingHttpMessageHandler : HttpMessageHandler

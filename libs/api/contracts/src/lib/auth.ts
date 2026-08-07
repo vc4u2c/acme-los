@@ -34,15 +34,9 @@ export interface WebAuthSessionTiming {
   stepUp?: WebAuthSessionStepUpTiming;
 }
 
-export interface WebAuthSessionDebugSnapshot {
-  idTokenClaims: Record<string, unknown> | null;
-  accessTokenClaims: Record<string, unknown> | null;
-}
-
 export interface GetWebAuthSessionResponse {
   session: WebAuthSession;
   sessionTiming?: WebAuthSessionTiming;
-  debug?: WebAuthSessionDebugSnapshot;
 }
 
 export interface TouchWebAuthSessionResponse {
@@ -60,7 +54,10 @@ export type WebAuthStepUpReason =
   | 'funding'
   | 'account-email'
   | 'account-phone'
-  | 'account-password';
+  | 'account-password'
+  | 'post-email-change'
+  | 'post-phone-change'
+  | 'post-password-change';
 
 export interface WebAuthStepUpRequirement {
   reason: WebAuthStepUpReason;
@@ -75,11 +72,34 @@ export interface WebAuthSessionStepUpTiming {
   consumedAt?: number;
 }
 
-export interface StartAuthFlowResponse {
-  authorizeUrl: string;
+export interface StartIdxAuthFlowRequest {
+  returnTo?: string;
+  minimumAssuranceLevel?: 'aal1' | 'aal2';
+  expectedUserId?: string;
+  leadId?: string;
+  stepUp?: WebAuthStepUpRequirement;
+}
+
+export interface StartIdxAuthFlowResponse {
+  issuer: string;
+  clientId: string;
+  redirectUri: string;
+  scopes: string[];
+  state: string;
+  nonce: string;
+  codeChallenge: string;
+  codeChallengeMethod: 'S256';
+  acrValues: string | null;
+  maxAgeSeconds: number | null;
   transactionId: string;
   maxAge: number;
   returnTo: string;
+  stepUpReason: WebAuthStepUpReason | null;
+}
+
+export interface CompleteIdxAuthFlowRequest {
+  interactionCode: string;
+  state: string;
 }
 
 export interface CompleteAuthFlowResponse {
@@ -95,6 +115,10 @@ export interface StartLogoutResponse {
   usedOktaLogout: boolean;
 }
 
+export interface StartLogoutRequest {
+  postLogoutRedirectUri?: string;
+}
+
 export interface RequireWebAuthSessionRequest {
   requiresAuthentication?: boolean;
   minimumAssuranceLevel?: WebAuthSessionAssuranceLevel;
@@ -106,10 +130,6 @@ export interface RequireWebAuthSessionResponse {
   sessionTiming?: WebAuthSessionTiming;
   satisfied: boolean;
   errorMessage?: string;
-}
-
-export interface GetWebAuthLogoutHintResponse {
-  idToken: string | null;
 }
 
 export interface IssueCsrfTokenResponse {

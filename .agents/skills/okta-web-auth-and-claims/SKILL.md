@@ -1,17 +1,17 @@
 ---
 name: okta-web-auth-and-claims
-description: Okta web auth, callback handling, claims, session storage, local/dev/qa mapping, and security-demo guidance for the acme-los repo. Use when changing Okta bootstrap manifests, callback URLs, token claims, session behavior, auth redirects, the web security inspector, or customerId and leadId handling.
+description: Okta web IDX, Interaction Code exchange, claims, session storage, local/dev/qa mapping, and security-demo guidance for the acme-los repo. Use when changing Okta bootstrap manifests, IDX remediation, token claims, session behavior, auth routing, the web security inspector, or customerId and leadId handling.
 origin: ACME LOS
 ---
 
 # Okta Web Auth And Claims
 
-Use this skill for `acme-los` authentication work where repo-specific callback, claim, and session behavior matters more than generic Okta guidance.
+Use this skill for `acme-los` authentication work where repo-specific IDX, claim, and session behavior matters more than generic Okta guidance.
 
 ## Follow These Rules
 
 - Keep auth correctness ahead of UX polish.
-- Preserve the server-side auth flow: server-side PKCE start, server-side callback exchange, opaque session cookie, and tokens off the browser in the normal flow.
+- Preserve the app-owned IDX flow: server-generated PKCE, direct browser-to-Okta remediation, server-side Interaction Code exchange, opaque session cookie, and tokens off the browser.
 - Treat Okta bootstrap JSON and scripts as the source of truth, not manual tenant drift.
 - Distinguish between raw token claims and app/session fallback values.
 
@@ -23,7 +23,7 @@ Use this skill for `acme-los` authentication work where repo-specific callback, 
 - `stg` -> currently aligned with `qa` unless changed deliberately
 - `prod` -> Okta `prod`
 
-Use separate callback URLs per environment even when environments share the same Okta org/app.
+Use separate Interaction Code redirect and post-logout URLs per environment even when environments share the same Okta org/app.
 
 ## Read These Files First
 
@@ -33,7 +33,10 @@ Use separate callback URLs per environment even when environments share the same
 - `tools/scripts/okta/bootstrap-okta.mjs`
 - `tools/scripts/okta/render-auth-config.mjs`
 - `libs/api/web-server/src/lib/config.ts`
-- `libs/api/web-server/src/lib/okta-auth-flow.ts`
+- `apps/web-app/src/components/web/customer-idx-auth-page.tsx`
+- `libs/auth/web/src/lib/idx-client.ts`
+- `libs/api/web-server/src/lib/bff-auth-session-client.ts`
+- `libs/api/web-server/src/lib/auth-transaction-cookie.ts`
 - `libs/api/web-server/src/lib/auth-session.ts`
 - `libs/api/web-server/src/lib/session-store.ts`
 - `apps/web-app/src/components/web/security-inspector-dashboard.tsx`
@@ -44,7 +47,7 @@ Use separate callback URLs per environment even when environments share the same
 
 1. Confirm which environment mapping is affected.
 2. Inspect the Okta manifest plus the bootstrap/render scripts together.
-3. Inspect the web-server config and auth/session code before changing callbacks or claims.
+3. Inspect the IDX client, BFF flow service, and auth/session code before changing remediation, redirect URIs, or claims.
 4. Decide whether data belongs in:
    - raw Okta token claims
    - server-side session state
@@ -52,6 +55,38 @@ Use separate callback URLs per environment even when environments share the same
 5. Update docs when the real deployed behavior changes.
 
 ## Specific Guidance
+
+### App-Owned IDX Interaction Code
+
+- Do not embed the third-generation Sign-In Widget. Okta supports Gen3 only on
+  Okta-hosted pages; use Auth JS direct IDX remediation for an app-owned UI.
+- Keep one web OIDC client. Enable `interaction_code` on that client instead of
+  creating a second app for step-up or account security.
+- Generate PKCE verifier, challenge, state, and nonce in the BFF. Return only
+  the challenge and public OIDC metadata to the browser.
+- Configure Auth JS with `exchangeCodeForTokens: false`. Send the one-time
+  interaction code to the BFF, where it is redeemed with the server-held PKCE
+  verifier and validated before issuing the opaque ACME session cookie.
+- Let Auth JS submit identifiers, passwords, security-question answers, and
+  OTPs directly from the browser to Okta. Never proxy or log these IDX values
+  through Next.js or the BFF.
+- Treat browser-side factor filtering as UX only. Enforce expected subject,
+  assurance, and authentication methods again from validated token claims in
+  the BFF.
+- Keep IDX transaction metadata in session storage or memory and token storage
+  in memory. The normal web flow must not put OAuth tokens in browser storage.
+
+### MyAccount Boundary
+
+- Keep email, phone, and password mutation behind the BFF using the current
+  user's access token and narrow `okta.myAccount.*` scopes.
+- Do not claim that the Okta account-management policy protects MyAccount
+  Email, Phone, or Password API calls. Current Okta documentation explicitly
+  excludes those APIs; require and validate the ACME step-up before allowing
+  the mutation.
+- MyAccount API secrets may transit the TLS-protected BFF request when the API
+  contract requires them, but never store or log passwords, OTPs, or security
+  answers.
 
 ### Claims
 
@@ -65,9 +100,9 @@ Use separate callback URLs per environment even when environments share the same
 - Tokens belong in the server-side session store.
 - In Azure `dev`, session and state storage live behind Redis.
 
-### Callback And Redirects
+### Redirect URIs And Logout
 
-- Local and Azure `dev` can share Okta `dev`, but callback and logout URLs must be environment-correct.
+- Local and Azure `dev` can share Okta `dev`, but Interaction Code redirect and logout URLs must be environment-correct.
 - Prefer runtime-aware server config for auth URLs over build-time-only assumptions.
 
 ### Hosted Sign-In Widget Gen3
@@ -92,7 +127,8 @@ Use separate callback URLs per environment even when environments share the same
 ### Security Demo
 
 - The security inspector is a diagnostic aid, not a permanent product surface.
-- Keep its copy aligned with the actual hardening posture; do not leave stale “temporary” wording after architecture changes.
+- Keep its copy aligned with the actual hardening posture; do not leave stale
+  "temporary" wording after architecture changes.
 
 ## Verification
 
@@ -107,4 +143,4 @@ Remove-Item -Force apps/web-app/.next/lock -ErrorAction SilentlyContinue
 npx.cmd nx run web-app-e2e:e2e --outputStyle=stream --skip-nx-cache
 ```
 
-If Azure `dev` or Okta manifests are part of the change, also verify the live callback URL and environment mapping before promotion.
+If Azure `dev` or Okta manifests are part of the change, also verify the live Interaction Code redirect URI and environment mapping before promotion.

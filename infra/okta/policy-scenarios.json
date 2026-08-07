@@ -8,8 +8,8 @@
       "Customer authentication policy is scoped to the ACME LOS customer group, not Okta Everyone.",
       "App access policy is assigned only to ACME LOS web and mobile apps.",
       "Org authenticator activation, Okta risk scoring, device assurance, and device signal collection are Okta org features; ACME scopes their use through customer-group and app rules where Okta allows it.",
-      "Password material, security-question answers, and OTPs stay in Okta.",
-      "Security-question challenge/hint is reserved for recovery and sensitive account-management changes, not routine or adaptive app sign-in.",
+      "IDX passwords, security-question answers, and OTPs are sent directly from the browser to Okta; MyAccount password-change values pass transiently through the BFF and are never logged or persisted.",
+      "Security questions are reserved for account recovery, following Okta's recommendation not to use them for routine authentication.",
       "Backend profile sync happens only after a fresh ACME session."
     ]
   },
@@ -81,15 +81,15 @@
       "id": "account-management",
       "label": "Account Management",
       "scopeKind": "customerGroup",
-      "managedBy": "manual-okta-account-management-policy",
-      "purpose": "Controls sensitive self-service account operations such as recovery and email/phone changes."
+      "managedBy": "okta:bootstrap",
+      "purpose": "Controls supported password and authenticator recovery operations. MyAccount email, phone, and password APIs are outside this policy."
     },
     {
       "id": "acme-backend-sync",
       "label": "ACME Backend Sync",
       "scopeKind": "bffAndBackend",
       "managedBy": "application-code",
-      "purpose": "Syncs mutable profile data only after Okta has re-authenticated the user."
+      "purpose": "Enforces fresh proof, calls user-scoped MyAccount APIs, and syncs mutable profile data only after Okta has re-authenticated the user."
     }
   ],
   "policies": [
@@ -122,6 +122,23 @@
       "scenarioIds": ["new-customer-registration"]
     },
     {
+      "id": "org-interaction-code",
+      "type": "OKTA_ORG_SETTING",
+      "nameTemplate": "Embedded widget sign-in support: Interaction Code",
+      "scopeKind": "org",
+      "automationStatus": "manual-public-api-not-exposed",
+      "managedBy": "manual-okta-admin-plus-okta:bootstrap-intent",
+      "configures": [
+        "org-level Interaction Code support is enabled",
+        "bootstrap separately enables interaction_code on the web app and custom authorization-server rule"
+      ],
+      "scenarioIds": [
+        "new-customer-registration",
+        "standard-sign-in",
+        "fresh-sign-in-after-sensitive-change"
+      ]
+    },
+    {
       "id": "profile-enrollment-registration",
       "type": "PROFILE_ENROLLMENT",
       "nameTemplate": "ACME LOS Registration ({env})",
@@ -130,7 +147,7 @@
       "managedBy": "okta:bootstrap",
       "configures": [
         "self-service registration",
-        "required hosted profile fields: email login identifier, first name, last name, and Missouri/Texas State dropdown backed by acmeState",
+        "required IDX profile fields: email login identifier, first name, last name, and Missouri/Texas State dropdown backed by acmeState",
         "new registrations target {customerGroupName}"
       ],
       "scenarioIds": ["new-customer-registration"]
@@ -175,7 +192,7 @@
       "automationStatus": "automated",
       "managedBy": "okta:bootstrap",
       "configures": [
-        "password-first app sign-in",
+        "one-client app authorization requires fresh email or phone/SMS possession verification on every authorization when funding step-up is passwordless; the global session retains primary authentication",
         "{adaptiveMfaState}",
         "no security-question challenge during app sign-in"
       ],
@@ -203,28 +220,29 @@
       "automationStatus": "automated-public-policy-api",
       "managedBy": "okta:bootstrap",
       "configures": [
-        "forgot email, lost phone/SMS factor, forgot password, and account unlock recovery requirements",
+        "lost phone/SMS factor, forgot password, and account unlock recovery requirements",
         "security-question challenge/hint plus the expected OTP proof",
         "fresh ACME sign-in after recovery"
       ],
       "scenarioIds": [
-        "forgot-email",
         "forgot-password-security-question-phone-sms-otp",
         "lost-phone-replace-factor",
         "fresh-sign-in-after-sensitive-change"
       ]
     },
     {
-      "id": "account-management-profile-changes",
-      "type": "OKTA_ACCOUNT_MANAGEMENT",
-      "nameTemplate": "Okta Account Management ({env})",
-      "scopeKind": "customerGroup",
-      "automationStatus": "automated-public-policy-api",
-      "managedBy": "okta:bootstrap",
+      "id": "myaccount-sensitive-changes",
+      "type": "APPLICATION_SECURITY_CONTROL",
+      "nameTemplate": "ACME LOS BFF step-up and MyAccount ({env})",
+      "scopeKind": "bffAndBackend",
+      "automationStatus": "application-enforced-with-okta-idx",
+      "managedBy": "application-code-plus-okta:bootstrap",
       "configures": [
-        "change email requires phone/SMS OTP plus security-question challenge/hint",
-        "change password requires current password plus phone/SMS OTP and security-question challenge/hint",
-        "change phone requires email OTP plus security-question challenge/hint",
+        "change email requires fresh password plus phone/SMS OTP before the user-scoped MyAccount API call",
+        "change password requires fresh password plus phone/SMS OTP before the user-scoped MyAccount API call",
+        "change phone requires fresh password plus email OTP before the user-scoped MyAccount API call",
+        "the BFF validates transaction state, nonce, subject continuity, proof age, assurance, and authentication methods",
+        "Okta Account Management Policy does not protect MyAccount Email, Phone, or Password APIs",
         "fresh ACME sign-in after sensitive change"
       ],
       "scenarioIds": [
@@ -242,10 +260,10 @@
       "scopeKind": "customerGroup",
       "automationStatus": "automated",
       "flow": [
-        "Customer starts Okta hosted registration from ACME app.",
-        "Profile enrollment captures email as the login identifier, first name, last name, and visible State backed by the acmeState Missouri/Texas dropdown, then targets {customerGroupName}.",
-        "Authenticator enrollment requires password, email, security question, and phone/SMS in dev when telephony is enabled; password, email OTP, and phone/SMS OTP are Okta-rendered enrollment inputs, not profile fields.",
-        "Phone is captured once during Okta phone/SMS authenticator enrollment; ACME does not also collect profile phone on the hosted profile-enrollment form."
+        "Customer starts app-owned IDX registration from the ACME sign-in surface.",
+        "Okta IDX profile enrollment captures email as the login identifier, first name, last name, and visible State backed by the acmeState Missouri/Texas dropdown, then targets {customerGroupName}.",
+        "Authenticator enrollment requires password, email, security question, and phone/SMS in dev when telephony is enabled; the app renders only the IDX remediation inputs returned by Okta.",
+        "Phone is captured once during Okta phone/SMS authenticator enrollment; ACME does not also collect profile phone on the registration profile form."
       ],
       "securityNotes": [
         "Admin users should not be members of {customerGroupName}.",
@@ -259,9 +277,9 @@
       "scopeKind": "appsAndCustomerGroup",
       "automationStatus": "automated",
       "flow": [
-        "Customer signs in through ACME LOS web or mobile OIDC app.",
+        "Customer signs in through the app-owned IDX surface for web or the mobile OIDC app.",
         "Global session policy applies to {customerGroupName} with a {sessionLifetimeDays}-day maximum session lifetime.",
-        "App access policy enforces password-first standard access.",
+        "Okta evaluates the global-session primary authenticator and the ACME app access policy; the web BFF redeems the Interaction Code and creates an opaque session.",
         "Authorization server issues ACME claims for the scoped customer app session."
       ],
       "securityNotes": [
@@ -287,34 +305,12 @@
       ]
     },
     {
-      "id": "forgot-email",
-      "title": "Forgot Email",
-      "scopeKind": "customerGroup",
-      "automationStatus": "automated-public-policy-api",
-      "flow": [
-        "Customer chooses forgot email or lost email access from Okta-hosted recovery.",
-        "Okta verifies phone/SMS OTP, not the email being recovered.",
-        "Okta verifies the enrolled security-question challenge/hint.",
-        "Okta shows the recovered sign-in email after proof succeeds, preferably masked until final confirmation.",
-        "Customer must establish a fresh ACME sign-in before ACME syncs any profile data."
-      ],
-      "securityNotes": [
-        "If phone/SMS is not enabled yet, this scenario remains a documented target until telephony is enabled for that environment.",
-        "ACME never receives the security-question answer or OTP.",
-        "This scenario must be scoped to {customerGroupName}; admin users are out of scope."
-      ],
-      "oktaSurfaces": [
-        "Security > Authenticators > Okta Account Management",
-        "Security > Authenticators > Password > Rules > Recovery authenticators"
-      ]
-    },
-    {
       "id": "forgot-password-security-question-phone-sms-otp",
       "title": "Forgot Password: Security Question + Phone/SMS OTP",
       "scopeKind": "customerGroup",
       "automationStatus": "automated-public-policy-api",
       "flow": [
-        "Customer chooses forgot password from the Okta hosted sign-in page.",
+        "Customer chooses forgot password from the app-owned IDX sign-in page.",
         "Okta account management or password recovery policy verifies the enrolled security-question challenge/hint.",
         "Okta sends a phone/SMS OTP before reset when telephony is enabled.",
         "Customer sets a new password in Okta.",
@@ -335,35 +331,38 @@
       "id": "change-email",
       "title": "Change Email",
       "scopeKind": "customerGroup",
-      "automationStatus": "automated-public-policy-api",
+      "automationStatus": "application-enforced-with-okta-idx",
       "flow": [
-        "Customer changes email in Okta-hosted account management.",
-        "Before the change is accepted, Okta requires phone/SMS OTP proof, not the email address being changed.",
-        "Okta verifies the enrolled security-question challenge/hint.",
-        "Okta signs the customer out or ACME treats the existing session as stale.",
+        "Customer starts change email from the read-only ACME account dashboard.",
+        "App-owned IDX requires fresh password reauthentication and phone/SMS OTP before the change UI opens.",
+        "The BFF validates subject continuity, proof age, assurance, and password plus SMS authentication methods before calling the user-scoped MyAccount Email API.",
+        "The customer explicitly requests a verification code for the new email, enters it on the same page, and ACME aligns the Okta login only after verification succeeds.",
+        "ACME requires the customer to sign out after the change.",
         "Customer signs in again with the new email and satisfies email OTP.",
         "ACME syncs backend email from the current Okta email claim when Okta subject is unchanged."
       ],
       "securityNotes": [
-        "If phone/SMS is not enabled yet, this scenario remains a documented target until telephony is enabled for that environment.",
-        "ACME logs the email-change event without logging old or new email values."
+        "Okta Account Management Policy does not protect the MyAccount Email API; the ACME BFF guard is authoritative.",
+        "ACME logs the email-change event without logging old or new email values, OTPs, tokens, or passwords."
       ]
     },
     {
       "id": "change-password",
       "title": "Change Password",
       "scopeKind": "customerGroup",
-      "automationStatus": "automated-public-policy-api",
+      "automationStatus": "application-enforced-with-okta-idx",
       "flow": [
         "Customer starts change password from the ACME account-security page while signed in.",
-        "Okta verifies the current password.",
-        "Okta verifies phone/SMS OTP and the security-question challenge/hint.",
+        "App-owned IDX requires fresh password reauthentication and phone/SMS OTP before the change page opens.",
+        "The BFF validates subject continuity, proof age, assurance, and password plus SMS authentication methods before the mutation.",
         "ACME BFF forwards the current and new password to Okta MyAccount without storing either value.",
-        "Okta signs the customer out or ACME treats the existing session as stale.",
+        "ACME requires the customer to sign out after the change.",
         "Customer signs in again with the new password."
       ],
       "securityNotes": [
-        "ACME does not store, log, sync, or reuse old password, new password, security-question answer, or OTP.",
+        "Okta Account Management Policy does not protect the MyAccount Password API; the ACME BFF guard is authoritative.",
+        "ACME does not store, log, sync, or reuse old password, new password, or OTP.",
+        "Security question remains in the Okta-managed forgot-password recovery flow. Okta recommends against using security questions in routine authentication.",
         "The same active Okta session is not enough for ACME profile sync after the password change."
       ]
     },
@@ -391,16 +390,18 @@
       "id": "change-phone",
       "title": "Change Phone/SMS",
       "scopeKind": "customerGroup",
-      "automationStatus": "automated-public-policy-api-until-acs-approved",
+      "automationStatus": "application-enforced-with-okta-idx",
       "flow": [
-        "Customer changes phone/SMS factor in Okta-hosted account management.",
-        "Okta requires email OTP before the phone/SMS factor is changed.",
-        "Okta verifies the enrolled security-question challenge/hint.",
-        "Okta signs the customer out or ACME treats the existing session as stale.",
+        "Customer starts change phone from the read-only ACME account dashboard.",
+        "App-owned IDX requires fresh password reauthentication and email OTP before the change UI opens.",
+        "The BFF validates subject continuity, proof age, assurance, and password plus email authentication methods before calling the user-scoped MyAccount Phone API.",
+        "The customer explicitly requests a code for the new phone and enters it on the same page.",
+        "ACME requires the customer to sign out after the change.",
         "Customer signs in fresh with the unchanged email and the new phone/SMS OTP after the phone/SMS change.",
-        "ACME treats verified phone as Okta-owned until a trusted profile claim, Management API lookup, or event hook is enabled."
+        "The dashboard reads the verified phone from the user-scoped MyAccount Phone API."
       ],
       "securityNotes": [
+        "Okta Account Management Policy does not protect the MyAccount Phone API; the ACME BFF guard is authoritative.",
         "Phone/SMS remains demo-only through the dev mock provider until real carrier SMS is approved.",
         "ACME does not claim an application servicing phone number is the verified Okta SMS factor."
       ]
@@ -409,11 +410,11 @@
       "id": "fresh-sign-in-after-sensitive-change",
       "title": "Fresh ACME Sign-In After Sensitive Change",
       "scopeKind": "customerGroup",
-      "automationStatus": "application-code-after-okta-policy",
+      "automationStatus": "application-code-after-myaccount-change",
       "flow": [
-        "Sensitive Okta account-management action completes.",
-        "Existing ACME session is treated as stale for synced profile state.",
-        "Customer signs in again through the normal Okta redirect.",
+        "Sensitive MyAccount action completes.",
+        "The success dialog requires server-side sign-out through the Okta end-session endpoint.",
+        "Customer signs in again through the app-owned IDX page.",
         "ACME syncs only non-secret profile data from fresh token claims."
       ],
       "securityNotes": [
@@ -452,12 +453,17 @@
     },
     {
       "id": "registration-profile-fields",
-      "title": "Hosted registration requires email login identifier, first name, last name, and acmeState Missouri/Texas dropdown",
+      "title": "IDX registration requires email login identifier, first name, last name, and acmeState Missouri/Texas dropdown",
       "scopeKind": "customerGroup"
     },
     {
       "id": "org-email-login-mapping",
       "title": "Org setting maps primary email to login attribute for self-service registration",
+      "scopeKind": "org"
+    },
+    {
+      "id": "org-interaction-code",
+      "title": "Org Embedded widget sign-in support has Interaction Code enabled",
       "scopeKind": "org"
     },
     {
@@ -477,14 +483,22 @@
     },
     {
       "id": "email-phone-account-management",
-      "title": "Email/password account-management uses phone/SMS OTP and phone account-management uses email OTP",
-      "scopeKind": "customerGroup"
+      "title": "BFF-enforced email/password changes use phone/SMS OTP and phone changes use email OTP before MyAccount mutation",
+      "scopeKind": "bffAndBackend"
     }
   ],
   "references": [
     {
       "label": "Okta account management policy",
       "url": "https://developer.okta.com/docs/guides/okta-account-management-policy/main/"
+    },
+    {
+      "label": "Okta MyAccount API overview",
+      "url": "https://developer.okta.com/docs/api/openapi/okta-myaccount/guides/overview"
+    },
+    {
+      "label": "Okta Interaction Code grant",
+      "url": "https://developer.okta.com/docs/guides/implement-grant-type/interactioncode/main/"
     },
     {
       "label": "Self-service account recovery",

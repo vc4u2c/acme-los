@@ -12,6 +12,7 @@ param bffVersion string = '0.0.0'
 param authProvider string = 'okta'
 param oktaEnvironmentName string = appEnvironmentName
 param oktaIssuer string
+param oktaOrgUrl string = ''
 param oktaClientId string
 param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
@@ -34,7 +35,8 @@ param oktaManagementPrivateKeySecretName string = 'sec-acme-los-okta-management-
 @secure()
 param oktaManagementPrivateKeySecretKeyVaultUrl string = ''
 param oktaManagementPrivateKeyId string = ''
-param oktaManagementScopes string = 'okta.users.manage'
+param oktaManagementScopes string = 'okta.users.read okta.users.manage'
+param oktaEmailLoginSyncEnabled bool = false
 @allowed([
   'file'
   'redis'
@@ -127,12 +129,9 @@ var serviceAuthEnvironmentVariables = toLower(serviceAuthMode) == 'entra'
     ]
   : []
 var oktaCustomerIdWritebackEnabled = toLower(oktaCustomerIdWritebackMode) == 'sample'
-var oktaCustomerIdWritebackEnvironmentVariables = oktaCustomerIdWritebackEnabled
+var oktaManagementEnabled = oktaCustomerIdWritebackEnabled || oktaEmailLoginSyncEnabled
+var oktaManagementEnvironmentVariables = oktaManagementEnabled
   ? [
-      {
-        name: 'ACME_OKTA_CUSTOMER_ID_WRITEBACK_MODE'
-        value: 'sample'
-      }
       {
         name: 'ACME_OKTA_MANAGEMENT_CLIENT_ID'
         value: oktaManagementClientId
@@ -148,6 +147,22 @@ var oktaCustomerIdWritebackEnvironmentVariables = oktaCustomerIdWritebackEnabled
       {
         name: 'ACME_OKTA_MANAGEMENT_SCOPES'
         value: oktaManagementScopes
+      }
+    ]
+  : []
+var oktaCustomerIdWritebackEnvironmentVariables = oktaCustomerIdWritebackEnabled
+  ? [
+      {
+        name: 'ACME_OKTA_CUSTOMER_ID_WRITEBACK_MODE'
+        value: 'sample'
+      }
+    ]
+  : []
+var oktaEmailLoginSyncEnvironmentVariables = oktaEmailLoginSyncEnabled
+  ? [
+      {
+        name: 'ACME_OKTA_EMAIL_LOGIN_SYNC_ENABLED'
+        value: 'true'
       }
     ]
   : []
@@ -188,6 +203,10 @@ var environmentVariables = concat(
     {
       name: 'ACME_OKTA_ISSUER'
       value: oktaIssuer
+    }
+    {
+      name: 'ACME_OKTA_ORG_URL'
+      value: oktaOrgUrl
     }
     {
       name: 'ACME_OKTA_CLIENT_ID'
@@ -249,10 +268,12 @@ var environmentVariables = concat(
   redisBaseEnvironmentVariables,
   redisEntraEnvironmentVariables,
   serviceAuthEnvironmentVariables,
-  oktaCustomerIdWritebackEnvironmentVariables
+  oktaManagementEnvironmentVariables,
+  oktaCustomerIdWritebackEnvironmentVariables,
+  oktaEmailLoginSyncEnvironmentVariables
 )
 
-var oktaCustomerIdWritebackSecrets = !empty(oktaManagementPrivateKeySecretKeyVaultUrl)
+var oktaManagementSecrets = !empty(oktaManagementPrivateKeySecretKeyVaultUrl)
   ? [
       {
         name: oktaManagementPrivateKeySecretName
@@ -274,7 +295,7 @@ var secrets = concat(
       identity: userAssignedIdentityResourceId
     }
   ],
-  oktaCustomerIdWritebackSecrets
+  oktaManagementSecrets
 )
 
 resource containerApp 'Microsoft.App/containerApps@2025-01-01' = {

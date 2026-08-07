@@ -197,7 +197,7 @@ If you are only working on public UI or shared libraries, the commands above are
 
 If you need any of these, also complete the Okta setup in [infra/okta/README.md](../../infra/okta/README.md):
 
-- hosted sign-in or registration
+- app-owned Okta IDX sign-in or registration
 - guarded `/apply/*` routes
 - MFA and funding step-up flows
 - customer dashboard and signed-in profile behavior

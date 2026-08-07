@@ -11,7 +11,6 @@ param appBuildId string
 param authProvider string = 'okta'
 param oktaEnvironmentName string = appEnvironmentName
 param oktaIssuer string
-param oktaOrgUrl string = ''
 param oktaClientId string
 param oktaRedirectUri string
 param oktaPostLogoutRedirectUri string
@@ -236,42 +235,6 @@ var environmentVariables = concat(
     {
       name: 'ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD'
       value: oktaFundingStepUpRequiresPassword ? 'true' : 'false'
-    }
-    {
-      name: 'NEXT_PUBLIC_AUTH_PROVIDER'
-      value: authProvider
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_ENVIRONMENT'
-      value: oktaEnvironmentName
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_ISSUER'
-      value: oktaIssuer
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_ORG_URL'
-      value: oktaOrgUrl
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_CLIENT_ID'
-      value: oktaClientId
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_REDIRECT_URI'
-      value: oktaRedirectUri
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI'
-      value: oktaPostLogoutRedirectUri
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES'
-      value: oktaFundingAcrValues
-    }
-    {
-      name: 'NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD'
-      value: oktaFundingStepUpMethod
     }
     {
       name: 'NEXT_PUBLIC_ACME_THEME_COOKIE_DOMAIN'

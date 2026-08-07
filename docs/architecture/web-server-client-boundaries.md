@@ -39,7 +39,7 @@ Server responsibilities:
 Current explicit client components:
 
 - `apps/web-app/src/components/web/customer-profile-dashboard.tsx`
-- `apps/web-app/src/components/web/customer-auth-launch-page.tsx`
+- `apps/web-app/src/components/web/customer-idx-auth-page.tsx`
 - `apps/web-app/src/components/web/theme-toggle.tsx`
 - `apps/web-app/src/components/web/start-application-button.tsx`
 - `apps/web-app/src/components/web/site-header.tsx`
@@ -132,8 +132,10 @@ Good auth pattern:
 
 - `apps/web-app/src/app/account/sign-in/page.tsx`
   - server route entry
-- `apps/web-app/src/components/web/customer-auth-launch-page.tsx`
-  - client launch behavior
+- `apps/web-app/src/components/web/customer-idx-auth-page.tsx`
+  - client IDX remediation UI; credentials and OTPs go directly to Okta
+- `apps/web-app/src/app/api/auth/idx/*`
+  - thin same-origin start and completion facade over the BFF
 
 ## Recommended Next Refactor
 

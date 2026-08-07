@@ -26,22 +26,15 @@ function trimValue(value?: string): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
-function getServerConfigValue(
-  runtimeName: string,
-  legacyPublicName: string,
-): string | undefined {
-  return (
-    trimValue(process.env[runtimeName]) ??
-    trimValue(process.env[legacyPublicName])
-  );
+function getServerConfigValue(runtimeName: string): string | undefined {
+  return trimValue(process.env[runtimeName]);
 }
 
 function getServerBooleanConfigValue(
   runtimeName: string,
-  legacyPublicName: string,
   defaultValue: boolean,
 ): boolean {
-  const value = getServerConfigValue(runtimeName, legacyPublicName);
+  const value = getServerConfigValue(runtimeName);
 
   if (value === undefined) {
     return defaultValue;
@@ -51,10 +44,7 @@ function getServerBooleanConfigValue(
 }
 
 export function getServerWebAuthConfig(): ServerWebAuthConfig {
-  const requestedProvider = getServerConfigValue(
-    'ACME_AUTH_PROVIDER',
-    'NEXT_PUBLIC_AUTH_PROVIDER',
-  );
+  const requestedProvider = getServerConfigValue('ACME_AUTH_PROVIDER');
 
   if (requestedProvider === 'mock') {
     return { provider: 'mock' };
@@ -64,25 +54,15 @@ export function getServerWebAuthConfig(): ServerWebAuthConfig {
     return {
       provider: 'okta',
       configurationError:
-        'Set NEXT_PUBLIC_AUTH_PROVIDER=okta for the hosted auth flow or NEXT_PUBLIC_AUTH_PROVIDER=mock only for explicit test and demo scenarios.',
+        'Set ACME_AUTH_PROVIDER=okta for the IDX auth flow or ACME_AUTH_PROVIDER=mock only for explicit test and demo scenarios.',
     };
   }
 
-  const issuer = getServerConfigValue(
-    'ACME_OKTA_ISSUER',
-    'NEXT_PUBLIC_OKTA_ISSUER',
-  );
-  const clientId = getServerConfigValue(
-    'ACME_OKTA_CLIENT_ID',
-    'NEXT_PUBLIC_OKTA_CLIENT_ID',
-  );
-  const redirectUri = getServerConfigValue(
-    'ACME_OKTA_REDIRECT_URI',
-    'NEXT_PUBLIC_OKTA_REDIRECT_URI',
-  );
+  const issuer = getServerConfigValue('ACME_OKTA_ISSUER');
+  const clientId = getServerConfigValue('ACME_OKTA_CLIENT_ID');
+  const redirectUri = getServerConfigValue('ACME_OKTA_REDIRECT_URI');
   const postLogoutRedirectUri = getServerConfigValue(
     'ACME_OKTA_POST_LOGOUT_REDIRECT_URI',
-    'NEXT_PUBLIC_OKTA_POST_LOGOUT_REDIRECT_URI',
   );
 
   if (!issuer || !clientId || !redirectUri || !postLogoutRedirectUri) {
@@ -115,18 +95,13 @@ export function getServerWebAuthConfig(): ServerWebAuthConfig {
         'okta.myAccount.password.manage',
       ],
       fundingStepUpAcrValues:
-        getServerConfigValue(
-          'ACME_OKTA_FUNDING_ACR_VALUES',
-          'NEXT_PUBLIC_OKTA_FUNDING_ACR_VALUES',
-        ) ?? 'urn:okta:loa:2fa:any',
+        getServerConfigValue('ACME_OKTA_FUNDING_ACR_VALUES') ??
+        'urn:okta:loa:2fa:any',
       fundingStepUpMethod:
-        getServerConfigValue(
-          'ACME_OKTA_FUNDING_STEP_UP_METHOD',
-          'NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_METHOD',
-        ) ?? 'email_or_sms',
+        getServerConfigValue('ACME_OKTA_FUNDING_STEP_UP_METHOD') ??
+        'email_or_sms',
       fundingStepUpRequiresPassword: getServerBooleanConfigValue(
         'ACME_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD',
-        'NEXT_PUBLIC_OKTA_FUNDING_STEP_UP_REQUIRES_PASSWORD',
         false,
       ),
     },
