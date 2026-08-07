@@ -23,6 +23,7 @@ Keep one compact, provider-neutral source of truth and validate thin provider ad
 4. Scaffold new skills with the standard skill creator. Keep bodies concise, imperative, and free of duplicated owner-document content. Put detailed optional policy in one-level `references/` files and repeated deterministic operations in scripts.
 5. Update `tools/scripts/workspace/show-context.ps1` only when a path family has a clear owner document and verification command. The router reports context; it never edits, deploys, or transmits content.
 6. Run the skill validator for each changed skill, `npm.cmd run agents:verify`, formatting, and `git diff --check`.
+7. Publish harness changes as an independently reviewable commit when practical. Stage explicit paths, preserve unrelated work, run normal Git hooks, open or update a draft PR, and inspect the independent CI and Commitlint results before calling the harness change complete.
 
 ## Guardrails
 
@@ -32,3 +33,4 @@ Keep one compact, provider-neutral source of truth and validate thin provider ad
 - Do not use chat transcripts as durable project context; promote confirmed decisions into their owner document.
 - Do not claim automated review guarantees correctness, security, lending compliance, or production readiness.
 - Do not let harness validation deploy, mutate cloud state, bypass Git hooks, or send repository content elsewhere.
+- Do not combine harness-control changes with unrelated product work merely because they share a working tree. State explicitly whether Okta or Azure promotion occurred; a passing PR is not a deployment.

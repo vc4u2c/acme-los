@@ -24,6 +24,15 @@ No boundary guarantees correctness. Auth, account recovery, funding step-up, sec
 
 Review-control changes are supply-chain-sensitive. Compare changes to `AGENTS.md`, `.agents/**`, `.claude/**`, `.codex/**`, and harness scripts with `origin/main`; the proposed policy is itself a review target.
 
+## Publication Controls
+
+- Inspect the complete working tree before staging and preserve unrelated user changes.
+- Stage explicit paths instead of broad working-tree adds. Separate auth, infrastructure, harness, analytics, and other independently reviewable concerns when that improves review or rollback.
+- Keep each commit buildable, use conventional subjects, and run repository hooks without bypasses.
+- Open a draft PR that distinguishes behavior, security boundaries, verification evidence, residual live risks, and deployment status.
+- Inspect GitHub workflow and job states until required checks reach a terminal result. Treat queued or running work as such; investigate logs before diagnosing a failure or hang.
+- A pushed branch, open PR, or passing PR check does not mean Azure or Okta was deployed. Promotion remains a separate, source-controlled decision followed by live verification.
+
 ## GitHub Controls
 
 The `CI` workflow runs with read-only repository contents, installs the lockfile with `npm ci`, validates the agent harness, audits Node and NuGet dependencies, validates Nx tags, and runs affected lint and tests. `Commitlint` independently validates pull-request commits.
