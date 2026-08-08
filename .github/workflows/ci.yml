@@ -19,6 +19,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  node_dependency_audit:
+    name: Node Dependency Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Audit Node dependencies
+        run: npm run audit:node
+
   lint_test:
     name: Lint And Test
     runs-on: ubuntu-latest
@@ -43,9 +63,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Audit Node dependencies
-        run: npm run audit:node
 
       - name: Audit and restore .NET dependencies
         run: npm run dotnet:audit:ci
@@ -135,6 +152,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.actor != 'github-actions[bot]'
     needs:
       - lint_test
+      - node_dependency_audit
     runs-on: ubuntu-latest
     permissions:
       contents: write
