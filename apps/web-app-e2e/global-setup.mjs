@@ -145,6 +145,7 @@ export default async function globalSetup() {
         {
           ...process.env,
           ACME_AUTH_PROVIDER: 'mock',
+          ACME_ENABLE_SECURITY_INSPECTOR: 'true',
           ACME_WEB_SESSION_SECRET: sharedWebSessionSecret,
           HOSTNAME: '127.0.0.1',
           NEXT_PUBLIC_AUTH_PROVIDER: 'mock',

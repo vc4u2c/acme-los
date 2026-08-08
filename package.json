@@ -2,15 +2,18 @@
   "name": "@acme-los/source",
   "version": "0.0.0",
   "license": "MIT",
+  "packageManager": "npm@11.17.0",
   "engines": {
-    "node": "24.18.1"
+    "node": "24.19.0"
   },
   "scripts": {
     "prepare": "husky",
     "lint-staged": "lint-staged",
     "commitlint": "commitlint --edit",
     "validate:tags": "node tools/scripts/validate-project-tags.mjs",
-    "agents:verify": "node tools/scripts/agents/verify-agent-system.mjs",
+    "agents:verify": "node tools/scripts/agents/verify-agent-system.mjs && node tools/scripts/agents/authoritative-sources.mjs --check",
+    "sources:show": "node tools/scripts/agents/authoritative-sources.mjs",
+    "sources:verify": "node tools/scripts/agents/authoritative-sources.mjs --check",
     "redis:up": "nx run web-app:redis-up",
     "redis:down": "nx run web-app:redis-down",
     "web:dev:redis": "nx run web-app:dev-redis",
@@ -51,6 +54,9 @@
     "release:dry-run": "nx release --dry-run --skip-publish"
   },
   "private": true,
+  "workspaces": [
+    "apps/mobile-app"
+  ],
   "overrides": {
     "@nx/js": {
       "picomatch": "^4.0.4"
@@ -170,7 +176,7 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/react-native": "~13.3.3",
     "@types/jest": "^30.0.0",
-    "@types/node": "20.19.9",
+    "@types/node": "24.13.3",
     "@types/react": "^19.1.0",
     "@types/react-dom": "~19.1.7",
     "autoprefixer": "^10.4.27",
@@ -196,10 +202,10 @@
     "react-refresh": "^0.18.0",
     "react-test-renderer": "19.2.0",
     "shadcn": "^4.7.0",
-    "tailwindcss": "3.4.3",
+    "tailwindcss": "3.4.19",
     "ts-jest": "^29.4.0",
     "tslib": "^2.3.0",
-    "typescript": "~5.9.2",
+    "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.1"
   },
   "dependencies": {
@@ -233,11 +239,11 @@
     "expo-status-bar": "~55.0.5",
     "expo-system-ui": "~55.0.16",
     "lucide-react": "^0.577.0",
-    "nativewind": "^4.2.3",
+    "nativewind": "^4.2.6",
     "next": "~16.3.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "react-native": "0.83.6",
+    "react-native": "0.83.10",
     "react-native-gesture-handler": "~2.30.0",
     "react-native-reanimated": "4.2.1",
     "react-native-safe-area-context": "~5.6.0",
@@ -248,5 +254,14 @@
     "react-native-worklets": "0.7.2",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.3.6"
+  },
+  "allowScripts": {
+    "@parcel/watcher@2.6.0": true,
+    "@swc/core@1.15.47": true,
+    "fsevents@2.3.2 || 2.3.3": true,
+    "nx@22.7.8": true,
+    "unrs-resolver@1.12.2": true,
+    "less": false,
+    "protobufjs": false
   }
 }

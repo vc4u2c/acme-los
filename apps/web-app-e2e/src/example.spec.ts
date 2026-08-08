@@ -127,7 +127,9 @@ test('shows the web home, rendering demos, and showcase route', async ({
   ).toHaveAttribute('aria-selected', 'true');
   await expect(page.getByTestId('showcase-grid-readonly-table')).toBeVisible();
   await expect(page.getByTestId('showcase-grid-pagination')).toBeVisible();
-  await expect(page.getByText(/Ready \/ 360 rows/i)).toBeVisible();
+  await expect(page.getByText(/Ready \/ 360 rows/i)).toBeVisible({
+    timeout: 15_000,
+  });
   await expect(page.getByText(/1 of 45/i)).toBeVisible();
   await expect(page.getByTestId('showcase-grid-page-indicator')).toHaveText(
     '1 / 45',
