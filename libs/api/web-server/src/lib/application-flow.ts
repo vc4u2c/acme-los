@@ -14,7 +14,6 @@ import {
 import { getBffServiceAuthorizationHeader } from './bff-service-auth';
 import { APPLICATION_FLOW_COOKIE_NAME, clearCookie } from './cookies';
 
-const BFF_AUTH_PROVIDER_HEADER = 'x-acme-auth-provider';
 const BFF_AUTHENTICATED_USER_ID_HEADER = 'x-acme-authenticated-user-id';
 const BFF_AUTHENTICATED_USER_EMAIL_HEADER = 'x-acme-authenticated-user-email';
 const BFF_AUTHENTICATED_CUSTOMER_ID_HEADER = 'x-acme-authenticated-customer-id';
@@ -56,7 +55,6 @@ async function buildBffApplicationHeaders(
     cookie: buildCookieHeader(cookieStore),
   });
 
-  setHeaderIfPresent(headers, BFF_AUTH_PROVIDER_HEADER, session.provider);
   setHeaderIfPresent(
     headers,
     BFF_AUTHENTICATED_USER_ID_HEADER,
@@ -95,10 +93,6 @@ export async function readServerApplicationStepState(
   session: WebAuthSession,
   step: ApplicationStepKey,
 ): Promise<ApplicationStepState | null> {
-  if (session.provider === 'mock') {
-    return null;
-  }
-
   const response = await fetch(buildBffUrl(`/bff/application/steps/${step}`), {
     method: 'GET',
     headers: await buildBffApplicationHeaders(session),

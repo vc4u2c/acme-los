@@ -1,9 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-
-const mockAuthStorageKey = 'acme-los-auth-mock-session';
-const mockAuthBaseUrl = process.env['BASE_URL'] || 'http://127.0.0.1:4200';
+import { primeAuthenticatedCustomer as primeE2eCustomer } from '../support/auth';
 const axeSource = readFileSync(
   join(__dirname, '..', '..', '..', 'node_modules', 'axe-core', 'axe.min.js'),
   'utf8',
@@ -30,7 +28,19 @@ const auditedRoutes = [
   },
   {
     path: '/account/sign-in',
-    waitFor: { role: 'heading', name: /Opening secure sign in/i },
+    waitFor: { role: 'heading', name: /Preparing sign in/i },
+  },
+  {
+    path: '/account/register',
+    waitFor: { role: 'heading', name: /Preparing sign in/i },
+  },
+  {
+    path: '/account/recover-password',
+    waitFor: { role: 'heading', name: /Preparing sign in/i },
+  },
+  {
+    path: '/account/unlock',
+    waitFor: { role: 'heading', name: /Preparing sign in/i },
   },
   {
     path: '/account/profile',
@@ -86,28 +96,7 @@ async function primeAuthenticatedCustomer(
   assuranceLevel: 'aal1' | 'aal2' = 'aal2',
 ) {
   const user = createMockCustomerUser(assuranceLevel);
-  const serializedUser = JSON.stringify(user);
-
-  await page.context().addCookies([
-    {
-      name: mockAuthStorageKey,
-      value: encodeURIComponent(serializedUser),
-      url: mockAuthBaseUrl,
-      sameSite: 'Lax',
-    },
-  ]);
-
-  await page.addInitScript(
-    ({ key, user }) => {
-      const serializedUser = JSON.stringify(user);
-      window.sessionStorage.setItem(key, serializedUser);
-      document.cookie = `${key}=${encodeURIComponent(serializedUser)}; path=/; samesite=lax`;
-    },
-    {
-      key: mockAuthStorageKey,
-      user,
-    },
-  );
+  await primeE2eCustomer(page, user);
 }
 
 async function prepareRoute(page: Page, path: string) {

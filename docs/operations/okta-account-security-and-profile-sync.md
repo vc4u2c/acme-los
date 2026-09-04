@@ -389,11 +389,20 @@ group scoped to the ACME customer group.
 
 ### IDX State Model
 
-The web app renders supported Identity Engine remediations on the ACME-owned
-`/account/sign-in` surface with Auth JS. Auth JS sends identifiers, passwords,
-security-question answers, and OTPs directly to Okta. The BFF generates and
-stores PKCE verifier, state, nonce, expected subject, and step-up intent, then
-redeems the one-time Interaction Code. OAuth tokens remain server-side.
+The web app renders supported Identity Engine remediations with Auth JS on
+dedicated ACME-owned routes:
+
+- `/account/sign-in` for authentication and route step-up
+- `/account/register` for self-service registration
+- `/account/recover-password` for password recovery
+- `/account/unlock` for account unlock
+
+Each route selects one explicit IDX journey; the sign-in route does not accept
+a query parameter that switches it into registration or recovery. Auth JS sends
+identifiers, passwords, security-question answers, and OTPs directly to Okta.
+The BFF generates and stores PKCE verifier, state, nonce, expected subject, and
+step-up intent, then redeems the one-time Interaction Code. OAuth tokens remain
+server-side.
 
 The Gen3 hosted template under `tools/scripts/okta/templates` remains the mobile
 redirect and rollback baseline. Run `npm run okta:audit-hosted-pages -- <env>`
@@ -573,7 +582,7 @@ The account-security routes have distinct step-up reasons:
   `POST /idp/myaccount/password/change-password`; it must not store or log
   either value.
 - a successful mutation issues a short-lived signed, HttpOnly post-change
-  intent. After Okta logout, the single `/account/sign-in` surface and
+  intent. After Okta logout, the `/account/sign-in` route and
   `/api/auth/idx/start` endpoint recognize it and bind the new transaction to
   the same immutable Okta subject. Browser-supplied return paths and assurance
   values are ignored in this mode. Email change requires password plus

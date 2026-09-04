@@ -14,7 +14,12 @@ This repo uses Nx Release plus GitHub Actions for CI/CD.
     artifact
 - `.github/workflows/cd.yml`
   - runs after successful CI on `main`
-  - currently deploys `dev` automatically
+  - deploys `dev` automatically
+- `.github/workflows/promote-web.yml`
+  - provides the manual, one-click promotion demonstration
+  - resolves an immutable artifact from a successful `main` CI run
+  - deploys `dev` for real, then pauses at the `qa`, `stg`, and `prod` GitHub
+    Environment approval gates
 - `.github/workflows/deploy-web-environment.yml`
   - reusable web deployment workflow called by the environment wrappers
 - `.github/workflows/deploy-mobile.yml`
@@ -23,7 +28,9 @@ This repo uses Nx Release plus GitHub Actions for CI/CD.
 - `.github/workflows/deploy-qa.yml`
 - `.github/workflows/deploy-stg.yml`
 - `.github/workflows/deploy-prod.yml`
-  - reusable environment wrappers for the higher-environment promotion path
+  - reusable, log-only promotion simulations for the higher environments
+  - intentionally have no Azure identity permission, secrets, login, or deploy
+    step
 - `.github/workflows/teardown-web-environment.yml`
   - manual teardown workflow for non-production, with explicit destructive
     confirmation required for `prod`
@@ -96,9 +103,39 @@ Current reality is split by workload:
 Current promotion status:
 
 - `dev` is the automated post-main deployment
-- `qa`, `stg`, and `prod` wrappers exist as reusable workflows
-- chained or manually dispatched promotion beyond `dev` still needs to be wired
-  before those environments should be treated as a routine promotion lane
+- `Promote Web` is a manually dispatched, chained promotion demonstration
+- the `dev` stage performs a real deployment using the selected CI artifact
+- `qa`, `stg`, and `prod` require their configured GitHub Environment approval,
+  then record a simulation in the logs and job summary without changing Azure
+- the higher-environment wrappers must be deliberately replaced with real
+  deployment calls before those environments become deployment targets
+
+## Manual Gated Promotion Demo
+
+In GitHub Actions, select `Promote Web`, choose the `main` branch, and select
+`Run workflow`. Leave `ci_run_id` blank for the normal one-click path; the
+workflow selects the latest successful push-to-`main` CI run and verifies that
+its deployable artifact is still available.
+
+The workflow graph then shows this sequence:
+
+1. resolve the successful CI run and immutable deployable artifact
+1. deploy that artifact to Azure `dev` and run the live health check
+1. wait for `qa` approval, then write a simulation-only promotion record
+1. wait for `stg` approval, then write a simulation-only promotion record
+1. wait for `prod` approval, then write a simulation-only promotion record
+
+To replay a particular successful `main` CI artifact, enter its numeric Actions
+run ID or use:
+
+```powershell
+gh workflow run promote-web.yml --ref main -f ci_run_id=<run-id>
+```
+
+Only the Dev job receives `id-token: write` and inherited environment secrets.
+The QA, Staging, and Production jobs receive `contents: read` only and execute no
+checkout, Azure login, infrastructure, or deployment action. Their purpose is to
+demonstrate approval gates and immutable artifact progression safely.
 
 Important nuance:
 
@@ -170,8 +207,8 @@ Promotion smoke checks should validate the BFF-backed facade:
 - when `bffRuntime.serviceAuth.mode=entra` is enabled, the same smoke path must
   prove that Next can acquire the BFF token and the BFF accepts only the allowed
   caller identity
-- explicit mock auth remains the local/test-only fallback and should not be used
-  as a promotion substitute for the real BFF path
+- browser E2E uses its isolated BFF fixture; promotion still requires the real
+  Okta and BFF path in the target environment
 
 ## Current Operating Reality
 

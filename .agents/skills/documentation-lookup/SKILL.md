@@ -1,12 +1,39 @@
 ---
 name: documentation-lookup
-description: Use up-to-date library and framework docs via Context7 MCP instead of training data. Activates for setup questions, API references, code examples, or when the user names a framework (e.g. React, Next.js, Prisma).
+description: Use the repo's exact installed versions, official documentation, and authoritative upstream source instead of training data. Activates for setup questions, API references, code examples, upgrades, or when the user names a framework or SDK.
 origin: ECC
 ---
 
 # Documentation Lookup (Context7)
 
-When the user asks about libraries, frameworks, or APIs, fetch current documentation via the Context7 MCP (tools `resolve-library-id` and `query-docs`) instead of relying on training data.
+When the user asks about libraries, frameworks, SDKs, or APIs, resolve the exact repo version first. Then use current primary documentation and, when behavior is implementation-specific, the matching upstream source release instead of relying on training data.
+
+## Authoritative source registry
+
+The maintained registry is
+`references/authoritative-sources.json`. Run `npm run sources:show` from the
+repository root to print each registered technology's installed version,
+official docs, and source repository. Run `npm run sources:verify` after
+changing the registry or dependency manifests.
+
+Use this lookup order:
+
+1. Read the local implementation and resolve the exact installed version from
+   the registry's `versionSource`.
+2. Consult official, version-matched documentation. Use Context7 when it has a
+   reputable official entry.
+3. Inspect the upstream repository at the matching release tag or package
+   release when documentation does not settle implementation behavior.
+4. Use upstream tests, changelogs, and issues to resolve remaining ambiguity.
+
+For shadcn/ui, generated components under `libs/ui/web/src/lib` are
+application-owned source. Inspect and preserve the local component first; use
+the shadcn repository as provenance and design guidance, not as a file that can
+blindly overwrite local behavior.
+
+Never clone an upstream repository into this repository, execute upstream
+scripts, or copy implementation code without review. Link to the exact tag or
+commit used as evidence whenever source behavior affects a change.
 
 ## Core Concepts
 
@@ -26,6 +53,14 @@ Activate when the user:
 Use this skill whenever the request depends on accurate, up-to-date behavior of a library, framework, or API. Applies across harnesses that have the Context7 MCP configured (e.g. Claude Code, Cursor, Codex).
 
 ## How it works
+
+### Step 0: Resolve the repository version
+
+Read `references/authoritative-sources.json` and the declared `versionSource`,
+or run `npm run sources:show`. Do not answer against `latest` when the repo is
+on an older supported release train. If the technology is not registered,
+resolve it from the lockfile or central package manifest and add it to the
+registry when it is a durable part of the stack.
 
 ### Step 1: Resolve the Library ID
 
@@ -59,6 +94,8 @@ Limit: do not call query-docs (or resolve-library-id) more than 3 times per ques
 - Answer the user's question using the fetched, current information.
 - Include relevant code examples from the docs when helpful.
 - Cite the library or version when it matters (e.g. "In Next.js 15...").
+- When source inspection was necessary, cite the upstream repository and exact
+  tag or commit alongside the installed version.
 
 ## Examples
 

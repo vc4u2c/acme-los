@@ -18,7 +18,6 @@ process.env.EXPO_PUBLIC_APP_VERSION ??= version;
 process.env.EXPO_PUBLIC_APP_ENVIRONMENT ??= 'local';
 process.env.EXPO_PUBLIC_APP_BUILD ??= resolveGitBuildId() ?? '';
 
-const authProvider = process.env.EXPO_PUBLIC_AUTH_PROVIDER ?? 'mock';
 const oktaIssuer = process.env.EXPO_PUBLIC_OKTA_ISSUER ?? null;
 const oktaClientId = process.env.EXPO_PUBLIC_OKTA_CLIENT_ID ?? null;
 const oktaRedirectUri = process.env.EXPO_PUBLIC_OKTA_REDIRECT_URI ?? null;
@@ -55,7 +54,6 @@ module.exports = {
       appBuild: process.env.EXPO_PUBLIC_APP_BUILD,
       appEnvironment: process.env.EXPO_PUBLIC_APP_ENVIRONMENT,
       auth: {
-        provider: authProvider,
         okta: {
           issuer: oktaIssuer,
           clientId: oktaClientId,

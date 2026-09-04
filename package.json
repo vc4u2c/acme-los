@@ -2,15 +2,19 @@
   "name": "@acme-los/source",
   "version": "0.0.0",
   "license": "MIT",
+  "packageManager": "npm@11.17.0",
   "engines": {
-    "node": "24.18.1"
+    "node": "24.19.0"
   },
   "scripts": {
     "prepare": "husky",
     "lint-staged": "lint-staged",
     "commitlint": "commitlint --edit",
     "validate:tags": "node tools/scripts/validate-project-tags.mjs",
-    "agents:verify": "node tools/scripts/agents/verify-agent-system.mjs",
+    "agents:verify": "node tools/scripts/agents/verify-agent-system.mjs && node tools/scripts/agents/authoritative-sources.mjs --check",
+    "sources:show": "node tools/scripts/agents/authoritative-sources.mjs",
+    "sources:verify": "node tools/scripts/agents/authoritative-sources.mjs --check",
+    "harness:context": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/workspace/show-context.ps1",
     "redis:up": "nx run web-app:redis-up",
     "redis:down": "nx run web-app:redis-down",
     "web:dev:redis": "nx run web-app:dev-redis",
@@ -44,13 +48,16 @@
     "analytics:render": "node tools/scripts/analytics/render-analytics-config.mjs",
     "analytics:admin-plan": "node tools/scripts/analytics/render-ga4-admin-plan.mjs",
     "analytics:check-admin-token": "node tools/scripts/analytics/check-google-admin-token.mjs",
-    "audit:node": "npm audit --audit-level=moderate",
+    "audit:node": "audit-ci --config audit-ci.jsonc",
     "dotnet:audit": "dotnet list apps/bff-api/Acme.Los.Bff.sln package --vulnerable --include-transitive",
     "dotnet:audit:ci": "dotnet restore apps/bff-api/Acme.Los.Bff.sln -p:AuditPipeline=true",
     "release": "nx release --skip-publish",
     "release:dry-run": "nx release --dry-run --skip-publish"
   },
   "private": true,
+  "workspaces": [
+    "apps/mobile-app"
+  ],
   "overrides": {
     "@nx/js": {
       "picomatch": "^4.0.4"
@@ -73,6 +80,7 @@
     "@expo/cli": {
       "ws": "8.21.0"
     },
+    "@expo/metro": "55.1.1",
     "@expo/metro-config": {
       "ws": "7.5.11"
     },
@@ -101,6 +109,7 @@
     "detox": {
       "ws": "7.5.11"
     },
+    "decode-uri-component": "0.5.0",
     "@tootallnate/once": "^3.0.1",
     "axios": "^1.16.0",
     "flatted": "^3.4.2",
@@ -117,14 +126,19 @@
     },
     "launch-editor": "2.14.1",
     "metro": {
+      ".": "0.83.8",
       "ws": "7.5.11"
     },
     "metro-config": {
+      ".": "0.83.8",
       "ws": "7.5.11"
     },
+    "metro-transform-worker": "0.83.8",
     "node-forge": "^1.4.0",
     "patch-package": "^8.0.1",
     "postcss": "^8.5.14",
+    "qs": "6.16.0",
+    "query-string": "9.5.1",
     "react-devtools-core": {
       "ws": "7.5.11"
     },
@@ -170,10 +184,11 @@
     "@testing-library/react": "^16.3.2",
     "@testing-library/react-native": "~13.3.3",
     "@types/jest": "^30.0.0",
-    "@types/node": "20.19.9",
+    "@types/node": "24.13.3",
     "@types/react": "^19.1.0",
     "@types/react-dom": "~19.1.7",
     "autoprefixer": "^10.4.27",
+    "audit-ci": "7.1.0",
     "babel-jest": "30.4.1",
     "babel-preset-expo": "~55.0.20",
     "brace-expansion": "5.0.9",
@@ -196,10 +211,10 @@
     "react-refresh": "^0.18.0",
     "react-test-renderer": "19.2.0",
     "shadcn": "^4.7.0",
-    "tailwindcss": "3.4.3",
+    "tailwindcss": "3.4.19",
     "ts-jest": "^29.4.0",
     "tslib": "^2.3.0",
-    "typescript": "~5.9.2",
+    "typescript": "~5.9.3",
     "typescript-eslint": "^8.57.1"
   },
   "dependencies": {
@@ -233,11 +248,11 @@
     "expo-status-bar": "~55.0.5",
     "expo-system-ui": "~55.0.16",
     "lucide-react": "^0.577.0",
-    "nativewind": "^4.2.3",
+    "nativewind": "^4.2.6",
     "next": "~16.3.0",
     "react": "19.2.0",
     "react-dom": "19.2.0",
-    "react-native": "0.83.6",
+    "react-native": "0.83.10",
     "react-native-gesture-handler": "~2.30.0",
     "react-native-reanimated": "4.2.1",
     "react-native-safe-area-context": "~5.6.0",
@@ -248,5 +263,14 @@
     "react-native-worklets": "0.7.2",
     "tailwind-merge": "^3.5.0",
     "zod": "^4.3.6"
+  },
+  "allowScripts": {
+    "@parcel/watcher@2.6.0": true,
+    "@swc/core@1.15.47": true,
+    "fsevents@2.3.2 || 2.3.3": true,
+    "nx@22.7.8": true,
+    "unrs-resolver@1.12.2": true,
+    "less": false,
+    "protobufjs": false
   }
 }

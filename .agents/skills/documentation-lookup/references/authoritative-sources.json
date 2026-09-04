@@ -1,0 +1,385 @@
+{
+  "schemaVersion": 1,
+  "policy": {
+    "lookupOrder": [
+      "local implementation and exact installed version",
+      "official version-matched documentation",
+      "upstream source at the matching release tag or commit",
+      "upstream tests, changelog, and issues"
+    ],
+    "rules": [
+      "Never execute scripts or copy code from an upstream repository without reviewing it.",
+      "Treat generated shadcn components as application-owned source after generation.",
+      "Do not infer that a package has an LTS channel; use its declared stable or SDK support policy."
+    ]
+  },
+  "sources": [
+    {
+      "id": "node",
+      "displayName": "Node.js",
+      "scope": "platform",
+      "supportModel": "lts",
+      "versionSource": { "kind": "text", "path": ".nvmrc" },
+      "officialDocs": "https://nodejs.org/docs/latest-v24.x/api/",
+      "sourceRepository": "https://github.com/nodejs/node",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "npm",
+      "displayName": "npm CLI",
+      "scope": "platform",
+      "supportModel": "stable",
+      "versionSource": { "kind": "package-manager", "path": "package.json" },
+      "officialDocs": "https://docs.npmjs.com/",
+      "sourceRepository": "https://github.com/npm/cli",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "dotnet",
+      "displayName": ".NET",
+      "scope": "platform",
+      "supportModel": "lts",
+      "versionSource": {
+        "kind": "target-framework",
+        "path": "apps/bff-api/src/Acme.Los.Bff.Api/Acme.Los.Bff.Api.csproj"
+      },
+      "officialDocs": "https://learn.microsoft.com/dotnet/",
+      "sourceRepository": "https://github.com/dotnet/runtime",
+      "releaseResolution": "sdk-release"
+    },
+    {
+      "id": "aspnet-core",
+      "displayName": "ASP.NET Core",
+      "scope": "backend",
+      "supportModel": "lts",
+      "versionSource": {
+        "kind": "nuget",
+        "path": "apps/bff-api/Directory.Packages.props",
+        "package": "Microsoft.AspNetCore.OpenApi"
+      },
+      "officialDocs": "https://learn.microsoft.com/aspnet/core/",
+      "sourceRepository": "https://github.com/dotnet/aspnetcore",
+      "releaseResolution": "sdk-release"
+    },
+    {
+      "id": "nextjs",
+      "displayName": "Next.js",
+      "scope": "web",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "next"
+      },
+      "officialDocs": "https://nextjs.org/docs",
+      "sourceRepository": "https://github.com/vercel/next.js",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "react",
+      "displayName": "React",
+      "scope": "shared-ui",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "react"
+      },
+      "officialDocs": "https://react.dev/",
+      "sourceRepository": "https://github.com/facebook/react",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "typescript",
+      "displayName": "TypeScript",
+      "scope": "platform",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "typescript"
+      },
+      "officialDocs": "https://www.typescriptlang.org/docs/",
+      "sourceRepository": "https://github.com/microsoft/TypeScript",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "nx",
+      "displayName": "Nx",
+      "scope": "platform",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "nx"
+      },
+      "officialDocs": "https://nx.dev/docs",
+      "sourceRepository": "https://github.com/nrwl/nx",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "expo",
+      "displayName": "Expo SDK",
+      "scope": "mobile",
+      "supportModel": "sdk-train",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "expo"
+      },
+      "officialDocs": "https://docs.expo.dev/versions/latest/",
+      "sourceRepository": "https://github.com/expo/expo",
+      "releaseResolution": "sdk-release"
+    },
+    {
+      "id": "react-native",
+      "displayName": "React Native",
+      "scope": "mobile",
+      "supportModel": "sdk-train",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "react-native"
+      },
+      "officialDocs": "https://reactnative.dev/docs/getting-started",
+      "sourceRepository": "https://github.com/facebook/react-native",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "tailwindcss",
+      "displayName": "Tailwind CSS",
+      "scope": "shared-ui",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "tailwindcss"
+      },
+      "officialDocs": "https://tailwindcss.com/docs/installation",
+      "sourceRepository": "https://github.com/tailwindlabs/tailwindcss",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "nativewind",
+      "displayName": "NativeWind",
+      "scope": "mobile",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "nativewind"
+      },
+      "officialDocs": "https://www.nativewind.dev/docs",
+      "sourceRepository": "https://github.com/nativewind/nativewind",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "shadcn",
+      "displayName": "shadcn/ui",
+      "scope": "web",
+      "supportModel": "copied-source",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "shadcn"
+      },
+      "localPath": "libs/ui/web/src/lib",
+      "officialDocs": "https://ui.shadcn.com/docs",
+      "sourceRepository": "https://github.com/shadcn-ui/ui",
+      "releaseResolution": "local-first"
+    },
+    {
+      "id": "radix-ui",
+      "displayName": "Radix UI Primitives",
+      "scope": "web",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "@radix-ui/react-dialog"
+      },
+      "officialDocs": "https://www.radix-ui.com/primitives/docs/overview/introduction",
+      "sourceRepository": "https://github.com/radix-ui/primitives",
+      "releaseResolution": "package-release"
+    },
+    {
+      "id": "gluestack-ui",
+      "displayName": "gluestack-ui",
+      "scope": "mobile",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "@gluestack-ui/core"
+      },
+      "localPath": "libs/ui/mobile/src/lib",
+      "officialDocs": "https://gluestack.io/ui/docs/home/overview/introduction",
+      "sourceRepository": "https://github.com/gluestack/gluestack-ui",
+      "releaseResolution": "package-release"
+    },
+    {
+      "id": "tanstack-query",
+      "displayName": "TanStack Query",
+      "scope": "shared-ui",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "@tanstack/react-query"
+      },
+      "officialDocs": "https://tanstack.com/query/latest/docs/framework/react/overview",
+      "sourceRepository": "https://github.com/TanStack/query",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "tanstack-form",
+      "displayName": "TanStack Form",
+      "scope": "shared-ui",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "@tanstack/react-form"
+      },
+      "officialDocs": "https://tanstack.com/form/latest/docs/overview",
+      "sourceRepository": "https://github.com/TanStack/form",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "playwright",
+      "displayName": "Playwright",
+      "scope": "testing",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "@playwright/test"
+      },
+      "officialDocs": "https://playwright.dev/docs/intro",
+      "sourceRepository": "https://github.com/microsoft/playwright",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "okta-auth-js",
+      "displayName": "Okta Auth JS",
+      "scope": "identity",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "@okta/okta-auth-js"
+      },
+      "officialDocs": "https://developer.okta.com/docs/guides/auth-js/",
+      "sourceRepository": "https://github.com/okta/okta-auth-js",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "azure-sdk-javascript",
+      "displayName": "Azure SDK for JavaScript",
+      "scope": "cloud",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "@azure/identity"
+      },
+      "officialDocs": "https://learn.microsoft.com/javascript/api/overview/azure/",
+      "sourceRepository": "https://github.com/Azure/azure-sdk-for-js",
+      "releaseResolution": "package-release"
+    },
+    {
+      "id": "azure-sdk-dotnet",
+      "displayName": "Azure SDK for .NET",
+      "scope": "cloud",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "nuget",
+        "path": "apps/bff-api/Directory.Packages.props",
+        "package": "Azure.Identity"
+      },
+      "officialDocs": "https://learn.microsoft.com/dotnet/azure/sdk/azure-sdk-for-dotnet",
+      "sourceRepository": "https://github.com/Azure/azure-sdk-for-net",
+      "releaseResolution": "package-release"
+    },
+    {
+      "id": "opentelemetry-javascript",
+      "displayName": "OpenTelemetry JavaScript",
+      "scope": "observability",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "@opentelemetry/api-logs"
+      },
+      "officialDocs": "https://opentelemetry.io/docs/languages/js/",
+      "sourceRepository": "https://github.com/open-telemetry/opentelemetry-js",
+      "releaseResolution": "package-release"
+    },
+    {
+      "id": "opentelemetry-dotnet",
+      "displayName": "OpenTelemetry .NET",
+      "scope": "observability",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "nuget",
+        "path": "apps/bff-api/Directory.Packages.props",
+        "package": "OpenTelemetry.Extensions.Hosting"
+      },
+      "officialDocs": "https://opentelemetry.io/docs/languages/dotnet/",
+      "sourceRepository": "https://github.com/open-telemetry/opentelemetry-dotnet",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "redis-node",
+      "displayName": "node-redis",
+      "scope": "backend",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "npm",
+        "path": "package-lock.json",
+        "package": "@redis/client"
+      },
+      "officialDocs": "https://redis.io/docs/latest/develop/clients/nodejs/",
+      "sourceRepository": "https://github.com/redis/node-redis",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "stackexchange-redis",
+      "displayName": "StackExchange.Redis",
+      "scope": "backend",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "nuget",
+        "path": "apps/bff-api/Directory.Packages.props",
+        "package": "StackExchange.Redis"
+      },
+      "officialDocs": "https://stackexchange.github.io/StackExchange.Redis/",
+      "sourceRepository": "https://github.com/StackExchange/StackExchange.Redis",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "wolverine",
+      "displayName": "Wolverine",
+      "scope": "backend",
+      "supportModel": "stable",
+      "versionSource": {
+        "kind": "nuget",
+        "path": "apps/bff-api/Directory.Packages.props",
+        "package": "WolverineFx"
+      },
+      "officialDocs": "https://wolverinefx.io/",
+      "sourceRepository": "https://github.com/JasperFx/wolverine",
+      "releaseResolution": "exact-tag"
+    },
+    {
+      "id": "bicep",
+      "displayName": "Azure Bicep",
+      "scope": "infrastructure",
+      "supportModel": "service",
+      "versionSource": { "kind": "repository-policy", "path": "infra/azure" },
+      "officialDocs": "https://learn.microsoft.com/azure/azure-resource-manager/bicep/",
+      "sourceRepository": "https://github.com/Azure/bicep",
+      "releaseResolution": "package-release"
+    }
+  ]
+}

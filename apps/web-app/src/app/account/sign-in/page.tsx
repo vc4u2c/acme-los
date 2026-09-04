@@ -1,6 +1,5 @@
 import { getSafeAuthReturnTo } from '@acme-los/auth/core';
 import {
-  getServerWebAuthConfig,
   getServerWebAuthSessionRequirementStatus,
   parsePostChangeAuthIntent,
   POST_CHANGE_AUTH_COOKIE_NAME,
@@ -8,8 +7,6 @@ import {
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { CustomerIdxAuthPage } from '../../../components/web/customer-idx-auth-page';
-import { CustomerMockSignInPage } from '../../../components/web/customer-mock-sign-in-page';
-import type { IdxJourneyFlow } from '../../../lib/idx-experience';
 import {
   getMinimumAssuranceLevelForApplicationPath,
   getSignInAuthRequirementForPath,
@@ -23,7 +20,6 @@ export default async function SignInPage({
     returnTo?: string;
     aal?: string;
     authError?: string;
-    flow?: string;
   }>;
 }) {
   const resolvedSearchParams = await searchParams;
@@ -48,21 +44,10 @@ export default async function SignInPage({
       cookieStore.get(POST_CHANGE_AUTH_COOKIE_NAME)?.value,
     ),
   );
-  const requestedIdxFlow: IdxJourneyFlow = [
-    'register',
-    'recoverPassword',
-    'unlockAccount',
-  ].includes(resolvedSearchParams.flow ?? '')
-    ? (resolvedSearchParams.flow as IdxJourneyFlow)
-    : 'authenticate';
-  const idxFlow: IdxJourneyFlow = postChange
-    ? 'authenticate'
-    : requestedIdxFlow;
   const { session, isSatisfied } =
     await getServerWebAuthSessionRequirementStatus(signInRequirement);
 
   if (
-    idxFlow === 'authenticate' &&
     session?.isAuthenticated &&
     session.user !== null &&
     isSatisfied &&
@@ -72,23 +57,13 @@ export default async function SignInPage({
     redirect(returnTo);
   }
 
-  if (getServerWebAuthConfig().provider !== 'mock') {
-    return (
-      <CustomerIdxAuthPage
-        returnTo={returnTo}
-        minimumAssuranceLevel={minimumAssuranceLevel}
-        flow={idxFlow}
-        errorMessage={authError}
-        postChange={postChange}
-      />
-    );
-  }
-
   return (
-    <CustomerMockSignInPage
+    <CustomerIdxAuthPage
       returnTo={returnTo}
       minimumAssuranceLevel={minimumAssuranceLevel}
+      flow="authenticate"
       errorMessage={authError}
+      postChange={postChange}
     />
   );
 }

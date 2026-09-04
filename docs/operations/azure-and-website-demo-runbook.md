@@ -257,8 +257,7 @@ to show the full platform surface, not just the visible web pages.
   auth/session/customer/application/security routes to the BFF
 - the BFF is the auth/session, CSRF, customer-profile, and application-flow
   authority
-- security inspector shows BFF-owned token/session state for real Okta auth and
-  a token-free local snapshot for explicit mock auth
+- security inspector shows BFF-owned Okta token/session state
 - browser-origin telemetry stays on the Next facade; the logging demo uses a
   separate diagnostic trace API to prove the Next-to-BFF hop
 
@@ -373,7 +372,12 @@ to show the full platform surface, not just the visible web pages.
 - `/legal/privacy`, `/legal/terms`, `/legal/accessibility`, and
   `/legal/licenses`
 - `/account/sign-in`
+- `/account/register`
+- `/account/recover-password`
+- `/account/unlock`
 - `/account/profile`
+- `/account/security/email`, `/account/security/phone`, and
+  `/account/security/password`
 - `/apply` and `/apply/[step]`
 - `/security`
 - `/logging-demo`

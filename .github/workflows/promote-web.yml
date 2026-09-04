@@ -1,0 +1,188 @@
+name: Promote Web
+
+run-name: Promote web from CI ${{ inputs.ci_run_id || 'latest successful main run' }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: Optional successful main CI run ID; blank selects the latest
+        required: false
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: promote-web
+  cancel-in-progress: false
+
+jobs:
+  resolve_artifact:
+    name: Resolve Main Artifact
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.resolve.outputs.artifact_name }}
+      artifact_run_id: ${{ steps.resolve.outputs.artifact_run_id }}
+      source_ref: ${{ steps.resolve.outputs.source_ref }}
+
+    steps:
+      - name: Require the main workflow definition
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" != "refs/heads/main" ]]; then
+            echo "Promotions must be started from the main workflow definition." >&2
+            exit 1
+          fi
+
+      - name: Resolve successful CI artifact
+        id: resolve
+        uses: actions/github-script@v8
+        env:
+          REQUESTED_CI_RUN_ID: ${{ inputs.ci_run_id }}
+        with:
+          script: |
+            const requestedRunId = process.env.REQUESTED_CI_RUN_ID.trim();
+            let run;
+
+            if (requestedRunId) {
+              if (!/^\d+$/.test(requestedRunId)) {
+                core.setFailed('ci_run_id must contain only digits.');
+                return;
+              }
+
+              const response = await github.rest.actions.getWorkflowRun({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: Number(requestedRunId),
+              });
+              run = response.data;
+            } else {
+              const response = await github.rest.actions.listWorkflowRuns({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                workflow_id: 'ci.yml',
+                branch: 'main',
+                event: 'push',
+                status: 'success',
+                per_page: 20,
+              });
+              run = response.data.workflow_runs[0];
+            }
+
+            if (!run) {
+              core.setFailed('No successful main CI run is available to promote.');
+              return;
+            }
+
+            const workflowPath = run.path.split('@')[0];
+            const isPromotable =
+              workflowPath === '.github/workflows/ci.yml' &&
+              run.head_branch === 'main' &&
+              run.event === 'push' &&
+              run.status === 'completed' &&
+              run.conclusion === 'success';
+
+            if (!isPromotable) {
+              core.setFailed(
+                `Run ${run.id} is not a successful push-to-main CI run.`,
+              );
+              return;
+            }
+
+            const artifactName = `acme-los-web-app-deployable-${run.head_sha}`;
+            const artifactsResponse =
+              await github.rest.actions.listWorkflowRunArtifacts({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id,
+                per_page: 100,
+              });
+            const artifact = artifactsResponse.data.artifacts.find(
+              (candidate) =>
+                candidate.name === artifactName && !candidate.expired,
+            );
+
+            if (!artifact) {
+              core.setFailed(
+                `Run ${run.id} does not contain active artifact ${artifactName}.`,
+              );
+              return;
+            }
+
+            core.setOutput('artifact_name', artifactName);
+            core.setOutput('artifact_run_id', String(run.id));
+            core.setOutput('source_ref', run.head_sha);
+            core.notice(
+              `Promoting ${artifactName} from successful CI run ${run.id}.`,
+            );
+            await core.summary
+              .addHeading('Promotion Source')
+              .addTable([
+                [
+                  { data: 'Property', header: true },
+                  { data: 'Value', header: true },
+                ],
+                ['CI run', String(run.id)],
+                ['Source SHA', run.head_sha],
+                ['Artifact', artifactName],
+                ['Artifact ID', String(artifact.id)],
+              ])
+              .write();
+
+  deploy_dev:
+    name: Deploy Dev (Real)
+    needs: resolve_artifact
+    uses: ./.github/workflows/deploy-dev.yml
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    secrets: inherit
+    with:
+      artifact_name: ${{ needs.resolve_artifact.outputs.artifact_name }}
+      artifact_run_id: ${{ needs.resolve_artifact.outputs.artifact_run_id }}
+      source_ref: ${{ needs.resolve_artifact.outputs.source_ref }}
+
+  promote_qa:
+    name: Promote QA (Demo)
+    needs:
+      - resolve_artifact
+      - deploy_dev
+    uses: ./.github/workflows/deploy-qa.yml
+    permissions:
+      contents: read
+    with:
+      artifact_name: ${{ needs.resolve_artifact.outputs.artifact_name }}
+      artifact_run_id: ${{ needs.resolve_artifact.outputs.artifact_run_id }}
+      source_ref: ${{ needs.resolve_artifact.outputs.source_ref }}
+
+  promote_stg:
+    name: Promote Staging (Demo)
+    needs:
+      - resolve_artifact
+      - promote_qa
+    uses: ./.github/workflows/deploy-stg.yml
+    permissions:
+      contents: read
+    with:
+      artifact_name: ${{ needs.resolve_artifact.outputs.artifact_name }}
+      artifact_run_id: ${{ needs.resolve_artifact.outputs.artifact_run_id }}
+      source_ref: ${{ needs.resolve_artifact.outputs.source_ref }}
+
+  promote_prod:
+    name: Promote Production (Demo)
+    needs:
+      - resolve_artifact
+      - promote_stg
+    uses: ./.github/workflows/deploy-prod.yml
+    permissions:
+      contents: read
+    with:
+      artifact_name: ${{ needs.resolve_artifact.outputs.artifact_name }}
+      artifact_run_id: ${{ needs.resolve_artifact.outputs.artifact_run_id }}
+      source_ref: ${{ needs.resolve_artifact.outputs.source_ref }}

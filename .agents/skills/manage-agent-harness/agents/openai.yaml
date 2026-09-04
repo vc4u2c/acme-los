@@ -1,0 +1,6 @@
+interface:
+  display_name: 'Manage Agent Harness'
+  short_description: 'Maintain LOS context routing, skills, and adapters'
+  default_prompt: 'Use $manage-agent-harness to update the ACME LOS agent harness while preserving one canonical provider-neutral source of truth.'
+policy:
+  allow_implicit_invocation: true

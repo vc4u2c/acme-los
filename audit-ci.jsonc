@@ -1,0 +1,24 @@
+{
+  "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
+  "moderate": true,
+  "package-manager": "npm",
+  "report-type": "important",
+  "show-found": true,
+  "show-not-found": true,
+  "allowlist": [
+    {
+      "GHSA-5p2g-fcmc-qvqq|@nx/next>@nx/webpack>less>image-size": {
+        "active": true,
+        "expiry": "2026-10-04",
+        "notes": "No patched image-size release exists. This build-only path processes repository-controlled styles and assets, not customer input.",
+      },
+    },
+    {
+      "GHSA-w3rx-r6r6-pgpr|@nx/next>@nx/webpack>less>image-size": {
+        "active": true,
+        "expiry": "2026-10-04",
+        "notes": "No patched image-size release exists. This build-only path processes repository-controlled styles and assets, not customer input.",
+      },
+    },
+  ],
+}

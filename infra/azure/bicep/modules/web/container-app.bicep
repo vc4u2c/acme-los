@@ -8,7 +8,6 @@ param containerRegistryServer string
 param containerImage string
 param appEnvironmentName string
 param appBuildId string
-param authProvider string = 'okta'
 param oktaEnvironmentName string = appEnvironmentName
 param oktaIssuer string
 param oktaClientId string
@@ -199,10 +198,6 @@ var environmentVariables = concat(
     {
       name: 'NEXT_PUBLIC_APP_ENVIRONMENT'
       value: appEnvironmentName
-    }
-    {
-      name: 'ACME_AUTH_PROVIDER'
-      value: authProvider
     }
     {
       name: 'ACME_OKTA_ENVIRONMENT'

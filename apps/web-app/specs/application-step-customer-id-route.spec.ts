@@ -17,7 +17,6 @@ jest.mock('../src/app/api/_lib/bff-route-proxy', () => ({
 
 jest.mock('../src/app/api/_lib/bff-trusted-session', () => ({
   buildBffTrustedIdentityHeaders: jest.fn((session: WebAuthSession) => ({
-    'x-acme-auth-provider': session.provider,
     'x-acme-authenticated-user-id': session.user?.id,
     'x-acme-authenticated-user-email': session.user?.email,
     'x-acme-authenticated-customer-id': session.user?.customerId,
@@ -113,7 +112,6 @@ describe('application step route', () => {
       '/bff/application/steps/personal-info',
       expect.objectContaining({
         extraHeaders: expect.objectContaining({
-          'x-acme-auth-provider': 'okta',
           'x-acme-authenticated-user-id': '00u-application-user-001',
           'x-acme-authenticated-user-email': 'ada@example.test',
         }),
@@ -148,7 +146,6 @@ describe('application step route', () => {
       '/bff/application/steps/personal-info',
       expect.objectContaining({
         extraHeaders: expect.objectContaining({
-          'x-acme-auth-provider': 'okta',
           'x-acme-authenticated-user-id': '00u-application-user-001',
           'x-acme-authenticated-user-email': 'ada@example.test',
         }),

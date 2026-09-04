@@ -4,18 +4,11 @@ import { NextRequest } from 'next/server';
 import { readSecurityInspectorServerSnapshot } from '@acme-los/api/web-server';
 
 describe('security inspector snapshot', () => {
-  const originalAuthProvider = process.env.ACME_AUTH_PROVIDER;
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
   const originalTrustedProxySecret = process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
   const originalFetch = global.fetch;
 
   afterEach(() => {
-    if (originalAuthProvider === undefined) {
-      delete process.env.ACME_AUTH_PROVIDER;
-    } else {
-      process.env.ACME_AUTH_PROVIDER = originalAuthProvider;
-    }
-
     if (originalBaseUrl === undefined) {
       delete process.env.ACME_BFF_BASE_URL;
     } else {
@@ -33,7 +26,6 @@ describe('security inspector snapshot', () => {
   });
 
   it('reads the BFF-owned token snapshot when the BFF owns auth state', async () => {
-    process.env.ACME_AUTH_PROVIDER = 'okta';
     process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
 
@@ -111,21 +103,5 @@ describe('security inspector snapshot', () => {
     expect(init.headers.get('x-acme-bff-proxy-secret')).toBe(
       'proxy-secret-123',
     );
-  });
-
-  it('reads a token-free local snapshot only for explicit mock auth', async () => {
-    process.env.ACME_AUTH_PROVIDER = 'mock';
-    process.env.ACME_BFF_BASE_URL = 'https://bff.example.test';
-    const fetchSpy = jest.fn();
-
-    global.fetch = fetchSpy;
-
-    const snapshot = await readSecurityInspectorServerSnapshot(
-      new NextRequest('https://los.example.test/api/security/inspector'),
-    );
-
-    expect(snapshot.provider).toBe('mock');
-    expect(snapshot.storedSession).toBeNull();
-    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

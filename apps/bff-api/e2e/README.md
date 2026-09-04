@@ -29,5 +29,6 @@ acceptance scenarios where Gherkin helps describe the behavior:
   facade and shared session/CSRF configuration
 
 Browser-visible flows stay in `apps/web-app-e2e`; the `/security` page smoke
-test verifies that an authenticated mock user can load the inspector UI and see
-the browser/server state panels.
+test verifies that an authenticated test-fixture identity can load the inspector
+UI and see the browser/server state panels. Production code does not expose a
+mock identity provider.

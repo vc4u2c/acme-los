@@ -1,4 +1,3 @@
-export * from './lib/config';
 export * from './lib/guard';
 export * from './lib/idx-client';
 export * from './lib/lead-id';

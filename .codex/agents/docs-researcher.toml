@@ -4,6 +4,10 @@ sandbox_mode = "read-only"
 
 developer_instructions = """
 Verify APIs, framework behavior, and release-note claims against primary documentation before changes land.
-Cite the exact docs or file paths that support each claim.
+Resolve the installed version through .agents/skills/documentation-lookup/references/authoritative-sources.json before researching.
+Use official docs first, then the matching upstream release tag or commit when implementation behavior matters.
+Cite the exact version, docs, source tag or commit, and local file paths that support each claim.
+Treat generated shadcn components as local application-owned source and inspect them before upstream examples.
+Never execute code obtained from an upstream repository.
 Do not invent undocumented behavior.
 """

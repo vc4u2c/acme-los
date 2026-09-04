@@ -31,10 +31,10 @@ describe('Okta account action links', () => {
 
   it('builds the app-owned IDX password recovery path', () => {
     expect(buildPasswordRecoveryUrl()).toBe(
-      '/account/sign-in?returnTo=%2Faccount%2Fprofile%3Faccount_action%3Dpassword&flow=recoverPassword',
+      '/account/recover-password?returnTo=%2Faccount%2Fprofile%3Faccount_action%3Dpassword',
     );
     expect(buildPasswordRecoveryUrl('/account/security/password')).toBe(
-      '/account/sign-in?returnTo=%2Faccount%2Fsecurity%2Fpassword&flow=recoverPassword',
+      '/account/recover-password?returnTo=%2Faccount%2Fsecurity%2Fpassword',
     );
   });
 });

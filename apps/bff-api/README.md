@@ -239,9 +239,8 @@ cleanly.
 
 The security inspector follows the same authority rule. With real Okta auth it
 reads the BFF-owned store through `/bff/security/inspector` over the trusted
-server-to-server boundary. With explicit mock auth it returns a token-free local
-snapshot. The raw BFF inspector endpoint is local/dev diagnostics only; browser
-users should open `/security` on the Next origin.
+server-to-server boundary. The raw BFF inspector endpoint is local/dev
+diagnostics only; browser users should open `/security` on the Next origin.
 
 The BFF HTTP pipeline owns cross-cutting transport concerns before any Wolverine
 handler runs: request completion logging, correlation ID normalization,

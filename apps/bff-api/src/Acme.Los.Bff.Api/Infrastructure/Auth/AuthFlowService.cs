@@ -445,7 +445,7 @@ public sealed class BffAuthFlowService : IAuthFlowService
         authenticationMethods.Length == 0 ? null : authenticationMethods));
   }
 
-  private static void EnforceSessionRequirement(
+  internal static void EnforceSessionRequirement(
     WebAuthSession session,
     StoredAuthTransaction transaction,
     OktaAuthOptions options)
@@ -759,14 +759,6 @@ internal sealed record OktaAuthOptions(
 
   internal static OktaAuthOptions? TryFromEnvironment()
   {
-    var provider = ReadConfigValue("ACME_AUTH_PROVIDER");
-
-    if (!string.IsNullOrWhiteSpace(provider)
-      && !string.Equals(provider, "okta", StringComparison.Ordinal))
-    {
-      return null;
-    }
-
     var issuer = ReadConfigValue("ACME_OKTA_ISSUER");
     var clientId = ReadConfigValue("ACME_OKTA_CLIENT_ID");
     var redirectUri = ReadConfigValue("ACME_OKTA_REDIRECT_URI");
