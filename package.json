@@ -47,7 +47,7 @@
     "analytics:render": "node tools/scripts/analytics/render-analytics-config.mjs",
     "analytics:admin-plan": "node tools/scripts/analytics/render-ga4-admin-plan.mjs",
     "analytics:check-admin-token": "node tools/scripts/analytics/check-google-admin-token.mjs",
-    "audit:node": "npm audit --audit-level=moderate",
+    "audit:node": "audit-ci --config audit-ci.jsonc",
     "dotnet:audit": "dotnet list apps/bff-api/Acme.Los.Bff.sln package --vulnerable --include-transitive",
     "dotnet:audit:ci": "dotnet restore apps/bff-api/Acme.Los.Bff.sln -p:AuditPipeline=true",
     "release": "nx release --skip-publish",
@@ -107,6 +107,7 @@
     "detox": {
       "ws": "7.5.11"
     },
+    "decode-uri-component": "0.5.0",
     "@tootallnate/once": "^3.0.1",
     "axios": "^1.16.0",
     "flatted": "^3.4.2",
@@ -123,14 +124,18 @@
     },
     "launch-editor": "2.14.1",
     "metro": {
+      ".": "0.83.8",
       "ws": "7.5.11"
     },
     "metro-config": {
+      ".": "0.83.8",
       "ws": "7.5.11"
     },
+    "metro-transform-worker": "0.83.8",
     "node-forge": "^1.4.0",
     "patch-package": "^8.0.1",
     "postcss": "^8.5.14",
+    "qs": "6.16.0",
     "react-devtools-core": {
       "ws": "7.5.11"
     },
@@ -180,6 +185,7 @@
     "@types/react": "^19.1.0",
     "@types/react-dom": "~19.1.7",
     "autoprefixer": "^10.4.27",
+    "audit-ci": "7.1.0",
     "babel-jest": "30.4.1",
     "babel-preset-expo": "~55.0.20",
     "brace-expansion": "5.0.9",

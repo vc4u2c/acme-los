@@ -48,21 +48,26 @@ script and package version are reviewed.
   coverlet, and gluestack are behavior migrations. They require focused release
   review and tests instead of being folded into runtime servicing.
 
-## Open upstream security gate
+## Time-bound upstream security exception
 
-As of August 7, 2026, npm reports
+As of September 4, 2026, npm reports
 [`GHSA-w3rx-r6r6-pgpr`](https://github.com/advisories/GHSA-w3rx-r6r6-pgpr)
 and
 [`GHSA-5p2g-fcmc-qvqq`](https://github.com/advisories/GHSA-5p2g-fcmc-qvqq)
-against the transitive `image-size` package used by Metro and Less. The affected
-Metro path is build tooling that processes repository-controlled assets, but it
-remains inside the dependency audit boundary. No patched npm release is
-available. npm's forced remediation would downgrade Expo to SDK 53 and is not
-an acceptable security fix.
+against the transitive `image-size` package used by Less through Nx's webpack
+integration. The affected path is build tooling that processes
+repository-controlled styles and assets; it is not bundled into the deployed
+application runtimes and does not process customer uploads or request bodies. No
+patched `image-size` npm release is available. npm's suggested forced remediation
+is a breaking Nx framework change and is not a safe patch-level security fix.
 
-Keep the npm audit gate failing until an upstream patched release can be
-adopted. Do not add an audit waiver, forced downgrade, unpublished fork, or
-dependency override solely to make CI green.
+The two exact advisory paths are recorded in `audit-ci.jsonc` as active risk
+exceptions that expire on October 4, 2026. The patched Metro `0.83.8` release is
+pinned so mobile tooling is not excepted. `audit-ci` continues to fail on every
+other moderate-or-higher advisory or any newly introduced path. Remove the
+exceptions as soon as an official patched `image-size` release is available; do
+not replace them with module-wide allowlisting, a forced downgrade, or an
+unpublished fork.
 
 ## Maintenance rules
 
