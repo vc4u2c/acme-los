@@ -1,10 +1,10 @@
-name: Deploy Staging
+name: Promote Staging (Demo)
 
 on:
   workflow_call:
     inputs:
       artifact_name:
-        description: Artifact name to deploy
+        description: Artifact name to promote in the demo
         required: true
         type: string
       artifact_run_id:
@@ -19,16 +19,31 @@ on:
 
 jobs:
   deploy_stg:
-    name: Deploy To Staging
-    uses: ./.github/workflows/deploy-web-environment.yml
+    name: Promote To Staging (Simulation)
+    runs-on: ubuntu-latest
+    environment:
+      name: stg
     permissions:
-      id-token: write
-      actions: read
       contents: read
-    secrets: inherit
-    with:
-      environment_name: stg
-      artifact_name: ${{ inputs.artifact_name }}
-      artifact_run_id: ${{ inputs.artifact_run_id }}
-      source_ref: ${{ inputs.source_ref }}
-      bicep_parameter_file: infra/azure/bicep/stg.bicepparam
+
+    steps:
+      - name: Record staging promotion simulation
+        shell: bash
+        env:
+          ARTIFACT_NAME: ${{ inputs.artifact_name }}
+          ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          echo "SIMULATION ONLY: no staging infrastructure or application was changed."
+          echo "Approved artifact: ${ARTIFACT_NAME}"
+          echo "Source CI run: ${ARTIFACT_RUN_ID}"
+          echo "Source commit: ${SOURCE_REF}"
+          {
+            echo "## Staging Promotion (Simulation)"
+            echo ""
+            echo "- Result: approved and recorded"
+            echo "- Cloud changes: none"
+            echo "- Artifact: \`${ARTIFACT_NAME}\`"
+            echo "- Source CI run: \`${ARTIFACT_RUN_ID}\`"
+            echo "- Source commit: \`${SOURCE_REF}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

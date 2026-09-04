@@ -35,10 +35,16 @@ Current observed state:
 Current deployment wiring:
 
 - main CI completion triggers CD into `dev`
-- `deploy-qa.yml`, `deploy-stg.yml`, and `deploy-prod.yml` exist as reusable
-  workflow wrappers
-- automatic or manually dispatched promotion beyond `dev` still needs an
-  orchestrating workflow before higher environments become a routine lane
+- `promote-web.yml` manually resolves a successful main CI artifact and performs
+  a real deployment to `dev`
+- after Dev succeeds, `deploy-qa.yml`, `deploy-stg.yml`, and `deploy-prod.yml`
+  run sequentially behind their existing required-reviewer gates
+- those three higher-environment wrappers are explicitly simulation-only: they
+  record artifact provenance in the console and job summary and receive no Azure
+  permissions or secrets
+- converting a higher environment to a real target requires an intentional code
+  change, infrastructure readiness review, and replacement of its simulation
+  wrapper
 
 Recommended environment meaning:
 

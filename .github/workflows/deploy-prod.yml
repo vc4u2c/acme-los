@@ -1,10 +1,10 @@
-name: Deploy Production
+name: Promote Production (Demo)
 
 on:
   workflow_call:
     inputs:
       artifact_name:
-        description: Artifact name to deploy
+        description: Artifact name to promote in the demo
         required: true
         type: string
       artifact_run_id:
@@ -19,16 +19,31 @@ on:
 
 jobs:
   deploy_prod:
-    name: Deploy To Production
-    uses: ./.github/workflows/deploy-web-environment.yml
+    name: Promote To Production (Simulation)
+    runs-on: ubuntu-latest
+    environment:
+      name: prod
     permissions:
-      id-token: write
-      actions: read
       contents: read
-    secrets: inherit
-    with:
-      environment_name: prod
-      artifact_name: ${{ inputs.artifact_name }}
-      artifact_run_id: ${{ inputs.artifact_run_id }}
-      source_ref: ${{ inputs.source_ref }}
-      bicep_parameter_file: infra/azure/bicep/prod.bicepparam
+
+    steps:
+      - name: Record production promotion simulation
+        shell: bash
+        env:
+          ARTIFACT_NAME: ${{ inputs.artifact_name }}
+          ARTIFACT_RUN_ID: ${{ inputs.artifact_run_id }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          echo "SIMULATION ONLY: no production infrastructure or application was changed."
+          echo "Approved artifact: ${ARTIFACT_NAME}"
+          echo "Source CI run: ${ARTIFACT_RUN_ID}"
+          echo "Source commit: ${SOURCE_REF}"
+          {
+            echo "## Production Promotion (Simulation)"
+            echo ""
+            echo "- Result: approved and recorded"
+            echo "- Cloud changes: none"
+            echo "- Artifact: \`${ARTIFACT_NAME}\`"
+            echo "- Source CI run: \`${ARTIFACT_RUN_ID}\`"
+            echo "- Source commit: \`${SOURCE_REF}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
