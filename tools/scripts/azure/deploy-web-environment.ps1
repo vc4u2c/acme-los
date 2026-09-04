@@ -1469,7 +1469,6 @@ if (-not (Test-ContainerRegistryTagExists -SubscriptionId $resolvedSubscriptionI
       --file apps/web-app/Dockerfile `
       --build-arg "NEXT_PUBLIC_APP_ENVIRONMENT=$($environmentConfiguration.appEnvironmentName)" `
       --build-arg "NEXT_PUBLIC_APP_BUILD=$resolvedBuildId" `
-      --build-arg 'NEXT_PUBLIC_AUTH_PROVIDER=okta' `
       --build-arg "NEXT_PUBLIC_OKTA_ISSUER=$oktaIssuer" `
       --build-arg "NEXT_PUBLIC_ACME_THEME_COOKIE_DOMAIN=$themeCookieDomain" `
       --build-arg "NEXT_PUBLIC_ACME_ANALYTICS_ENABLED=$analyticsEnabledEnvValue" `
@@ -1555,7 +1554,6 @@ $runtimeDeploymentArguments = @(
   '--parameters', "userAssignedIdentityResourceId=$userAssignedIdentityResourceId",
   '--parameters', "userAssignedIdentityClientId=$userAssignedIdentityClientId",
   '--parameters', "appBuildId=$resolvedBuildId",
-  '--parameters', "authProvider=okta",
   '--parameters', "oktaEnvironmentName=$oktaEnvironmentName",
   '--parameters', "oktaIssuer=$oktaIssuer",
   '--parameters', "oktaOrgUrl=$oktaOrgUrl",

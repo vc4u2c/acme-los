@@ -28,7 +28,8 @@ directly to Okta; the browser never talks to backend storage details.
 The browser still talks to the same app-owned Next `/api/*` routes. The
 difference is server-side only: the Next facade delegates real Okta-backed
 auth/session, CSRF, customer profile, and application-flow routes to the `.NET`
-BFF. Explicit mock auth remains local and token-free for development fixtures.
+BFF. Playwright uses a test-only BFF fixture that exercises the same Next
+facade without adding a second authentication implementation to runtime code.
 
 When `bffRuntime.serviceAuth.mode=entra` is enabled in Azure, the same
 browser-facing contract remains stable. The Next facade adds a managed-identity

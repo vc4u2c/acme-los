@@ -39,7 +39,6 @@ const oktaAccountSecurityActions: Array<{
   actionId: AccountSecurityActionId;
   label: string;
   description: string;
-  cta: string;
   icon: LucideIcon;
 }> = [
   {
@@ -47,21 +46,18 @@ const oktaAccountSecurityActions: Array<{
     label: 'Change password',
     description:
       'Confirm your current password and a code sent by text message.',
-    cta: 'Change password',
     icon: KeyRound,
   },
   {
     actionId: 'change-email',
     label: 'Change email',
     description: 'Confirm your password and phone, then verify the new email.',
-    cta: 'Change email',
     icon: Mail,
   },
   {
     actionId: 'change-phone',
     label: 'Change phone',
     description: 'Confirm your password and email, then verify the new phone.',
-    cta: 'Change phone',
     icon: Phone,
   },
 ];

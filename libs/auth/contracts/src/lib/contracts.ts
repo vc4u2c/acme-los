@@ -1,5 +1,3 @@
-export type AuthProviderKind = 'mock' | 'okta';
-
 export type AuthStatus =
   | 'loading'
   | 'authenticated'
@@ -34,7 +32,7 @@ export interface AuthUser {
 }
 
 export interface AuthSession {
-  provider: AuthProviderKind;
+  provider: 'okta';
   status: AuthStatus;
   isAuthenticated: boolean;
   assuranceLevel: AuthAssuranceLevel;

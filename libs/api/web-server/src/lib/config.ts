@@ -1,5 +1,3 @@
-export type WebAuthProviderMode = 'mock' | 'okta';
-
 export interface OktaServerAuthConfig {
   issuer: string;
   clientId: string;
@@ -12,7 +10,6 @@ export interface OktaServerAuthConfig {
 }
 
 export interface ServerWebAuthConfig {
-  provider: WebAuthProviderMode;
   okta?: OktaServerAuthConfig;
   configurationError?: string;
 }
@@ -44,20 +41,6 @@ function getServerBooleanConfigValue(
 }
 
 export function getServerWebAuthConfig(): ServerWebAuthConfig {
-  const requestedProvider = getServerConfigValue('ACME_AUTH_PROVIDER');
-
-  if (requestedProvider === 'mock') {
-    return { provider: 'mock' };
-  }
-
-  if (requestedProvider && requestedProvider !== 'okta') {
-    return {
-      provider: 'okta',
-      configurationError:
-        'Set ACME_AUTH_PROVIDER=okta for the IDX auth flow or ACME_AUTH_PROVIDER=mock only for explicit test and demo scenarios.',
-    };
-  }
-
   const issuer = getServerConfigValue('ACME_OKTA_ISSUER');
   const clientId = getServerConfigValue('ACME_OKTA_CLIENT_ID');
   const redirectUri = getServerConfigValue('ACME_OKTA_REDIRECT_URI');
@@ -67,16 +50,14 @@ export function getServerWebAuthConfig(): ServerWebAuthConfig {
 
   if (!issuer || !clientId || !redirectUri || !postLogoutRedirectUri) {
     return {
-      provider: 'okta',
       configurationError:
         process.env.NODE_ENV === 'production'
-          ? 'Set ACME_AUTH_PROVIDER=okta and provide the required ACME_OKTA_* values before deploying.'
+          ? 'Provide the required ACME_OKTA_* values before deploying.'
           : 'Okta auth config is missing. Run "npm run okta:render -- dev" before starting the web app.',
     };
   }
 
   return {
-    provider: 'okta',
     okta: {
       issuer,
       clientId,

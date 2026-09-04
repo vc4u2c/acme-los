@@ -27,7 +27,8 @@ The BFF is real and source-owned:
 
 The browser contract remains unchanged: browser code calls the Next `/api/*`
 facade, and the Next server layer delegates real Okta-backed behavior to the
-BFF. Explicit mock auth remains local for development and Playwright fixtures.
+BFF. Playwright uses an isolated BFF fixture; the web runtime has one Okta IDX
+authentication path.
 
 ## Implemented Endpoint Surface
 

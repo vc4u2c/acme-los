@@ -170,8 +170,8 @@ Current bridge decision:
   the allowed web managed identity before `/bff/*` routes run
 - IDX start/completion, session read/touch/clear, requirement checks, and logout
   hints are BFF-owned for real Okta auth; Next remains the browser facade for
-  the public redirect URLs, final `Set-Cookie` emission, and mock-auth
-  development fixtures
+  the public redirect URLs and final `Set-Cookie` emission; browser E2E uses a
+  test-only BFF fixture
 - `GET /api/security/csrf` remains browser-facing on the stable Next facade; in
   real Okta mode it delegates issuance to `/bff/security/csrf` and relays the
   BFF cookie back to the browser
@@ -268,8 +268,7 @@ Definition of done:
   exchange, and id-token validation for real Okta auth
 - session storage, lookup, touch, requirement checks, and logout hints are stable
 - funding step-up rules are preserved
-- the dev-only security inspector reads BFF state for real Okta auth and a
-  token-free local snapshot for explicit mock auth
+- the dev-only security inspector reads BFF-owned Okta auth state
 - the Next layer stays a route shell and UX boundary, not the long-term auth
   engine
 

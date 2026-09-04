@@ -1,214 +1,64 @@
 ---
 name: frontend-design
-description: Create distinctive, production-grade frontend interfaces with high design quality. Use when the user asks to build or refine web components, pages, app shells, or Figma-driven UI and the visual direction matters as much as the code quality.
-origin: ECC
+description: Plan, implement, and visually verify distinctive production-grade ACME LOS web and mobile interfaces. Use for pages, app shells, dashboards, account and application journeys, responsive layout, design-system changes, screenshots, reference-driven UI, or refinements where visual quality, accessibility, and product behavior matter together.
 ---
 
 # Frontend Design
 
-Use this when the task is not just "make it work" but "make it feel designed."
+Create calm, precise lending experiences that feel intentionally designed without turning operational workflows into generic marketing UI.
 
-This skill is for product pages, dashboards, app shells, components, and
-visual systems that need clear art direction, strong hierarchy, and responsive
-polish instead of generic AI-looking UI.
+## Read Before Designing
 
-## When To Use
+1. Run `npm.cmd run harness:context`.
+2. For web work, read `apps/web-app/AGENTS.md`, `docs/architecture/visual-design-system.md`, the affected route and adjacent journey, shared components, and `apps/web-app/src/app/global.css`.
+3. Read relevant version-pinned Next.js documentation under `node_modules/next/dist/docs/` before changing framework behavior.
+4. Inspect every supplied screenshot, video, or design reference. Extract composition, hierarchy, material, typography, spacing, and interaction intent; do not copy a third-party layout or asset literally.
 
-- building a landing page, dashboard, showcase, or app surface from scratch
-- upgrading a bland interface into something intentional and memorable
-- translating a product concept or screenshot into a concrete visual direction
-- implementing Figma- or reference-driven UI where fidelity and polish matter
-- refining hierarchy, spacing, typography, or motion on an existing frontend
+## Frame The Design
 
-## Working Model
+Before coding, state:
 
-Before coding, write three things:
+- **visual thesis:** one sentence for mood, material, and energy;
+- **content hierarchy:** the one job and takeaway for each section or workspace region; and
+- **interaction thesis:** no more than three interactions that improve orientation, trust, or action.
 
-- visual thesis: one sentence describing mood, material, and energy
-- content plan: hero, support, detail, final CTA, or the equivalent screen flow
-- interaction thesis: 2-3 motion or state ideas that change the feel of the UI
+Name the visual vocabulary explicitly and reject generic patterns that conflict with it. Choose one dominant visual or workspace anchor, preserve intentional negative space, and remove elements that do not improve comprehension.
 
-Each section gets one job, one dominant visual idea, and one primary takeaway
-or action.
+## Compose For The Product
 
-## ACME LOS Stack Defaults
+- Treat each viewport as one composition with a clear primary action and readable planes.
+- For application, funding, profile, and security screens, favor a primary workspace plus necessary context. Keep them restrained, scan-friendly, and predictable.
+- Use cards only for repeated items, modals, or genuinely framed tools. Do not nest cards or make page sections float by default.
+- Reserve display type for real page-level moments. Use compact headings and stable dimensions inside forms, dashboards, sidebars, inspectors, boards, and toolbars.
+- Use familiar icons for tool actions and clear text or icon-plus-text for business commands. Add tooltips to unfamiliar icon-only controls.
+- Keep authentication and recovery focused on the current remediation. Preserve explicit OTP actions, business-friendly labels, useful validation, and a dependable Sign in route.
+- Do not add decorative orbs, one-note palettes, generic SaaS hero mosaics, or visual effects that obscure lending content or security state.
 
-Use the existing platform before inventing new UI primitives:
+## Implement In The Existing Stack
 
-- Web app:
-  - `apps/web-app` is Next.js with App Router.
-  - Styling is Tailwind CSS plus repo CSS variables in
-    `apps/web-app/src/app/global.css`.
-  - Prefer components from `@acme-los/ui-web`, which wraps the repo's
-    shadcn/Radix-style primitives.
-  - Keep server components as the default and create client islands only for
-    browser state, effects, or event handlers.
-- Mobile app:
-  - `apps/mobile-app` is Expo / React Native.
-  - Styling should align with NativeWind and the shared mobile UI layer under
-    `libs/ui/mobile`.
-  - Gluestack UI packages are available; use them when they match existing
-    mobile patterns instead of hand-rolling primitive behavior.
-- Cross-platform:
-  - Preserve the ACME LOS visual direction across web and mobile, but do not
-    force web-only layout or Radix assumptions into React Native.
-  - Keep copy, spacing, and state treatment aligned so web and mobile feel like
-    the same lending product.
+- Keep Next.js pages and layouts as Server Components by default. Add the smallest Client Component island for browser state, event handlers, Auth JS, animation, canvas, or Three.js.
+- Reuse `@acme-los/ui-web`, Tailwind utilities, CSS variables, shared shells, Lucide icons, and semantic HTML before adding dependencies or primitives.
+- Preserve BFF ownership of identity, assurance, customer scope, sensitive mutations, and minimized DTOs. Visual work must not weaken server boundaries.
+- For mobile, reuse the Expo, NativeWind, and shared mobile UI patterns without forcing web-only layout or Radix assumptions into React Native.
+- Use optimized raster assets for inspectable product imagery and code-native geometry for diagrams. Record asset provenance and never use customer documents or personal data as generation input.
+- Honor reduced motion and keep animation limited to hierarchy, orientation, or causal feedback.
 
-## Design Workflow
+## State Matrix
 
-### 1. Frame the interface first
+Design and verify:
 
-Settle:
+- default, hover, focus, active, selected, and disabled controls;
+- loading, empty, validation, pending, success, timeout, stale-session, and service-error states;
+- realistic long names, email addresses, phone values, identifiers, and error copy;
+- keyboard order, visible focus, semantic names, contrast, touch targets, and reduced motion;
+- light and dark themes where the route supports both.
 
-- purpose
-- audience
-- emotional tone
-- visual direction
-- the one thing the user should remember
+## Visual Verification
 
-Do not mix directions casually. Choose one and execute it cleanly.
+1. Start the real app or production-equivalent Playwright server.
+2. Capture full-page desktop and mobile screenshots for the changed route and adjacent transitions.
+3. Compare screenshots with the visual thesis and reference. Inspect overlap, clipping, text fit, safe negative space, hierarchy, and primary-action clarity.
+4. Exercise the state matrix and supported browser projects. For canvas or 3D, also verify nonblank pixels, framing, motion, input, and fallback behavior.
+5. Run the applicable build, accessibility, and Playwright gates. Do not call a material visual change complete from type checking or unit tests alone.
 
-### 2. Start from composition, not components
-
-Prefer:
-
-- one strong visual anchor in the first viewport
-- a full-bleed hero or dominant visual plane for brand-led pages
-- a primary workspace plus supporting context for product UI
-- whitespace, alignment, scale, cropping, and contrast before extra chrome
-
-Treat the first viewport like a poster, not a document.
-
-### 3. Build the visual system
-
-Define:
-
-- type hierarchy
-- color variables
-- spacing rhythm
-- layout logic
-- motion rules
-- surface, border, and shadow treatment
-
-Use the project's token system and existing CSS variables so the interface
-stays coherent as it grows.
-
-### 4. Reuse the design system before creating new primitives
-
-Prefer existing buttons, inputs, typography, cards, icons, and layout wrappers.
-
-When reference material or design output suggests literal values:
-
-- treat the output as design intent, not final code style
-- map colors, spacing, radii, and type to project tokens
-- extend existing components instead of cloning them
-- avoid hardcoded values unless the repo truly has no token for the job
-
-### 5. Make motion intentional
-
-Ship a small number of meaningful motions:
-
-- one entrance sequence or reveal
-- one scroll, sticky, or depth effect when the page benefits from it
-- one hover, reveal, or transition that sharpens affordance
-
-Motion should improve hierarchy, not decorate it.
-
-### 6. Validate visually, not just structurally
-
-Before finishing:
-
-- compare against screenshots, Figma captures, or the existing product
-- verify the layout at desktop and mobile sizes
-- check tap targets, contrast, and text fit
-- confirm states such as hover, active, disabled, open, and loading
-
-When visual references exist, they are the source of truth for layout and
-feel. Translate them into repo conventions rather than copying them blindly.
-
-## Strong Defaults
-
-### Landing Pages
-
-Default sequence:
-
-1. Hero: brand or product, promise, CTA, and one dominant visual
-2. Support: one concrete feature, offer, or proof point
-3. Detail: workflow, atmosphere, product depth, or story
-4. Final CTA: convert, start, contact, or continue
-
-Hero rules:
-
-- one composition only
-- full-bleed image or dominant visual plane
-- constrain the inner text column, not the hero itself
-- brand first, headline second, body third, CTA fourth
-- no hero cards, stat strips, logo clouds, or floating dashboard clutter by
-  default
-
-### Product UI
-
-Default to restrained, dense, readable product surfaces:
-
-- calm surface hierarchy
-- strong typography and spacing
-- few colors
-- minimal chrome
-- cards only when the card itself is the interaction
-
-Organize around:
-
-- primary workspace
-- navigation
-- secondary context or inspector
-- one clear accent for action or state
-
-### Figma And Visual References
-
-When the task is driven by Figma, screenshots, or another UI reference:
-
-- fetch or inspect the design context before building
-- capture a visual reference and keep it available during implementation
-- reuse the design system's components, variables, and styles instead of
-  redrawing primitives
-- validate side-by-side before calling the work done
-
-For code output, favor project components and tokens over literal translation.
-For design output, favor linked design-system instances over raw shapes.
-
-## Anti-Patterns
-
-Never default to:
-
-- interchangeable SaaS hero sections
-- boxed or center-column heroes when the brief calls for full bleed
-- generic card mosaics as the first impression
-- random accent colors without a system
-- placeholder-feeling typography
-- decorative gradients or textures doing no narrative work
-- motion that exists only because animation was easy to add
-
-## Execution Rules
-
-- preserve the established design system when working inside an existing product
-- match technical complexity to the visual idea
-- keep accessibility and responsiveness intact
-- frontends should feel deliberate on desktop and mobile
-- if a panel can become plain layout without losing meaning, remove the card
-  treatment
-- if deleting 30 percent of the copy improves the page, keep deleting
-
-## Quality Gate
-
-Before delivering:
-
-- the interface has a clear visual point of view
-- the brand or product is unmistakable in the first screen when relevant
-- there is one strong visual anchor
-- typography and spacing feel intentional
-- color and motion support the product instead of decorating it randomly
-- each section has one job
-- cards are used because they are necessary, not because they are easy
-- the result does not read like generic AI UI
-- the implementation is production-grade, not just visually interesting
+Deliver the implemented outcome, visual decisions, viewport evidence, checks run, and any untested browser, device, or accessibility boundary.

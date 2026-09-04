@@ -13,7 +13,6 @@ jest.mock('@azure/identity', () => ({
 }));
 
 describe('auth session route', () => {
-  const originalAuthProvider = process.env.ACME_AUTH_PROVIDER;
   const originalBaseUrl = process.env.ACME_BFF_BASE_URL;
   const originalTrustedProxySecret = process.env.ACME_BFF_TRUSTED_PROXY_SECRET;
   const originalServiceAuthMode = process.env.ACME_BFF_SERVICE_AUTH_MODE;
@@ -28,12 +27,6 @@ describe('auth session route', () => {
   });
 
   afterEach(() => {
-    if (originalAuthProvider === undefined) {
-      delete process.env.ACME_AUTH_PROVIDER;
-    } else {
-      process.env.ACME_AUTH_PROVIDER = originalAuthProvider;
-    }
-
     if (originalBaseUrl === undefined) {
       delete process.env.ACME_BFF_BASE_URL;
     } else {
@@ -64,25 +57,7 @@ describe('auth session route', () => {
     jest.restoreAllMocks();
   });
 
-  it('keeps explicit mock-provider session reads local', async () => {
-    process.env.ACME_AUTH_PROVIDER = 'mock';
-    const fetchSpy = jest.fn();
-
-    global.fetch = fetchSpy as typeof fetch;
-
-    const response = await GET(
-      new NextRequest('https://los.example.test/api/auth/session'),
-    );
-    const payload = await response.json();
-
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(payload.session.isAuthenticated).toBe(false);
-    expect(payload.session.status).toBe('unauthenticated');
-    expect(payload.session.provider).toBe('mock');
-  });
-
   it('delegates Okta session reads to the BFF', async () => {
-    delete process.env.ACME_AUTH_PROVIDER;
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     const fetchSpy = jest.fn<typeof fetch>().mockResolvedValue(
@@ -126,7 +101,6 @@ describe('auth session route', () => {
   });
 
   it('adds service identity auth when delegated session reads call the BFF', async () => {
-    delete process.env.ACME_AUTH_PROVIDER;
     process.env.ACME_BFF_BASE_URL = 'http://bff.example.test';
     process.env.ACME_BFF_TRUSTED_PROXY_SECRET = 'proxy-secret-123';
     process.env.ACME_BFF_SERVICE_AUTH_MODE = 'entra';

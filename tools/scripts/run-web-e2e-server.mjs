@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { cpSync, existsSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -79,46 +80,5 @@ copyDirectory(
 );
 copyDirectory(join(webAppRoot, 'public'), join(standaloneWebAppRoot, 'public'));
 
-const server = spawn(process.execPath, [standaloneServer], {
-  cwd: standaloneWebAppRoot,
-  env: process.env,
-  shell: false,
-  stdio: 'ignore',
-});
-
-let shutdownRequested = false;
-
-function requestShutdown(signal) {
-  if (shutdownRequested) {
-    return;
-  }
-
-  shutdownRequested = true;
-  server.kill(signal);
-
-  setTimeout(() => {
-    process.exit(0);
-  }, 5000).unref();
-}
-
-for (const signal of ['SIGINT', 'SIGTERM']) {
-  process.on(signal, () => {
-    requestShutdown(signal);
-  });
-}
-
-server.on('error', (error) => {
-  throw error;
-});
-
-server.on('exit', (code, signal) => {
-  if (shutdownRequested) {
-    process.exit(0);
-  }
-
-  if (signal) {
-    process.exit(1);
-  }
-
-  process.exit(code ?? 0);
-});
+process.chdir(standaloneWebAppRoot);
+createRequire(import.meta.url)(standaloneServer);

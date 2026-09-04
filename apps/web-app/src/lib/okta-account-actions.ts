@@ -1,3 +1,5 @@
+import { buildIdxJourneyUrl } from './idx-journey-routes';
+
 export type AccountSecurityActionId =
   | 'password'
   | 'change-email'
@@ -29,10 +31,5 @@ export function buildAccountSecurityStepUpUrl(
 export function buildPasswordRecoveryUrl(
   returnTo = '/account/profile?account_action=password',
 ): string {
-  const searchParams = new URLSearchParams({
-    returnTo,
-    flow: 'recoverPassword',
-  });
-
-  return `/account/sign-in?${searchParams.toString()}`;
+  return buildIdxJourneyUrl('recoverPassword', returnTo);
 }

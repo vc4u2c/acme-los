@@ -2,20 +2,12 @@ import type { WebAuthSession } from '@acme-los/api/contracts';
 import type { NextRequest } from 'next/server';
 import type { SessionCookiePayload } from './auth-session';
 import type { WebAuthTransactionCookiePayload } from './auth-transaction-cookie';
-import { readSessionCookiePayload } from './auth-session';
 import {
   BFF_TRUSTED_PROXY_SECRET_HEADER,
   getBffBaseUrlOrThrow,
   getBffTrustedProxySecret,
 } from './bff-config';
 import { getBffServiceAuthorizationHeader } from './bff-service-auth';
-import {
-  AUTH_SESSION_COOKIE_NAME,
-  AUTH_TRANSACTION_COOKIE_NAME,
-} from './cookies';
-import { getServerWebAuthConfig } from './config';
-import { readWebAuthTransactionCookie } from './auth-transaction-cookie';
-import { getWebStateStoreMode } from './state-store';
 
 type SecurityInspectorTokenSnapshot = {
   raw: string | null;
@@ -40,7 +32,7 @@ type SecurityInspectorStoredSessionSnapshot = {
 };
 
 export type SecurityInspectorServerSnapshot = {
-  provider: 'mock' | 'okta';
+  provider: 'okta';
   stateStoreMode: 'file' | 'redis' | 'in-memory';
   configurationError?: string;
   generatedAt: string;
@@ -129,35 +121,5 @@ async function readBffSecurityInspectorServerSnapshot(
 export async function readSecurityInspectorServerSnapshot(
   request: NextRequest,
 ): Promise<SecurityInspectorServerSnapshot> {
-  const authConfig = getServerWebAuthConfig();
-
-  if (authConfig.provider !== 'mock') {
-    return readBffSecurityInspectorServerSnapshot(request);
-  }
-
-  const authSessionCookie = request.cookies.get(
-    AUTH_SESSION_COOKIE_NAME,
-  )?.value;
-  const authSessionCookiePayload = readSessionCookiePayload(authSessionCookie);
-
-  return {
-    provider: authConfig.provider,
-    stateStoreMode: getWebStateStoreMode(),
-    configurationError: authConfig.configurationError,
-    generatedAt: new Date().toISOString(),
-    requestCookies: request.cookies
-      .getAll()
-      .map((cookie) => ({
-        key: cookie.name,
-        value: cookie.value,
-      }))
-      .sort((left, right) => left.key.localeCompare(right.key)),
-    decodedCookies: {
-      authSession: authSessionCookiePayload,
-      authTransaction: request.cookies.has(AUTH_TRANSACTION_COOKIE_NAME)
-        ? readWebAuthTransactionCookie(request)
-        : null,
-    },
-    storedSession: null,
-  };
+  return readBffSecurityInspectorServerSnapshot(request);
 }

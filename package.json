@@ -14,6 +14,7 @@
     "agents:verify": "node tools/scripts/agents/verify-agent-system.mjs && node tools/scripts/agents/authoritative-sources.mjs --check",
     "sources:show": "node tools/scripts/agents/authoritative-sources.mjs",
     "sources:verify": "node tools/scripts/agents/authoritative-sources.mjs --check",
+    "harness:context": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/workspace/show-context.ps1",
     "redis:up": "nx run web-app:redis-up",
     "redis:down": "nx run web-app:redis-down",
     "web:dev:redis": "nx run web-app:dev-redis",

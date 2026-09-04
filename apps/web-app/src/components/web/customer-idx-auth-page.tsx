@@ -35,6 +35,7 @@ import {
   shouldAutoAdvanceInitialIdxStep,
   type IdxJourneyFlow,
 } from '../../lib/idx-experience';
+import { buildIdxJourneyUrl } from '../../lib/idx-journey-routes';
 import { CustomerAuthFooter } from './customer-auth-footer';
 import { CustomerAuthHeader } from './customer-auth-header';
 
@@ -43,7 +44,7 @@ type FormValue = string | boolean;
 type CustomerIdxAuthPageProps = {
   returnTo: string;
   minimumAssuranceLevel: 'aal1' | 'aal2';
-  flow?: IdxJourneyFlow;
+  flow: IdxJourneyFlow;
   errorMessage?: string;
   postChange?: boolean;
 };
@@ -338,19 +339,17 @@ function getFlowIdentifier(flow: IdxJourneyFlow) {
 }
 
 function getSignInHref(returnTo: string): string {
-  const searchParams = new URLSearchParams({ returnTo });
-  return `/account/sign-in?${searchParams.toString()}`;
+  return buildIdxJourneyUrl('authenticate', returnTo);
 }
 
 function getFlowHref(flow: IdxJourneyFlow, returnTo: string): string {
-  const searchParams = new URLSearchParams({ returnTo, flow });
-  return `/account/sign-in?${searchParams.toString()}`;
+  return buildIdxJourneyUrl(flow, returnTo);
 }
 
 export function CustomerIdxAuthPage({
   returnTo,
   minimumAssuranceLevel,
-  flow = 'authenticate',
+  flow,
   errorMessage,
   postChange = false,
 }: CustomerIdxAuthPageProps): React.ReactElement {

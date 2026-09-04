@@ -97,6 +97,7 @@ describe('CustomerIdxAuthPage', () => {
       <CustomerIdxAuthPage
         returnTo="/apply/personal-info"
         minimumAssuranceLevel="aal1"
+        flow="authenticate"
       />,
     );
 
@@ -114,6 +115,7 @@ describe('CustomerIdxAuthPage', () => {
           { name: 'firstName', required: true },
           { name: 'lastName', required: true },
           { name: 'email', required: true },
+          { name: 'acmeState', required: true },
         ],
       },
     });
@@ -138,6 +140,10 @@ describe('CustomerIdxAuthPage', () => {
     );
 
     expect(await screen.findByLabelText(/first name/i)).toBeTruthy();
+    expect(screen.getByLabelText(/last name/i)).toBeTruthy();
+    expect(screen.getByLabelText(/^email$/i)).toBeTruthy();
+    expect(screen.getByLabelText(/^state$/i)).toBeTruthy();
+    expect(screen.queryByLabelText(/mobile phone/i)).toBeNull();
     expect(selectEnrollmentProfile).toHaveBeenCalledTimes(1);
     expect(proceed).not.toHaveBeenCalled();
   });
@@ -147,6 +153,7 @@ describe('CustomerIdxAuthPage', () => {
       <CustomerIdxAuthPage
         returnTo="/apply/personal-info"
         minimumAssuranceLevel="aal1"
+        flow="authenticate"
       />,
     );
 
@@ -172,6 +179,53 @@ describe('CustomerIdxAuthPage', () => {
         }) as HTMLButtonElement
       ).disabled,
     ).toBe(false);
+  });
+
+  it('keeps both registration sign-in links usable after an existing-email error', async () => {
+    const selectEnrollmentProfile = jest.fn().mockResolvedValue({
+      status: IdxStatus.PENDING,
+      nextStep: {
+        name: 'enroll-profile',
+        inputs: [{ name: 'email', required: true }],
+      },
+    });
+    start.mockResolvedValue({
+      status: IdxStatus.PENDING,
+      availableSteps: [
+        {
+          name: 'select-enroll-profile',
+          inputs: [],
+          action: selectEnrollmentProfile,
+        },
+      ],
+    });
+    proceed.mockRejectedValue(
+      new Error('A user with this email already exists'),
+    );
+
+    render(
+      <CustomerIdxAuthPage
+        returnTo="/apply/personal-info"
+        minimumAssuranceLevel="aal1"
+        flow="register"
+      />,
+    );
+
+    fireEvent.change(await screen.findByLabelText(/^email$/i), {
+      target: { value: 'existing@example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }));
+
+    expect(
+      await screen.findByText(/account with this email already exists/i),
+    ).toBeTruthy();
+    const signInLinks = screen.getAllByRole('link', { name: /^sign in$/i });
+    expect(signInLinks).toHaveLength(2);
+    for (const signInLink of signInLinks) {
+      expect(signInLink.getAttribute('href')).toBe(
+        '/account/sign-in?returnTo=%2Fapply%2Fpersonal-info',
+      );
+    }
   });
 
   it('shows password before the opposite factor for an email change', async () => {
@@ -233,6 +287,7 @@ describe('CustomerIdxAuthPage', () => {
       <CustomerIdxAuthPage
         returnTo="/account/security/email"
         minimumAssuranceLevel="aal2"
+        flow="authenticate"
       />,
     );
 
@@ -257,6 +312,7 @@ describe('CustomerIdxAuthPage', () => {
       <CustomerIdxAuthPage
         returnTo="/account/profile"
         minimumAssuranceLevel="aal2"
+        flow="authenticate"
         postChange
       />,
     );

@@ -10,6 +10,8 @@ Use this skill with the `verification-loop` skill. GitHub work is not done when 
 ## Local Before PR
 
 - Check `git status --short --branch` first and preserve unrelated user work.
+- Stage explicit paths. Do not use `git add -A` in a mixed working tree.
+- Split materially different concerns into coherent commits when that makes review and rollback clearer. Keep all commits buildable and let normal Git hooks run.
 - Run the verification sweep that matches the change risk:
   - narrow change: `prettier`, `lint`, `test`
   - web/auth/session: add `web-app:build` and `web-app-e2e:e2e`
@@ -20,7 +22,9 @@ Use this skill with the `verification-loop` skill. GitHub work is not done when 
 
 ## PR Checks
 
-- Use `gh pr checks --watch` or `gh run watch` for live checks.
+- Open a draft PR with behavior, security boundaries, verification evidence, and deployment status stated separately.
+- Use the connected GitHub app when available; use `gh pr checks --watch` or `gh run watch` as the CLI path.
+- Inspect the actual run and job state. Report queued, in progress, failed, and completed accurately; do not call an active dependency installation a hang without evidence.
 - If a check fails, inspect logs before editing.
 - Do not guess from a red check name when logs are available.
 - Keep Node/action deprecation warnings separate from blocking failures.
@@ -44,12 +48,13 @@ Use this shape when the user says "promote", "merge", "how is CD", or "delete lo
 
 1. Confirm `git status --short --branch` and avoid mixing unrelated local edits.
 2. Run or confirm the verification sweep that matches the change.
-3. Open or update the PR with a concise summary and verification notes.
-4. Watch PR checks before merge.
-5. Squash merge after required checks pass.
-6. Watch main CI/CD when deployment is in scope.
-7. Verify `/api/health` for `version`, `build`, `environment`, and BFF layer status when Azure deploys.
-8. Sync local `main` and delete local feature branches only after the branch is merged or intentionally abandoned.
+3. Curate explicit staged paths and coherent commits without absorbing unrelated local edits.
+4. Open or update a draft PR with a concise summary, security behavior, verification notes, and an explicit deployment boundary.
+5. Watch PR checks before merge.
+6. Squash merge after required checks pass.
+7. Watch main CI/CD when deployment is in scope.
+8. Verify `/api/health` for `version`, `build`, `environment`, and BFF layer status when Azure deploys.
+9. Sync local `main` and delete local feature branches only after the branch is merged or intentionally abandoned.
 
 ## Deployment Artifact Checks
 

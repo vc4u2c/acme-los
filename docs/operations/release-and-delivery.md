@@ -170,8 +170,8 @@ Promotion smoke checks should validate the BFF-backed facade:
 - when `bffRuntime.serviceAuth.mode=entra` is enabled, the same smoke path must
   prove that Next can acquire the BFF token and the BFF accepts only the allowed
   caller identity
-- explicit mock auth remains the local/test-only fallback and should not be used
-  as a promotion substitute for the real BFF path
+- browser E2E uses its isolated BFF fixture; promotion still requires the real
+  Okta and BFF path in the target environment
 
 ## Current Operating Reality
 
