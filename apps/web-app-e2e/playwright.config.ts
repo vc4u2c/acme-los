@@ -35,6 +35,7 @@ const localWebServers = process.env['BASE_URL']
           ...process.env,
           ACME_BFF_BASE_URL: bffBaseURL,
           ACME_BFF_TRUSTED_PROXY_SECRET: trustedBffProxySecret,
+          ACME_ENABLE_SECURITY_INSPECTOR: 'true',
           ACME_OKTA_CLIENT_ID: 'e2e-client',
           ACME_OKTA_ISSUER: `${bffBaseURL}/oauth2/default`,
           ACME_OKTA_POST_LOGOUT_REDIRECT_URI: `${baseURL}/`,

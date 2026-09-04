@@ -80,6 +80,7 @@
     "@expo/cli": {
       "ws": "8.21.0"
     },
+    "@expo/metro": "55.1.1",
     "@expo/metro-config": {
       "ws": "7.5.11"
     },
@@ -137,6 +138,7 @@
     "patch-package": "^8.0.1",
     "postcss": "^8.5.14",
     "qs": "6.16.0",
+    "query-string": "9.5.1",
     "react-devtools-core": {
       "ws": "7.5.11"
     },
