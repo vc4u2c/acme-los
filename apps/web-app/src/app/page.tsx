@@ -108,7 +108,7 @@ export default function Index() {
         <div className="mx-auto max-w-5xl space-y-8 text-center">
           <div className="space-y-5">
             <p className="text-sm font-semibold uppercase tracking-[0.32em] text-[var(--brand)]">
-              Calm, clear, conversion-ready
+              Your next step starts here
             </p>
             <h1 className="mx-auto max-w-4xl font-display text-4xl leading-tight text-[var(--foreground)] sm:text-5xl lg:text-6xl">
               A steadier installment application that feels thoughtful before it
