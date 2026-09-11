@@ -7,8 +7,12 @@ param(
   [string]$SubscriptionId,
   [string]$PlatformSubscriptionId,
   [string]$ConfigurationPath,
+  [ValidateSet('show-plan', 'destroy')]
+  [string]$Action = 'show-plan',
+  [string]$ConfirmResourceGroup,
   [switch]$WaitForDeletion,
-  [switch]$PurgeDeletedKeyVault = $true,
+  [switch]$PurgeDeletedKeyVault,
+  [string]$ConfirmKeyVaultPurge,
   [switch]$AllowProductionTeardown
 )
 
@@ -33,6 +37,34 @@ function Get-JsonFile {
   return Get-Content -Raw -Path $Path | ConvertFrom-Json
 }
 
+function Invoke-TeardownAz {
+  param([string[]]$Arguments, [switch]$AllowMissingStack)
+
+  $previousPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $output = az @Arguments --only-show-errors 2>&1
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousPreference
+  }
+  if ($exitCode -ne 0) {
+    $message = [string]::Join([Environment]::NewLine, $output)
+    if ($AllowMissingStack -and $message -match '\((DeploymentStackNotFound|ResourceGroupNotFound)\)') { return $false }
+    throw "Azure teardown command failed. No further resources will be deleted.`n$message"
+  }
+  if ($AllowMissingStack) { return $true }
+  return $output
+}
+
+function Remove-TeardownStack {
+  param([string[]]$ScopeArguments)
+
+  if (Invoke-TeardownAz -Arguments (@('stack') + $ScopeArguments[0] + @('show') + $ScopeArguments[1..($ScopeArguments.Count - 1)] + @('--output', 'none')) -AllowMissingStack) {
+    Invoke-TeardownAz -Arguments (@('stack') + $ScopeArguments[0] + @('delete') + $ScopeArguments[1..($ScopeArguments.Count - 1)] + @('--action-on-unmanage', 'deleteResources', '--yes', '--output', 'none')) | Out-Null
+  }
+}
+
 function ConvertTo-ObjectArray {
   param($InputObject)
 
@@ -55,7 +87,7 @@ function Resolve-SubscriptionIdByDisplayName {
     [string]$FailureMessage
   )
 
-  $subscriptions = ConvertTo-ObjectArray (az account subscription list --output json | ConvertFrom-Json)
+  $subscriptions = ConvertTo-ObjectArray (Invoke-TeardownAz @('account', 'subscription', 'list', '--output', 'json') | ConvertFrom-Json)
   $subscription = @(
     $subscriptions |
       Where-Object { $_.displayName -eq $DisplayName } |
@@ -66,7 +98,7 @@ function Resolve-SubscriptionIdByDisplayName {
     return [string]$subscription[0].subscriptionId
   }
 
-  $entities = ConvertTo-ObjectArray (az account management-group entities list --output json | ConvertFrom-Json)
+  $entities = ConvertTo-ObjectArray (Invoke-TeardownAz @('account', 'management-group', 'entities', 'list', '--output', 'json') | ConvertFrom-Json)
   $entity = @(
     $entities |
       Where-Object {
@@ -189,45 +221,38 @@ $platformMonitoringStackName = Get-PlatformMonitoringStackName -Configuration $c
 $resourceGroupName = Get-WorkloadResourceGroupName -Configuration $configuration -EnvironmentName $EnvironmentName
 $keyVaultName = Get-KeyVaultName -Configuration $configuration -EnvironmentName $EnvironmentName
 
+if ($Action -eq 'show-plan') {
+  [ordered]@{
+    action = $Action
+    environmentName = $EnvironmentName
+    subscriptionId = $resolvedSubscriptionId
+    platformSubscriptionId = $resolvedPlatformSubscriptionId
+    resourceGroupName = $resourceGroupName
+    keyVaultName = $keyVaultName
+    keyVaultPurgeRequested = $PurgeDeletedKeyVault.IsPresent
+    destructive = $false
+    warning = 'Destroy deletes stack-managed workload resources, Redis data, and environment monitoring. It is not a reversible pause. Resource groups, unmanaged resources, shared registry, and shared DNS zones remain. Key Vault purge requires separate explicit confirmation.'
+  } | ConvertTo-Json -Depth 5
+  return
+}
+
+if ($ConfirmResourceGroup -cne $resourceGroupName) {
+  throw "Destroy requires -ConfirmResourceGroup '$resourceGroupName'. This permanently deletes application data; use pause for reversible hibernation."
+}
+if ($PurgeDeletedKeyVault -and $ConfirmKeyVaultPurge -cne $keyVaultName) {
+  throw "Key Vault purge requires -ConfirmKeyVaultPurge '$keyVaultName'. Secrets cannot be recovered after purge."
+}
 if ($EnvironmentName -eq 'prod' -and -not $AllowProductionTeardown.IsPresent) {
   throw 'Production teardown is blocked by default. Re-run with -AllowProductionTeardown only when you explicitly intend destructive cleanup.'
 }
 
-try {
-  az stack group show --subscription $resolvedSubscriptionId --name $resourceGroupStackName --resource-group $resourceGroupName --output none
-  az stack group delete --subscription $resolvedSubscriptionId --name $resourceGroupStackName --resource-group $resourceGroupName --action-on-unmanage deleteResources --yes --output none
-} catch {
-}
+Remove-TeardownStack @('group', '--subscription', $resolvedSubscriptionId, '--name', $resourceGroupStackName, '--resource-group', $resourceGroupName)
+Remove-TeardownStack @('group', '--subscription', $resolvedPlatformSubscriptionId, '--name', $platformWorkloadLinksStackName, '--resource-group', $platformNetworkResourceGroupName)
+Remove-TeardownStack @('group', '--subscription', $resolvedPlatformSubscriptionId, '--name', $platformMonitoringStackName, '--resource-group', $platformMonitorResourceGroupName)
+Remove-TeardownStack @('sub', '--subscription', $resolvedSubscriptionId, '--name', $subscriptionStackName)
 
-try {
-  az stack group show --subscription $resolvedPlatformSubscriptionId --name $platformWorkloadLinksStackName --resource-group $platformNetworkResourceGroupName --output none
-  az stack group delete --subscription $resolvedPlatformSubscriptionId --name $platformWorkloadLinksStackName --resource-group $platformNetworkResourceGroupName --action-on-unmanage deleteResources --yes --output none
-} catch {
-}
-
-try {
-  az stack group show --subscription $resolvedPlatformSubscriptionId --name $platformMonitoringStackName --resource-group $platformMonitorResourceGroupName --output none
-  az stack group delete --subscription $resolvedPlatformSubscriptionId --name $platformMonitoringStackName --resource-group $platformMonitorResourceGroupName --action-on-unmanage deleteResources --yes --output none
-} catch {
-}
-
-try {
-  az stack sub show --subscription $resolvedSubscriptionId --name $subscriptionStackName --output none
-  az stack sub delete --subscription $resolvedSubscriptionId --name $subscriptionStackName --action-on-unmanage deleteResources --yes --output none
-} catch {
-}
-
-$resourceGroupExists = az group exists --subscription $resolvedSubscriptionId --name $resourceGroupName --output tsv
-
-if ($resourceGroupExists -eq 'true' -and $WaitForDeletion.IsPresent) {
-  $attempt = 0
-
-  do {
-    Start-Sleep -Seconds 10
-    $attempt += 1
-    $resourceGroupExists = az group exists --subscription $resolvedSubscriptionId --name $resourceGroupName --output tsv
-  } while ($resourceGroupExists -eq 'true' -and $attempt -lt 60)
-}
+# Stack deletion is synchronous; deleteResources detaches resource groups rather than deleting them.
+$resourceGroupExists = Invoke-TeardownAz @('group', 'exists', '--subscription', $resolvedSubscriptionId, '--name', $resourceGroupName, '--output', 'tsv')
 
 $purgedKeyVault = $false
 
@@ -237,7 +262,7 @@ if ($PurgeDeletedKeyVault.IsPresent) {
   $maxAttempts = if ($WaitForDeletion.IsPresent) { 12 } else { 1 }
 
   do {
-    $deletedVaults = az keyvault list-deleted --query "[].{name:name, location:properties.location}" --output json | ConvertFrom-Json
+    $deletedVaults = Invoke-TeardownAz @('keyvault', 'list-deleted', '--subscription', $resolvedSubscriptionId, '--query', '[].{name:name, location:properties.location}', '--output', 'json') | ConvertFrom-Json
     $deletedVault = $deletedVaults | Where-Object { $_.name -eq $keyVaultName } | Select-Object -First 1
 
     if (-not $deletedVault -and $attempt -lt ($maxAttempts - 1)) {
@@ -248,7 +273,7 @@ if ($PurgeDeletedKeyVault.IsPresent) {
   } while (-not $deletedVault -and $attempt -lt $maxAttempts)
 
   if ($deletedVault) {
-    az keyvault purge --name $keyVaultName --location $deletedVault.location --output none
+    Invoke-TeardownAz @('keyvault', 'purge', '--subscription', $resolvedSubscriptionId, '--name', $keyVaultName, '--location', $deletedVault.location, '--output', 'none') | Out-Null
     $purgedKeyVault = $true
   }
 }

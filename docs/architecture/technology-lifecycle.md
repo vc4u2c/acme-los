@@ -11,7 +11,7 @@ until the relevant compatibility matrix and repository verification pass.
 | Node.js             | 24.19.0                       | Krypton LTS                         | `.nvmrc` and `package.json`             |
 | npm                 | 11.17.0                       | Node 24 bundled stable              | `package.json#packageManager`           |
 | .NET / ASP.NET Core | 10.0.10 packages on `net10.0` | LTS through November 2028           | `apps/bff-api/Directory.Packages.props` |
-| Next.js             | 16.3.0                        | Stable                              | `package-lock.json`                     |
+| Next.js             | 16.3.4                        | Stable                              | `package-lock.json`                     |
 | React               | 19.2.0                        | Stable, aligned to Expo SDK 55      | `package-lock.json`                     |
 | TypeScript          | 5.9.3                         | Stable                              | `package-lock.json`                     |
 | Nx                  | 22.7.8                        | Stable                              | `package-lock.json`                     |
@@ -47,6 +47,32 @@ script and package version are reviewed.
 - Major upgrades for Redis clients, Wolverine, Microsoft.OpenApi, xUnit,
   coverlet, and gluestack are behavior migrations. They require focused release
   review and tests instead of being folded into runtime servicing.
+
+## September 11 security servicing
+
+The current patch set updates Next.js and its ESLint packages to `16.3.4`,
+sharp to `0.35.4`, Hono to `4.13.7`, and both SVGO release lines to `3.3.5` and
+`4.1.0`. These cover the same package updates proposed in Dependabot PRs
+#126, #127, #129, and #130 without changing the Nx/Expo framework train.
+The existing `js-yaml` override advances to `4.3.2`.
+
+Two temporary overrides are constrained to their exact upstream owners:
+
+- `nx@22.7.8` pins `smol-toml@1.6.1`; use `1.8.0` for
+  [GHSA-7w5x-hrqm-74c2](https://github.com/advisories/GHSA-7w5x-hrqm-74c2).
+- `@module-federation/dts-plugin@2.8.2` pins `adm-zip@0.6.0`; use `0.6.1`
+  for [GHSA-vwc7-r8mq-g2x9](https://github.com/advisories/GHSA-vwc7-r8mq-g2x9).
+
+Both paths are development/build tooling. Remove each override when its owner
+adopts the patched dependency, and rerun audit, Nx graph/lint/tests, and the web
+build. Do not downgrade Nx or disable the audit to resolve its pinned packages.
+The install-script allowlist and security-exception policy remain unchanged.
+
+References: [Next.js 16.3.4](https://github.com/vercel/next.js/releases/tag/v16.3.4),
+[sharp advisory](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c),
+[js-yaml 4.3.2](https://github.com/nodeca/js-yaml/releases/tag/4.3.2),
+[smol-toml 1.8.0](https://github.com/squirrelchat/smol-toml/releases/tag/v1.8.0),
+and [adm-zip 0.6.1](https://github.com/cthackers/adm-zip/releases/tag/v0.6.1).
 
 ## Time-bound upstream security exception
 

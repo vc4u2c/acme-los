@@ -4,7 +4,7 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$EnvironmentName,
 
-  [ValidateSet('show-plan', 'pause', 'resume')]
+  [ValidateSet('show-plan', 'pause', 'pause-apps', 'hibernate', 'resume')]
   [string]$Action = 'show-plan',
 
   [string]$SubscriptionId,
@@ -17,6 +17,22 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+$requestedAction = $Action
+if ($Action -eq 'pause' -and $EnvironmentName -eq 'dev') {
+  $Action = 'hibernate'
+} elseif ($Action -eq 'pause-apps') {
+  $Action = 'pause'
+}
+
+if ($Action -eq 'hibernate' -and ($EnvironmentName -ne 'dev' -or -not $WaitForDesiredState -or $SkipAlertSuppression)) {
+  throw 'Hibernate is dev-only and requires waiting for stopped apps and suppressing alerts.'
+}
+if ($Action -eq 'resume' -and $EnvironmentName -eq 'dev' -and (-not $WaitForDesiredState -or $SkipAlertSuppression)) {
+  throw 'Dev resume requires waiting for private connectivity, application health, and alert restoration.'
+}
+
+. (Join-Path $PSScriptRoot 'private-connectivity.ps1')
 
 if (-not $ConfigurationPath) {
   $ConfigurationPath = Join-Path $PSScriptRoot '..\..\..\infra\azure\config\platform.json'
@@ -248,7 +264,8 @@ function Get-ContainerAppState {
       '--name', $ContainerAppName
     )
   } catch {
-    return $null
+    if ($_.Exception.Message -match '\((ResourceNotFound|ContainerAppNotFound)\)') { return $null }
+    throw
   }
 }
 
@@ -261,7 +278,8 @@ function Get-AlertRuleState {
       '--ids', $ResourceId
     )
   } catch {
-    return $null
+    if ($_.Exception.Message -match '\(ResourceNotFound\)') { return $null }
+    throw
   }
 }
 
@@ -362,6 +380,7 @@ $alertRuleStates = foreach ($alertRuleName in $alertRuleNames) {
 
 $desiredRunningState = switch ($Action) {
   'pause' { 'Stopped' }
+  'hibernate' { 'Stopped' }
   'resume' { 'Running' }
   default { [string]$containerAppState.properties.runningStatus }
 }
@@ -384,7 +403,28 @@ $workloadContainerApps = @(
   }
 )
 
-if ($Action -eq 'pause') {
+$privateConnectivity = @()
+if ($EnvironmentName -eq 'dev' -and $Action -in @('show-plan', 'hibernate', 'resume')) {
+  if (-not $bffContainerAppState) { throw 'Dev private connectivity lifecycle requires both deployed container apps.' }
+  if ($Action -in @('hibernate', 'resume') -and @($alertRuleStates | Where-Object { -not $_.exists }).Count -gt 0) {
+    throw 'All expected dev alerts must be readable before changing lifecycle state.'
+  }
+  $privateConnectivity = @(Get-DevPrivateConnectivityPlan $configuration $resolvedSubscriptionId $resolvedPlatformSubscriptionId $resourceGroupName)
+  if ($Action -in @('hibernate', 'resume')) {
+    Assert-NoActiveWorkloadDeployment $resolvedSubscriptionId $resourceGroupName
+    Assert-PrivateConnectivityTemplate
+    foreach ($entry in $privateConnectivity) {
+      Invoke-PrivateConnectivityDeployment $entry 'validate'
+    }
+  }
+}
+
+if ($Action -eq 'hibernate') {
+  Set-WebHibernationMarker $resolvedSubscriptionId $resourceGroupName $true
+  Assert-NoActiveWorkloadDeployment $resolvedSubscriptionId $resourceGroupName
+}
+
+if ($Action -in @('pause', 'hibernate')) {
   if ($manageAlerts) {
     foreach ($alertRuleState in $alertRuleStates) {
       if ($alertRuleState.exists -and $alertRuleState.enabled) {
@@ -411,7 +451,18 @@ if ($Action -eq 'pause') {
   }
 }
 
+if ($Action -eq 'hibernate') {
+  foreach ($alert in $alertRuleStates) {
+    $state = Get-AlertRuleState $alert.resourceId
+    if (-not $state -or $state.properties.enabled) { throw 'Alert suppression could not be verified. No endpoints were deleted.' }
+  }
+  Remove-DevPrivateConnectivity $privateConnectivity $workloadContainerApps $operations
+}
+
 if ($Action -eq 'resume') {
+  if ($EnvironmentName -eq 'dev') {
+    Restore-DevPrivateConnectivity $privateConnectivity $operations
+  }
   foreach ($workloadContainerApp in $workloadContainerApps) {
     if (-not $workloadContainerApp.exists) {
       continue
@@ -427,6 +478,14 @@ if ($Action -eq 'resume') {
     }
   }
 
+  if ($EnvironmentName -eq 'dev') {
+    foreach ($app in $workloadContainerApps) {
+      Wait-ForContainerAppReady $resolvedSubscriptionId $resourceGroupName $app.name
+    }
+    Wait-ForWorkloadHealth $containerAppState.properties.configuration.ingress.fqdn
+    [void]$operations.Add('verified-web-bff-health')
+  }
+
   if ($manageAlerts) {
     foreach ($alertRuleState in $alertRuleStates) {
       if ($alertRuleState.exists -and -not $alertRuleState.enabled) {
@@ -435,6 +494,15 @@ if ($Action -eq 'resume') {
         $alertRuleState.enabled = $true
       }
     }
+  }
+  if ($EnvironmentName -eq 'dev') {
+    foreach ($alert in $alertRuleStates) {
+      $state = Get-AlertRuleState $alert.resourceId
+      if (-not $state -or -not $state.properties.enabled) {
+        throw 'Alert restoration could not be verified. Recovery remains incomplete; retry resume.'
+      }
+    }
+    Set-WebHibernationMarker $resolvedSubscriptionId $resourceGroupName $false
   }
 }
 
@@ -466,6 +534,7 @@ $latestWebContainerApp = @($latestContainerApps | Where-Object { $_.role -eq 'we
 $latestBffContainerApp = @($latestContainerApps | Where-Object { $_.role -eq 'bff' } | Select-Object -First 1)[0]
 
 [ordered]@{
+  requestedAction = $requestedAction
   action = $Action
   environmentName = $EnvironmentName
   subscriptionId = $resolvedSubscriptionId
@@ -486,6 +555,7 @@ $latestBffContainerApp = @($latestContainerApps | Where-Object { $_.role -eq 'bf
   platformMonitorResourceGroupName = $platformMonitorResourceGroupName
   containerApps = [object[]]$latestContainerApps
   alertRules = $alertRuleStates
+  privateEndpoints = @($privateConnectivity | Select-Object name, id, exists, ready)
   operations = [object[]]$operations.ToArray()
-  costNote = 'Pause and resume affect the public web ACA app, the internal BFF ACA app when present, and the environment-specific alerts. Key Vault, Redis, ACR, the ACA environment, and monitoring resources remain allocated. Use teardown for the deepest non-production cost reduction.'
+  costNote = 'Dev pause and hibernate stop apps, suppress alerts, and delete the two workload private endpoints; dev resume restores them through Bicep before starting apps. Explicit pause-apps retains endpoints. Key Vault, Redis (including its normal data TTLs), ACR, shared DNS, the ACA environment, and monitoring remain allocated and may still incur charges.'
 } | ConvertTo-Json -Depth 6

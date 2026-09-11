@@ -48,7 +48,16 @@ Use this skill for Azure work in `acme-los` where the repo and live platform sha
 
 ## Repeated ACME LOS Tasks
 
-- For pause/resume/restart requests, use the repo scripts first: `npm run azure:show-state`, `npm run azure:pause:web`, and `npm run azure:resume:web`.
+- For ACME LOS dev, treat "pause Azure" as full hibernation through
+  `npm run azure:pause:web -- -EnvironmentName dev`: stop both apps, suppress
+  alerts, and remove only the two workload private endpoints. Never delete the
+  retained services, data, or shared networking.
+- Treat "unpause Azure" or "resume Azure" as
+  `npm run azure:resume:web -- -EnvironmentName dev`, including Bicep endpoint
+  restoration, DNS verification, app readiness, and health checks.
+- Use `-Action pause-apps` only for an explicitly requested apps-only pause.
+  Do not extend dev endpoint deletion to other environments. See
+  `docs/operations/azure-bootstrap-and-teardown.md`.
 - After resume or deploy, verify the public Next health endpoint, not the raw internal BFF FQDN.
 - When BFF runtime settings change, inspect `infra/azure/bicep/main.web.runtime.rg.bicep`, `modules/web/container-app.bicep`, `modules/bff/container-app.bicep`, and `tools/scripts/azure/deploy-web-environment.ps1` together.
 - When adding secure Next-to-BFF behavior, keep internal ACA ingress, trusted proxy secret, and managed-identity bearer validation as layered controls.
