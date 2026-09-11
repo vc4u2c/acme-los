@@ -248,7 +248,7 @@ npm run azure:deploy:platform-network
 npm run azure:show-plan
 npm run azure:bootstrap
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -WaitForDeletion
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -Action show-plan
 ```
 
 What they mean today:
@@ -268,7 +268,9 @@ What they mean today:
 - `azure:deploy:web`
   - deploys the subscription-scope workload stack, the resource-group-scope web infrastructure stack, and the platform DNS link stack for the environment
 - `azure:teardown`
-  - deletes the platform DNS link stack, deletes the workload stacks, and purges the deleted Key Vault when present
+  - defaults to a read-only plan; permanent deletion and Key Vault purge require
+    separate explicit confirmations in the
+    [lifecycle runbook](azure-bootstrap-and-teardown.md#tear-down-a-non-production-environment)
 
 ## Deployment Stack Policy
 

@@ -12,6 +12,10 @@ on:
           - qa
           - stg
           - prod
+      confirm_resource_group:
+        description: Exact workload resource-group name; confirms permanent data loss
+        required: true
+        type: string
       confirm_production_teardown:
         description: Type DELETE_PROD to allow prod teardown
         required: false
@@ -61,20 +65,28 @@ jobs:
       - name: Require explicit production confirmation
         if: ${{ inputs.environment_name == 'prod' }}
         shell: bash
+        env:
+          CONFIRM_PRODUCTION_TEARDOWN: ${{ inputs.confirm_production_teardown }}
         run: |
-          if [[ "${{ inputs.confirm_production_teardown }}" != "DELETE_PROD" ]]; then
+          if [[ "$CONFIRM_PRODUCTION_TEARDOWN" != "DELETE_PROD" ]]; then
             echo "Production teardown requires confirm_production_teardown=DELETE_PROD" >&2
             exit 1
           fi
 
       - name: Teardown workload
         shell: pwsh
+        env:
+          TEARDOWN_ENVIRONMENT: ${{ inputs.environment_name }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          CONFIRM_RESOURCE_GROUP: ${{ inputs.confirm_resource_group }}
         run: |
           $teardownResult = ./tools/scripts/azure/teardown-web-environment.ps1 `
-            -EnvironmentName '${{ inputs.environment_name }}' `
-            -SubscriptionId '${{ vars.AZURE_SUBSCRIPTION_ID }}' `
+            -EnvironmentName $env:TEARDOWN_ENVIRONMENT `
+            -SubscriptionId $env:AZURE_SUBSCRIPTION_ID `
+            -Action destroy `
+            -ConfirmResourceGroup $env:CONFIRM_RESOURCE_GROUP `
             -WaitForDeletion `
-            -AllowProductionTeardown:${{ inputs.environment_name == 'prod' }}
+            -AllowProductionTeardown:($env:TEARDOWN_ENVIRONMENT -eq 'prod')
 
           $teardownResult | Set-Content -Path teardown-result.json -Encoding utf8
           Get-Content teardown-result.json
@@ -83,6 +95,7 @@ jobs:
         shell: bash
         run: |
           resource_group="$(node -p "require('./teardown-result.json').resourceGroupName")"
+          resource_group_exists="$(node -p "require('./teardown-result.json').resourceGroupExists")"
           subscription_stack="$(node -p "require('./teardown-result.json').subscriptionStackName")"
           resource_group_stack="$(node -p "require('./teardown-result.json').resourceGroupStackName")"
           key_vault="$(node -p "require('./teardown-result.json').keyVaultName")"
@@ -95,6 +108,7 @@ jobs:
             echo "- Subscription stack: \`${subscription_stack}\`"
             echo "- Resource-group stack: \`${resource_group_stack}\`"
             echo "- Resource group: \`${resource_group}\`"
+            echo "- Resource group remains: \`${resource_group_exists}\` (resource groups and unmanaged resources are retained)"
             echo "- Key Vault: \`${key_vault}\`"
             echo "- Key Vault purged: \`${key_vault_purged}\`"
           } >> "$GITHUB_STEP_SUMMARY"

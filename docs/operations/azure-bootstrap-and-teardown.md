@@ -430,16 +430,21 @@ Current follow-up note:
 
 ## Tear Down A Non-Production Environment
 
-Teardown `dev` and wait for completion:
+The teardown command is a permanent environment destruction operation, not the
+reversible pause/resume path. It removes Redis business data and workload
+resources. Keep using hibernation until a long-break rebuild has been proven.
+It does not delete the shared container registry or the shared DNS zones.
+
+Show the target environment without deleting anything (the default):
 
 ```powershell
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -WaitForDeletion
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -Action show-plan
 ```
 
-Teardown `qa`:
+Only after explicitly accepting data loss, destroy `dev`:
 
 ```powershell
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName qa -WaitForDeletion
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -Action destroy -ConfirmResourceGroup rg-acme-los-web-dev-cus-01 -WaitForDeletion
 ```
 
 Teardown behavior:
@@ -448,20 +453,81 @@ Teardown behavior:
 - delete the platform monitoring stack for the environment
 - delete the resource-group-scope deployment stack
 - delete the subscription-scope deployment stack
-- wait for deletion when requested
-- purge the matching deleted Key Vault if Azure has soft-deleted it
+- wait for each stack deletion to finish; retain resource groups and unmanaged
+  resources through `deleteResources`, reporting whether the workload RG remains
+- use `-WaitForDeletion` to extend polling for a soft-deleted vault only when
+  an explicitly confirmed purge is requested; never wait for a retained RG
+- leave the deleted Key Vault recoverable for its configured soft-delete period
+- stop on Azure CLI failures rather than proceeding to other stack deletions
+- purge Key Vault only when both `-PurgeDeletedKeyVault` and an exact
+  `-ConfirmKeyVaultPurge <vault-name>` are explicitly supplied; never use purge
+  for a reversible cost-saving operation
 
 This keeps non-production cost under control while preserving the governance
-structure.
+structure. Soft deletion is not permanent secret retention: a long-break mode
+must keep Key Vault live and outside the deletion set.
 
 Production teardown exists but is intentionally guarded:
 
 ```powershell
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName prod -WaitForDeletion -AllowProductionTeardown
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName prod -Action destroy -ConfirmResourceGroup rg-acme-los-web-prod-cus-01 -WaitForDeletion -AllowProductionTeardown
 ```
 
 That path should only be used deliberately and never as part of normal
 operations.
+
+The GitHub `Teardown Web Environment` workflow requires the exact workload
+resource-group name for every environment, plus `DELETE_PROD` for production.
+It never requests Key Vault purge. Environment approval gates still apply.
+
+This is stack-scoped deletion, not a guarantee that the environment RG is empty
+or all charges have stopped. See Microsoft's
+[deletion modes](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/deployment-stacks#control-detachment-and-deletion).
+
+### Long-Break Rebuild Readiness
+
+Long-break runtime retirement/recreation is not yet enabled or live-proven.
+The September 10, 2026 read-only check found no custom hostname bound to dev and
+no DNS record for `apply-dev.avanai.net`. The current Okta deployed origin still
+uses the generated ACA hostname, which must not be assumed reusable after
+environment recreation.
+
+Before deleting the ACA environment:
+
+1. Establish the stable hostname with Namecheap DNS, Bicep-managed HTTPS, and
+   matching Okta redirect/logout origins. Use `azure:custom-domain:web` to obtain
+   the current CNAME and verification TXT records; update only those records.
+2. Verify the deployed image versions remain available in the retained registry.
+3. Keep Key Vault, user-assigned identity, ACS phone-number ownership, and
+   required data outside the deletion set. Do not delete managed load-balancer
+   resources independently of their owning ACA environment.
+4. Prove the source-owned rebuild, private connectivity, HTTPS, sign-in,
+   funding, and account-security journeys before adopting deeper retirement
+   as a pause default. A successful health response alone is not this proof.
+
+The supported recovery boundary must also distinguish business data from auth:
+
+- BFF application drafts expire eight hours after writing and profiles after
+  thirty days. Retaining Redis does not stop those TTLs.
+- No archive or isolated business-data restore has been verified. Until the
+  owner explicitly accepts a dev-data reset, Redis must remain allocated.
+- Any future business-data archive needs an explicit retention policy and
+  restore verification. Exclude auth sessions, transactions, OTPs, and one-use
+  step-up grants; require fresh sign-in after recreation.
+- Managed Redis persistence is not a backup that survives deleting the
+  instance. Current native export/import uses SAS-backed storage and does not
+  support storage firewalls/private links, so it is not the private,
+  managed-identity archive path this application requires.
+
+Namecheap API automation requires an API-enabled account and an allowlisted
+caller IP. Its `setHosts` operation replaces the record set: never call it with
+only the new ACME records, because that would delete unrelated records.
+
+References: [ACA recreation](https://learn.microsoft.com/en-us/azure/container-apps/relocate-region),
+[Managed Redis import/export](https://learn.microsoft.com/en-us/azure/redis/how-to-import-export-data),
+[Redis backup limitations](https://learn.microsoft.com/en-us/azure/reliability/reliability-managed-redis#backup-and-restore),
+[Namecheap API access](https://www.namecheap.com/support/api/intro/),
+and [Namecheap DNS replacement semantics](https://www.namecheap.com/support/api/methods/domains-dns/set-hosts/).
 
 ## Cost Discipline
 

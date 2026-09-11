@@ -167,10 +167,15 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/az
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -EnvironmentName dev -Action show-plan
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -EnvironmentName dev -Action pause
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -EnvironmentName dev -Action resume
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -WaitForDeletion
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -Action show-plan
 ```
 
 The web deployment path is now proven end to end for `dev`.
+
+Teardown defaults to a read-only plan. Permanent destruction requires explicit
+confirmation; use the [lifecycle runbook](../../docs/operations/azure-bootstrap-and-teardown.md#tear-down-a-non-production-environment)
+for the guarded command. Routine pause/resume must not delete business data or
+Key Vault.
 
 ## Branded Web Hostname And Theme Round Trip
 
