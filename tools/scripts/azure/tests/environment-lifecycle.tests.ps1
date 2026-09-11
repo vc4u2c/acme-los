@@ -335,15 +335,22 @@ $tests = [ordered]@{
   }
 }
 
+$testArguments = @{}
 foreach ($scenario in @('app403', 'alert403', 'endpoint403')) {
-  $tests["$scenario does not become resource-not-found"] = {
+  $testName = "$scenario does not become resource-not-found"
+  $testArguments[$testName] = $scenario
+  $tests[$testName] = {
+    param([string]$scenario)
     $global:failure = $scenario
     Assert-Fails { Invoke-TestLifecycle 'hibernate' } 'AuthorizationFailed'
     Assert-True ($global:calls.Count -eq 0) 'no mutations on permission failure'
-  }.GetNewClosure()
+  }
 }
 foreach ($scenario in @('restore', 'pending', 'dns', 'readiness', 'health')) {
-  $tests["$scenario failure preserves recovery marker and alert suppression"] = {
+  $testName = "$scenario failure preserves recovery marker and alert suppression"
+  $testArguments[$testName] = $scenario
+  $tests[$testName] = {
+    param([string]$scenario)
     Invoke-TestLifecycle 'hibernate' | Out-Null
     $global:calls.Clear()
     $global:failure = $scenario
@@ -353,13 +360,13 @@ foreach ($scenario in @('restore', 'pending', 'dns', 'readiness', 'health')) {
     if ($scenario -in @('restore', 'pending', 'dns')) {
       Assert-True (@($global:calls | Where-Object { $_ -like 'start:*' }).Count -eq 0) 'apps not started'
     }
-  }.GetNewClosure()
+  }
 }
 
 $passed = 0
 foreach ($test in $tests.GetEnumerator()) {
   Reset-TestState
-  try { & $test.Value } catch { throw "FAIL $($test.Key): $($_.Exception.Message)`n$($_.ScriptStackTrace)" }
+  try { & $test.Value $testArguments[$test.Key] } catch { throw "FAIL $($test.Key): $($_.Exception.Message)`n$($_.ScriptStackTrace)" }
   $passed++
   Write-Host "PASS $($test.Key)"
 }
