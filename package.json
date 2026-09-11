@@ -32,6 +32,7 @@
     "azure:custom-domain:web": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/configure-web-custom-domain.ps1",
     "azure:show-state": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -Action show-plan",
     "azure:pause:web": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -Action pause",
+    "azure:hibernate:web": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -Action hibernate",
     "azure:resume:web": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/set-web-environment-state.ps1 -Action resume",
     "azure:teardown": "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1",
     "azure:sms-mfa:number": "node tools/scripts/azure/manage-acs-sms-number.mjs",

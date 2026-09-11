@@ -910,6 +910,9 @@ $configuration = Get-JsonFile -Path $ConfigurationPath
 $environmentConfiguration = Get-EnvironmentConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName
 $account = az account show --output json | ConvertFrom-Json
 $resolvedSubscriptionId = if ($SubscriptionId) { $SubscriptionId } else { Resolve-SubscriptionIdFromConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName }
+. (Join-Path $PSScriptRoot 'private-connectivity.ps1')
+$resourceGroupName = Get-WorkloadResourceGroupName -Configuration $configuration -EnvironmentName $EnvironmentName
+Assert-WebEnvironmentNotHibernated $resolvedSubscriptionId $resourceGroupName
 $resolvedPlatformSubscriptionId = if ($PlatformSubscriptionId) { $PlatformSubscriptionId } else { Resolve-PlatformSubscriptionIdFromConfiguration -Configuration $configuration }
 $resolvedTenantId = if ($TenantId) { $TenantId } else { $account.tenantId }
 $resolvedImageTag = Get-ResolvedImageTag -ExplicitTag $ImageTag -EnvironmentName $EnvironmentName
@@ -1008,7 +1011,6 @@ Ensure-RegisteredResourceProviders -SubscriptionId $resolvedPlatformSubscription
   'Microsoft.OperationalInsights'
 )
 
-$resourceGroupName = Get-WorkloadResourceGroupName -Configuration $configuration -EnvironmentName $EnvironmentName
 $subscriptionStackName = Get-SubscriptionStackName -Configuration $configuration -EnvironmentName $EnvironmentName
 $resourceGroupStackName = Get-ResourceGroupStackName -Configuration $configuration -EnvironmentName $EnvironmentName
 $imagesResourceGroupName = Get-ImagesResourceGroupName -Configuration $configuration -SubscriptionRole $imagesSubscriptionRole
@@ -1088,6 +1090,7 @@ $runtimeDeploymentArguments = @()
 
 $webDeploymentArguments += @('--parameters', "stateStoreMode=$resolvedStateStoreMode")
 
+Assert-WebEnvironmentNotHibernated $resolvedSubscriptionId $resourceGroupName
 Invoke-AzNoOutput -Arguments $subscriptionDeploymentArguments
 Invoke-AzNoOutput -Arguments $imagesSubscriptionDeploymentArguments
 Invoke-AzNoOutput -Arguments $imagesResourceGroupDeploymentArguments

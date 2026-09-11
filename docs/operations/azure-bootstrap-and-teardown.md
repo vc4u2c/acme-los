@@ -217,16 +217,88 @@ powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/az
 
 Pause and resume behavior:
 
+- for ACME LOS dev, "pause Azure" means full hibernation by default: stop both
+  apps, disable alerts, and remove the two workload private endpoints
+- "unpause Azure" or "resume Azure" means recreate the endpoints through Bicep,
+  verify DNS, start both apps, and check readiness and health before restoring alerts
+- use `-Action pause-apps` only when explicitly requesting an apps-only pause;
+  other environments retain their existing apps-only pause behavior
 - uses the official ACA ARM `stop` and `start` actions for the public web
   container app and the internal BFF container app when it exists
 - optionally disables scheduled-query alerts before pause and re-enables them after resume
 - waits for `Stopped` or `Running` by default so the command behaves predictably in automation
 - blocks `prod` pause unless `-AllowProductionPause` is passed explicitly
 
+### Hibernate Dev Private Endpoints
+
+Dev pause uses the hibernation path. The explicit `hibernate` action remains
+available as an equivalent command:
+
+```powershell
+npm run azure:pause:web -- -EnvironmentName dev
+npm run azure:show-state -- -EnvironmentName dev
+npm run azure:resume:web -- -EnvironmentName dev
+```
+
+Hibernation validates the recovery deployment for both private endpoints, marks
+the workload resource group `acme:hibernated=true`, suppresses all four alerts,
+and verifies both apps are stopped before deleting only the Key Vault and Redis
+private endpoints. Azure also removes their associated NICs and managed DNS
+records. The shared DNS zones and VNet links, underlying services, identities,
+secrets, and Redis data are retained. Redis data TTLs continue to run while idle.
+Public access is never enabled.
+
+Live dev validation on September 10, 2026 confirmed deletion of both endpoints
+and their NICs while retaining the other workload resources. Bicep restoration
+recreated approved endpoints with matching private DNS records, preserved all
+four endpoint/zone-group entries in the original stack, passed ACA replica
+readiness and web + BFF `/api/health`, and re-enabled all four alerts. The
+application build remained `2519e1dd`; no app deployment was needed.
+
+Dev resume reconstructs missing endpoints using the existing
+`modules/network/private-endpoint.bicep` module in incremental mode. It validates
+the original stack ownership, service targets, subnet, and shared DNS VNet links;
+waits for approved endpoints with actual DNS A records matching the new NIC IPs;
+then starts the apps and checks replica readiness and public `/api/health` before
+enabling alerts and clearing the marker. No local backup or secret export is
+needed. Resume takes longer than restarting apps alone.
+
+The original infrastructure stack continues to own the endpoint and explicit
+DNS-zone-group resource IDs. The lifecycle script never changes its resource
+list or deploys the complete infrastructure stack. Missing endpoints while
+hibernated are intentional, temporary drift, visible in `azure:show-state`.
+Unexpected ownership, deny settings, or unsupported endpoint customization fail
+closed rather than being bypassed.
+
+Do not run lifecycle and deployment commands concurrently. Hibernation refuses
+an in-progress workload ARM deployment, and the normal deployment script refuses
+a hibernated environment until explicit resume succeeds. Keep automatic CD
+disabled during idle periods; older checked-out deployment scripts do not know
+about this guard. The marker is a deployment interlock, not a distributed lock.
+
+Both actions are retryable after interruption, including when only one endpoint
+was deleted or restored. Failed recovery leaves the marker set; endpoint recovery
+must finish before apps start, and failed app health leaves alerts suppressed.
+Use `show-plan`, inspect the failure, and retry `resume` or `hibernate`. Never
+delete Redis or Key Vault to resolve a connectivity failure.
+
+At the USD retail rate of $0.01 per endpoint-hour, removing both endpoints for
+730 hours saves about $14.60; savings depend on absent hours and billing terms.
+Other retained services still incur charges. See [Private Link pricing](https://azure.microsoft.com/en-us/pricing/details/private-link/)
+and [private DNS zone groups](https://learn.microsoft.com/en-us/azure/private-link/private-endpoint-dns-integration#private-dns-zone-group).
+
+Run the offline lifecycle safety tests locally or in CI:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/tests/environment-lifecycle.tests.ps1
+```
+
 Important cost note:
 
 - pause and resume affect the ACA web app, the internal BFF app when present,
   and the environment-specific alerts
+- dev pause/hibernation additionally removes the two private endpoints;
+  explicit `pause-apps` leaves them allocated
 - they do not deallocate:
   - Azure Managed Redis
   - Key Vault

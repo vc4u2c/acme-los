@@ -76,6 +76,10 @@ jobs:
       - name: Validate project tags
         run: npm run validate:tags
 
+      - name: Test Azure lifecycle safety
+        shell: pwsh
+        run: ./tools/scripts/azure/tests/environment-lifecycle.tests.ps1
+
       - name: Lint affected projects
         run: npx nx affected -t lint
 

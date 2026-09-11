@@ -130,6 +130,8 @@ And they currently handle:
 - platform-network `Contributor` role assignment for each environment identity on `rg-acme-hub-network-cus-01`
 - alert-aware pause and resume command paths for the ACA web workload and
   internal BFF when deployed
+- dev-only endpoint hibernation and Bicep-backed restoration for longer idle
+  periods; see [the lifecycle runbook](../../docs/operations/azure-bootstrap-and-teardown.md#hibernate-dev-private-endpoints)
 - a source-owned custom web hostname flow: a DNS planning/verification helper
   plus Bicep-managed certificate and ingress binding after validation records
   exist
