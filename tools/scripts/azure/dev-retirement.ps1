@@ -64,11 +64,14 @@ function Assert-RetirementStack {
   if (-not $Stack -or $Stack.provisioningState -notin $acceptedStates -or $Stack.denySettings.mode -ine 'none') { throw 'Stack must be succeeded with no deny settings before a lifecycle operation; an explicit interrupted recovery may retry terminal failures.' }
   $expectedName = if ($Phase -eq 'disposable') { $Scope.DisposableStack } else { $Scope.RetainedStack }
   if ($Stack.id -ine "$($Scope.Id)/providers/Microsoft.Resources/deploymentStacks/$expectedName") { throw 'Unexpected stack scope.' }
-  foreach ($entry in $Stack.resources) {
+  $failedProperty = $Stack.PSObject.Properties['failedResources']
+  $failed = @(if ($failedProperty) { $failedProperty.Value })
+  $emptyFailedRecovery = $AllowFailed -and $AllowPartial -and $Stack.provisioningState -in @('failed', 'canceled')
+  if ($failed.Count -gt 0 -and -not $emptyFailedRecovery) { throw 'Failed-resource records require explicit terminal-failure recovery.' }
+  foreach ($entry in @($Stack.resources) + $failed) {
     $class = Get-RetirementResourceClass $Scope $entry.id
     if ($Phase -ne 'all' -and $class -ne $Phase) { throw "The $Phase stack owns a $class resource; refusing lifecycle changes." }
   }
-  $emptyFailedRecovery = $AllowFailed -and $AllowPartial -and $Stack.provisioningState -in @('failed', 'canceled')
   if (@($Stack.resources).Count -eq 0 -and -not $emptyFailedRecovery) { throw 'Refusing to operate on an empty or incomplete stack.' }
   $ids = @($Stack.resources | ForEach-Object { $_.id })
   if (-not $AllowPartial -and $Phase -in @('all', 'disposable')) {
@@ -227,7 +230,9 @@ function Clear-RetirementCname {
 
 function Remove-RetirementServiceResources {
   param($Scope, $Stack)
-  $ownedIds = @($Stack.resources | ForEach-Object { $_.id })
+  $failedProperty = $Stack.PSObject.Properties['failedResources']
+  $failed = @(if ($failedProperty) { $failedProperty.Value })
+  $ownedIds = @(@($Stack.resources) + $failed | ForEach-Object { $_.id })
   $endpoints = @()
   # Stack deletion can run parent and child deletes concurrently. Remove connections before their service.
   foreach ($kind in @('kv', 'redis')) {
@@ -244,6 +249,13 @@ function Remove-RetirementServiceResources {
   }
   $redis = Get-ConnectivityResource $Scope.RedisId '2025-07-01'
   if ($redis -and $Scope.RedisId -notin $ownedIds) { throw 'Redis is not owned by the disposable stack.' }
+  $environment = Get-ConnectivityResource $Scope.EnvironmentId '2025-01-01'
+  if ($environment) {
+    if ($Scope.EnvironmentId -notin $ownedIds) { throw 'Environment is not recorded by the disposable stack.' }
+    $appSubnet = "$($Scope.Id)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-cus-01/subnets/snet-acme-los-app-dev-cus-01"
+    if ($environment.properties.infrastructureResourceGroup -ine $Scope.InfrastructureGroup -or
+      $environment.properties.vnetConfiguration.infrastructureSubnetId -ine $appSubnet) { throw 'Environment networking differs from the approved dev configuration.' }
+  }
   foreach ($endpoint in $endpoints) {
     Write-Host "Removing dev $($endpoint.kind) private endpoint before service deletion."
     Invoke-AzureDnsJson @('network', 'private-endpoint', 'delete', '--ids', $endpoint.id) | Out-Null
@@ -253,5 +265,10 @@ function Remove-RetirementServiceResources {
     Write-Host 'Removing disposable dev Redis before stack cleanup.'
     Invoke-AzureDnsJson @('resource', 'delete', '--ids', $Scope.RedisId, '--api-version', '2025-07-01') | Out-Null
     if (Get-ConnectivityResource $Scope.RedisId '2025-07-01') { throw 'A disposable service is still allocated after Redis deletion.' }
+  }
+  if ($environment) {
+    Write-Host 'Removing the disposable dev environment through its owning Azure service.'
+    Invoke-AzureDnsJson @('containerapp', 'env', 'delete', '--ids', $Scope.EnvironmentId, '--yes') | Out-Null
+    if (Get-ConnectivityResource $Scope.EnvironmentId '2025-01-01') { throw 'Environment deletion did not complete.' }
   }
 }

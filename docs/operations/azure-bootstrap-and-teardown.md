@@ -669,6 +669,17 @@ or all charges have stopped. See Microsoft's
 Do not use permanent `destroy` for this operation. The first live retirement /
 rebuild cycle is under verification; it is not yet the default for ordinary pause.
 
+Full retirement gives up the running environment's capacity allocation. Rebuild
+can be blocked by regional capacity even when names, images, DNS, and secrets
+are valid. The October 2, 2026 Central US rehearsal encountered
+`ManagedEnvironmentCapacityHeavyUsageError` after successful retirement.
+Do not promise instant recovery or silently change region/network exposure.
+Retry only after the current deployment reaches a terminal state, or retire the
+partial rebuild to stop disposable-resource charges. Near a scheduled demo,
+retain the environment through ordinary hibernation instead. The provider's
+error points to Microsoft's
+[regional capacity guidance](https://learn.microsoft.com/en-us/troubleshoot/azure/azure-kubernetes/error-codes/akscapacityheavyusage-error).
+
 ```powershell
 $dev = @{
   SubscriptionId = '7df9ce70-48a3-4495-9361-4ca7b2637748'
@@ -702,6 +713,11 @@ set using an ETag-guarded update. See Microsoft's
 Endpoint and Redis parent deletions are sequenced explicitly: the live cycle
 exposed conflicting parent/child deletes when the stack tried to remove them
 concurrently. Each parent must be absent before stack cleanup continues.
+The environment is also removed through its owning service before stack cleanup.
+Terminal recovery validates both managed and failed-resource IDs against the
+same allowlist: Azure can record a partially created environment only in
+`failedResources`. An unrecorded environment or unexpected network cannot be
+implicitly deleted during cleanup.
 
 Recovery metadata contains only public image tags, immutable digests, version,
 and a hash of retained identity / secret-version metadata in workload RG tags.
