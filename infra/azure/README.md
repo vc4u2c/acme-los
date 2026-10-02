@@ -48,8 +48,15 @@ What is here now:
 - `bicep/main.web.rg.bicep`
   - first web workload resource-group entrypoint, including the environment ACS
     resource and web managed-identity RBAC
+  - explicit retained/disposable phases for dev lifecycle ownership; other
+    environments retain the default combined phase
 - `bicep/main.web.runtime.rg.bicep`
-  - container app runtime revision entrypoint
+  - container app runtime revision entrypoint using retained Key Vault references;
+    runtime deployment does not write secret values
+- `bicep/main.public-dns.sub.bicep`
+  - retained platform public DNS child zone, deletion lock, and zone-scoped deploy access
+- `bicep/main.web.certificate.rg.bicep`
+  - managed certificate issuance after DNS verification and hostname registration
 - `bicep/main.entra.service-auth.rg.bicep`
   - Microsoft Graph Bicep entrypoint for the BFF API app registration,
     enterprise application, and managed-identity app role assignment
@@ -82,6 +89,13 @@ Current best next steps:
 Generated Bicep build artifacts under `infra/azure/bicep/*.json` are local
 validation output and should not be committed.
 
+For dev long-break retirement, use
+`tools/scripts/azure/set-dev-retirement-state.ps1`, not permanent teardown.
+See the [recoverable retirement runbook](../../docs/operations/azure-bootstrap-and-teardown.md#recoverable-dev-retirement)
+for ownership migration, explicit data-loss confirmation, and pinned-image
+recovery. Its first live cycle is under verification. Ordinary pause remains
+the existing private-endpoint hibernation path until that cycle is proven.
+
 ## Bootstrap Scripts
 
 Use the repo scripts in this order:
@@ -102,7 +116,11 @@ Scripts:
 - [bootstrap-governance.ps1](../../tools/scripts/azure/bootstrap-governance.ps1)
 - [setup-github-azure-environments.ps1](../../tools/scripts/azure/setup-github-azure-environments.ps1)
 - [deploy-web-environment.ps1](../../tools/scripts/azure/deploy-web-environment.ps1)
+- [bootstrap-public-dns.ps1](../../tools/scripts/azure/bootstrap-public-dns.ps1)
+  - persistent Azure DNS setup; returns the four nameservers to delegate at Namecheap
 - [configure-web-custom-domain.ps1](../../tools/scripts/azure/configure-web-custom-domain.ps1)
+  - read-only DNS planning/verification and opt-in Azure DNS record updates; see
+    [stable-hostname recovery](../../docs/operations/azure-bootstrap-and-teardown.md#automated-stable-hostname-recovery)
 - [set-web-environment-state.ps1](../../tools/scripts/azure/set-web-environment-state.ps1)
 - [teardown-web-environment.ps1](../../tools/scripts/azure/teardown-web-environment.ps1)
 - [manage-acs-sms-number.mjs](../../tools/scripts/azure/manage-acs-sms-number.mjs)
@@ -179,20 +197,22 @@ Key Vault.
 
 ## Branded Web Hostname And Theme Round Trip
 
-`dev` declares the intended customer-facing web hostname
-`apply-dev.avanai.net` in `config/platform.json`. The Okta branded hostname is
-already `auth.avanai.net`. Once both are live sibling hostnames, the UI can
+`dev` uses the active customer-facing web hostname
+`apply-dev.los.avanai.net` in `config/platform.json`. The Okta branded hostname is
+already `auth.avanai.net`. Once both are live under the same parent domain, the UI can
 carry the non-sensitive `acme_theme=light|dark` preference through an Okta
 redirect using a `Domain=avanai.net; Secure; SameSite=Lax` cookie.
 
-This is deliberately a staged activation. `publicDomain.enabled` remains
-`false` while DNS is absent, so routine deploys cannot attempt a certificate
-binding prematurely. Keep the current ACA URL as the active Okta deployed base
-URL until DNS is ready:
+Activation completed on October 1, 2026: delegated DNS, managed HTTPS, Okta
+callbacks, and browser IDX initialization are verified. `publicDomain.enabled`
+is `true`. Full signed-in journeys and teardown/rebuild remain separate gates.
+The sequence below documents activation and recovery; keep the previous working
+Okta deployed base URL until new branded HTTPS is healthy:
 
 ```powershell
 npm run azure:custom-domain:web -- -EnvironmentName dev -Action show-plan
-# Create the returned CNAME and TXT records in the authoritative avanai.net DNS zone.
+# Bootstrap and delegate los.avanai.net first; see the stable-hostname recovery runbook.
+# The app CNAME and TXT belong in Azure's los.avanai.net zone, not Namecheap.
 npm run azure:custom-domain:web -- -EnvironmentName dev -Action verify-dns
 ```
 
@@ -200,16 +220,20 @@ After DNS verification succeeds:
 
 1. Change `infra/azure/config/platform.json` so
    `environments.dev.publicDomain.enabled` is `true`.
-2. Deploy the web runtime while the Okta deployed base URL is still the ACA
-   hostname; Bicep creates the managed certificate and ingress binding.
-3. Verify `https://apply-dev.avanai.net/api/health`.
+2. For existing apps, run `activate-web-custom-domain.ps1 -Action apply` with
+   exact hostname confirmation and both subscription IDs from the owner runbook.
+   It uses the supported hostname commands and Bicep certificate template while
+   preserving images, secrets, and stacks. New environments use the full staged
+   deployment instead.
+3. Verify `https://apply-dev.los.avanai.net/api/health`.
 4. Change `infra/okta/environments/dev.json` so `web.deployedBaseUrl` is
-   `https://apply-dev.avanai.net`; keep the ACA URL in `additionalBaseUrls`
+   `https://apply-dev.los.avanai.net`; keep the ACA URL in `additionalBaseUrls`
    only if a temporary diagnostic callback remains necessary.
 5. Run `npm run okta:bootstrap -- dev` so Okta redirect and trusted-origin
    configuration matches the active customer URL.
-6. Deploy the web runtime again so its browser and server configuration use the
-   branded origin and theme-cookie domain.
+6. Run `activate-web-custom-domain.ps1 -Action sync-auth-origin` with the same
+   confirmation and subscription IDs to update only the two public callback
+   settings on both existing apps.
 7. Verify sign-in, sign-out, funding email-or-phone step-up, and light/dark continuity
    across the app-to-Okta round trip.
 
@@ -470,7 +494,8 @@ Pause and resume note:
   - ACR
   - the ACA environment
   - monitoring resources
-- for the deepest savings, use teardown instead of pause
+- for the deepest dev savings, use the explicit recoverable retirement command
+  after its recovery checks; permanent teardown is not a pause substitute
 
 Portability rule:
 

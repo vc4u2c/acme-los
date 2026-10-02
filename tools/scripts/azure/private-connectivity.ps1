@@ -1,7 +1,7 @@
 Set-StrictMode -Version Latest
 
 function Assert-WebEnvironmentNotHibernated {
-  param([string]$SubscriptionId, [string]$ResourceGroupName)
+  param([string]$SubscriptionId, [string]$ResourceGroupName, [switch]$RecoverRetired)
 
   try {
     $group = Invoke-AzJson -Arguments @('group', 'show', '--subscription', $SubscriptionId, '--name', $ResourceGroupName)
@@ -9,6 +9,12 @@ function Assert-WebEnvironmentNotHibernated {
     if ($_.Exception.Message -match '\(ResourceGroupNotFound\)') { return }
     throw
   }
+  $retirement = if ($null -ne $group.tags) { $group.tags.PSObject.Properties['acme:retirement'] } else { $null }
+  if ($RecoverRetired) {
+    if ($ResourceGroupName -cne 'rg-acme-los-web-dev-cus-01' -or -not $retirement -or $retirement.Value -cne 'rebuilding') { throw 'Use the dev retirement lifecycle command to start recovery.' }
+    return
+  }
+  if ($retirement -and $retirement.Value -ne 'active') { throw 'This environment is retired or recovery is incomplete. Use the dev retirement rebuild command.' }
   $marker = if ($null -ne $group.tags) { $group.tags.PSObject.Properties['acme:hibernated'] } else { $null }
   if ($marker -and $marker.Value -eq 'true') {
     throw 'This environment is hibernated or recovery is incomplete. Run the dev resume lifecycle command before deployment.'
@@ -35,6 +41,7 @@ function Get-ConnectivityResource {
   try {
     return Invoke-AzJson -Arguments @('rest', '--method', 'get', '--uri', "${ResourceId}?api-version=$ApiVersion")
   } catch {
+    if ($_.Exception.Data['AzureResourceNotFound'] -eq $true) { return $null }
     $message = $_.Exception.Message
     $absent = $message -match '\((ResourceNotFound|ParentResourceNotFound)\)'
     # `az rest` wraps the ARM JSON error; typed CLI commands use a parenthesized code.
@@ -70,6 +77,15 @@ function Get-DevPrivateConnectivityPlan {
   $vnetId = "$scope/providers/Microsoft.Network/virtualNetworks/vnet-$base-web-$suffix"
   $subnetId = "$vnetId/subnets/snet-$base-data-$suffix"
   $stack = Invoke-AzJson -Arguments @('stack', 'group', 'show', '--subscription', $SubscriptionId, '--resource-group', $ResourceGroupName, '--name', "stk-$base-web-app-$suffix")
+  $retainedStack = $stack
+  $parameters = $stack.PSObject.Properties['parameters']
+  $phase = if ($parameters) { $parameters.Value.PSObject.Properties['resourcePhase'] } else { $null }
+  if ($phase -and $phase.Value.value -eq 'retained') {
+    $stack = Invoke-AzJson -Arguments @('stack', 'group', 'show', '--subscription', $SubscriptionId, '--resource-group', $ResourceGroupName, '--name', "stk-$base-web-disposable-$suffix")
+    Assert-ConnectivityValue $stack.parameters.resourcePhase.value 'disposable' 'private endpoints must be owned by the disposable stack'
+    Assert-ConnectivityValue $retainedStack.provisioningState 'succeeded' 'retained stack must be ready'
+    Assert-ConnectivityValue $retainedStack.denySettings.mode 'none' 'retained stack deny settings'
+  }
   Assert-ConnectivityValue $stack.provisioningState 'succeeded' 'infrastructure stack must not be deploying or failed'
   Assert-ConnectivityValue $stack.denySettings.mode 'none' 'do not bypass stack deny settings'
   Assert-ConnectivityValue $stack.outputs.workloadVirtualNetworkId.value $vnetId 'workload VNet must match the deployed stack'
@@ -96,9 +112,11 @@ function Get-DevPrivateConnectivityPlan {
     $targetId = "$scope/providers/$($definition.targetType)/$($definition.targetName)"
     $zoneId = "$networkScope/providers/Microsoft.Network/privateDnsZones/$($definition.zone)"
     Assert-ConnectivityValue $stack.outputs.PSObject.Properties[$definition.output].Value.value $targetId 'service ID must match the deployed stack'
-    foreach ($ownedId in @($id, "$id/privateDnsZoneGroups/default", $targetId)) {
+    foreach ($ownedId in @($id, "$id/privateDnsZoneGroups/default")) {
       if (@($stack.resources | ForEach-Object { $_.id }) -notcontains $ownedId) { throw "The infrastructure stack does not own '$ownedId'." }
     }
+    $serviceStack = if ($definition.role -eq 'kv') { $retainedStack } else { $stack }
+    if (@($serviceStack.resources | ForEach-Object { $_.id }) -notcontains $targetId) { throw "The infrastructure stack does not own '$targetId'." }
     $target = Get-ConnectivityResource $targetId $definition.apiVersion
     if (-not $target) { throw "Retained service '$targetId' is missing. Hibernation never creates or deletes services." }
     Assert-ConnectivityValue ($target.location -replace ' ', '') $Configuration.primaryLocation 'retained service region'

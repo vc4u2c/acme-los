@@ -357,10 +357,10 @@ Current proven state:
   Next facade for manual checks unless you are inside the ACA environment or a
   private-network diagnostic context
 
-Branded web-hostname activation is source-owned but intentionally separate from
-base deployment because Azure managed-certificate issuance depends on public
-DNS validation. The helper reads Azure verification values and checks DNS; the
-certificate and hostname binding remain Bicep-owned:
+Branded web-hostname activation uses staged Bicep deployments because managed
+certificate issuance requires public DNS and a registered app hostname. The
+helper reads current Azure verification values; never retain a generated ACA
+hostname as an assumed constant across environment recreation:
 
 ```powershell
 npm run azure:custom-domain:web -- -EnvironmentName dev -Action show-plan
@@ -368,14 +368,190 @@ npm run azure:custom-domain:web -- -EnvironmentName dev -Action show-plan
 npm run azure:custom-domain:web -- -EnvironmentName dev -Action verify-dns
 ```
 
-Only after DNS verification succeeds should
-`environments.dev.publicDomain.enabled` be set to `true` and the web runtime
-be deployed through Bicep while Okta redirect URIs still use the ACA hostname. After
-`https://apply-dev.avanai.net/api/health` succeeds, change the Okta `dev`
-deployed base URL to `https://apply-dev.avanai.net`, run `okta:bootstrap`, and
-deploy the web runtime again. This enables round-trip light/dark preference
+For an existing healthy dev deployment, set
+`environments.dev.publicDomain.enabled` to `true` and use the focused activation
+script while Okta redirect URIs still use the current ACA hostname:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/activate-web-custom-domain.ps1 -Action show-plan -SubscriptionId 7df9ce70-48a3-4495-9361-4ca7b2637748 -PlatformSubscriptionId b582269b-60ff-4bb0-b30b-6fb2796edf11
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/activate-web-custom-domain.ps1 -Action apply -ConfirmHostname apply-dev.los.avanai.net -SubscriptionId 7df9ce70-48a3-4495-9361-4ca7b2637748 -PlatformSubscriptionId b582269b-60ff-4bb0-b30b-6fb2796edf11
+```
+
+This synchronizes the two DNS records, registers the hostname with the supported
+Azure CLI command, deploys the Bicep-managed certificate, waits for issuance,
+and binds it. It verifies that app images, runtime configuration, secret
+references, and identities remain unchanged. It does not deploy infrastructure
+stacks or write Key Vault secrets. Do not run lifecycle or deployment operations
+concurrently. New environments still use the full staged deployment path below.
+
+After `https://apply-dev.los.avanai.net/api/health` succeeds, change the Okta `dev`
+deployed base URL to `https://apply-dev.los.avanai.net`, run `okta:bootstrap`,
+verify its redirect, trusted-origin, and telephony-hook configuration, then run:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/activate-web-custom-domain.ps1 -Action sync-auth-origin -ConfirmHostname apply-dev.los.avanai.net -SubscriptionId 7df9ce70-48a3-4495-9361-4ca7b2637748 -PlatformSubscriptionId b582269b-60ff-4bb0-b30b-6fb2796edf11
+```
+
+The origin step changes only the two public Okta callback environment variables
+on each existing app, checks preservation of the remaining runtime state, and
+waits for replica readiness before proceeding to the next app.
+It does not rotate secrets or rebuild images. Run it only after the Okta
+configuration has been applied and verified. This enables light/dark preference
 continuity with `auth.avanai.net` through a non-sensitive parent-domain cookie;
 auth/session cookies remain host-scoped.
+
+### Automated Stable-Hostname Recovery
+
+The source-supported target is `apply-dev.los.avanai.net`. Keep the domain
+registered at Namecheap and delegate only `los.avanai.net` to Azure DNS. This
+requires no Namecheap API access, API key, or static-IP runner. Do not change
+the root domain's nameservers, mail records, or `auth.avanai.net`.
+
+Dev's `publicDomain.enabled` is now `true` for the approved first activation.
+Adding a DNS zone does not start apps or enable CD. Long-break resource retirement
+and an end-to-end DNS/HTTPS rebuild are not yet live-proven.
+
+#### Retained Zone Bootstrap
+
+`main.public-dns.sub.bicep` creates a dedicated platform resource group,
+`rg-acme-los-dns-cus-01`, and a public child zone protected by a
+`CanNotDelete` lock. These resources are outside all workload deployment stacks,
+pause operations, and environment teardown. Retain the actual zone: recreating
+it can change its assigned nameservers and require another manual delegation.
+The DNS zone uses alphanumeric tag names (`acmeApplication`, `acmeLifecycle`,
+and matching metadata); its resource group retains the shared colon-prefixed
+convention. Post-deployment verification requires the expected ownership tags;
+missing ownership never authorizes adopting an unrelated zone.
+
+The administrator-run bootstrap grants the existing `gha-acme-los-dev` service
+principal `DNS Zone Contributor` only on this child zone. It does not grant
+access to the root domain, other platform zones, or subscription-wide resources.
+This role can edit all records in the child zone; only dev uses it currently.
+Review record-level permissions before sharing this zone with other environments.
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/bootstrap-public-dns.ps1 -Action show-plan
+# Use the existing dev service principal OBJECT ID, not the OAuth client ID.
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/bootstrap-public-dns.ps1 -Action apply -DeploymentPrincipalId <dev-service-principal-object-id> -ConfirmDnsZone los.avanai.net
+```
+
+The script validates platform subscription and identity, refuses unrelated
+existing resources or delegation, and returns four actual Azure nameservers.
+In Namecheap, open **Domain List > Manage avanai.net > Advanced DNS > Host Records**.
+Add four **NS Record** entries, each with **Host: los**, one returned nameserver
+as **Value**, and **TTL: Automatic**. Save all changes. Do not change the parent
+domain's Nameservers setting or enter `@` as the host.
+
+Observed September 15, 2026: the retained zone, deletion lock, and zone-scoped
+dev permission are deployed. The DNS plan confirms exactly two pending app
+records; neither had been written then. On October 1, 2026, Namecheap delegation
+was verified through both Cloudflare and Google, both apps were resumed with
+private connectivity and healthy build `2519e1dd`, and the app CNAME/TXT were
+published and publicly verified. Managed HTTPS and Okta origin activation then
+completed using the focused operation above. The stable URL is now
+`https://apply-dev.los.avanai.net`. Web revision `0000091` and BFF revision
+`0000062` retain the original images; no Key Vault secrets were rotated.
+Automatic CD remains disabled. Apps are running and normal runtime charges
+have resumed.
+
+Desktop and mobile browser checks verified `/api/auth/idx/start`, Okta
+`/v1/interact`, and `/idp/idx/introspect` return 200 with the stable callback,
+and auth transaction/CSRF cookies are Secure, HttpOnly, and host-scoped.
+Full password/OTP sign-in, signed-in logout, funding, and account changes still
+require a user-assisted live test. This is not a completed teardown/rebuild test.
+
+The currently assigned nameservers for the **los** NS records are:
+
+- `ns1-06.azure-dns.com`
+- `ns2-06.azure-dns.net`
+- `ns3-06.azure-dns.org`
+- `ns4-06.azure-dns.info`
+
+Read the bootstrap output again if the zone is ever deliberately replaced;
+these values are not portable to a newly created zone.
+
+As verified September 15, 2026, public DNS retail pricing is $0.50 per zone/month
+for the first 25 zones plus $0.40 per million queries for the first billion.
+One zone and one million queries is approximately $0.90/month before tax,
+separate from retained application services. No Private Resolver or paid edge
+service is provisioned. See [Azure DNS pricing](https://azure.microsoft.com/en-us/pricing/details/dns/)
+and [Microsoft's retail price feed](https://prices.azure.com/api/retail/prices?$filter=serviceName%20eq%20%27Azure%20DNS%27&currencyCode=%27USD%27).
+
+#### Record Updates And HTTPS
+
+After delegation propagates, these commands plan or update only the app CNAME
+and ownership TXT in Azure. `plan-dns` is read-only; `sync-dns` requires exact
+zone confirmation and verifies all four delegated nameservers before writing.
+
+```powershell
+npm run azure:custom-domain:web -- -EnvironmentName dev -Action plan-dns
+npm run azure:custom-domain:web -- -EnvironmentName dev -Action sync-dns -ConfirmDnsZone los.avanai.net -DnsAttempts 30
+```
+
+The updater uses Azure CLI's authenticated identity and the Azure DNS record-set
+API. New records use `If-None-Match: *`; updates require the observed ETag in
+`If-Match`. Only source-owned app records can be replaced, and existing TTL and
+metadata are retained. Both records are checked before either write. Conditional
+failures stop without blind retries or rollback. The two PUTs are not atomic;
+an explicit rerun observes current state and finishes only the remaining changes.
+There is no whole-zone replacement and no Namecheap API code or credentials.
+
+Once the hostname is enabled, opt in to DNS updates during deployment:
+
+```powershell
+# Resume hibernation first using the normal lifecycle command.
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -SyncPublicDns -ConfirmDnsZone los.avanai.net
+```
+
+The deployment sequence is:
+
+1. Validate DNS configuration, retained zone, and delegation before provisioning.
+   Hibernation continues to block normal deployment.
+2. Deploy the environment and app; read the actual generated hostname and
+   subscription verification ID.
+3. Conditionally update the CNAME and verification TXT, then verify public DNS.
+4. Register the hostname with a `Disabled` certificate binding, issue the managed
+   certificate through `main.web.certificate.rg.bicep`, then bind it with the
+   full runtime template using `SniEnabled`.
+5. Require valid HTTPS and matching web/BFF build identities at `/api/health`.
+   Live sign-in, funding, and account-security tests are still required.
+
+Already-bound hostnames are never deliberately downgraded during redeployment.
+Unrelated domain or certificate bindings block the operation. The runtime
+template's `none`, `register`, and `bind` phases are orchestration controls, not
+standalone partial-PATCH templates. Use the deployment script so full settings,
+Key Vault references, identities, and ingress are retained at every phase.
+
+For GitHub deployment, set protected dev environment variables
+`AZURE_SYNC_PUBLIC_DNS=true` and `AZURE_PUBLIC_DNS_ZONE=los.avanai.net` only after
+first activation is reviewed. Standard hosted runners use existing Azure OIDC;
+there are no DNS-specific secrets. Do not enable CD while dev is hibernated.
+
+Offline verification:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/tests/dns-recovery.tests.ps1
+az bicep build --file infra/azure/bicep/main.public-dns.sub.bicep
+az bicep build --file infra/azure/bicep/main.web.runtime.rg.bicep
+az bicep build --file infra/azure/bicep/main.web.certificate.rg.bicep
+```
+
+Public verification uses Cloudflare and Google recursive DNS with bounded
+timeouts; transient lookup failures never mean the zone is unused. Certificate
+issuance and renewal still need a running reachable app and any applicable CAA
+policy must permit DigiCert. A retained DNS zone does not keep a certificate
+renewed while the app is stopped; verify HTTPS and certificate state on resume.
+
+Before deeper retirement, prove a real record update and new-environment
+certificate/rebind cycle without deleting retained dev data. The initial Okta
+origin migration remains a separate reviewed bootstrap after stable-host HTTPS
+works. DNS synchronization does not change Okta redirect URLs or user data.
+
+Sources: [Namecheap NS delegation](https://www.namecheap.com/support/knowledgebase/article.aspx/579/2237/which-record-type-option-should-i-choose-for-the-information-im-about-to-enter/),
+[Azure delegation](https://learn.microsoft.com/en-us/azure/dns/dns-delegate-domain-azure-dns),
+[Azure DNS access and locks](https://learn.microsoft.com/en-us/azure/dns/dns-protect-zones-recordsets),
+[conditional record updates](https://learn.microsoft.com/en-us/rest/api/dns/record-sets/create-or-update?view=rest-dns-2018-05-01),
+and [ACA managed certificates](https://learn.microsoft.com/en-us/azure/container-apps/custom-domains-managed-certificates).
 
 Practical smoke-check path after a deploy:
 
@@ -434,6 +610,9 @@ The teardown command is a permanent environment destruction operation, not the
 reversible pause/resume path. It removes Redis business data and workload
 resources. Keep using hibernation until a long-break rebuild has been proven.
 It does not delete the shared container registry or the shared DNS zones.
+After dev ownership migration, this command explicitly refuses to delete the
+retained foundation. Use recoverable dev retirement below; permanent removal
+of retained secrets and identities requires a separately reviewed operation.
 
 Show the target environment without deleting anything (the default):
 
@@ -484,50 +663,117 @@ This is stack-scoped deletion, not a guarantee that the environment RG is empty
 or all charges have stopped. See Microsoft's
 [deletion modes](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/deployment-stacks#control-detachment-and-deletion).
 
-### Long-Break Rebuild Readiness
+### Recoverable Dev Retirement
+
+`set-dev-retirement-state.ps1` is the separate, dev-only long-break command.
+Do not use permanent `destroy` for this operation. The first live retirement /
+rebuild cycle is under verification; it is not yet the default for ordinary pause.
+
+```powershell
+$dev = @{
+  SubscriptionId = '7df9ce70-48a3-4495-9361-4ca7b2637748'
+  PlatformSubscriptionId = 'b582269b-60ff-4bb0-b30b-6fb2796edf11'
+}
+$confirmed = @{ ConfirmResourceGroup = 'rg-acme-los-web-dev-cus-01' }
+& tools/scripts/azure/set-dev-retirement-state.ps1 @dev -Action show-plan
+& tools/scripts/azure/set-dev-retirement-state.ps1 @dev @confirmed -Action prepare
+& tools/scripts/azure/set-dev-retirement-state.ps1 @dev @confirmed -Action retire -DiscardDemoData
+& tools/scripts/azure/set-dev-retirement-state.ps1 @dev @confirmed -Action rebuild
+```
+
+Preparation changes ownership, not resource IDs. It validates the Bicep phases,
+updates `stk-acme-los-web-app-dev-cus-01` to the retained phase with `detachAll`,
+and adopts only the approved disposable IDs in
+`stk-acme-los-web-disposable-dev-cus-01`. Both stacks use the same source template;
+the `all` phase remains the default for other environments. Unknown IDs and
+unexpected subscriptions, parameters, or deny settings fail closed.
+
+Retirement suppresses the four dev alerts, conditionally removes only the owned
+app CNAME, deletes the two apps and the disposable stack, and checks that Azure
+has released the ACA-managed networking. It never independently deletes the
+managed load balancer or public IP. The zone, delegation, verification TXT,
+Key Vault, identities, ACS phone, registry, shared monitoring, and free workload
+VNet/NSGs remain. The public URL is intentionally unavailable while retired.
+
+Recovery metadata contains only public image tags, immutable digests, version,
+and a hash of retained identity / secret-version metadata in workload RG tags.
+There is no secret-value export, local backup dependency, or session restore.
+Recovery refuses missing or changed image manifests and missing retained
+secrets. It recreates private Redis with an empty dataset, restores endpoints
+and managed-identity access, then deploys the existing images by digest and
+reissues TLS after updating the app CNAME and verification TXT from actual ACA
+outputs. Okta callbacks stay on `https://apply-dev.los.avanai.net`.
+
+Ordinary deployment is blocked while `acme:retirement` is `preparing`,
+`retiring`, `retired`, or `rebuilding`. Failed operations retain their marker.
+Do not run lifecycle and deployment operations concurrently; these tags are
+interlocks, not distributed locks. Keep automatic CD disabled during this cycle.
+Normal deployment creates shared runtime secrets only when confirmed absent;
+rebuild never creates or rotates secrets. Monitoring bootstrap now preserves an
+existing monitoring stack instead of dropping its operations pack.
+
+After rebuild, verify real password/OTP sign-in, signed-in logout, funding with
+one email or phone OTP, and account-security changes. Infrastructure health is
+not proof of these journeys. Repeat `retire -DiscardDemoData` only after the
+intended verification cycle, or explicitly to return a failed demo to idle.
+
+### Long-Break Acceptance Gates
 
 Long-break runtime retirement/recreation is not yet enabled or live-proven.
-The September 10, 2026 read-only check found no custom hostname bound to dev and
-no DNS record for `apply-dev.avanai.net`. The current Okta deployed origin still
-uses the generated ACA hostname, which must not be assumed reusable after
-environment recreation.
+The owner approved discarding dev demo data on September 15, 2026, including
+Redis-backed application drafts, customer profiles, and authentication state.
+Redis retention is no longer a prerequisite for the planned dev rebuild mode.
+This approval does not replace the recovery checks below.
+The `los.avanai.net` delegation, stable-host HTTPS, and Okta origin activation
+were verified October 1, 2026. The remaining gates include the first live
+retirement/rebuild cycle and full signed-in journeys. A generated ACA hostname
+must not be assumed reusable after environment recreation.
 
 Before deleting the ACA environment:
 
-1. Establish the stable hostname with Namecheap DNS, Bicep-managed HTTPS, and
+1. Establish the stable hostname with delegated Azure DNS, Bicep-managed HTTPS, and
    matching Okta redirect/logout origins. Use `azure:custom-domain:web` to obtain
    the current CNAME and verification TXT records; update only those records.
 2. Verify the deployed image versions remain available in the retained registry.
-3. Keep Key Vault, user-assigned identity, ACS phone-number ownership, and
-   required data outside the deletion set. Do not delete managed load-balancer
-   resources independently of their owning ACA environment.
+3. Separate retained resources from disposable resources in the source-owned
+   deployment stacks. Keep Key Vault, user-assigned identity, ACS phone-number
+   ownership, shared DNS, and the image registry outside the deletion set. Dev
+   Redis is disposable under the approved policy below. Do not delete managed
+   load-balancer resources independently of their owning ACA environment.
 4. Prove the source-owned rebuild, private connectivity, HTTPS, sign-in,
    funding, and account-security journeys before adopting deeper retirement
    as a pause default. A successful health response alone is not this proof.
 
-The supported recovery boundary must also distinguish business data from auth:
+#### Approved Dev Demo Data Policy
 
-- BFF application drafts expire eight hours after writing and profiles after
-  thirty days. Retaining Redis does not stop those TTLs.
-- No archive or isolated business-data restore has been verified. Until the
-  owner explicitly accepts a dev-data reset, Redis must remain allocated.
-- Any future business-data archive needs an explicit retention policy and
-  restore verification. Exclude auth sessions, transactions, OTPs, and one-use
-  step-up grants; require fresh sign-in after recreation.
-- Managed Redis persistence is not a backup that survives deleting the
-  instance. Current native export/import uses SAS-backed storage and does not
-  support storage firewalls/private links, so it is not the private,
-  managed-identity archive path this application requires.
+- Scope: ACME LOS `dev` only. Do not apply this decision to `qa`, `stg`, `prod`,
+  another solution, or future real customer data.
+- The explicit long-break mode may delete the dev Redis instance and its private
+  endpoint, then recreate an empty instance through Bicep. No demo-data archive
+  or restore is required; previous drafts and app profiles are intentionally lost.
+- Authentication sessions, transactions, OTPs, and one-use step-up grants must
+  not be restored. Require fresh sign-in and verify that existing Okta users can
+  start new applications without stale customer or lead state.
+- Preserve the Okta directory and app registrations, Key Vault secrets,
+  deployment/runtime identities, ACS phone-number ownership, image registry,
+  DNS zone, and delegation. Approval to discard Redis data is not approval to
+  delete those resources or purge Key Vault.
+- Recreate Redis with the existing private networking and managed-identity
+  authorization, then verify readiness before starting app traffic. A disposable
+  demo dataset does not relax authentication, authorization, or secret handling.
+- The current `pause`/`resume` commands still retain Redis and remove/recreate
+  only the two workload private endpoints. Do not use permanent `destroy` as a
+  substitute for the separate secret-preserving retirement command.
 
-Namecheap API automation requires an API-enabled account and an allowlisted
-caller IP. Its `setHosts` operation replaces the record set: never call it with
-only the new ACME records, because that would delete unrelated records.
+The existing eight-hour draft and thirty-day profile TTLs remain unchanged
+while Redis is allocated. A future requirement to preserve business data needs
+a separate durable-storage and restore design; this demo reset approval must
+not silently carry over to that requirement.
 
-References: [ACA recreation](https://learn.microsoft.com/en-us/azure/container-apps/relocate-region),
-[Managed Redis import/export](https://learn.microsoft.com/en-us/azure/redis/how-to-import-export-data),
-[Redis backup limitations](https://learn.microsoft.com/en-us/azure/reliability/reliability-managed-redis#backup-and-restore),
-[Namecheap API access](https://www.namecheap.com/support/api/intro/),
-and [Namecheap DNS replacement semantics](https://www.namecheap.com/support/api/methods/domains-dns/set-hosts/).
+Azure DNS remains allocated in the platform subscription during workload
+retirement. Keep the one-time Namecheap child-zone delegation intact.
+
+Reference: [ACA recreation](https://learn.microsoft.com/en-us/azure/container-apps/relocate-region).
 
 ## Cost Discipline
 

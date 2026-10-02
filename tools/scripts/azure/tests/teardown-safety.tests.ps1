@@ -23,6 +23,7 @@ function global:az {
   $command = $a -join ' '
   $global:teardownCalls.Add($command)
   if ($command -match '^stack .+ show') {
+    if ($global:teardownFailure -eq 'retained') { return 'retained' }
     if ($global:teardownFailure -eq 'permission') {
       $global:LASTEXITCODE = 1
       return 'ERROR: (AuthorizationFailed) Access denied'
@@ -81,6 +82,11 @@ $tests = [ordered]@{
     for ($i = 0; $i -lt $expected.Count; $i++) {
       Assert-True ($deletes[$i] -ceq $expected[$i]) "exact subscription, scope, name, and deletion mode for stack $i"
     }
+  }
+  'permanent destroy cannot delete the separated retained foundation' = {
+    $global:teardownFailure = 'retained'
+    Assert-Fails { Invoke-TestTeardown @{ Action = 'destroy'; ConfirmResourceGroup = $group } } 'retained dev foundation'
+    Assert-True (@($global:teardownCalls | Where-Object { $_ -match '^stack .+ delete' }).Count -eq 0) 'no retained or platform stack deletions'
   }
   'retained resource group is reported without polling or broader deletion' = {
     $global:teardownGroupExists = 'true'

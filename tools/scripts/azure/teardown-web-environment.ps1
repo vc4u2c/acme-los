@@ -38,7 +38,7 @@ function Get-JsonFile {
 }
 
 function Invoke-TeardownAz {
-  param([string[]]$Arguments, [switch]$AllowMissingStack)
+  param([string[]]$Arguments, [switch]$AllowMissingStack, [switch]$ReturnStackPhase)
 
   $previousPreference = $ErrorActionPreference
   try {
@@ -50,17 +50,25 @@ function Invoke-TeardownAz {
   }
   if ($exitCode -ne 0) {
     $message = [string]::Join([Environment]::NewLine, $output)
-    if ($AllowMissingStack -and $message -match '\((DeploymentStackNotFound|ResourceGroupNotFound)\)') { return $false }
+    if ($AllowMissingStack -and $message -match '\((DeploymentStackNotFound|DeploymentStackResourceNotFound|ResourceGroupNotFound)\)') {
+      if ($ReturnStackPhase) { return [pscustomobject]@{ exists = $false; phase = '' } }
+      return $false
+    }
     throw "Azure teardown command failed. No further resources will be deleted.`n$message"
   }
-  if ($AllowMissingStack) { return $true }
+  if ($AllowMissingStack) {
+    if ($ReturnStackPhase) { return [pscustomobject]@{ exists = $true; phase = ([string]::Join('', @($output))).Trim() } }
+    return $true
+  }
   return $output
 }
 
 function Remove-TeardownStack {
   param([string[]]$ScopeArguments)
 
-  if (Invoke-TeardownAz -Arguments (@('stack') + $ScopeArguments[0] + @('show') + $ScopeArguments[1..($ScopeArguments.Count - 1)] + @('--output', 'none')) -AllowMissingStack) {
+  $stack = Invoke-TeardownAz -Arguments (@('stack') + $ScopeArguments[0] + @('show') + $ScopeArguments[1..($ScopeArguments.Count - 1)] + @('--query', 'parameters.resourcePhase.value', '--output', 'tsv')) -AllowMissingStack -ReturnStackPhase
+  if ($stack.phase -eq 'retained') { throw 'Permanent destroy is blocked for the retained dev foundation. Use set-dev-retirement-state.ps1 to retire only disposable resources.' }
+  if ($stack.exists) {
     Invoke-TeardownAz -Arguments (@('stack') + $ScopeArguments[0] + @('delete') + $ScopeArguments[1..($ScopeArguments.Count - 1)] + @('--action-on-unmanage', 'deleteResources', '--yes', '--output', 'none')) | Out-Null
   }
 }

@@ -146,6 +146,8 @@ jobs:
         env:
           ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM: ${{ secrets.ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM }}
           ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION: ${{ secrets.ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION }}
+          ACME_SYNC_PUBLIC_DNS: ${{ vars.AZURE_SYNC_PUBLIC_DNS }}
+          ACME_DNS_ZONE: ${{ vars.AZURE_PUBLIC_DNS_ZONE }}
         run: |
           $webImageRepository = '${{ vars.AZURE_WEB_IMAGE_REPOSITORY }}'
           if ([string]::IsNullOrWhiteSpace($webImageRepository)) {
@@ -172,7 +174,9 @@ jobs:
             -BffImageRepository $bffImageRepository `
             -BffVersion '${{ steps.inspect_deploy_artifact.outputs.bff_version }}' `
             -BffDeploymentMode $bffDeploymentMode `
-            -ParameterFile '${{ inputs.bicep_parameter_file }}'
+            -ParameterFile '${{ inputs.bicep_parameter_file }}' `
+            -SyncPublicDns:($env:ACME_SYNC_PUBLIC_DNS -ceq 'true') `
+            -ConfirmDnsZone $env:ACME_DNS_ZONE
 
           $deploymentResult | Set-Content -Path deployment-result.json -Encoding utf8
           Get-Content deployment-result.json

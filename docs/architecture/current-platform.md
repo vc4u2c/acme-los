@@ -51,7 +51,8 @@ What is true operationally today:
   the web deployable, with BFF scale following the environment runtime scale by
   default
 - Redis managed-identity auth is proven live in `dev` as of April 19, 2026
-- main CI currently triggers CD into `dev`
+- main CI is wired to CD into `dev`; automatic `CD` is manually disabled during
+  the current cost-saving lifecycle validation
 - the reusable web deployment wrappers for `qa`, `stg`, and `prod` exist, but
   chained promotion beyond `dev` is still a next step
 
@@ -252,14 +253,15 @@ What is already strong:
 - auth and session state are server-side and Redis-backed in Azure instead of browser-backed or in-memory only
 - Application Insights, Log Analytics, alerts, and a workbook provide a real operations surface
 - deployment stacks, budgets, and pause or resume controls are in place for cost-aware lifecycle management
+- `https://apply-dev.los.avanai.net` is the active dev origin with delegated Azure
+  DNS, a Bicep-managed certificate, and matching Okta callbacks as of October 1,
+  2026; desktop/mobile browser checks verified real IDX initialization
 
 What is not fully hardened yet:
 
 - the app is still directly reachable on the ACA hostname
-- `apply-dev.avanai.net` is source-configured as the Bicep-managed branded
-  web-hostname activation path, but it is not a proven live endpoint until DNS
-  validation, managed-certificate deployment, and Okta redirect URI cutover are
-  complete
+- stable-host activation is proven, but signed-in journey verification and a
+  secret-preserving full teardown/rebuild remain separate outstanding gates
 - Front Door, WAF, and private-only ACA ingress are still later phases
 - the environment model is proven in `dev`, but still needs the same repeatability proven in `qa`
 - regional failover and broader production resilience controls are not in place yet
@@ -273,8 +275,8 @@ Current practical reading:
 
 Theme continuity across the hosted-auth round trip is intentionally limited to
 the display-only `acme_theme=light|dark` preference. Okta at
-`auth.avanai.net` can share that cookie with the planned
-`apply-dev.avanai.net` web hostname after activation; opaque app-session,
+`auth.avanai.net` can share that cookie with the active
+`apply-dev.los.avanai.net` web hostname; opaque app-session,
 anti-CSRF, and authorization state cookies remain isolated to their owning
 hosts.
 

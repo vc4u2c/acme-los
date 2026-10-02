@@ -49,6 +49,7 @@ function Reset-TestState {
   $global:calls = [Collections.Generic.List[string]]::new()
   $global:resources = @{}
   $global:failure = ''
+  $global:retainedStack = $null
   $global:marker = 'false'
   $global:testKv = "$testScope/providers/Microsoft.KeyVault/vaults/kvacmelosdevcus01v42c"
   $global:testRedis = "$testScope/providers/Microsoft.Cache/redisEnterprise/redis-acme-los-dev-cus-01"
@@ -93,7 +94,9 @@ function global:az {
       $global:marker = $value.Split('=')[1]
       $global:calls.Add("marker:$global:marker")
     }
-    'stack group show' { $result = $global:stack }
+    'stack group show' {
+      $result = if ($global:retainedStack -and (Get-Argument $a '--name') -like '*-web-app-*') { $global:retainedStack } else { $global:stack }
+    }
     'bicep build *' {
       $result = @{ resources = @(@{ type = 'Microsoft.Network/privateEndpoints' }, @{ type = 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups' }) }
     }
@@ -361,6 +364,26 @@ foreach ($scenario in @('restore', 'pending', 'dns', 'readiness', 'health')) {
       Assert-True (@($global:calls | Where-Object { $_ -like 'start:*' }).Count -eq 0) 'apps not started'
     }
   }
+}
+
+$tests['split stacks preserve hibernate and resume with Key Vault owned by retained foundation'] = {
+  $global:retainedStack = $global:stack | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+  $global:retainedStack | Add-Member -NotePropertyName parameters -NotePropertyValue @{ resourcePhase = @{ value = 'retained' } }
+  $global:retainedStack.resources = @(@{ id = $testKv })
+  $global:stack.parameters = @{ resourcePhase = @{ value = 'disposable' } }
+  $global:stack.resources = @($global:stack.resources | Where-Object { $_.id -ne $testKv })
+  Invoke-TestLifecycle 'hibernate' | Out-Null
+  Invoke-TestLifecycle 'resume' | Out-Null
+  Assert-True ($global:marker -eq 'false') 'split stack recovery completes'
+  Assert-True ($global:resources.ContainsKey($testKv)) 'retained vault is preserved'
+}
+$tests['split ownership rejects a vault missing from its retained foundation'] = {
+  $global:retainedStack = $global:stack | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+  $global:retainedStack | Add-Member -NotePropertyName parameters -NotePropertyValue @{ resourcePhase = @{ value = 'retained' } }
+  $global:retainedStack.resources = @()
+  $global:stack.parameters = @{ resourcePhase = @{ value = 'disposable' } }
+  Assert-Fails { Invoke-TestLifecycle 'hibernate' } 'does not own'
+  Assert-True ($global:calls.Count -eq 0) 'no mutations before ownership proof'
 }
 
 $passed = 0

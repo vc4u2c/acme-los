@@ -10,6 +10,7 @@
   "platformResources": {
     "monitorResourceGroupName": "rg-acme-hub-monitor-cus-01",
     "networkResourceGroupName": "rg-acme-hub-network-cus-01",
+    "publicDnsResourceGroupName": "rg-acme-los-dns-cus-01",
     "privateDnsZones": {
       "keyVault": "privatelink.vaultcore.azure.net",
       "managedRedis": "privatelink.redis.azure.net"
@@ -34,9 +35,13 @@
       "appEnvironmentName": "dev",
       "oktaEnvironmentName": "dev",
       "publicDomain": {
-        "enabled": false,
-        "hostname": "apply-dev.avanai.net",
-        "managedCertificateValidationMethod": "CNAME"
+        "enabled": true,
+        "hostname": "apply-dev.los.avanai.net",
+        "managedCertificateValidationMethod": "CNAME",
+        "dns": {
+          "provider": "azure",
+          "zone": "los.avanai.net"
+        }
       },
       "runtime": {
         "minReplicas": 2,

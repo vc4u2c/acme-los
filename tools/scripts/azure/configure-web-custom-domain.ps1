@@ -4,11 +4,17 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$EnvironmentName,
 
-  [ValidateSet('show-plan', 'verify-dns')]
+  [ValidateSet('show-plan', 'verify-dns', 'plan-dns', 'sync-dns')]
   [string]$Action = 'show-plan',
 
   [string]$SubscriptionId,
-  [string]$ConfigurationPath
+  [string]$PlatformSubscriptionId,
+  [string]$ConfigurationPath,
+  [string]$ConfirmDnsZone,
+  [ValidateRange(1, 60)]
+  [int]$DnsAttempts = 1,
+  [ValidateRange(1, 60)]
+  [int]$DnsRetrySeconds = 10
 )
 
 Set-StrictMode -Version Latest
@@ -151,7 +157,7 @@ $plan = [ordered]@{
     txt = [ordered]@{ name = $txtRecordName; value = $verificationId }
   }
   validationMethod = $validationMethod
-  activation = 'After DNS verifies, set publicDomain.enabled=true and deploy through azure:deploy:web so Bicep owns the certificate and hostname binding.'
+  activation = 'After DNS verifies and publicDomain.enabled=true, use activate-web-custom-domain.ps1 for existing apps. New environments use the staged azure:deploy:web path.'
 }
 
 if ($Action -eq 'show-plan') {
@@ -159,23 +165,34 @@ if ($Action -eq 'show-plan') {
   return
 }
 
-$resolvedCname = Resolve-DnsName -Name $hostname -Type CNAME -ErrorAction Stop |
-  Where-Object { $_.NameHost } |
-  Select-Object -First 1
-$actualCname = ([string]$resolvedCname.NameHost).TrimEnd('.').ToLowerInvariant()
-
-if ($actualCname -ne $generatedFqdn.ToLowerInvariant()) {
-  throw "CNAME '$hostname' resolves to '$actualCname'; expected '$generatedFqdn'."
+if ($Action -in @('plan-dns', 'sync-dns')) {
+  . (Join-Path $PSScriptRoot 'azure-dns.ps1')
+  $dns = Get-AzureWebDnsConfiguration $configuration $EnvironmentName $PlatformSubscriptionId
+  if ($Action -eq 'sync-dns') {
+    if ($ConfirmDnsZone -cne $dns.Zone) { throw 'ConfirmDnsZone must match the delegated Azure DNS zone.' }
+    Assert-AzureWebDnsDelegation $dns (Get-AzureWebDnsZone $dns)
+  }
+  $plan.dnsUpdate = Sync-AzureWebDns $dns -Target $generatedFqdn -VerificationId $verificationId `
+    -ContainerAppName $containerAppName -Apply:($Action -eq 'sync-dns') -ConfirmZone $ConfirmDnsZone
+  if ($Action -eq 'plan-dns') {
+    $plan | ConvertTo-Json -Depth 5
+    return
+  }
 }
 
-$resolvedTxtValues = @(
-  Resolve-DnsName -Name $txtRecordName -Type TXT -ErrorAction Stop |
-    ForEach-Object { [string]::Join('', $_.Strings) }
-)
-
-if ($resolvedTxtValues -notcontains $verificationId) {
-  throw "TXT '$txtRecordName' does not contain the required Azure domain verification value."
+Test-RequiredCommand -Name 'node'
+for ($attempt = 1; $attempt -le $DnsAttempts; $attempt++) {
+  $previousErrorPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $null = & node (Join-Path $PSScriptRoot 'verify-public-dns.mjs') $hostname $generatedFqdn $verificationId 2>&1
+    $dnsExitCode = $LASTEXITCODE
+  } finally { $ErrorActionPreference = $previousErrorPreference }
+  if ($dnsExitCode -eq 0) {
+    $plan.status = 'dns-verified'
+    $plan | ConvertTo-Json -Depth 5
+    return
+  }
+  if ($attempt -lt $DnsAttempts) { Start-Sleep -Seconds $DnsRetrySeconds }
 }
-
-$plan.status = 'dns-verified'
-$plan | ConvertTo-Json -Depth 4
+throw "Public DNS for '$hostname' did not verify. No certificate activation was attempted; inspect propagation before retrying."
