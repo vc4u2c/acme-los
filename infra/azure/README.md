@@ -14,12 +14,13 @@ This is the live Azure implementation surface for the repo, not a portal-only
 notes file. The platform is still growing, but `dev` is a proven ACA workload
 path now.
 
-Current proven state:
+Previously verified platform capabilities:
 
 - the landing-zone governance hierarchy exists
 - the target `platform`, `nonprod`, `prod`, and `sandbox` subscriptions exist
 - the persistent platform network foundation is deployed
-- `dev` is deployed to `Azure Container Apps` in `sub-acme-nonprod-online`
+- `dev` has run on `Azure Container Apps` in `sub-acme-nonprod-online`; it is
+  currently offline following the October 2, 2026 retirement/rebuild rehearsal
 - `Key Vault` and `Azure Managed Redis` are private-only
 - the repo has a staged, source-supported ACS SMS MFA path for Okta; `dev`
   has purchased toll-free sender `+18772244103`, while real carrier SMS remains
@@ -93,8 +94,12 @@ For dev long-break retirement, use
 `tools/scripts/azure/set-dev-retirement-state.ps1`, not permanent teardown.
 See the [recoverable retirement runbook](../../docs/operations/azure-bootstrap-and-teardown.md#recoverable-dev-retirement)
 for ownership migration, explicit data-loss confirmation, and pinned-image
-recovery. Its first live cycle is under verification. Ordinary pause remains
-the existing private-endpoint hibernation path until that cycle is proven.
+recovery. Retirement passed, but rebuilding hit Central US capacity exhaustion;
+a bounded retry was canceled and its partial resources were fully retired.
+New-environment HTTPS and real sign-in checks have not passed. Ordinary pause
+remains the existing private-endpoint hibernation
+path until the complete cycle is proven. Keep automatic CD disabled while dev
+is retired and preserve the delegated DNS zone and its deletion lock.
 
 ## Bootstrap Scripts
 

@@ -342,7 +342,7 @@ Current runtime secret wiring:
 - the container app stays public for now so the workload can be validated before
   Front Door is introduced
 
-Current proven state:
+Previously verified running configuration (see the retirement status below):
 
 - the `dev` environment is deployed in `sub-acme-nonprod-online`
 - the web workload is running in `Azure Container Apps`
@@ -407,9 +407,11 @@ registered at Namecheap and delegate only `los.avanai.net` to Azure DNS. This
 requires no Namecheap API access, API key, or static-IP runner. Do not change
 the root domain's nameservers, mail records, or `auth.avanai.net`.
 
-Dev's `publicDomain.enabled` is now `true` for the approved first activation.
-Adding a DNS zone does not start apps or enable CD. Long-break resource retirement
-and an end-to-end DNS/HTTPS rebuild are not yet live-proven.
+Dev's `publicDomain.enabled` is now `true`; stable-host HTTPS and Okta origin
+activation were verified October 1, 2026. Adding a DNS zone does not start apps
+or enable CD. Resource retirement passed October 2, but the subsequent rebuild
+was blocked by Central US capacity before app creation. A new-environment
+DNS/HTTPS recovery and signed-in journeys remain unverified.
 
 #### Retained Zone Bootstrap
 
@@ -666,8 +668,28 @@ or all charges have stopped. See Microsoft's
 ### Recoverable Dev Retirement
 
 `set-dev-retirement-state.ps1` is the separate, dev-only long-break command.
-Do not use permanent `destroy` for this operation. The first live retirement /
-rebuild cycle is under verification; it is not yet the default for ordinary pause.
+Do not use permanent `destroy` for this operation. The first live retirement
+passed October 2, 2026, preserving retained identity and secret-version metadata.
+The subsequent rebuild failed with regional capacity exhaustion; one retry was
+canceled after 30 minutes of environment provisioning. The full cycle has not
+passed and is not the default for ordinary pause.
+
+The canceled attempt was subsequently retired successfully through the same
+script. Final October 2 verification found no container apps, ACA environment,
+Redis, private endpoints, endpoint NICs, disposable stack, or ACA-managed
+infrastructure group. The marker is `retired`; the retained stack is succeeded
+with 12 resources, and its identity / secret-version fingerprint is unchanged.
+The public DNS zone, four nameservers, deletion lock, and verification TXT remain;
+the app CNAME has no target. All four dev alerts and automatic CD remain disabled.
+Key Vault, identities, ACS, registry images, shared monitoring, and networking
+remain retained, so retirement does not mean zero Azure charges.
+
+Verification included 146 mocked retirement safety tests, the existing DNS and
+lifecycle suites, four Bicep entrypoint builds, BFF tests, and full repository
+formatting. The live read-only Okta audit reported 51 passes and no failures or
+warnings. No rebuilt-browser or authenticated journey checks were possible:
+the new apps never started. Retry recovery only when needed; do not re-enable
+automatic deployment or announce demo readiness based on these offline checks.
 
 Full retirement gives up the running environment's capacity allocation. Rebuild
 can be blocked by regional capacity even when names, images, DNS, and secrets
@@ -679,6 +701,16 @@ partial rebuild to stop disposable-resource charges. Near a scheduled demo,
 retain the environment through ordinary hibernation instead. The provider's
 error points to Microsoft's
 [regional capacity guidance](https://learn.microsoft.com/en-us/troubleshoot/azure/azure-kubernetes/error-codes/akscapacityheavyusage-error).
+
+For a bounded recovery attempt, inspect the disposable stack's current
+`deploymentId` and nested deployment operations before canceling anything.
+Use the supported `az deployment group cancel` command only for the verified
+running recovery deployments. Wait for both ARM deployments and the stack to
+reach terminal states, then use `retire -DiscardDemoData` to remove the recorded
+partial resources. Cancellation alone is not cleanup: already-started service
+operations can continue. Never rewrite provisioning states, remove the DNS lock,
+or independently delete managed networking to force progress. See Microsoft's
+[deployment cancellation contract](https://learn.microsoft.com/en-us/rest/api/resources/deployments/cancel?view=rest-resources-2025-04-01).
 
 ```powershell
 $dev = @{
@@ -743,14 +775,15 @@ intended verification cycle, or explicitly to return a failed demo to idle.
 
 ### Long-Break Acceptance Gates
 
-Long-break runtime retirement/recreation is not yet enabled or live-proven.
+Long-break retirement is source-supported and live-verified; full recreation is
+not yet live-proven and must not be treated as a reliable quick-resume path.
 The owner approved discarding dev demo data on September 15, 2026, including
 Redis-backed application drafts, customer profiles, and authentication state.
 Redis retention is no longer a prerequisite for the planned dev rebuild mode.
 This approval does not replace the recovery checks below.
 The `los.avanai.net` delegation, stable-host HTTPS, and Okta origin activation
-were verified October 1, 2026. The remaining gates include the first live
-retirement/rebuild cycle and full signed-in journeys. A generated ACA hostname
+were verified October 1, 2026. The remaining gates include a successful
+new-environment rebuild and full signed-in journeys. A generated ACA hostname
 must not be assumed reusable after environment recreation.
 
 Before deleting the ACA environment:

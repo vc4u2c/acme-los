@@ -45,9 +45,13 @@ What is solid now:
 
 What is true operationally today:
 
-- `dev` is proven live in Azure on `Azure Container Apps`
+- `dev` previously ran successfully on Azure Container Apps; it is currently
+  offline after the October 2, 2026 retirement/rebuild rehearsal hit Central US
+  capacity exhaustion. Partial rebuild cleanup finished; the environment is
+  `retired`, with disposable resources absent and retained identity / secret
+  metadata unchanged. See the [lifecycle status](../operations/azure-bootstrap-and-teardown.md#recoverable-dev-retirement).
 - `Key Vault` and `Azure Managed Redis` are private-only in the current Azure design
-- the public web app and internal BFF container app are deployed together from
+- the public web app and internal BFF container app deploy together from
   the web deployable, with BFF scale following the environment runtime scale by
   default
 - Redis managed-identity auth is proven live in `dev` as of April 19, 2026
@@ -240,9 +244,9 @@ Still temporary by design:
 
 The web platform is now beyond prototype quality and into a credible pre-production cloud posture, but it is not yet fully battle-hardened production edge infrastructure.
 
-What is already strong:
+Previously verified running configuration:
 
-- `dev` is live on Azure Container Apps with multiple replicas instead of a single-instance-only runtime
+- `dev` has run on Azure Container Apps with multiple replicas instead of a single-instance-only runtime
 - the internal BFF ACA app follows the configured environment replica settings
   by default, so `dev` keeps the BFF warm when the web app is warm
 - the workload runs inside a spoke VNet with separate app and data subnets
@@ -253,15 +257,18 @@ What is already strong:
 - auth and session state are server-side and Redis-backed in Azure instead of browser-backed or in-memory only
 - Application Insights, Log Analytics, alerts, and a workbook provide a real operations surface
 - deployment stacks, budgets, and pause or resume controls are in place for cost-aware lifecycle management
-- `https://apply-dev.los.avanai.net` is the active dev origin with delegated Azure
+- `https://apply-dev.los.avanai.net` is the stable dev origin with delegated Azure
   DNS, a Bicep-managed certificate, and matching Okta callbacks as of October 1,
-  2026; desktop/mobile browser checks verified real IDX initialization
+  2026; desktop/mobile browser checks verified real IDX initialization before
+  retirement. The hostname intentionally has no app target while dev is retired.
 
 What is not fully hardened yet:
 
-- the app is still directly reachable on the ACA hostname
-- stable-host activation is proven, but signed-in journey verification and a
-  secret-preserving full teardown/rebuild remain separate outstanding gates
+- when running, the app is also directly reachable on the ACA hostname
+- stable-host activation and secret-preserving retirement are proven, but the
+  subsequent rebuild encountered regional capacity exhaustion. New-environment
+  HTTPS recovery and signed-in journeys remain outstanding gates; full teardown
+  must not be advertised as an immediately recoverable pause
 - Front Door, WAF, and private-only ACA ingress are still later phases
 - the environment model is proven in `dev`, but still needs the same repeatability proven in `qa`
 - regional failover and broader production resilience controls are not in place yet
