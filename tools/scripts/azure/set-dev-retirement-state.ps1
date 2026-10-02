@@ -107,6 +107,8 @@ if ($Action -eq 'retire') {
   if ($disposable) {
     $disposable = Get-RetirementStack $scope $scope.DisposableStack
     Assert-RetirementStack $scope $disposable 'disposable' -AllowFailed:$retry -AllowPartial:$retry
+    Remove-RetirementServiceResources $scope $disposable
+    Write-Host 'Removing the remaining disposable stack and waiting for Azure-managed environment cleanup.'
     Invoke-AzureDnsJson @('stack', 'group', 'delete', '--subscription', $scope.Subscription, '--resource-group', $scope.Group, '--name', $scope.DisposableStack, '--action-on-unmanage', 'deleteResources', '--yes') | Out-Null
   }
   foreach ($resource in @(@($scope.EnvironmentId, '2025-01-01'), @($scope.RedisId, '2025-07-01'))) {

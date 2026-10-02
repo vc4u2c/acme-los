@@ -224,3 +224,34 @@ function Clear-RetirementCname {
     if (($remaining -and $remaining.Value) -or $observed.properties.metadata.'acme-owner' -cne $Dns.Owner) { throw 'CNAME clearing did not converge.' }
   }
 }
+
+function Remove-RetirementServiceResources {
+  param($Scope, $Stack)
+  $ownedIds = @($Stack.resources | ForEach-Object { $_.id })
+  $endpoints = @()
+  # Stack deletion can run parent and child deletes concurrently. Remove connections before their service.
+  foreach ($kind in @('kv', 'redis')) {
+    $id = "$($Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$kind-dev-cus-01"
+    $endpoint = Get-ConnectivityResource $id
+    if (-not $endpoint) { continue }
+    if ($id -notin $ownedIds) { throw 'Private endpoint is not owned by the disposable stack.' }
+    $subnet = "$($Scope.Id)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-cus-01/subnets/snet-acme-los-data-dev-cus-01"
+    $service = if ($kind -eq 'kv') { $Scope.VaultId } else { $Scope.RedisId }
+    $connections = @($endpoint.properties.privateLinkServiceConnections)
+    if ($endpoint.properties.subnet.id -ine $subnet -or $connections.Count -ne 1 -or
+      $connections[0].properties.privateLinkServiceId -ine $service) { throw 'Private endpoint target or subnet differs from the approved dev service.' }
+    $endpoints += @{ id = $id; kind = $kind }
+  }
+  $redis = Get-ConnectivityResource $Scope.RedisId '2025-07-01'
+  if ($redis -and $Scope.RedisId -notin $ownedIds) { throw 'Redis is not owned by the disposable stack.' }
+  foreach ($endpoint in $endpoints) {
+    Write-Host "Removing dev $($endpoint.kind) private endpoint before service deletion."
+    Invoke-AzureDnsJson @('network', 'private-endpoint', 'delete', '--ids', $endpoint.id) | Out-Null
+    if (Get-ConnectivityResource $endpoint.id) { throw 'Private endpoint deletion did not complete.' }
+  }
+  if ($redis) {
+    Write-Host 'Removing disposable dev Redis before stack cleanup.'
+    Invoke-AzureDnsJson @('resource', 'delete', '--ids', $Scope.RedisId, '--api-version', '2025-07-01') | Out-Null
+    if (Get-ConnectivityResource $Scope.RedisId '2025-07-01') { throw 'A disposable service is still allocated after Redis deletion.' }
+  }
+}

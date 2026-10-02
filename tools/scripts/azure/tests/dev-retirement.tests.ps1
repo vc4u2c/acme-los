@@ -98,6 +98,19 @@ function Reset-TestState {
     $s.NicIds += "$($scope.Id)/providers/Microsoft.Network/networkInterfaces/nic-acme-los-$kind-dev-cus-01"
   }
   foreach ($id in @($s.RetainedIds) + @($s.DisposableIds) + @($s.NicIds)) { $s.Resources[$id] = @{ id = $id; properties = @{} } }
+  foreach ($kind in @('kv', 'redis')) {
+    $endpoint = "$($scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$kind-dev-cus-01"
+    $service = if ($kind -eq 'kv') { $scope.VaultId } else { $scope.RedisId }
+    $groupId = if ($kind -eq 'kv') { 'vault' } else { 'redisEnterprise' }
+    $s.Resources[$endpoint].properties = @{
+      subnet = @{ id = "$network/subnets/snet-acme-los-data-dev-cus-01" }
+      privateLinkServiceConnections = @(@{
+        name = "plsc-acme-los-$kind-dev-cus-01"
+        properties = @{ privateLinkServiceId = $service; groupIds = @($groupId); privateLinkServiceConnectionState = @{ status = 'Approved' } }
+      })
+      networkInterfaces = @(@{ id = "$($scope.Id)/providers/Microsoft.Network/networkInterfaces/nic-acme-los-$kind-dev-cus-01" })
+    }
+  }
   $s.Resources[$scope.VaultId].properties = @{ publicNetworkAccess = 'Disabled'; tenantId = '44444444-4444-4444-4444-444444444444' }
   $s.Resources[$scope.IdentityId].properties = @{ principalId = '55555555-5555-5555-5555-555555555555'; clientId = '66666666-6666-6666-6666-666666666666' }
   $s.Resources[$scope.AcsId].properties = @{ disableLocalAuth = $true }
@@ -227,7 +240,12 @@ try {
           $result = @(@{ properties = @{ provisioningState = 'Running' } })
         }
       }
-      'stack group list' { $result = @($s.Stacks.Values) }
+      'stack group list' {
+        if ($s.Failure -eq 'stack-ownership-race' -and $s.Apps.Count -eq 0) {
+          $s.Stacks[$s.Scope.DisposableStack].resources += @{ id = $s.Dns.ZoneId }
+        }
+        $result = @($s.Stacks.Values)
+      }
       'acr manifest show-metadata' {
         Assert-True ((Get-TestArgument $a '--registry') -eq $s.Scope.Registry) 'source registry only'
         Assert-True ((Get-TestArgument $a '--subscription') -eq $s.Scope.Subscription) 'source subscription only'
@@ -304,23 +322,55 @@ try {
         if ($s.Failure -eq 'app-delete') { $global:LASTEXITCODE = 1; return 'ERROR: (Conflict) Synthetic delete failure' }
         if ($s.Failure -ne 'app-stuck') { $s.Apps.Remove($name) }
       }
+      'network private-endpoint delete' {
+        $id = Get-TestArgument $a '--ids'
+        $kind = @('kv', 'redis') | Where-Object { $id -eq "$($s.Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$_-dev-cus-01" }
+        Assert-True (@($kind).Count -eq 1) 'only source-owned dev endpoints explicitly deleted'
+        Assert-True ($s.Resources.ContainsKey($id)) 'absent endpoints are skipped'
+        Assert-True ($s.Apps.Count -eq 0) 'apps absent before private endpoint deletion'
+        if ($kind -eq 'redis') {
+          Assert-True (-not $s.Resources.ContainsKey("$($s.Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-kv-dev-cus-01")) 'Key Vault endpoint absent before Redis endpoint deletion'
+        }
+        $s.Events.Add("delete:endpoint:$kind")
+        if ($s.Failure -eq "$kind-endpoint-delete") { $global:LASTEXITCODE = 1; return 'ERROR: (Conflict) Synthetic endpoint delete failure' }
+        if ($s.Failure -ne "$kind-endpoint-stuck") {
+          $s.Resources.Remove($id)
+          $s.Resources.Remove("$id/privateDnsZoneGroups/default")
+          $s.Resources.Remove("$($s.Scope.Id)/providers/Microsoft.Network/networkInterfaces/nic-acme-los-$kind-dev-cus-01")
+        }
+      }
+      'resource delete *' {
+        $id = Get-TestArgument $a '--ids'
+        Assert-True ($id -eq $s.Scope.RedisId) 'only the source Redis parent is explicitly deleted, never its children or the environment'
+        Assert-True ((Get-TestArgument $a '--api-version') -ceq '2025-07-01') 'Redis deletion uses the required API version'
+        Assert-True ($s.Resources.ContainsKey($id)) 'absent Redis is skipped'
+        Assert-True ($s.Apps.Count -eq 0) 'apps absent before Redis deletion'
+        foreach ($kind in @('kv', 'redis')) {
+          Assert-True (-not $s.Resources.ContainsKey("$($s.Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$kind-dev-cus-01")) 'both private endpoints absent before Redis deletion'
+        }
+        $s.Events.Add('delete:redis')
+        if ($s.Failure -eq 'redis-delete') { $global:LASTEXITCODE = 1; return 'ERROR: (Conflict) Synthetic Redis delete failure' }
+        if ($s.Failure -ne 'redis-stuck') {
+          foreach ($resourceId in @($s.Resources.Keys | Where-Object { $_ -eq $id -or $_.StartsWith("$id/", [StringComparison]::OrdinalIgnoreCase) })) {
+            $s.Resources.Remove($resourceId)
+          }
+        }
+      }
       'stack group delete' {
         Assert-True ((Get-TestArgument $a '--name') -eq $s.Scope.DisposableStack) 'never delete retained stack'
         Assert-True ((Get-TestArgument $a '--action-on-unmanage') -ceq 'deleteResources') 'delete only disposable resources, not groups'
         Assert-True ((Get-TestArgument $a '--resource-group') -eq $s.Scope.Group) 'only workload stack'
         Assert-True ($s.Apps.Count -eq 0) 'apps absent before disposable stack deletion'
+        Assert-True (-not $s.Resources.ContainsKey($s.Scope.RedisId)) 'Redis absent before disposable stack deletion'
+        foreach ($kind in @('kv', 'redis')) {
+          Assert-True (-not $s.Resources.ContainsKey("$($s.Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$kind-dev-cus-01")) 'private endpoints absent before disposable stack deletion'
+        }
         $s.Events.Add('delete:disposable')
         if ($s.Failure -eq 'stack-delete') { $global:LASTEXITCODE = 1; return 'ERROR: (Conflict) Synthetic stack failure' }
         $ownedIds = @($s.Stacks[$s.Scope.DisposableStack].resources | ForEach-Object { $_.id })
         $s.Stacks.Remove($s.Scope.DisposableStack)
         foreach ($id in $ownedIds) {
-          if ($s.Failure -eq 'redis-stuck' -and $id -eq $s.Scope.RedisId) { continue }
           $s.Resources.Remove($id)
-          foreach ($kind in @('kv', 'redis')) {
-            if ($id -eq "$($s.Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$kind-dev-cus-01") {
-              $s.Resources.Remove("$($s.Scope.Id)/providers/Microsoft.Network/networkInterfaces/nic-acme-los-$kind-dev-cus-01")
-            }
-          }
         }
       }
       'resource list *' {
@@ -351,6 +401,7 @@ try {
           if ($s.Failure -eq 'cname-race') { $global:LASTEXITCODE = 1; return 'ERROR: (PreconditionFailed) Synthetic concurrent writer' }
           if ($s.Failure -ne 'cname-stuck') { $s.Resources[$id].properties = $body.properties }
         } elseif ($method -eq 'get') {
+          if ($id -eq $s.Scope.RedisId) { Assert-True ($uri.EndsWith('?api-version=2025-07-01')) 'Redis existence and absence checks use the required API version' }
           if ($id -eq "$($s.Scope.VaultId)/secrets") {
             $s.SecretReads++
             if ($s.Failure -eq 'secret403') { $global:LASTEXITCODE = 1; return 'ERROR: (AuthorizationFailed) Synthetic access denial' }
@@ -998,6 +1049,11 @@ try {
     Assert-True ($s.Apps.Count -eq 0 -and -not $s.Stacks.ContainsKey($s.Scope.DisposableStack)) 'apps and disposable stack absent'
     Assert-True ($s.Events.IndexOf('clear:cname') -lt $s.Events.IndexOf("delete:app:$($s.Scope.AppNames[0])")) 'CNAME cleared before apps'
     Assert-True ($s.Events.IndexOf("delete:app:$($s.Scope.AppNames[1])") -lt $s.Events.IndexOf('delete:disposable')) 'both apps removed before environment'
+    $expectedDeletes = @(
+      "delete:app:$($s.Scope.AppNames[0])", "delete:app:$($s.Scope.AppNames[1])",
+      'delete:endpoint:kv', 'delete:endpoint:redis', 'delete:redis', 'delete:disposable'
+    )
+    Assert-True ((@($s.Events | Where-Object { $_ -like 'delete:*' }) -join ',') -ceq ($expectedDeletes -join ',')) 'apps, Key Vault endpoint, Redis endpoint, Redis parent, and remaining stack are deleted in order'
     foreach ($id in @($s.DisposableIds) + @($s.NicIds)) { Assert-True (-not $s.Resources.ContainsKey($id)) 'disposable services and NICs released' }
     Assert-TestRetained
     Assert-True ((Get-RetirementProtectedFingerprint $s.Scope) -ceq $before) 'retained identity and secret versions unchanged'
@@ -1005,6 +1061,90 @@ try {
     Invoke-TestRetirement 'retire' | Out-Null
     Assert-NoTestDeletes
     Assert-True ($s.Tags['acme:retirement'] -eq 'retired') 'repeat retirement converges'
+  }
+  foreach ($kind in @('kv', 'redis')) {
+    foreach ($scenario in @('target', 'subnet', 'no-connections', 'multiple-connections', 'unknown-ownership')) {
+      $name = "service preflight preserves both endpoints when $kind endpoint fails validation: $scenario"
+      $testArguments[$name] = @{ Kind = $kind; Scenario = $scenario }
+      $tests[$name] = {
+        param($case)
+        Set-TestPrepared
+        $id = "$($s.Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$($case.Kind)-dev-cus-01"
+        $properties = $s.Resources[$id].properties
+        switch ($case.Scenario) {
+          'target' { $properties.privateLinkServiceConnections[0].properties.privateLinkServiceId = $s.Scope.AcsId }
+          'subnet' { $properties.subnet.id = $properties.subnet.id.Replace('snet-acme-los-data-dev-cus-01', 'snet-acme-los-app-dev-cus-01') }
+          'no-connections' { $properties.privateLinkServiceConnections = @() }
+          'multiple-connections' { $properties.privateLinkServiceConnections += Copy-TestObject $properties.privateLinkServiceConnections[0] }
+          'unknown-ownership' {
+            $s.Tags['acme:retirement'] = 'retiring'
+            $stack = $s.Stacks[$s.Scope.DisposableStack]
+            $stack.resources = @($stack.resources | Where-Object { $_.id -ne $id })
+          }
+        }
+        $pattern = if ($case.Scenario -eq 'unknown-ownership') { 'Private endpoint is not owned by the disposable stack' } else { 'Private endpoint target or subnet differs' }
+        Assert-Fails { Invoke-TestRetirement 'retire' } $pattern
+        Assert-True ($s.Apps.Count -eq 0) 'endpoint safety gate is reached after app deletion'
+        Assert-True (@($s.Events | Where-Object { $_ -like 'delete:endpoint:*' -or $_ -in @('delete:redis', 'delete:disposable') }).Count -eq 0) 'all endpoint and Redis validation precedes the first service deletion'
+        foreach ($endpointKind in @('kv', 'redis')) {
+          Assert-True ($s.Resources.ContainsKey("$($s.Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$endpointKind-dev-cus-01")) 'both endpoints remain allocated, including the valid first endpoint'
+        }
+        Assert-True ($s.Resources.ContainsKey($s.Scope.RedisId) -and $s.Resources.ContainsKey($s.Scope.EnvironmentId)) 'Redis and environment remain allocated'
+        Assert-True ($s.Tags['acme:retirement'] -eq 'retiring') 'failed validation remains visibly incomplete'
+        Assert-TestRetained
+      }
+    }
+  }
+  $tests['service preflight rejects unowned Redis before deleting either endpoint'] = {
+    Set-TestPrepared
+    $s.Tags['acme:retirement'] = 'retiring'
+    $stack = $s.Stacks[$s.Scope.DisposableStack]
+    $stack.resources = @($stack.resources | Where-Object { $_.id -ne $s.Scope.RedisId })
+    Assert-Fails { Invoke-TestRetirement 'retire' } 'Redis is not owned by the disposable stack'
+    Assert-True ($s.Apps.Count -eq 0) 'Redis safety gate is reached after app deletion'
+    Assert-True (@($s.Events | Where-Object { $_ -like 'delete:endpoint:*' -or $_ -in @('delete:redis', 'delete:disposable') }).Count -eq 0) 'Redis ownership is validated before any service deletion'
+    Assert-True ($s.Resources.ContainsKey($s.Scope.RedisId) -and $s.Resources.ContainsKey($s.Scope.EnvironmentId)) 'unowned Redis and environment remain allocated'
+    Assert-True ($s.Tags['acme:retirement'] -eq 'retiring') 'failed Redis ownership validation preserves retiring marker'
+    Assert-TestRetained
+  }
+  $tests['refreshed stack ownership is checked after app deletion and before service deletion'] = {
+    Set-TestPrepared
+    $s.Failure = 'stack-ownership-race'
+    Assert-Fails { Invoke-TestRetirement 'retire' } 'Unexpected stack resource'
+    Assert-True ($s.Apps.Count -eq 0) 'ownership changed only after both apps were removed'
+    Assert-True (@($s.Events | Where-Object { $_ -like 'delete:endpoint:*' -or $_ -in @('delete:redis', 'delete:disposable') }).Count -eq 0) 'stale preflight ownership cannot authorize service or stack deletion'
+    Assert-True ($s.Tags['acme:retirement'] -eq 'retiring') 'refreshed ownership failure preserves retiring marker'
+    Assert-TestRetained
+  }
+  foreach ($missing in @('kv', 'redis', 'both-endpoints', 'all-services')) {
+    $name = "interrupted retirement skips absent services even when no longer stack-owned: $missing"
+    $testArguments[$name] = $missing
+    $tests[$name] = {
+      param($missing)
+      Set-TestPrepared
+      $s.Tags['acme:retirement'] = 'retiring'
+      $stack = $s.Stacks[$s.Scope.DisposableStack]
+      $stack.provisioningState = 'Failed'
+      $absentIds = @()
+      foreach ($kind in @('kv', 'redis')) {
+        if ($missing -eq $kind -or $missing -in @('both-endpoints', 'all-services')) {
+          $id = "$($s.Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$kind-dev-cus-01"
+          $absentIds += @($id, "$id/privateDnsZoneGroups/default", "$($s.Scope.Id)/providers/Microsoft.Network/networkInterfaces/nic-acme-los-$kind-dev-cus-01")
+        }
+      }
+      if ($missing -eq 'all-services') { $absentIds += @($s.DisposableIds | Where-Object { $_ -eq $s.Scope.RedisId -or $_.StartsWith("$($s.Scope.RedisId)/") }) }
+      foreach ($id in $absentIds) { $s.Resources.Remove($id) }
+      $stack.resources = @($stack.resources | Where-Object { $_.id -notin $absentIds })
+      Invoke-TestRetirement 'retire' | Out-Null
+      Assert-True ($s.Tags['acme:retirement'] -eq 'retired') 'partial interrupted retirement converges'
+      foreach ($kind in @('kv', 'redis')) {
+        $expectedCount = if ($missing -eq $kind -or $missing -in @('both-endpoints', 'all-services')) { 0 } else { 1 }
+        Assert-True (@($s.Events | Where-Object { $_ -eq "delete:endpoint:$kind" }).Count -eq $expectedCount) 'only still-present endpoints are deleted'
+      }
+      Assert-True ($s.Events.Contains('delete:redis') -eq ($missing -ne 'all-services')) 'Redis deletion is skipped only when already absent'
+      foreach ($id in @($s.DisposableIds) + @($s.NicIds)) { Assert-True (-not $s.Resources.ContainsKey($id)) 'disposable resources and NICs are absent after retry' }
+      Assert-TestRetained
+    }
   }
   foreach ($scenario in @('account', 'deploying', 'delegation', 'secret403', 'unknown-resource', 'foreign-app', 'saved-secret-drift', 'saved-identity-drift')) {
     $name = "retirement preflight blocks all mutations: $scenario"
@@ -1055,7 +1195,7 @@ try {
       }
     }
   }
-  foreach ($scenario in @('alert-stuck', 'cname-race', 'deployment-race', 'app-delete', 'app-stuck', 'app403', 'stack-delete', 'redis-stuck', 'managed-network')) {
+  foreach ($scenario in @('alert-stuck', 'cname-race', 'deployment-race', 'app-delete', 'app-stuck', 'app403', 'kv-endpoint-delete', 'kv-endpoint-stuck', 'redis-endpoint-delete', 'redis-endpoint-stuck', 'redis-delete', 'stack-delete', 'redis-stuck', 'managed-network')) {
     $name = "retirement failure preserves retiring marker and retained resources: $scenario"
     $testArguments[$name] = $scenario
     $tests[$name] = {
@@ -1066,6 +1206,8 @@ try {
         'alert-stuck' { 'Alert state did not converge' }
         'deployment-race' { 'deployment is in progress' }
         'app-stuck' { 'Container app deletion did not complete' }
+        'kv-endpoint-stuck' { 'Private endpoint deletion did not complete' }
+        'redis-endpoint-stuck' { 'Private endpoint deletion did not complete' }
         'redis-stuck' { 'disposable service is still allocated' }
         'managed-network' { 'has not released the ACA-managed infrastructure' }
         default { 'Azure DNS request failed' }
@@ -1075,16 +1217,31 @@ try {
       Assert-TestRetained
       Assert-True (-not $s.Events.Contains('alert:True')) 'failure never re-enables alerts'
       if ($scenario -eq 'app-delete') { Assert-True ($s.Events.Contains("delete:app:$($s.Scope.AppNames[0])")) 'injected app failure was reached' }
-      if ($scenario -in @('stack-delete', 'redis-stuck', 'managed-network')) { Assert-True ($s.Events.Contains('delete:disposable')) 'disposable deletion was reached before the injected failure' }
+      if ($scenario -in @('stack-delete', 'managed-network')) { Assert-True ($s.Events.Contains('delete:disposable')) 'disposable deletion was reached before the injected failure' }
+      if ($scenario -match '^(kv|redis)-endpoint-(delete|stuck)$') {
+        $kind = $Matches[1]
+        Assert-True ($s.Events.Contains("delete:endpoint:$kind")) 'injected endpoint deletion failure was reached'
+        Assert-True ($s.Resources.ContainsKey("$($s.Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$kind-dev-cus-01")) 'failed or stuck endpoint remains allocated'
+        Assert-True (-not $s.Events.Contains('delete:redis') -and -not $s.Events.Contains('delete:disposable')) 'endpoint failure prevents Redis and stack deletion'
+        if ($kind -eq 'kv') { Assert-True (-not $s.Events.Contains('delete:endpoint:redis')) 'first endpoint failure prevents second endpoint deletion' }
+      }
+      if ($scenario -in @('redis-delete', 'redis-stuck')) {
+        Assert-True ($s.Events.Contains('delete:redis') -and $s.Resources.ContainsKey($s.Scope.RedisId)) 'injected Redis deletion failure was reached and Redis remains allocated'
+        Assert-True (-not $s.Events.Contains('delete:disposable')) 'Redis failure prevents stack deletion'
+      }
+      if ($scenario -match 'endpoint-(delete|stuck)$' -or $scenario -in @('redis-delete', 'redis-stuck')) {
+        Assert-True ($s.Resources.ContainsKey($s.Scope.EnvironmentId) -and $s.Stacks.ContainsKey($s.Scope.DisposableStack)) 'service failures preserve the environment and its owning stack'
+      }
       if ($scenario -eq 'alert-stuck') { Assert-NoTestDeletes }
       if ($scenario -in @('cname-race', 'deployment-race', 'app403')) {
-        Assert-True (@($s.Events | Where-Object { $_ -like 'delete:app:*' -or $_ -eq 'delete:disposable' }).Count -eq 0) 'no runtime deletion beyond failed safety gate'
+        Assert-NoTestDeletes
       }
       if ($scenario -eq 'managed-network') { Assert-True ($s.Sleeps -eq 60) 'managed-network wait is bounded without real sleeping' }
-      if ($scenario -in @('app-delete', 'stack-delete')) {
+      if ($scenario -match 'endpoint-(delete|stuck)$' -or $scenario -in @('app-delete', 'redis-delete', 'redis-stuck', 'stack-delete')) {
         $s.Failure = ''
         Invoke-TestRetirement 'retire' | Out-Null
         Assert-True ($s.Tags['acme:retirement'] -eq 'retired') 'retry converges after partial deletion'
+        Assert-TestRetained
       }
     }
   }
