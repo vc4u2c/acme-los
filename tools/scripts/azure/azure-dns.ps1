@@ -159,10 +159,11 @@ function Sync-AzureWebDns {
       $etag = [string]$current.etag
       if ([string]::IsNullOrWhiteSpace($etag)) { throw 'Azure did not return an ETag; refusing an unconditional DNS update.' }
       $value = $current.properties.PSObject.Properties[$record.ValueKey]
-      if (-not $value) { throw 'The existing DNS record has an unexpected shape.' }
       if ($record.Type -eq 'CNAME') {
-        $matches = $value.Value.cname.TrimEnd('.') -ieq $Target
+        # Retirement retains an empty, source-owned record set under the zone's deletion lock.
+        $matches = $value -and $value.Value -and $value.Value.cname.TrimEnd('.') -ieq $Target
       } else {
+        if (-not $value) { throw 'The existing DNS record has an unexpected shape.' }
         $values = @($value.Value)
         $matches = $values.Count -eq 1 -and (($values[0].value -join '') -ceq $VerificationId)
         if ($values.Count -ne 1) { throw 'The app verification TXT contains multiple records. Review before replacing it.' }

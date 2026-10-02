@@ -206,19 +206,21 @@ function Set-RetirementAlerts {
   }
 }
 
-function Remove-RetirementCname {
+function Clear-RetirementCname {
   param($Dns, [switch]$Apply)
   $uri = "https://management.azure.com$($Dns.ZoneId)/CNAME/$($Dns.HostLabel)?api-version=2018-05-01"
   $record = Invoke-AzureDnsJson @('rest', '--method', 'get', '--uri', $uri) -AllowMissing
   if (-not $record) { return }
-  if ($record.properties.metadata.'acme-owner' -cne $Dns.Owner -or -not $record.etag) { throw 'Refusing to remove a CNAME without source ownership and ETag.' }
-  if ($record.properties.CNAMERecord.cname -notmatch '^ca-acme-los-web-dev-cus-01\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io\.?$') { throw 'The CNAME points outside the dev application.' }
+  if ($record.properties.metadata.'acme-owner' -cne $Dns.Owner -or -not $record.etag) { throw 'Refusing to clear a CNAME without source ownership and ETag.' }
+  $value = $record.properties.PSObject.Properties['CNAMERecord']
+  if (-not $value -or -not $value.Value) { return }
+  if ($value.Value.cname -notmatch '^ca-acme-los-web-dev-cus-01\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io\.?$') { throw 'The CNAME points outside the dev application.' }
   if ($Apply) {
-    $headersFile = [IO.Path]::GetTempFileName()
-    try {
-      @{ 'If-Match' = $record.etag } | ConvertTo-Json | Set-Content -LiteralPath $headersFile -Encoding UTF8
-      Invoke-AzureDnsJson @('rest', '--method', 'delete', '--uri', $uri, '--headers', "@$headersFile") | Out-Null
-    } finally { Remove-Item -LiteralPath $headersFile -Force -ErrorAction SilentlyContinue }
-    if (Invoke-AzureDnsJson @('rest', '--method', 'get', '--uri', $uri) -AllowMissing) { throw 'CNAME removal did not converge.' }
+    # Empty record sets publish no DNS answer and can be updated without removing the zone lock.
+    $properties = @{ TTL = $record.properties.TTL; metadata = $record.properties.metadata }
+    Set-AzureWebDnsRecord -Uri $uri -Properties $properties -Etag $record.etag
+    $observed = Invoke-AzureDnsJson @('rest', '--method', 'get', '--uri', $uri)
+    $remaining = $observed.properties.PSObject.Properties['CNAMERecord']
+    if (($remaining -and $remaining.Value) -or $observed.properties.metadata.'acme-owner' -cne $Dns.Owner) { throw 'CNAME clearing did not converge.' }
   }
 }

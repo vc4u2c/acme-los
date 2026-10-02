@@ -30,7 +30,7 @@ if ($group.tags.'acme:application' -cne 'acme-los' -or $group.tags.'acme:environ
 Assert-NoActiveWorkloadDeployment $scope.Subscription $scope.Group
 $dns = Get-AzureWebDnsConfiguration $configuration 'dev' $scope.PlatformSubscription
 Assert-AzureWebDnsDelegation $dns (Get-AzureWebDnsZone $dns)
-Remove-RetirementCname $dns
+Clear-RetirementCname $dns
 $fingerprint = Get-RetirementProtectedFingerprint $scope
 $markerProperty = $group.tags.PSObject.Properties['acme:retirement']
 $marker = if ($markerProperty) { [string]$markerProperty.Value } else { 'active' }
@@ -55,7 +55,7 @@ if ($Action -eq 'show-plan') {
     retainedStack = $scope.RetainedStack; disposableStack = $scope.DisposableStack; disposableStackExists = [bool]$disposable
     hostname = $dns.Hostname; discard = @('Both container apps', 'ACA environment and its managed networking', 'Dev Redis data', 'Two private endpoints and NICs', 'Managed app certificate')
     preserve = @('Public DNS zone and delegation', 'Key Vault and secrets', 'Runtime and deployment identities', 'ACS and phone', 'Registry and images', 'Shared monitoring', 'Free VNet/NSGs/private DNS links', 'Okta')
-    note = 'Retirement removes only the app CNAME to prevent a dangling alias. Rebuild republishes it. No resource group or retained stack is deleted.'
+    note = 'Retirement clears only the app CNAME target, retaining its empty record set and zone lock. Rebuild republishes it. No resource group or retained stack is deleted.'
   } | ConvertTo-Json -Depth 5
   return
 }
@@ -93,7 +93,7 @@ if ($Action -eq 'retire') {
     Set-RetirementTags $scope $metadata
   } else { Set-RetirementTags $scope @{ 'acme:retirement' = 'retiring' } }
   Set-RetirementAlerts $scope $configuration $false
-  Remove-RetirementCname $dns -Apply
+  Clear-RetirementCname $dns -Apply
   Assert-NoActiveWorkloadDeployment $scope.Subscription $scope.Group
   foreach ($name in $scope.AppNames) {
     $id = "$($scope.Id)/providers/Microsoft.App/containerApps/$name"

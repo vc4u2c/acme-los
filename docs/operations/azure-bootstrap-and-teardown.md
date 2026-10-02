@@ -688,12 +688,16 @@ and adopts only the approved disposable IDs in
 the `all` phase remains the default for other environments. Unknown IDs and
 unexpected subscriptions, parameters, or deny settings fail closed.
 
-Retirement suppresses the four dev alerts, conditionally removes only the owned
-app CNAME, deletes the two apps and the disposable stack, and checks that Azure
+Retirement suppresses the four dev alerts, conditionally clears only the owned
+app CNAME target, deletes the two apps and the disposable stack, and checks that Azure
 has released the ACA-managed networking. It never independently deletes the
 managed load balancer or public IP. The zone, delegation, verification TXT,
 Key Vault, identities, ACS phone, registry, shared monitoring, and free workload
 VNet/NSGs remain. The public URL is intentionally unavailable while retired.
+The empty CNAME record set retains its metadata, TTL, and zone deletion lock;
+Azure does not publish empty record sets. Rebuild fills that same owned record
+set using an ETag-guarded update. See Microsoft's
+[DNS lock and empty-record behavior](https://learn.microsoft.com/en-us/azure/dns/dns-protect-zones-recordsets).
 
 Recovery metadata contains only public image tags, immutable digests, version,
 and a hash of retained identity / secret-version metadata in workload RG tags.

@@ -99,6 +99,23 @@ $tests = [ordered]@{
     $result = Invoke-Sync -Apply
     Assert-True ($result.changedRecords -eq 0 -and $global:writes.Count -eq 2) 'no duplicate writes'
   }
+  'rebuild restores owned empty CNAME records with metadata and TTL intact' = {
+    foreach ($shape in @('missing', 'null')) {
+      Add-ExistingRecords
+      if ($shape -eq 'missing') { $global:records[$global:cnameUri].properties.Remove('CNAMERecord') }
+      else { $global:records[$global:cnameUri].properties.CNAMERecord = $null }
+      Invoke-Sync -Apply | Out-Null
+      Assert-True ($global:records[$global:cnameUri].properties.CNAMERecord.cname -eq $global:target) 'owned empty record filled'
+      Assert-True ($global:records[$global:cnameUri].properties.TTL -eq 600 -and $global:records[$global:cnameUri].properties.metadata.purpose -eq 'retain-me') 'metadata and TTL unchanged'
+    }
+  }
+  'unowned empty CNAME is never claimed during rebuild' = {
+    Add-ExistingRecords
+    $global:records[$global:cnameUri].properties.Remove('CNAMERecord')
+    $global:records[$global:cnameUri].properties.metadata.'acme-owner' = 'other-owner'
+    Assert-Fails { Invoke-Sync -Apply } 'not source-owned'
+    Assert-True ($global:writes.Count -eq 0) 'no writes'
+  }
   'unowned TXT blocks both writes before CNAME is touched' = {
     Add-ExistingRecords
     $global:records[$global:txtUri].properties.metadata.'acme-owner' = 'someone-else'

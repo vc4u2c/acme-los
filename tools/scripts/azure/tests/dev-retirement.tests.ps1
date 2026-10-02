@@ -113,7 +113,7 @@ function Reset-TestState {
   $s.CnameId = "$($dns.ZoneId)/CNAME/$($dns.HostLabel)"
   $s.TxtId = "$($dns.ZoneId)/TXT/asuid.$($dns.HostLabel)"
   $s.Resources[$s.CnameId] = @{ etag = '"record-version-1"'; properties = @{
-    metadata = @{ 'acme-owner' = $dns.Owner }; CNAMERecord = @{ cname = 'ca-acme-los-web-dev-cus-01.fixture.centralus.azurecontainerapps.io' }
+    TTL = 600; metadata = @{ 'acme-owner' = $dns.Owner; purpose = 'retained' }; CNAMERecord = @{ cname = 'ca-acme-los-web-dev-cus-01.fixture.centralus.azurecontainerapps.io' }
   } }
   $s.Resources[$s.TxtId] = @{ properties = @{ TXTRecords = @(@{ value = @('D' * 64) }) } }
   $s.AlertIds = @()
@@ -296,7 +296,9 @@ try {
         Assert-True ($name -in $s.Scope.AppNames) 'only two source apps deleted'
         Assert-True ((Get-TestArgument $a '--subscription') -eq $s.Scope.Subscription) 'workload subscription only'
         Assert-True ((Get-TestArgument $a '--resource-group') -eq $s.Scope.Group) 'workload group only'
-        Assert-True (-not $s.Resources.ContainsKey($s.CnameId)) 'alias removed before app deletion'
+        $record = Copy-TestObject $s.Resources[$s.CnameId]
+        $target = if ($record) { $record.properties.PSObject.Properties['CNAMERecord'] } else { $null }
+        Assert-True (-not $target -or -not $target.Value) 'alias target cleared before app deletion'
         foreach ($id in $s.AlertIds) { Assert-True (-not $s.Resources[$id].properties.enabled) 'alerts suppressed before deletion' }
         $s.Events.Add("delete:app:$name")
         if ($s.Failure -eq 'app-delete') { $global:LASTEXITCODE = 1; return 'ERROR: (Conflict) Synthetic delete failure' }
@@ -331,15 +333,23 @@ try {
         $id = ($uri -replace '^https://management\.azure\.com', '').Split('?')[0]
         $method = Get-TestArgument $a '--method'
         if ($method -eq 'delete') {
-          Assert-True ($id -eq $s.CnameId) 'only app CNAME may be deleted by REST'
+          throw 'ScopeLocked: the retained DNS zone deletion lock protects all record sets'
+        } elseif ($method -eq 'put') {
+          Assert-True ($id -eq $s.CnameId) 'only app CNAME target may be cleared by REST'
           $path = (Get-TestArgument $a '--headers').Substring(1)
           $s.TemporaryFiles.Add($path)
           $headers = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
-          Assert-True ($headers.'If-Match' -ceq $s.Resources[$id].etag) 'exact quoted ETag passed in conditional delete'
-          Assert-True (@($headers.PSObject.Properties).Count -eq 1) 'no wildcard or replacement condition'
-          $s.Events.Add('delete:cname')
+          Assert-True ($headers.'If-Match' -ceq $s.Resources[$id].etag) 'exact quoted ETag passed in conditional update'
+          Assert-True (@($headers.PSObject.Properties).Count -eq 2 -and $headers.'Content-Type' -eq 'application/json') 'only content type and exact match condition'
+          $bodyPath = (Get-TestArgument $a '--body').Substring(1)
+          $s.TemporaryFiles.Add($bodyPath)
+          $body = Get-Content -LiteralPath $bodyPath -Raw | ConvertFrom-Json
+          Assert-True (-not $body.properties.PSObject.Properties['CNAMERecord']) 'empty record set has no alias target'
+          Assert-True ($body.properties.TTL -eq 600 -and $body.properties.metadata.purpose -eq 'retained') 'TTL and unrelated metadata retained'
+          Assert-True ($body.properties.metadata.'acme-owner' -eq $s.Dns.Owner) 'ownership retained'
+          $s.Events.Add('clear:cname')
           if ($s.Failure -eq 'cname-race') { $global:LASTEXITCODE = 1; return 'ERROR: (PreconditionFailed) Synthetic concurrent writer' }
-          if ($s.Failure -ne 'cname-stuck') { $s.Resources.Remove($id) }
+          if ($s.Failure -ne 'cname-stuck') { $s.Resources[$id].properties = $body.properties }
         } elseif ($method -eq 'get') {
           if ($id -eq "$($s.Scope.VaultId)/secrets") {
             $s.SecretReads++
@@ -685,17 +695,24 @@ try {
       Assert-True ($s.Events.Count -eq 0) 'invalid images never trigger mutations'
     }
   }
-  $tests['CNAME preview is read-only and conditional delete preserves zone and TXT'] = {
-    Remove-RetirementCname $s.Dns
-    Assert-True ($s.Events.Count -eq 0) 'preview never deletes'
-    Remove-RetirementCname $s.Dns -Apply
-    Assert-True (-not $s.Resources.ContainsKey($s.CnameId)) 'CNAME removed and absence checked'
+  $tests['CNAME preview is read-only and clearing works with locked zone and preserves TXT'] = {
+    Clear-RetirementCname $s.Dns
+    Assert-True ($s.Events.Count -eq 0) 'preview never writes'
+    Clear-RetirementCname $s.Dns -Apply
+    Assert-True ($s.Resources.ContainsKey($s.CnameId) -and -not $s.Resources[$s.CnameId].properties.PSObject.Properties['CNAMERecord']) 'empty CNAME retained and read back'
     Assert-TestRetained
-    Remove-RetirementCname $s.Dns -Apply
-    Assert-True (@($s.Events | Where-Object { $_ -eq 'delete:cname' }).Count -eq 1) 'missing CNAME is an idempotent no-op'
+    Clear-RetirementCname $s.Dns -Apply
+    Assert-True (@($s.Events | Where-Object { $_ -eq 'clear:cname' }).Count -eq 1) 'empty CNAME is an idempotent no-op'
+  }
+  $tests['absent and null CNAME targets are idempotent without deleting the record set'] = {
+    $s.Resources[$s.CnameId].properties.CNAMERecord = $null
+    Clear-RetirementCname $s.Dns -Apply
+    $s.Resources.Remove($s.CnameId)
+    Clear-RetirementCname $s.Dns -Apply
+    Assert-True ($s.Events.Count -eq 0) 'no mutation for already unpublished alias'
   }
   foreach ($scenario in @('owner', 'etag', 'target', 'cname-race', 'cname-stuck')) {
-    $name = "CNAME removal fails closed: $scenario"
+    $name = "CNAME clearing fails closed: $scenario"
     $testArguments[$name] = $scenario
     $tests[$name] = {
       param($scenario)
@@ -707,8 +724,8 @@ try {
         'cname-race' { $s.Failure = $scenario; $pattern = 'Azure DNS request failed' }
         'cname-stuck' { $s.Failure = $scenario; $pattern = 'did not converge' }
       }
-      Assert-Fails { Remove-RetirementCname $s.Dns -Apply } $pattern
-      Assert-True ($s.Resources.ContainsKey($s.CnameId)) 'failed deletion retains alias'
+      Assert-Fails { Clear-RetirementCname $s.Dns -Apply } $pattern
+      Assert-True ($s.Resources.ContainsKey($s.CnameId)) 'failed update retains record set'
       if ($scenario -in @('owner', 'etag', 'target')) { Assert-NoTestDeletes }
     }
   }
@@ -979,7 +996,7 @@ try {
     Invoke-TestRetirement 'retire' | Out-Null
     Assert-True ($s.Tags['acme:retirement'] -eq 'retired') 'successful retirement reaches terminal marker'
     Assert-True ($s.Apps.Count -eq 0 -and -not $s.Stacks.ContainsKey($s.Scope.DisposableStack)) 'apps and disposable stack absent'
-    Assert-True ($s.Events.IndexOf('delete:cname') -lt $s.Events.IndexOf("delete:app:$($s.Scope.AppNames[0])")) 'CNAME removed before apps'
+    Assert-True ($s.Events.IndexOf('clear:cname') -lt $s.Events.IndexOf("delete:app:$($s.Scope.AppNames[0])")) 'CNAME cleared before apps'
     Assert-True ($s.Events.IndexOf("delete:app:$($s.Scope.AppNames[1])") -lt $s.Events.IndexOf('delete:disposable')) 'both apps removed before environment'
     foreach ($id in @($s.DisposableIds) + @($s.NicIds)) { Assert-True (-not $s.Resources.ContainsKey($id)) 'disposable services and NICs released' }
     Assert-TestRetained
