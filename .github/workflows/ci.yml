@@ -92,6 +92,9 @@ jobs:
         shell: pwsh
         run: ./tools/scripts/azure/tests/dev-retirement.tests.ps1
 
+      - name: Test deployment workflow compatibility
+        run: node --test tools/scripts/azure/tests/deployment-workflow.test.mjs
+
       - name: Compile custom-domain Bicep
         shell: pwsh
         run: |
