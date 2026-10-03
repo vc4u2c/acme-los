@@ -691,6 +691,19 @@ warnings. No rebuilt-browser or authenticated journey checks were possible:
 the new apps never started. Retry recovery only when needed; do not re-enable
 automatic deployment or announce demo readiness based on these offline checks.
 
+An approved retry on October 3, 2026 (UTC) reached the same Central US capacity
+failure in about two minutes of ACA provisioning. It never created the web or
+BFF app; waiting for Redis to finish allowed the deployment to reach a terminal
+failed state before cleanup. No region, network exposure, secret, or Okta setting
+was changed to bypass the failure. A further retry is not a proven remedy;
+regional relocation requires a separately reviewed infrastructure plan.
+The retry's cleanup subsequently completed: zero disposable workload resources
+or ACA-managed infrastructure remained, the marker returned to `retired`, and
+the retained fingerprint was unchanged. DNS protection, disabled dev alerts,
+and disabled automatic CD were preserved. The repeat local sweep passed 287
+infrastructure/workflow tests and four Bicep builds; the read-only Okta audit
+again passed 51 checks. These results still do not verify live customer journeys.
+
 Full retirement gives up the running environment's capacity allocation. Rebuild
 can be blocked by regional capacity even when names, images, DNS, and secrets
 are valid. The October 2, 2026 Central US rehearsal encountered
