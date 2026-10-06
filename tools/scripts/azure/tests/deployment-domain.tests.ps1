@@ -63,6 +63,15 @@ $tests = [ordered]@{
     Assert-True (-not $output.Contains('synthetic-secret-from-provider')) 'no malformed provider payload in errors'
     Assert-True ($output.Contains('Provider output was suppressed')) 'safe diagnostic'
   }
+  'missing regional DNS stack is tolerated but other failures remain fatal' = {
+    foreach ($mode in @('stack-missing', 'stack-resource-missing')) {
+      $global:azMode = $mode
+      Assert-True ($null -eq (Invoke-AzureDnsJson @('stack', 'group', 'show') -AllowMissing)) 'missing stack supports early-failure cleanup'
+      Assert-Fails { Invoke-AzureDnsJson @('stack', 'group', 'show') } 'Azure DNS request failed'
+    }
+    $global:azMode = 'stderr'
+    Assert-Fails { Invoke-AzureDnsJson @('stack', 'group', 'show') -AllowMissing } 'Azure DNS request failed'
+  }
   'Azure JSON app arrays are enumerated for zero, one, and multiple apps' = {
     $binding = @{ name='apply-dev.example.test'; bindingType='SniEnabled'; certificateId='/certificate' }
     $web = @{ name='web'; properties=@{ configuration=@{ ingress=@{customDomains=@($binding)} } } }

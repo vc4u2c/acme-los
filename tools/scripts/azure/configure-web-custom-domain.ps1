@@ -19,6 +19,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'runtime-region.ps1')
 
 if (-not $ConfigurationPath) {
   $ConfigurationPath = Join-Path $PSScriptRoot '..\..\..\infra\azure\config\platform.json'
@@ -75,19 +76,19 @@ function Resolve-SubscriptionIdByDisplayName {
 function Get-WorkloadResourceGroupName {
   param($Configuration, [string]$EnvironmentName)
 
-  return "rg-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return Get-WebRuntimeResourceGroupName $Configuration $EnvironmentName
 }
 
 function Get-ContainerAppName {
   param($Configuration, [string]$EnvironmentName)
 
-  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-ContainerAppEnvironmentName {
   param($Configuration, [string]$EnvironmentName)
 
-  return "cae-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "cae-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 Test-RequiredCommand -Name 'az'

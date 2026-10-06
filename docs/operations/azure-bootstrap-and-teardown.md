@@ -560,15 +560,15 @@ Practical smoke-check path after a deploy:
 ```powershell
 az containerapp show `
   --subscription 7df9ce70-48a3-4495-9361-4ca7b2637748 `
-  --resource-group rg-acme-los-web-dev-cus-01 `
-  --name ca-acme-los-web-dev-cus-01 `
+  --resource-group rg-acme-los-web-dev-eus2-01 `
+  --name ca-acme-los-web-dev-eus2-01 `
   --query "{runningStatus:properties.runningStatus,latestReadyRevisionName:properties.latestReadyRevisionName,ingressFqdn:properties.configuration.ingress.fqdn}" `
   --output json
 
 $ingressFqdn = az containerapp show `
   --subscription 7df9ce70-48a3-4495-9361-4ca7b2637748 `
-  --resource-group rg-acme-los-web-dev-cus-01 `
-  --name ca-acme-los-web-dev-cus-01 `
+  --resource-group rg-acme-los-web-dev-eus2-01 `
+  --name ca-acme-los-web-dev-eus2-01 `
   --query 'properties.configuration.ingress.fqdn' `
   --output tsv
 
@@ -612,8 +612,8 @@ The teardown command is a permanent environment destruction operation, not the
 reversible pause/resume path. It removes Redis business data and workload
 resources. Keep using hibernation until a long-break rebuild has been proven.
 It does not delete the shared container registry or the shared DNS zones.
-After dev ownership migration, this command explicitly refuses to delete the
-retained foundation. Use recoverable dev retirement below; permanent removal
+This command unconditionally refuses permanent dev destruction, even if its
+foundation stack is missing. Use recoverable dev retirement below; permanent removal
 of retained secrets and identities requires a separately reviewed operation.
 
 Show the target environment without deleting anything (the default):
@@ -622,10 +622,10 @@ Show the target environment without deleting anything (the default):
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -Action show-plan
 ```
 
-Only after explicitly accepting data loss, destroy `dev`:
+For another non-production environment, only after explicitly accepting data loss:
 
 ```powershell
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -Action destroy -ConfirmResourceGroup rg-acme-los-web-dev-cus-01 -WaitForDeletion
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName qa -Action destroy -ConfirmResourceGroup rg-acme-los-web-qa-cus-01 -WaitForDeletion
 ```
 
 Teardown behavior:
@@ -668,6 +668,49 @@ or all charges have stopped. See Microsoft's
 ### Recoverable Dev Retirement
 
 `set-dev-retirement-state.ps1` is the separate, dev-only long-break command.
+The approved October 6, 2026 recovery moves only the disposable dev runtime to
+East US 2. `platform.json` declares `dev.runtimeRegion` as `eastus2` / `eus2`;
+global platform and retained resource naming remain `centralus` / `cus`.
+The new runtime is `rg-acme-los-web-dev-eus2-01`, with the ACA environment,
+apps, empty Redis, private endpoints, and a separate `10.24.0.0/24` VNet.
+Key Vault, runtime identity, ACS, and recovery metadata remain in
+`rg-acme-los-web-dev-cus-01`. Registry images, shared monitoring, DNS zones,
+delegation, and Okta also remain unchanged. No Namecheap changes are needed.
+
+Regional recovery requires the old named Central US services to be absent,
+the target RG inventory to contain only approved runtime resources, and the
+retained identity to allow cross-region use. It does not weaken identity
+isolation automatically. A recorded runtime-region marker prevents an older
+Central US deployment path from silently rebuilding a second runtime.
+ACA environment creation precedes Redis and private endpoints so a capacity
+failure does not unnecessarily allocate those services. Alerts stay disabled
+until private connectivity, HTTPS/build identity, and retained metadata checks
+pass. Automatic CD remains disabled during recovery and until the reviewed
+regional scripts and GitHub environment variables are promoted together.
+
+The October 6 attempt created the ACA environment successfully in East US 2,
+but Redis provider validation rejected `Balanced_B0` for this subscription and
+region (tracking ID `d74e0817-cab4-42e5-9ea2-b8d0cb025a4c`). Separate validation-only
+checks also rejected B1, B3, B5, and B10. No larger tier was deployed, no cache
+was created, and neither app started. This is not a successful rebuild.
+Obtain Azure SKU access or approve a separately reviewed placement change
+before retrying. The deployment script now validates the configured Redis SKU
+with the provider before allocating the regional runtime; a failed validation
+stops without trying alternative tiers. Successful validation is not a capacity
+reservation or a guarantee that later creation will succeed.
+
+Local verification passed the production build, affected lint/tests, 57 browser
+tests across Chromium/Firefox/WebKit using local fixtures, 83 regional safety
+assertions, and the existing lifecycle/DNS safety suites. The live read-only
+Okta audit passed 51 checks with no warnings or failures. These are not live
+signed-in customer-journey tests. The dependency audit also reported critical
+findings in existing `next` and `proxy-addr` packages; package remediation and
+fresh security gates remain required before promotion. No dependencies were
+upgraded as part of the region change.
+
+Historical Central US rehearsal evidence follows; it is not evidence that the
+new East US 2 runtime or its signed-in journeys have passed verification.
+
 Do not use permanent `destroy` for this operation. The first live retirement
 passed October 2, 2026, preserving retained identity and secret-version metadata.
 The subsequent rebuild failed with regional capacity exhaustion; one retry was
@@ -730,19 +773,23 @@ $dev = @{
   SubscriptionId = '7df9ce70-48a3-4495-9361-4ca7b2637748'
   PlatformSubscriptionId = 'b582269b-60ff-4bb0-b30b-6fb2796edf11'
 }
-$confirmed = @{ ConfirmResourceGroup = 'rg-acme-los-web-dev-cus-01' }
+$confirmed = @{ ConfirmResourceGroup = 'rg-acme-los-web-dev-eus2-01' }
 & tools/scripts/azure/set-dev-retirement-state.ps1 @dev -Action show-plan
 & tools/scripts/azure/set-dev-retirement-state.ps1 @dev @confirmed -Action prepare
 & tools/scripts/azure/set-dev-retirement-state.ps1 @dev @confirmed -Action retire -DiscardDemoData
 & tools/scripts/azure/set-dev-retirement-state.ps1 @dev @confirmed -Action rebuild
 ```
 
-Preparation changes ownership, not resource IDs. It validates the Bicep phases,
+The original Central US preparation changed ownership, not resource IDs. It validated the Bicep phases,
 updates `stk-acme-los-web-app-dev-cus-01` to the retained phase with `detachAll`,
 and adopts only the approved disposable IDs in
 `stk-acme-los-web-disposable-dev-cus-01`. Both stacks use the same source template;
 the `all` phase remains the default for other environments. Unknown IDs and
 unexpected subscriptions, parameters, or deny settings fail closed.
+After relocation, `prepare` only refreshes the recorded runtime image metadata;
+it does not redeploy or reassign the retained Central US foundation. The runtime
+stack is `stk-acme-los-web-disposable-dev-eus2-01`; the retained stack remains
+`stk-acme-los-web-app-dev-cus-01` in the retained RG.
 
 Retirement suppresses the four dev alerts, conditionally clears only the owned
 app CNAME target, deletes the two apps, private endpoints, Redis, then the
@@ -750,7 +797,12 @@ remaining disposable stack, and checks that Azure
 has released the ACA-managed networking. It never independently deletes the
 managed load balancer or public IP. The zone, delegation, verification TXT,
 Key Vault, identities, ACS phone, registry, shared monitoring, and free workload
-VNet/NSGs remain. The public URL is intentionally unavailable while retired.
+Central US VNet/NSGs remain. The relocated East US 2 VNet/subnets/NSGs are
+disposable: retirement first removes only the exact regional private DNS link
+stack, then deletes the disposable network through its owning stack. It checks
+that the runtime RG is empty. Shared zones and Central US links are not deleted.
+An empty runtime RG and its subscription-scope scaffold can remain.
+The public URL is intentionally unavailable while retired.
 The empty CNAME record set retains its metadata, TTL, and zone deletion lock;
 Azure does not publish empty record sets. Rebuild fills that same owned record
 set using an ETag-guarded update. See Microsoft's
@@ -765,7 +817,7 @@ same allowlist: Azure can record a partially created environment only in
 implicitly deleted during cleanup.
 
 Recovery metadata contains only public image tags, immutable digests, version,
-and a hash of retained identity / secret-version metadata in workload RG tags.
+and a hash of retained identity / secret-version metadata in retained RG tags.
 There is no secret-value export, local backup dependency, or session restore.
 Recovery refuses missing or changed image manifests and missing retained
 secrets. It recreates private Redis with an empty dataset, restores endpoints

@@ -34,6 +34,10 @@
       "subscriptionRole": "nonprod",
       "appEnvironmentName": "dev",
       "oktaEnvironmentName": "dev",
+      "runtimeRegion": {
+        "location": "eastus2",
+        "shortName": "eus2"
+      },
       "publicDomain": {
         "enabled": true,
         "hostname": "apply-dev.los.avanai.net",
@@ -68,9 +72,9 @@
         }
       },
       "network": {
-        "workloadVnetAddressSpace": "10.20.0.0/24",
-        "acaInfrastructureSubnetAddressPrefix": "10.20.0.0/27",
-        "privateEndpointSubnetAddressPrefix": "10.20.0.32/27"
+        "workloadVnetAddressSpace": "10.24.0.0/24",
+        "acaInfrastructureSubnetAddressPrefix": "10.24.0.0/27",
+        "privateEndpointSubnetAddressPrefix": "10.24.0.32/27"
       }
     },
     "qa": {

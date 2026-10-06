@@ -3,8 +3,8 @@ $ErrorActionPreference = 'Stop'
 $scriptPath = Join-Path $PSScriptRoot '../teardown-web-environment.ps1'
 $sub = '11111111-1111-1111-1111-111111111111'
 $platform = '22222222-2222-2222-2222-222222222222'
-$group = 'rg-acme-los-web-dev-cus-01'
-$vault = 'kvacmelosdevcus01v42c'
+$group = 'rg-acme-los-web-qa-cus-01'
+$vault = 'kvacmelosqacus01v42c'
 
 function Assert-True($Value, [string]$Message) {
   if (-not $Value) { throw "Assertion failed: $Message" }
@@ -43,13 +43,13 @@ function global:az {
   }
   if ($command -match '^group exists') { return $global:teardownGroupExists }
   if ($command -match '^keyvault list-deleted') {
-    return '[{"name":"kvacmelosdevcus01v42c","location":"centralus"}]'
+    return '[{"name":"kvacmelosqacus01v42c","location":"centralus"}]'
   }
   if ($command -match '^keyvault purge') { return }
   throw "Unexpected command: $command"
 }
 function Invoke-TestTeardown([hashtable]$Extra = @{}) {
-  & $scriptPath -EnvironmentName dev -SubscriptionId $sub -PlatformSubscriptionId $platform @Extra | ConvertFrom-Json
+  & $scriptPath -EnvironmentName qa -SubscriptionId $sub -PlatformSubscriptionId $platform @Extra | ConvertFrom-Json
 }
 $tests = [ordered]@{
   'default is a read-only plan without Azure mutations' = {
@@ -73,10 +73,10 @@ $tests = [ordered]@{
     Assert-True (@($global:teardownCalls | Where-Object { $_ -match '^keyvault' }).Count -eq 0) 'no vault purge commands'
     $deletes = @($global:teardownCalls | Where-Object { $_ -match '^stack .+ delete' })
     $expected = @(
-      "stack group delete --subscription $sub --name stk-acme-los-web-app-dev-cus-01 --resource-group $group --action-on-unmanage deleteResources --yes --output none --only-show-errors"
-      "stack group delete --subscription $platform --name stk-acme-los-dns-links-dev-cus-01 --resource-group rg-acme-hub-network-cus-01 --action-on-unmanage deleteResources --yes --output none --only-show-errors"
-      "stack group delete --subscription $platform --name stk-acme-los-monitor-dev-cus-01 --resource-group rg-acme-hub-monitor-cus-01 --action-on-unmanage deleteResources --yes --output none --only-show-errors"
-      "stack sub delete --subscription $sub --name stk-acme-los-web-dev-cus-01 --action-on-unmanage deleteResources --yes --output none --only-show-errors"
+      "stack group delete --subscription $sub --name stk-acme-los-web-app-qa-cus-01 --resource-group $group --action-on-unmanage deleteResources --yes --output none --only-show-errors"
+      "stack group delete --subscription $platform --name stk-acme-los-dns-links-qa-cus-01 --resource-group rg-acme-hub-network-cus-01 --action-on-unmanage deleteResources --yes --output none --only-show-errors"
+      "stack group delete --subscription $platform --name stk-acme-los-monitor-qa-cus-01 --resource-group rg-acme-hub-monitor-cus-01 --action-on-unmanage deleteResources --yes --output none --only-show-errors"
+      "stack sub delete --subscription $sub --name stk-acme-los-web-qa-cus-01 --action-on-unmanage deleteResources --yes --output none --only-show-errors"
     )
     Assert-True ($deletes.Count -eq $expected.Count) 'only four explicitly scoped stacks'
     for ($i = 0; $i -lt $expected.Count; $i++) {
@@ -121,6 +121,17 @@ $tests = [ordered]@{
     Assert-Fails { & $scriptPath -EnvironmentName prod -Action destroy -ConfirmResourceGroup 'rg-acme-los-web-prod-cus-01' -SubscriptionId $sub -PlatformSubscriptionId $platform } 'Production teardown is blocked'
     Assert-True ($global:teardownCalls.Count -eq 0) 'no Azure calls'
   }
+}
+$tests['dev permanent destroy is blocked even with absent or unreadable foundation'] = {
+  foreach ($failure in @('missing', 'permission', 'retained', '')) {
+    $global:teardownFailure = $failure
+    Assert-Fails { & $scriptPath -EnvironmentName dev -Action destroy -ConfirmResourceGroup 'rg-acme-los-web-dev-cus-01' -SubscriptionId $sub -PlatformSubscriptionId $platform } 'Permanent destroy is blocked'
+    Assert-True ($global:teardownCalls.Count -eq 0) 'dev rejects before inspecting or deleting any stack'
+  }
+}
+$tests['dev purge approval cannot bypass protected foundation'] = {
+  Assert-Fails { & $scriptPath -EnvironmentName dev -Action destroy -ConfirmResourceGroup 'rg-acme-los-web-dev-cus-01' -PurgeDeletedKeyVault -ConfirmKeyVaultPurge 'kvacmelosdevcus01v42c' -SubscriptionId $sub -PlatformSubscriptionId $platform } 'Permanent destroy is blocked'
+  Assert-True ($global:teardownCalls.Count -eq 0) 'no dev purge or deletion'
 }
 foreach ($test in $tests.GetEnumerator()) {
   $global:teardownCalls = [Collections.Generic.List[string]]::new()

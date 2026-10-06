@@ -65,7 +65,8 @@ if ($Action -ne 'show-plan' -and $ConfirmHostname -cne $domain.hostname) { throw
 
 $account = Invoke-AzJson @('account', 'show', '--subscription', "$SubscriptionId")
 if ($account.name -cne $configuration.subscriptions.nonprodOnline) { throw 'Unexpected workload subscription.' }
-$resourceGroup = "rg-$($configuration.organizationShortName)-$($configuration.workloadShortName)-web-$EnvironmentName-$($configuration.primaryRegionShortName)-01"
+$runtimeRegion = Get-WebRuntimeRegion $configuration $EnvironmentName
+$resourceGroup = Get-WebRuntimeResourceGroupName $configuration $EnvironmentName
 $group = Invoke-AzJson @('group', 'show', '--subscription', "$SubscriptionId", '--name', $resourceGroup)
 if ($group.tags.'acme:application' -cne $configuration.projectName) { throw 'Unexpected workload ownership.' }
 $hibernated = $group.tags.PSObject.Properties['acme:hibernated']
@@ -75,7 +76,7 @@ if (@($deployments | Where-Object { $_.properties.provisioningState -in @('Accep
   throw 'A workload deployment is in progress. Do not run activation concurrently.'
 }
 
-$webName = "ca-$($configuration.organizationShortName)-$($configuration.workloadShortName)-web-$EnvironmentName-$($configuration.primaryRegionShortName)-01"
+$webName = "ca-$($configuration.organizationShortName)-$($configuration.workloadShortName)-web-$EnvironmentName-$($runtimeRegion.ShortName)-01"
 $bffName = $webName.Replace('-web-', '-bff-')
 $webRead = @('containerapp', 'show', '--subscription', "$SubscriptionId", '--resource-group', $resourceGroup, '--name', $webName)
 $bffRead = @('containerapp', 'show', '--subscription', "$SubscriptionId", '--resource-group', $resourceGroup, '--name', $bffName)
@@ -162,7 +163,7 @@ if ($phase -ne 'bind') {
   Write-Host 'Deploying the managed certificate template.'
   Invoke-AzJson @('deployment', 'group', 'create', '--subscription', "$SubscriptionId", '--resource-group', $resourceGroup,
     '--name', "certificate-$EnvironmentName", '--template-file', (Join-Path $PSScriptRoot '../../../infra/azure/bicep/main.web.certificate.rg.bicep'),
-    '--parameters', "environmentName=$EnvironmentName", "location=$($configuration.primaryLocation)", "managedEnvironmentName=$managedEnvironmentName",
+    '--parameters', "environmentName=$EnvironmentName", "location=$($runtimeRegion.Location)", "managedEnvironmentName=$managedEnvironmentName",
     "hostname=$($domain.hostname)", "organizationShortName=$($configuration.organizationShortName)", "workloadShortName=$($configuration.workloadShortName)") | Out-Null
 }
 Wait-WebManagedCertificate $certificateId $domain.hostname

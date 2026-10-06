@@ -18,6 +18,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'runtime-region.ps1')
 
 $microsoftGraphAppId = '00000003-0000-0000-c000-000000000000'
 $bffServiceAuthGraphAppRoleValues = @(
@@ -232,7 +233,7 @@ function Get-WorkloadResourceGroupName {
     [string]$EnvironmentName
   )
 
-  return "rg-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return Get-WebRuntimeResourceGroupName $Configuration $EnvironmentName
 }
 
 function Get-DeploymentStackName {
@@ -241,7 +242,7 @@ function Get-DeploymentStackName {
     [string]$EnvironmentName
   )
 
-  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-ImagesSubscriptionRole {
@@ -283,7 +284,7 @@ function Get-ContainerAppEnvironmentName {
     [string]$EnvironmentName
   )
 
-  return "cae-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "cae-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-ContainerAppName {
@@ -292,7 +293,7 @@ function Get-ContainerAppName {
     [string]$EnvironmentName
   )
 
-  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-UserAssignedIdentityName {
@@ -331,7 +332,7 @@ function Get-WorkloadVirtualNetworkName {
     [string]$EnvironmentName
   )
 
-  return "vnet-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "vnet-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-AppSubnetName {
@@ -340,7 +341,7 @@ function Get-AppSubnetName {
     [string]$EnvironmentName
   )
 
-  return "snet-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-app-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "snet-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-app-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-DataSubnetName {
@@ -349,7 +350,7 @@ function Get-DataSubnetName {
     [string]$EnvironmentName
   )
 
-  return "snet-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-data-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "snet-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-data-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-AcaInfrastructureSubnetName {
@@ -784,7 +785,9 @@ function Get-EnvironmentVariables {
     AZURE_ENVIRONMENT_NAME = $EnvironmentName
     APP_ENVIRONMENT_NAME = $environmentConfiguration.appEnvironmentName
     OKTA_ENVIRONMENT_NAME = $environmentConfiguration.oktaEnvironmentName
-    AZURE_LOCATION_PRIMARY = $Configuration.primaryLocation
+    AZURE_LOCATION_PRIMARY = (Get-WebRuntimeRegion $Configuration $EnvironmentName).Location
+    AZURE_RUNTIME_REGION_SHORT = (Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName
+    AZURE_RETAINED_RESOURCE_GROUP_NAME = "rg-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01"
     AZURE_PRIMARY_REGION_SHORT = $Configuration.primaryRegionShortName
     AZURE_PLATFORM_NETWORK_RESOURCE_GROUP_NAME = Get-PlatformNetworkResourceGroupName -Configuration $Configuration
     AZURE_PLATFORM_MONITOR_RESOURCE_GROUP_NAME = Get-PlatformMonitorResourceGroupName -Configuration $Configuration

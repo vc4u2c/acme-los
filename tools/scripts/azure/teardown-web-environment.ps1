@@ -254,6 +254,10 @@ if ($EnvironmentName -eq 'prod' -and -not $AllowProductionTeardown.IsPresent) {
   throw 'Production teardown is blocked by default. Re-run with -AllowProductionTeardown only when you explicitly intend destructive cleanup.'
 }
 
+if ($EnvironmentName -eq 'dev') {
+  throw 'Permanent destroy is blocked for the retained dev foundation, even if a stack is missing. Use set-dev-retirement-state.ps1 to remove only disposable runtime resources.'
+}
+
 Remove-TeardownStack @('group', '--subscription', $resolvedSubscriptionId, '--name', $resourceGroupStackName, '--resource-group', $resourceGroupName)
 Remove-TeardownStack @('group', '--subscription', $resolvedPlatformSubscriptionId, '--name', $platformWorkloadLinksStackName, '--resource-group', $platformNetworkResourceGroupName)
 Remove-TeardownStack @('group', '--subscription', $resolvedPlatformSubscriptionId, '--name', $platformMonitoringStackName, '--resource-group', $platformMonitorResourceGroupName)

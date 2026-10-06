@@ -157,6 +157,9 @@ Use GitHub environment variables for non-secret values that differ by environmen
 - `AZURE_CLIENT_ID`
 - `AZURE_SUBSCRIPTION_ID`
 - `AZURE_RESOURCE_GROUP_NAME`
+- `AZURE_RETAINED_RESOURCE_GROUP_NAME`
+- `AZURE_LOCATION_PRIMARY` (environment override for the runtime location)
+- `AZURE_RUNTIME_REGION_SHORT`
 - `AZURE_ENVIRONMENT_NAME`
 - `APP_ENVIRONMENT_NAME`
 - `OKTA_ENVIRONMENT_NAME`
@@ -176,6 +179,14 @@ Use GitHub environment variables for non-secret values that differ by environmen
 - `AZURE_WEB_IMAGE_REPOSITORY`
 - `AZURE_BICEP_PARAMETER_FILE`
 - `AZURE_WEB_DEPLOY_TEMPLATE`
+
+For relocated dev, the environment-level runtime location is `eastus2` and
+runtime short region is `eus2`. Repository-level platform defaults and
+`AZURE_PRIMARY_REGION_SHORT` remain Central US / `cus`; Key Vault, runtime
+identity, images, and monitoring retain their original names. The setup script
+derives both scopes from `platform.json`. Keep automatic CD disabled until the
+regional implementation is merged and these environment variables are synced;
+an older deployment artifact must not be used to migrate or recover dev.
 
 Recommendation:
 

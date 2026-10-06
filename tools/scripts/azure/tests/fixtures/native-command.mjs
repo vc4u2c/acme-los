@@ -12,6 +12,13 @@ if (mode === 'stderr') {
 } else if (mode === 'missing') {
   process.stderr.write('(ResourceNotFound) Synthetic missing resource');
   process.exitCode = 1;
+} else if (mode === 'stack-missing' || mode === 'stack-resource-missing') {
+  const code =
+    mode === 'stack-missing'
+      ? 'DeploymentStackNotFound'
+      : 'DeploymentStackResourceNotFound';
+  process.stderr.write(`(${code}) Synthetic missing stack`);
+  process.exitCode = 1;
 } else {
   process.stdout.write('{"status":"ok"}');
 }

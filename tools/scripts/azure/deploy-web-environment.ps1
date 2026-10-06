@@ -37,6 +37,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'runtime-region.ps1')
 
 if (-not $ParameterFile) {
   $ParameterFile = Join-Path $PSScriptRoot "..\..\..\infra\azure\bicep\$EnvironmentName.bicepparam"
@@ -369,7 +370,7 @@ function Get-WorkloadResourceGroupName {
     [string]$EnvironmentName
   )
 
-  return "rg-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return Get-WebRuntimeResourceGroupName $Configuration $EnvironmentName
 }
 
 function Get-SubscriptionStackName {
@@ -378,7 +379,7 @@ function Get-SubscriptionStackName {
     [string]$EnvironmentName
   )
 
-  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-ResourceGroupStackName {
@@ -387,7 +388,7 @@ function Get-ResourceGroupStackName {
     [string]$EnvironmentName
   )
 
-  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-app-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-app-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-BffContainerAppName {
@@ -396,7 +397,7 @@ function Get-BffContainerAppName {
     [string]$EnvironmentName
   )
 
-  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-bff-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-bff-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-ImagesSubscriptionRole {
@@ -474,7 +475,7 @@ function Get-PlatformWorkloadLinksStackName {
     [string]$EnvironmentName
   )
 
-  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-dns-links-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "stk-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-dns-links-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-PlatformMonitoringStackName {
@@ -893,13 +894,23 @@ if (-not (Test-Path -LiteralPath $WorkbookSyncScriptFile)) {
 
 $configuration = Get-JsonFile -Path $ConfigurationPath
 $environmentConfiguration = Get-EnvironmentConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName
+$runtimeRegion = Get-WebRuntimeRegion $configuration $EnvironmentName
+if ($PSBoundParameters.ContainsKey('Location') -and $Location -cne $runtimeRegion.Location) { throw 'Location must match the source-owned runtime region.' }
+$Location = $runtimeRegion.Location
+$foundationResourceGroupName = "rg-$($configuration.organizationShortName)-$($configuration.workloadShortName)-web-$EnvironmentName-$($configuration.primaryRegionShortName)-01"
+$preserveFoundation = [bool]$RecoverRetiredResourceGroup -or $runtimeRegion.Relocated
 $account = az account show --output json | ConvertFrom-Json
 $resolvedSubscriptionId = if ($SubscriptionId) { $SubscriptionId } else { Resolve-SubscriptionIdFromConfiguration -Configuration $configuration -EnvironmentName $EnvironmentName }
 . (Join-Path $PSScriptRoot 'private-connectivity.ps1')
 $resourceGroupName = Get-WorkloadResourceGroupName -Configuration $configuration -EnvironmentName $EnvironmentName
 if ($RecoverRetiredResourceGroup -and ($EnvironmentName -cne 'dev' -or $RecoverRetiredResourceGroup -cne $resourceGroupName -or -not $ReuseExistingImages -or -not $SyncPublicDns)) { throw 'Retirement recovery requires dev, the exact resource group, pinned images, and DNS synchronization.' }
 if ($RecoverRetiredResourceGroup -and ($env:ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION -or $env:ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM)) { throw 'Clear secret-rotation environment variables before recovery.' }
-Assert-WebEnvironmentNotHibernated $resolvedSubscriptionId $resourceGroupName -RecoverRetired:([bool]$RecoverRetiredResourceGroup)
+Assert-WebEnvironmentNotHibernated $resolvedSubscriptionId $foundationResourceGroupName -RecoverRetired:([bool]$RecoverRetiredResourceGroup) -ExpectedRuntimeRegion $runtimeRegion.ShortName
+if ($runtimeRegion.Relocated -and -not $RecoverRetiredResourceGroup) {
+  $runtimeGroup = Invoke-AzJson -Arguments @('group', 'show', '--subscription', $resolvedSubscriptionId, '--name', $resourceGroupName)
+  if ($runtimeGroup.tags.'acme:application' -cne 'acme-los' -or $runtimeGroup.tags.'acme:environment' -cne 'dev') { throw 'Regional runtime must be initialized by the retirement rebuild command.' }
+  Assert-WebEnvironmentNotHibernated $resolvedSubscriptionId $resourceGroupName
+}
 . (Join-Path $PSScriptRoot 'public-domain.ps1')
 $publicDomainConfiguration = Assert-WebPublicDomainConfiguration $configuration $EnvironmentName -SyncPublicDns:$SyncPublicDns -ConfirmDnsZone $ConfirmDnsZone
 $resolvedPlatformSubscriptionId = if ($PlatformSubscriptionId) { $PlatformSubscriptionId } else { Resolve-PlatformSubscriptionIdFromConfiguration -Configuration $configuration }
@@ -1026,7 +1037,7 @@ $subscriptionDeploymentArguments = @(
   '--name', $subscriptionStackName,
   '--location', $Location,
   '--template-file', $WorkloadTemplateFile,
-  '--parameters', "environmentName=$EnvironmentName", "location=$Location",
+  '--parameters', "environmentName=$EnvironmentName", "location=$Location", "regionShortName=$($runtimeRegion.ShortName)",
   '--action-on-unmanage', 'deleteResources',
   '--deny-settings-mode', 'none',
   '--description', "ACME LOS subscription-scope stack for $EnvironmentName web infrastructure",
@@ -1037,9 +1048,9 @@ $imagesSubscriptionDeploymentArguments = @(
   'stack', 'sub', 'create',
   '--subscription', $resolvedSubscriptionId,
   '--name', $imagesSubscriptionStackName,
-  '--location', $Location,
+  '--location', $configuration.primaryLocation,
   '--template-file', $ImagesSubscriptionTemplateFile,
-  '--parameters', "subscriptionRole=$imagesSubscriptionRole", "location=$Location",
+  '--parameters', "subscriptionRole=$imagesSubscriptionRole", "location=$($configuration.primaryLocation)",
   '--action-on-unmanage', 'detachAll',
   '--deny-settings-mode', 'none',
   '--description', "ACME LOS subscription-scope stack for $imagesSubscriptionRole shared images infrastructure",
@@ -1052,7 +1063,7 @@ $imagesResourceGroupDeploymentArguments = @(
   '--name', $imagesResourceGroupStackName,
   '--resource-group', $imagesResourceGroupName,
   '--template-file', $ImagesResourceTemplateFile,
-  '--parameters', "subscriptionRole=$imagesSubscriptionRole", "location=$Location",
+  '--parameters', "subscriptionRole=$imagesSubscriptionRole", "location=$($configuration.primaryLocation)",
   '--action-on-unmanage', 'detachAll',
   '--deny-settings-mode', 'none',
   '--description', "ACME LOS shared $imagesSubscriptionRole ACR stack",
@@ -1082,7 +1093,7 @@ $webDeploymentArguments = @(
 
 $runtimeDeploymentArguments = @()
 
-$webDeploymentArguments += @('--parameters', "stateStoreMode=$resolvedStateStoreMode")
+$webDeploymentArguments += @('--parameters', "stateStoreMode=$resolvedStateStoreMode", "location=$Location", "regionShortName=$($runtimeRegion.ShortName)", "retainedRegionShortName=$($configuration.primaryRegionShortName)", "retainedResourceGroupName=$foundationResourceGroupName")
 
 if ($ReuseExistingImages) {
   if (-not $ImageTag -or -not $BffVersion -or -not $resolvedBffDeploymentEnabled) { throw 'Recovery requires an explicit existing image tag, BFF version, and both apps.' }
@@ -1092,13 +1103,18 @@ if ($ReuseExistingImages) {
     if ($manifest.digest -cne $entry.digest) { throw 'Recovery image tag no longer matches its recorded immutable digest.' }
   }
 }
-Assert-WebEnvironmentNotHibernated $resolvedSubscriptionId $resourceGroupName -RecoverRetired:([bool]$RecoverRetiredResourceGroup)
+Assert-WebEnvironmentNotHibernated $resolvedSubscriptionId $foundationResourceGroupName -RecoverRetired:([bool]$RecoverRetiredResourceGroup) -ExpectedRuntimeRegion $runtimeRegion.ShortName
 # The retained resource group's recovery metadata must survive every deployment.
 $existingGroups = @(ConvertTo-ObjectArray (Invoke-AzJson -Arguments @('group', 'list', '--subscription', $resolvedSubscriptionId)))
 if (-not ($existingGroups | Where-Object { $_.name -eq $resourceGroupName })) {
   Invoke-AzNoOutput -Arguments $subscriptionDeploymentArguments
 }
-if (-not $RecoverRetiredResourceGroup) {
+if ($runtimeRegion.Relocated -and $resolvedStateStoreMode -eq 'redis') {
+  $preflightTemplate = Invoke-AzJson -Arguments @('bicep', 'build', '--file', $WebTemplateFile, '--stdout')
+  $preflightParameters = (Get-Content -LiteralPath $compiledParameterFile -Raw | ConvertFrom-Json).parameters
+  Assert-RegionalRedisPreflight $configuration $EnvironmentName $resolvedSubscriptionId $resourceGroupName $preflightTemplate $preflightParameters
+}
+if (-not $preserveFoundation) {
   Invoke-AzNoOutput -Arguments $imagesSubscriptionDeploymentArguments
   Invoke-AzNoOutput -Arguments $imagesResourceGroupDeploymentArguments
 }
@@ -1153,7 +1169,7 @@ $monitoringBootstrapArguments = @(
 
 $monitoringStacks = @(ConvertTo-ObjectArray (Invoke-AzJson -Arguments @('stack', 'group', 'list', '--subscription', $resolvedPlatformSubscriptionId, '--resource-group', $platformMonitorResourceGroupName)))
 if (-not ($monitoringStacks | Where-Object { $_.name -eq $platformMonitoringStackName })) {
-  if ($RecoverRetiredResourceGroup) { throw 'The retained monitoring stack is missing; recovery cannot recreate it implicitly.' }
+  if ($preserveFoundation) { throw 'The retained monitoring stack is missing; recovery cannot recreate it implicitly.' }
   Invoke-AzNoOutput -Arguments $monitoringBootstrapArguments
 }
 $monitoringBootstrapDeployment = Invoke-AzJson -Arguments @(
@@ -1183,8 +1199,9 @@ if ($EnvironmentName -eq 'dev') {
   # Detach disposable resources before adopting them in the dedicated runtime stack.
   $retainedArguments = @($webDeploymentArguments)
   $retainedArguments[[array]::IndexOf($retainedArguments, '--action-on-unmanage') + 1] = 'detachAll'
-  if ($RecoverRetiredResourceGroup) {
-    $retainedStack = Invoke-AzJson -Arguments @('stack', 'group', 'show', '--subscription', $resolvedSubscriptionId, '--resource-group', $resourceGroupName, '--name', $resourceGroupStackName)
+  if ($preserveFoundation) {
+    $foundationStackName = "stk-$($configuration.organizationShortName)-$($configuration.workloadShortName)-web-app-$EnvironmentName-$($configuration.primaryRegionShortName)-01"
+    $retainedStack = Invoke-AzJson -Arguments @('stack', 'group', 'show', '--subscription', $resolvedSubscriptionId, '--resource-group', $foundationResourceGroupName, '--name', $foundationStackName)
     if ($retainedStack.parameters.resourcePhase.value -ne 'retained' -or $retainedStack.provisioningState -ine 'succeeded') { throw 'Recovery requires a healthy retained foundation; it never redeploys it.' }
   } else {
     Invoke-AzNoOutput -Arguments ($retainedArguments + @('--parameters', 'resourcePhase=retained'))
@@ -1258,7 +1275,7 @@ if ($smsMfaEnabled) {
   }
 
   if (-not $oktaTelephonyHookAuthorizationSecretValue) {
-    if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaTelephonyHookAuthorizationSecretName) {
+    if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $foundationResourceGroupName -VaultName $keyVaultName -SecretName $oktaTelephonyHookAuthorizationSecretName) {
       Write-Warning "Environment '$EnvironmentName' enables smsMfa but ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION is not set. Deployment will reuse the existing Key Vault secret '$oktaTelephonyHookAuthorizationSecretName'. Set the env var only for first-time setup or rotation."
     } else {
       throw "Environment '$EnvironmentName' enables smsMfa, but ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION is not set and Key Vault secret '$oktaTelephonyHookAuthorizationSecretName' does not exist. Set the env var for first-time setup or rotation."
@@ -1266,7 +1283,7 @@ if ($smsMfaEnabled) {
   }
 
   if ($oktaTelephonyHookAuthorizationSecretValue) {
-    Set-KeyVaultSecretFromValue -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaTelephonyHookAuthorizationSecretName -SecretValue $oktaTelephonyHookAuthorizationSecretValue
+    Set-KeyVaultSecretFromValue -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $foundationResourceGroupName -VaultName $keyVaultName -SecretName $oktaTelephonyHookAuthorizationSecretName -SecretValue $oktaTelephonyHookAuthorizationSecretValue
   }
 }
 
@@ -1288,7 +1305,7 @@ if ($oktaCustomerIdWritebackMode -eq 'sample' -or $oktaEmailLoginSyncEnabled) {
   }
 
   if (-not $oktaManagementPrivateKeySecretValue) {
-    if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName) {
+    if (Test-KeyVaultSecretExists -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $foundationResourceGroupName -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName) {
       Write-Warning "Environment '$EnvironmentName' enables Okta profile sync but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set. Deployment will reuse the existing Key Vault secret '$oktaManagementPrivateKeySecretName'. Set the env var only for first-time setup or key rotation."
     } else {
       throw "Environment '$EnvironmentName' enables Okta profile sync, but ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM is not set and Key Vault secret '$oktaManagementPrivateKeySecretName' does not exist. Set the env var for first-time setup or key rotation."
@@ -1300,7 +1317,7 @@ if ($oktaCustomerIdWritebackMode -eq 'sample' -or $oktaEmailLoginSyncEnabled) {
   }
 
   if ($oktaManagementPrivateKeySecretValue) {
-    Set-KeyVaultSecretFromValue -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $resourceGroupName -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName -SecretValue $oktaManagementPrivateKeySecretValue
+    Set-KeyVaultSecretFromValue -SubscriptionId $resolvedSubscriptionId -ResourceGroupName $foundationResourceGroupName -VaultName $keyVaultName -SecretName $oktaManagementPrivateKeySecretName -SecretValue $oktaManagementPrivateKeySecretValue
   }
 }
 
@@ -1329,9 +1346,9 @@ $resolvedBffContainerAppBaseUrl = if ($resolvedBffDeploymentEnabled) {
 $runtimeSecretNames = @('sec-acme-los-web-session-secret')
 if ($resolvedBffDeploymentEnabled) { $runtimeSecretNames += 'sec-acme-los-bff-trusted-proxy-secret' }
 foreach ($secretName in $runtimeSecretNames) {
-  if (-not (Test-KeyVaultSecretExists $resolvedSubscriptionId $resourceGroupName $keyVaultName $secretName)) {
+  if (-not (Test-KeyVaultSecretExists $resolvedSubscriptionId $foundationResourceGroupName $keyVaultName $secretName)) {
     if ($RecoverRetiredResourceGroup) { throw 'A retained runtime secret is missing. Recovery never creates or rotates secrets.' }
-    Set-KeyVaultSecretFromValue $resolvedSubscriptionId $resourceGroupName $keyVaultName $secretName (New-SecureRandomBase64Url)
+    Set-KeyVaultSecretFromValue $resolvedSubscriptionId $foundationResourceGroupName $keyVaultName $secretName (New-SecureRandomBase64Url)
   }
 }
 $bffServiceAuthConfiguration =
@@ -1391,8 +1408,8 @@ if ($bffServiceAuthEnabled) {
     )
   }
 
-  $entraServiceAuthDeployment = if ($RecoverRetiredResourceGroup) {
-    Invoke-AzJson -Arguments @('deployment', 'group', 'show', '--subscription', $resolvedSubscriptionId, '--resource-group', $resourceGroupName, '--name', "entra-service-auth-$EnvironmentName")
+  $entraServiceAuthDeployment = if ($preserveFoundation) {
+    Invoke-AzJson -Arguments @('deployment', 'group', 'show', '--subscription', $resolvedSubscriptionId, '--resource-group', $foundationResourceGroupName, '--name', "entra-service-auth-$EnvironmentName")
   } else {
     Invoke-AzJson -Arguments $entraServiceAuthDeploymentArguments
   }
@@ -1556,14 +1573,14 @@ $platformWorkloadLinksDeploymentArguments = @(
   '--name', $platformWorkloadLinksStackName,
   '--resource-group', $platformNetworkResourceGroupName,
   '--template-file', $PlatformWorkloadLinksTemplateFile,
-  '--parameters', "environmentName=$EnvironmentName", "workloadVirtualNetworkId=$workloadVirtualNetworkId",
+  '--parameters', "environmentName=$EnvironmentName", "workloadVirtualNetworkId=$workloadVirtualNetworkId", "regionShortName=$($runtimeRegion.ShortName)",
   '--action-on-unmanage', 'deleteResources',
   '--deny-settings-mode', 'none',
   '--description', "ACME LOS platform DNS link stack for $EnvironmentName workload networking",
   '--yes'
 )
 
-if (-not $RecoverRetiredResourceGroup) { Invoke-AzNoOutput -Arguments $platformWorkloadLinksDeploymentArguments }
+if (-not $RecoverRetiredResourceGroup -or $runtimeRegion.Relocated) { Invoke-AzNoOutput -Arguments $platformWorkloadLinksDeploymentArguments }
 $platformWorkloadLinksDeployment = Invoke-AzJson -Arguments @(
   'stack', 'group', 'show',
   '--subscription', $resolvedPlatformSubscriptionId,
@@ -1593,7 +1610,8 @@ $runtimeDeploymentArguments = @(
   '--parameters', "environmentName=$EnvironmentName",
   '--parameters', "organizationShortName=$($configuration.organizationShortName)",
   '--parameters', "workloadShortName=$($configuration.workloadShortName)",
-  '--parameters', "regionShortName=$($configuration.primaryRegionShortName)",
+  '--parameters', "regionShortName=$($runtimeRegion.ShortName)",
+  '--parameters', "location=$Location",
   '--parameters', "ownerTag=vc4u2c",
   '--parameters', "costCenterTag=playg",
   '--parameters', "containerRegistryLoginServer=$resolvedContainerRegistryLoginServer",
@@ -1727,6 +1745,7 @@ $monitoringDeploymentArguments = @(
   '--resource-group', $platformMonitorResourceGroupName,
   '--template-file', $WebMonitoringTemplateFile,
   '--parameters', "environmentName=$EnvironmentName",
+  '--parameters', "alertsEnabled=$((-not [bool]$RecoverRetiredResourceGroup).ToString().ToLowerInvariant())",
   '--parameters', "organizationShortName=$($configuration.organizationShortName)",
   '--parameters', "workloadShortName=$($configuration.workloadShortName)",
   '--parameters', "regionShortName=$($configuration.primaryRegionShortName)",
@@ -1743,7 +1762,7 @@ $monitoringDeploymentArguments = @(
   '--yes'
 )
 
-if (-not $RecoverRetiredResourceGroup) { Invoke-AzNoOutput -Arguments $monitoringDeploymentArguments }
+if (-not $RecoverRetiredResourceGroup -or $runtimeRegion.Relocated) { Invoke-AzNoOutput -Arguments $monitoringDeploymentArguments }
 $monitoringDeployment = Invoke-AzJson -Arguments @(
   'stack', 'group', 'show',
   '--subscription', $resolvedPlatformSubscriptionId,
@@ -1754,7 +1773,7 @@ $monitoringOutputs = Get-DeploymentOutputs -DeploymentResult $monitoringDeployme
 $workbookResourceName = Get-StringOutputValue -Outputs $monitoringOutputs -Name 'workbookResourceName'
 $workbookDisplayName = Get-StringOutputValue -Outputs $monitoringOutputs -Name 'workbookDisplayName'
 
-if ($workbookResourceName -and $workbookDisplayName -and -not $RecoverRetiredResourceGroup) {
+if ($workbookResourceName -and $workbookDisplayName -and (-not $RecoverRetiredResourceGroup -or $runtimeRegion.Relocated)) {
   & $WorkbookSyncScriptFile `
     -PlatformSubscriptionId $resolvedPlatformSubscriptionId `
     -PlatformMonitorResourceGroupName $platformMonitorResourceGroupName `
@@ -1769,7 +1788,7 @@ if ($workbookResourceName -and $workbookDisplayName -and -not $RecoverRetiredRes
     -RedisResourceId (Get-StringOutputValue -Outputs $outputs -Name 'redisClusterId') `
     -RedisName (Get-StringOutputValue -Outputs $outputs -Name 'redisClusterName') `
     -TelemetryServiceName 'acme-los-web' `
-    -Location $Location | Out-Null
+    -Location $configuration.primaryLocation | Out-Null
 }
 
 Remove-Item -LiteralPath $compiledParameterFile -Force -ErrorAction SilentlyContinue

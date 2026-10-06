@@ -21,6 +21,8 @@ param tenantId string
 param organizationShortName string = 'acme'
 param workloadShortName string = 'los'
 param regionShortName string = 'cus'
+param retainedRegionShortName string = regionShortName
+param retainedResourceGroupName string = resourceGroup().name
 param instanceNumber string = '01'
 param uniqueShortSuffix string = 'v42c'
 param ownerTag string = 'vc4u2c'
@@ -50,17 +52,18 @@ param managedRedisPrivateDnsZoneName string = 'privatelink.redis.azure.net'
 param extraTags object = {}
 
 var deployRetained = resourcePhase != 'disposable'
+var deployRegionalNetwork = resourcePhase == 'disposable' && retainedResourceGroupName != resourceGroup().name
 var deployDisposable = resourcePhase != 'retained'
 var deployRedis = deployDisposable && stateStoreMode == 'redis'
 
-var resolvedKeyVaultName = toLower('kv${organizationShortName}${workloadShortName}${environmentName}${regionShortName}${instanceNumber}${uniqueShortSuffix}')
+var resolvedKeyVaultName = toLower('kv${organizationShortName}${workloadShortName}${environmentName}${retainedRegionShortName}${instanceNumber}${uniqueShortSuffix}')
 var resolvedRedisClusterName = toLower('redis-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedRedisDatabaseName = 'default'
 var resolvedContainerAppEnvironmentName = toLower('cae-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedContainerAppEnvironmentInfrastructureResourceGroupName = toLower('rg-${organizationShortName}-${workloadShortName}-cae-infra-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedContainerAppName = toLower('ca-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
-var resolvedCommunicationServicesName = toLower('acs-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
-var resolvedUserAssignedIdentityName = toLower('id-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedCommunicationServicesName = toLower('acs-${organizationShortName}-${workloadShortName}-${environmentName}-${retainedRegionShortName}-${instanceNumber}')
+var resolvedUserAssignedIdentityName = toLower('id-${organizationShortName}-${workloadShortName}-web-${environmentName}-${retainedRegionShortName}-${instanceNumber}')
 var resolvedVirtualNetworkName = toLower('vnet-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedAppSubnetName = toLower('snet-${organizationShortName}-${workloadShortName}-app-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedDataSubnetName = toLower('snet-${organizationShortName}-${workloadShortName}-data-${environmentName}-${regionShortName}-${instanceNumber}')
@@ -115,7 +118,7 @@ module tags './modules/foundation/tags.bicep' = {
   }
 }
 
-module workloadSpokeNetwork './modules/network/workload-spoke-network.bicep' = if (deployRetained) {
+module workloadSpokeNetwork './modules/network/workload-spoke-network.bicep' = if (deployRetained || deployRegionalNetwork) {
   name: 'network-${environmentName}'
   params: {
     name: resolvedVirtualNetworkName
@@ -161,6 +164,10 @@ module redis './modules/state/managed-redis.bicep' = if (deployRedis) {
     clusteringPolicy: redisClusteringPolicy
     publicNetworkAccess: 'Disabled'
   }
+  // Allocate the capacity-sensitive ACA environment before the paid state service.
+  dependsOn: [
+    containerAppEnvironment
+  ]
 }
 
 module userAssignedIdentity './modules/web/user-assigned-identity.bicep' = if (deployRetained) {
@@ -185,7 +192,18 @@ resource communicationServicesResource 'Microsoft.Communication/communicationSer
 }
 
 resource retainedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  scope: resourceGroup(retainedResourceGroupName)
   name: resolvedUserAssignedIdentityName
+}
+
+resource runtimeKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  scope: resourceGroup(retainedResourceGroupName)
+  name: resolvedKeyVaultName
+}
+
+resource runtimeCommunicationServices 'Microsoft.Communication/communicationServices@2025-09-01' existing = {
+  scope: resourceGroup(retainedResourceGroupName)
+  name: resolvedCommunicationServicesName
 }
 
 resource retainedNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' existing = {
@@ -194,8 +212,8 @@ resource retainedNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' existing
 
 var identityPrincipalId = deployRetained ? userAssignedIdentity!.outputs.principalId : retainedIdentity.properties.principalId
 var identityClientId = deployRetained ? userAssignedIdentity!.outputs.clientId : retainedIdentity.properties.clientId
-var appSubnetId = deployRetained ? workloadSpokeNetwork!.outputs.appSubnetId : '${retainedNetwork.id}/subnets/${resolvedAppSubnetName}'
-var dataSubnetId = deployRetained ? workloadSpokeNetwork!.outputs.dataSubnetId : '${retainedNetwork.id}/subnets/${resolvedDataSubnetName}'
+var appSubnetId = deployRetained || deployRegionalNetwork ? workloadSpokeNetwork!.outputs.appSubnetId : '${retainedNetwork.id}/subnets/${resolvedAppSubnetName}'
+var dataSubnetId = deployRetained || deployRegionalNetwork ? workloadSpokeNetwork!.outputs.dataSubnetId : '${retainedNetwork.id}/subnets/${resolvedDataSubnetName}'
 
 resource communicationServicesContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployRetained) {
   name: guid(communicationServicesResource.id, resolvedUserAssignedIdentityName, 'communication-services-contributor')
@@ -325,7 +343,7 @@ module keyVaultPrivateEndpoint './modules/network/private-endpoint.bicep' = if (
     location: location
     tags: tags.outputs.tags
     subnetId: dataSubnetId
-    privateLinkServiceId: deployRetained ? keyVault!.outputs.id : keyVaultResource.id
+    privateLinkServiceId: deployRetained ? keyVault!.outputs.id : runtimeKeyVault.id
     groupIds: [
       'vault'
     ]
@@ -335,6 +353,9 @@ module keyVaultPrivateEndpoint './modules/network/private-endpoint.bicep' = if (
       keyVaultPrivateDnsZone.id
     ]
   }
+  dependsOn: [
+    containerAppEnvironment
+  ]
 }
 
 module managedRedisPrivateEndpoint './modules/network/private-endpoint.bicep' = if (deployRedis) {
@@ -392,12 +413,12 @@ output dataNetworkSecurityGroupName string = resolvedDataNetworkSecurityGroupNam
 output acaInfrastructureSubnetName string = resolvedAppSubnetName
 output privateEndpointSubnetName string = resolvedDataSubnetName
 output keyVaultName string = resolvedKeyVaultName
-output keyVaultId string = keyVaultResource.id
-output keyVaultUri string = deployRetained ? keyVault!.outputs.vaultUri : keyVaultResource.properties.vaultUri
+output keyVaultId string = runtimeKeyVault.id
+output keyVaultUri string = deployRetained ? keyVault!.outputs.vaultUri : runtimeKeyVault.properties.vaultUri
 output keyVaultPrivateEndpointName string = deployDisposable ? keyVaultPrivateEndpoint!.outputs.name : ''
 output keyVaultPrivateEndpointNetworkInterfaceName string = resolvedKeyVaultPrivateEndpointNetworkInterfaceName
 output communicationServicesName string = resolvedCommunicationServicesName
-output communicationServicesId string = communicationServicesResource.id
+output communicationServicesId string = runtimeCommunicationServices.id
 output communicationServicesEndpoint string = 'https://${resolvedCommunicationServicesName}.communication.azure.com'
 output logAnalyticsWorkspaceName string = platformLogAnalyticsWorkspace.name
 output logAnalyticsWorkspaceId string = platformLogAnalyticsWorkspace.id

@@ -16,7 +16,7 @@ function Invoke-AzureDnsJson {
   }
   $payload = [string]::Join([Environment]::NewLine, @($output))
   if ($exitCode -ne 0) {
-    $resourceMissing = "$payload`n$stderr" -match '\((ResourceNotFound|ParentResourceNotFound|ResourceGroupNotFound)\)|"code"\s*:\s*"(ResourceNotFound|ParentResourceNotFound|ResourceGroupNotFound|NotFound)"'
+    $resourceMissing = "$payload`n$stderr" -match '\((ResourceNotFound|ParentResourceNotFound|ResourceGroupNotFound|DeploymentStackNotFound|DeploymentStackResourceNotFound)\)|"code"\s*:\s*"(ResourceNotFound|ParentResourceNotFound|ResourceGroupNotFound|DeploymentStackNotFound|DeploymentStackResourceNotFound|NotFound)"'
     if ($AllowMissing -and $resourceMissing) { return $null }
     $failure = [InvalidOperationException]::new('Azure DNS request failed. Check Azure access and deployment diagnostics; no automatic rollback was attempted.')
     # Preserve a typed missing-resource signal without exposing provider output.

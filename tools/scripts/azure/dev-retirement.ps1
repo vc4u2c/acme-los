@@ -1,4 +1,5 @@
 Set-StrictMode -Version Latest
+. (Join-Path $PSScriptRoot 'runtime-region.ps1')
 
 function Get-DevRetirementScope {
   param($Configuration, [string]$SubscriptionId, [string]$PlatformSubscriptionId)
@@ -9,33 +10,45 @@ function Get-DevRetirementScope {
   foreach ($id in @($SubscriptionId, $PlatformSubscriptionId)) {
     if ($id -notmatch '^[a-fA-F0-9]{8}(?:-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}$') { throw 'Explicit subscription GUIDs are required.' }
   }
-  $group = 'rg-acme-los-web-dev-cus-01'
+  $region = Get-WebRuntimeRegion $Configuration 'dev'
+  $short = $region.ShortName
+  $group = "rg-acme-los-web-dev-$short-01"
   $scope = "/subscriptions/$SubscriptionId/resourceGroups/$group"
+  $foundationGroup = 'rg-acme-los-web-dev-cus-01'
+  $foundation = "/subscriptions/$SubscriptionId/resourceGroups/$foundationGroup"
   return [pscustomobject]@{
     Subscription = $SubscriptionId; PlatformSubscription = $PlatformSubscriptionId; Group = $group; Id = $scope
-    RetainedStack = 'stk-acme-los-web-app-dev-cus-01'; DisposableStack = 'stk-acme-los-web-disposable-dev-cus-01'
-    EnvironmentId = "$scope/providers/Microsoft.App/managedEnvironments/cae-acme-los-dev-cus-01"
-    RedisId = "$scope/providers/Microsoft.Cache/redisEnterprise/redis-acme-los-dev-cus-01"
-    VaultId = "$scope/providers/Microsoft.KeyVault/vaults/kvacmelosdevcus01v42c"
-    IdentityId = "$scope/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-acme-los-web-dev-cus-01"
-    AcsId = "$scope/providers/Microsoft.Communication/communicationServices/acs-acme-los-dev-cus-01"
-    InfrastructureGroup = 'rg-acme-los-cae-infra-dev-cus-01'
+    FoundationGroup = $foundationGroup; FoundationId = $foundation; Region = $short; Location = $region.Location; Relocated = $region.Relocated
+    RetainedStack = 'stk-acme-los-web-app-dev-cus-01'; DisposableStack = "stk-acme-los-web-disposable-dev-$short-01"
+    EnvironmentId = "$scope/providers/Microsoft.App/managedEnvironments/cae-acme-los-dev-$short-01"
+    RedisId = "$scope/providers/Microsoft.Cache/redisEnterprise/redis-acme-los-dev-$short-01"
+    VaultId = "$foundation/providers/Microsoft.KeyVault/vaults/kvacmelosdevcus01v42c"
+    IdentityId = "$foundation/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-acme-los-web-dev-cus-01"
+    AcsId = "$foundation/providers/Microsoft.Communication/communicationServices/acs-acme-los-dev-cus-01"
+    InfrastructureGroup = "rg-acme-los-cae-infra-dev-$short-01"
     Registry = 'acracmelosnonprodcus01v42c'
     RegistryId = "/subscriptions/$SubscriptionId/resourceGroups/rg-acme-los-images-nonprod-cus-01/providers/Microsoft.ContainerRegistry/registries/acracmelosnonprodcus01v42c"
-    AppNames = @('ca-acme-los-web-dev-cus-01', 'ca-acme-los-bff-dev-cus-01')
+    AppNames = @("ca-acme-los-web-dev-$short-01", "ca-acme-los-bff-dev-$short-01")
   }
 }
 
 function Get-DevDisposableResourceIds {
   param($Scope)
   $disposable = @(
-    $Scope.EnvironmentId, "$($Scope.EnvironmentId)/providers/Microsoft.Insights/diagnosticSettings/diag-acme-los-cae-dev-cus-01",
+    $Scope.EnvironmentId, "$($Scope.EnvironmentId)/providers/Microsoft.Insights/diagnosticSettings/diag-acme-los-cae-dev-$($Scope.Region)-01",
     $Scope.RedisId, "$($Scope.RedisId)/databases/default",
-    "$($Scope.RedisId)/providers/Microsoft.Insights/diagnosticSettings/diag-acme-los-redis-dev-cus-01"
+    "$($Scope.RedisId)/providers/Microsoft.Insights/diagnosticSettings/diag-acme-los-redis-dev-$($Scope.Region)-01"
   )
   foreach ($kind in @('kv', 'redis')) {
-    $endpoint = "$($Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$kind-dev-cus-01"
+    $endpoint = "$($Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$kind-dev-$($Scope.Region)-01"
     $disposable += @($endpoint, "$endpoint/privateDnsZoneGroups/default")
+  }
+  if ($Scope.Relocated) {
+    $network = "$($Scope.Id)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-$($Scope.Region)-01"
+    $disposable += @($network)
+    foreach ($kind in @('app', 'data')) {
+      $disposable += @("$network/subnets/snet-acme-los-$kind-dev-$($Scope.Region)-01", "$($Scope.Id)/providers/Microsoft.Network/networkSecurityGroups/nsg-acme-los-$kind-dev-$($Scope.Region)-01")
+    }
   }
   return $disposable
 }
@@ -44,11 +57,11 @@ function Get-RetirementResourceClass {
   param($Scope, [string]$Id)
   $disposable = @(Get-DevDisposableResourceIds $Scope)
   if ($disposable -contains $Id -or $Id -match ('^' + [regex]::Escape($Scope.RedisId) + '/databases/default/accessPolicyAssignments/aparedis[a-z0-9]+$')) { return 'disposable' }
-  $network = "$($Scope.Id)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-cus-01"
+  $network = "$($Scope.FoundationId)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-cus-01"
   $retained = @($Scope.VaultId, $Scope.IdentityId, $Scope.AcsId, $network,
     "$network/subnets/snet-acme-los-app-dev-cus-01", "$network/subnets/snet-acme-los-data-dev-cus-01",
-    "$($Scope.Id)/providers/Microsoft.Network/networkSecurityGroups/nsg-acme-los-app-dev-cus-01",
-    "$($Scope.Id)/providers/Microsoft.Network/networkSecurityGroups/nsg-acme-los-data-dev-cus-01",
+    "$($Scope.FoundationId)/providers/Microsoft.Network/networkSecurityGroups/nsg-acme-los-app-dev-cus-01",
+    "$($Scope.FoundationId)/providers/Microsoft.Network/networkSecurityGroups/nsg-acme-los-data-dev-cus-01",
     "$($Scope.VaultId)/providers/Microsoft.Insights/diagnosticSettings/diag-acme-los-kv-dev-cus-01")
   if ($retained -contains $Id) { return 'retained' }
   foreach ($parent in @($Scope.VaultId, $Scope.AcsId, $Scope.RegistryId)) {
@@ -63,7 +76,8 @@ function Assert-RetirementStack {
   if ($AllowFailed) { $acceptedStates += @('failed', 'canceled') }
   if (-not $Stack -or $Stack.provisioningState -notin $acceptedStates -or $Stack.denySettings.mode -ine 'none') { throw 'Stack must be succeeded with no deny settings before a lifecycle operation; an explicit interrupted recovery may retry terminal failures.' }
   $expectedName = if ($Phase -eq 'disposable') { $Scope.DisposableStack } else { $Scope.RetainedStack }
-  if ($Stack.id -ine "$($Scope.Id)/providers/Microsoft.Resources/deploymentStacks/$expectedName") { throw 'Unexpected stack scope.' }
+  $stackScope = if ($Phase -eq 'disposable') { $Scope.Id } else { $Scope.FoundationId }
+  if ($Stack.id -ine "$stackScope/providers/Microsoft.Resources/deploymentStacks/$expectedName") { throw 'Unexpected stack scope.' }
   $failedProperty = $Stack.PSObject.Properties['failedResources']
   $failed = @(if ($failedProperty) { $failedProperty.Value })
   $emptyFailedRecovery = $AllowFailed -and $AllowPartial -and $Stack.provisioningState -in @('failed', 'canceled')
@@ -82,7 +96,7 @@ function Assert-RetirementStack {
     if ($policies.Count -ne 1) { throw 'Exactly one source-owned Redis identity policy must belong to the disposable stack.' }
   }
   if (-not $AllowPartial -and $Phase -in @('all', 'retained')) {
-    foreach ($required in @($Scope.VaultId, $Scope.IdentityId, $Scope.AcsId, "$($Scope.Id)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-cus-01")) {
+    foreach ($required in @($Scope.VaultId, $Scope.IdentityId, $Scope.AcsId, "$($Scope.FoundationId)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-cus-01")) {
       if ($ids -notcontains $required) { throw "Incomplete retained ownership: '$required' is missing." }
     }
     foreach ($parent in @($Scope.VaultId, $Scope.AcsId, $Scope.RegistryId)) {
@@ -90,7 +104,8 @@ function Assert-RetirementStack {
       if ($roles.Count -ne 1) { throw 'Each retained service must retain its single source-owned identity role assignment.' }
     }
   }
-  foreach ($pair in @(@('environmentName', 'dev'), @('organizationShortName', 'acme'), @('workloadShortName', 'los'), @('regionShortName', 'cus'), @('instanceNumber', '01'), @('uniqueShortSuffix', 'v42c'), @('stateStoreMode', 'redis'), @('platformSubscriptionId', $Scope.PlatformSubscription))) {
+  $region = if ($Phase -eq 'disposable') { $Scope.Region } else { 'cus' }
+  foreach ($pair in @(@('environmentName', 'dev'), @('organizationShortName', 'acme'), @('workloadShortName', 'los'), @('regionShortName', $region), @('instanceNumber', '01'), @('uniqueShortSuffix', 'v42c'), @('stateStoreMode', 'redis'), @('platformSubscriptionId', $Scope.PlatformSubscription))) {
     $property = $Stack.parameters.PSObject.Properties[$pair[0]]
     if (-not $property -or $property.Value.value -cne $pair[1]) { throw "Unexpected stack parameter $($pair[0])." }
   }
@@ -98,8 +113,9 @@ function Assert-RetirementStack {
 
 function Get-RetirementStack {
   param($Scope, [string]$Name)
-  $stacks = @(Invoke-AzureDnsJson @('stack', 'group', 'list', '--subscription', $Scope.Subscription, '--resource-group', $Scope.Group) | ForEach-Object { $_ })
-  return $stacks | Where-Object { $_.name -eq $Name } | Select-Object -First 1
+  $group = if ($Name -eq $Scope.RetainedStack) { $Scope.FoundationGroup } else { $Scope.Group }
+  $stacks = @(Invoke-AzureDnsJson @('stack', 'group', 'list', '--subscription', $Scope.Subscription, '--resource-group', $group) -AllowMissing | ForEach-Object { $_ })
+  return $stacks | Where-Object { $null -ne $_ -and $_.name -eq $Name } | Select-Object -First 1
 }
 
 function Invoke-RetirementPhase {
@@ -153,11 +169,63 @@ function Get-RetirementProtectedFingerprint {
   try { return ([BitConverter]::ToString($hash.ComputeHash([Text.Encoding]::UTF8.GetBytes($payload)))).Replace('-', '').ToLowerInvariant() } finally { $hash.Dispose() }
 }
 
+function Assert-RetiredCentralRuntime {
+  param($Scope)
+  foreach ($entry in @(
+    @('Microsoft.App/managedEnvironments/cae-acme-los-dev-cus-01', '2025-01-01'),
+    @('Microsoft.App/containerApps/ca-acme-los-web-dev-cus-01', '2025-01-01'),
+    @('Microsoft.App/containerApps/ca-acme-los-bff-dev-cus-01', '2025-01-01'),
+    @('Microsoft.Cache/redisEnterprise/redis-acme-los-dev-cus-01', '2025-07-01'),
+    @('Microsoft.Network/privateEndpoints/pep-acme-los-kv-dev-cus-01', '2024-05-01'),
+    @('Microsoft.Network/privateEndpoints/pep-acme-los-redis-dev-cus-01', '2024-05-01')
+  )) {
+    if (Get-ConnectivityResource "$($Scope.FoundationId)/providers/$($entry[0])" $entry[1]) { throw 'Retire the Central US runtime before relocating; two active regions are not supported.' }
+  }
+  $identity = Get-ConnectivityResource $Scope.IdentityId '2024-11-30'
+  $isolation = $identity.properties.PSObject.Properties['isolationScope']
+  if ($isolation -and $isolation.Value -and $isolation.Value -cne 'None') { throw 'The retained identity forbids cross-region use; do not weaken its isolation.' }
+}
+
+function Assert-RegionalRuntimeInventory {
+  param($Scope, [string]$Hostname)
+  $allowed = @(Get-DevDisposableResourceIds $Scope)
+  foreach ($name in $Scope.AppNames) { $allowed += "$($Scope.Id)/providers/Microsoft.App/containerApps/$name" }
+  foreach ($kind in @('kv', 'redis')) { $allowed += "$($Scope.Id)/providers/Microsoft.Network/networkInterfaces/nic-acme-los-$kind-dev-$($Scope.Region)-01" }
+  $allowed += "$($Scope.EnvironmentId)/managedCertificates/mcert-acme-los-dev-$($Hostname.Replace('.', '-'))"
+  $resources = @(Invoke-AzureDnsJson @('resource', 'list', '--subscription', $Scope.Subscription, '--resource-group', $Scope.Group) | ForEach-Object { $_ })
+  foreach ($resource in $resources) {
+    if ($resource.id -notin $allowed) { throw 'Regional runtime group contains an unexpected resource. Review ownership before deployment or cleanup.' }
+  }
+}
+
+function Remove-RetirementRegionalDnsLinks {
+  param($Scope, $Configuration)
+  if (-not $Scope.Relocated) { throw 'Regional DNS link cleanup requires the explicit relocated dev scope.' }
+  $group = $Configuration.platformResources.networkResourceGroupName
+  $name = "stk-acme-los-dns-links-dev-$($Scope.Region)-01"
+  $stack = Invoke-AzureDnsJson @('stack', 'group', 'show', '--subscription', $Scope.PlatformSubscription, '--resource-group', $group, '--name', $name) -AllowMissing
+  if (-not $stack) { return }
+  $network = "$($Scope.Id)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-$($Scope.Region)-01"
+  $expected = @()
+  foreach ($pair in @(@('kv', $Configuration.platformResources.privateDnsZones.keyVault), @('redis', $Configuration.platformResources.privateDnsZones.managedRedis))) {
+    $expected += "/subscriptions/$($Scope.PlatformSubscription)/resourceGroups/$group/providers/Microsoft.Network/privateDnsZones/$($pair[1])/virtualNetworkLinks/pdzlnk-acme-los-$($pair[0])-dev-$($Scope.Region)-01"
+  }
+  if ($stack.provisioningState -notin @('succeeded', 'failed', 'canceled') -or $stack.denySettings.mode -ine 'none') { throw 'Regional DNS link stack is not terminal or has deny settings.' }
+  $failed = $stack.PSObject.Properties['failedResources']
+  $ids = @($stack.resources | ForEach-Object { $_.id }) + @(if ($failed) { $failed.Value | ForEach-Object { $_.id } })
+  foreach ($id in $ids) {
+    if ($id -notin $expected) { throw 'Regional DNS stack owns an unexpected resource; cleanup refused.' }
+    $link = Get-ConnectivityResource $id '2024-06-01'
+    if ($link -and $link.properties.virtualNetwork.id -ine $network) { throw 'Regional DNS link targets another network.' }
+  }
+  Invoke-AzureDnsJson @('stack', 'group', 'delete', '--subscription', $Scope.PlatformSubscription, '--resource-group', $group, '--name', $name, '--action-on-unmanage', 'deleteResources', '--yes') | Out-Null
+}
+
 function Get-RetirementImageMetadata {
   param($Scope, $Apps, $PreviousTags, [switch]$AllowNewBuild)
   $metadata = @{}
   foreach ($kind in @('web', 'bff')) {
-    $app = @($Apps | Where-Object { $_.name -eq "ca-acme-los-$kind-dev-cus-01" })
+    $app = @($Apps | Where-Object { $_.name -eq "ca-acme-los-$kind-dev-$($Scope.Region)-01" })
     if ($app.Count -ne 1 -or @($app[0].properties.template.containers).Count -ne 1 -or $app[0].properties.environmentId -ine $Scope.EnvironmentId) { throw 'Both source-owned apps are required before preparing recovery metadata.' }
     $container = $app[0].properties.template.containers[0]
     $repository = if ($kind -eq 'web') { 'acme-los-web' } else { 'acme-los-bff-api' }
@@ -190,7 +258,7 @@ function Get-RetirementImageMetadata {
 
 function Set-RetirementTags {
   param($Scope, [hashtable]$Tags)
-  $arguments = @('tag', 'update', '--resource-id', $Scope.Id, '--operation', 'Merge', '--tags')
+  $arguments = @('tag', 'update', '--resource-id', $Scope.FoundationId, '--operation', 'Merge', '--tags')
   foreach ($key in ($Tags.Keys | Sort-Object)) { $arguments += "$key=$($Tags[$key])" }
   Invoke-AzureDnsJson $arguments | Out-Null
 }
@@ -210,14 +278,17 @@ function Set-RetirementAlerts {
 }
 
 function Clear-RetirementCname {
-  param($Dns, [switch]$Apply)
+  param($Dns, [switch]$Apply, $Scope)
   $uri = "https://management.azure.com$($Dns.ZoneId)/CNAME/$($Dns.HostLabel)?api-version=2018-05-01"
   $record = Invoke-AzureDnsJson @('rest', '--method', 'get', '--uri', $uri) -AllowMissing
   if (-not $record) { return }
   if ($record.properties.metadata.'acme-owner' -cne $Dns.Owner -or -not $record.etag) { throw 'Refusing to clear a CNAME without source ownership and ETag.' }
   $value = $record.properties.PSObject.Properties['CNAMERecord']
   if (-not $value -or -not $value.Value) { return }
-  if ($value.Value.cname -notmatch '^ca-acme-los-web-dev-cus-01\.[a-z0-9-]+\.centralus\.azurecontainerapps\.io\.?$') { throw 'The CNAME points outside the dev application.' }
+  $short = if ($Scope) { $Scope.Region } else { 'cus' }
+  $location = if ($Scope) { $Scope.Location } else { 'centralus' }
+  $pattern = '^' + [regex]::Escape("ca-acme-los-web-dev-$short-01.") + '[a-z0-9-]+\.' + [regex]::Escape("$location.azurecontainerapps.io") + '\.?$'
+  if ($value.Value.cname -notmatch $pattern) { throw 'The CNAME points outside the dev application.' }
   if ($Apply) {
     # Empty record sets publish no DNS answer and can be updated without removing the zone lock.
     $properties = @{ TTL = $record.properties.TTL; metadata = $record.properties.metadata }
@@ -236,11 +307,11 @@ function Remove-RetirementServiceResources {
   $endpoints = @()
   # Stack deletion can run parent and child deletes concurrently. Remove connections before their service.
   foreach ($kind in @('kv', 'redis')) {
-    $id = "$($Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$kind-dev-cus-01"
+    $id = "$($Scope.Id)/providers/Microsoft.Network/privateEndpoints/pep-acme-los-$kind-dev-$($Scope.Region)-01"
     $endpoint = Get-ConnectivityResource $id
     if (-not $endpoint) { continue }
     if ($id -notin $ownedIds) { throw 'Private endpoint is not owned by the disposable stack.' }
-    $subnet = "$($Scope.Id)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-cus-01/subnets/snet-acme-los-data-dev-cus-01"
+    $subnet = "$($Scope.Id)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-$($Scope.Region)-01/subnets/snet-acme-los-data-dev-$($Scope.Region)-01"
     $service = if ($kind -eq 'kv') { $Scope.VaultId } else { $Scope.RedisId }
     $connections = @($endpoint.properties.privateLinkServiceConnections)
     if ($endpoint.properties.subnet.id -ine $subnet -or $connections.Count -ne 1 -or
@@ -252,7 +323,7 @@ function Remove-RetirementServiceResources {
   $environment = Get-ConnectivityResource $Scope.EnvironmentId '2025-01-01'
   if ($environment) {
     if ($Scope.EnvironmentId -notin $ownedIds) { throw 'Environment is not recorded by the disposable stack.' }
-    $appSubnet = "$($Scope.Id)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-cus-01/subnets/snet-acme-los-app-dev-cus-01"
+    $appSubnet = "$($Scope.Id)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-$($Scope.Region)-01/subnets/snet-acme-los-app-dev-$($Scope.Region)-01"
     if ($environment.properties.infrastructureResourceGroup -ine $Scope.InfrastructureGroup -or
       $environment.properties.vnetConfiguration.infrastructureSubnetId -ine $appSubnet) { throw 'Environment networking differs from the approved dev configuration.' }
   }

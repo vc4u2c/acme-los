@@ -45,11 +45,13 @@ What is solid now:
 
 What is true operationally today:
 
-- `dev` previously ran successfully on Azure Container Apps; it is currently
-  offline after the October 2, 2026 retirement/rebuild rehearsal hit Central US
-  capacity exhaustion. Partial rebuild cleanup finished; the environment is
-  `retired`, with disposable resources absent and retained identity / secret
-  metadata unchanged. See the [lifecycle status](../operations/azure-bootstrap-and-teardown.md#recoverable-dev-retirement).
+- `dev` is offline. Following Central US capacity failures, the approved
+  October 6, 2026 East US 2 recovery created an ACA environment, but Azure
+  rejected Redis creation for this subscription/region. Neither app started.
+  The source now separates East US 2 runtime resources from retained Central US
+  secrets and identities, and preflights Redis availability before provisioning.
+  See the [lifecycle status](../operations/azure-bootstrap-and-teardown.md#recoverable-dev-retirement)
+  for cleanup evidence and recovery gates.
 - `Key Vault` and `Azure Managed Redis` are private-only in the current Azure design
 - the public web app and internal BFF container app deploy together from
   the web deployable, with BFF scale following the environment runtime scale by
@@ -266,7 +268,7 @@ What is not fully hardened yet:
 
 - when running, the app is also directly reachable on the ACA hostname
 - stable-host activation and secret-preserving retirement are proven, but the
-  subsequent rebuild encountered regional capacity exhaustion. New-environment
+  subsequent rebuilds encountered regional capacity/SKU restrictions. New-environment
   HTTPS recovery and signed-in journeys remain outstanding gates; full teardown
   must not be advertised as an immediately recoverable pause
 - Front Door, WAF, and private-only ACA ingress are still later phases

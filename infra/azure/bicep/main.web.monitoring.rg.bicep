@@ -9,6 +9,7 @@ targetScope = 'resourceGroup'
 param environmentName string
 
 param location string = resourceGroup().location
+param alertsEnabled bool = true
 param organizationShortName string = 'acme'
 param workloadShortName string = 'los'
 param regionShortName string = 'cus'
@@ -125,6 +126,7 @@ module actionGroup './modules/monitoring/action-group.bicep' = {
 module failedRequestsAlert './modules/monitoring/scheduled-query-alert.bicep' = if (deployOperationsPack) {
   name: 'alert-failed-requests-${environmentName}'
   params: {
+    enabled: alertsEnabled
     name: requestFailuresAlertName
     location: location
     tags: tags.outputs.tags
@@ -148,6 +150,7 @@ module failedRequestsAlert './modules/monitoring/scheduled-query-alert.bicep' = 
 module exceptionsAlert './modules/monitoring/scheduled-query-alert.bicep' = if (deployOperationsPack) {
   name: 'alert-exceptions-${environmentName}'
   params: {
+    enabled: alertsEnabled
     name: exceptionsAlertName
     location: location
     tags: tags.outputs.tags
@@ -171,6 +174,7 @@ module exceptionsAlert './modules/monitoring/scheduled-query-alert.bicep' = if (
 module authFailuresAlert './modules/monitoring/scheduled-query-alert.bicep' = if (deployOperationsPack) {
   name: 'alert-auth-failures-${environmentName}'
   params: {
+    enabled: alertsEnabled
     name: authFailuresAlertName
     location: location
     tags: tags.outputs.tags
@@ -194,6 +198,7 @@ module authFailuresAlert './modules/monitoring/scheduled-query-alert.bicep' = if
 module systemErrorsAlert './modules/monitoring/scheduled-query-alert.bicep' = if (deployOperationsPack) {
   name: 'alert-system-errors-${environmentName}'
   params: {
+    enabled: alertsEnabled
     name: systemErrorsAlertName
     location: location
     tags: tags.outputs.tags

@@ -2,6 +2,10 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $lifecycleScript = Join-Path $PSScriptRoot '../set-web-environment-state.ps1'
+$testConfiguration = Get-Content (Join-Path $PSScriptRoot '../../../../infra/azure/config/platform.json') -Raw | ConvertFrom-Json
+$testConfiguration.environments.dev.PSObject.Properties.Remove('runtimeRegion')
+$testConfigurationPath = [IO.Path]::GetTempFileName()
+$testConfiguration | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $testConfigurationPath -Encoding UTF8
 $global:testSub = '11111111-1111-1111-1111-111111111111'
 $global:testPlatform = '22222222-2222-2222-2222-222222222222'
 $global:testGroup = 'rg-acme-los-web-dev-cus-01'
@@ -183,7 +187,7 @@ function global:Invoke-WebRequest {
 }
 
 function Invoke-TestLifecycle([string]$Action, [hashtable]$Extra = @{}) {
-  & $lifecycleScript -EnvironmentName dev -Action $Action -SubscriptionId $testSub -PlatformSubscriptionId $testPlatform @Extra | ConvertFrom-Json
+  & $lifecycleScript -ConfigurationPath $testConfigurationPath -EnvironmentName dev -Action $Action -SubscriptionId $testSub -PlatformSubscriptionId $testPlatform @Extra | ConvertFrom-Json
 }
 
 function Assert-Fails([scriptblock]$Body, [string]$Pattern) {
@@ -387,6 +391,7 @@ $tests['split ownership rejects a vault missing from its retained foundation'] =
 }
 
 $passed = 0
+try {
 foreach ($test in $tests.GetEnumerator()) {
   Reset-TestState
   try { & $test.Value $testArguments[$test.Key] } catch { throw "FAIL $($test.Key): $($_.Exception.Message)`n$($_.ScriptStackTrace)" }
@@ -394,3 +399,4 @@ foreach ($test in $tests.GetEnumerator()) {
   Write-Host "PASS $($test.Key)"
 }
 Write-Host "$passed lifecycle tests passed. No Azure calls were made."
+} finally { Remove-Item -LiteralPath $testConfigurationPath -Force }

@@ -20,7 +20,8 @@ Previously verified platform capabilities:
 - the target `platform`, `nonprod`, `prod`, and `sandbox` subscriptions exist
 - the persistent platform network foundation is deployed
 - `dev` has run on `Azure Container Apps` in `sub-acme-nonprod-online`; it is
-  currently offline following the October 2, 2026 retirement/rebuild rehearsal
+  currently offline: the October 6 East US 2 recovery passed ACA creation but
+  was blocked by Redis SKU access for this subscription/region
 - `Key Vault` and `Azure Managed Redis` are private-only
 - the repo has a staged, source-supported ACS SMS MFA path for Okta; `dev`
   has purchased toll-free sender `+18772244103`, while real carrier SMS remains
@@ -96,7 +97,13 @@ See the [recoverable retirement runbook](../../docs/operations/azure-bootstrap-a
 for ownership migration, explicit data-loss confirmation, and pinned-image
 recovery. Retirement passed, but rebuilding hit Central US capacity exhaustion;
 a bounded retry was canceled and its partial resources were fully retired.
-New-environment HTTPS and real sign-in checks have not passed. Ordinary pause
+The approved East US 2 relocation preserves Central US Key Vault, identities,
+ACS, images, and shared platform resources. Its ACA environment was created,
+but the provider rejected Redis B0; validation-only probes also rejected B1,
+B3, B5, and B10. The source now checks Redis provider availability before paid
+regional provisioning and never selects a larger tier automatically.
+See the runbook for the latest cleanup evidence. New-environment HTTPS and
+real sign-in checks have not passed. Ordinary pause
 remains the existing private-endpoint hibernation
 path until the complete cycle is proven. Keep automatic CD disabled while dev
 is retired and preserve the delegated DNS zone and its deletion lock.

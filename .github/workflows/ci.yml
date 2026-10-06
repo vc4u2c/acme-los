@@ -84,6 +84,10 @@ jobs:
         shell: pwsh
         run: ./tools/scripts/azure/tests/teardown-safety.tests.ps1
 
+      - name: Test mixed-region runtime safety
+        shell: pwsh
+        run: ./tools/scripts/azure/tests/runtime-region.tests.ps1
+
       - name: Test DNS and custom-domain recovery safety
         shell: pwsh
         run: ./tools/scripts/azure/tests/dns-recovery.tests.ps1

@@ -969,6 +969,8 @@ try {
     $monitoringDeploymentArguments = @('fixture-monitoring')
     foreach ($recovery in @($false, $true)) {
       $RecoverRetiredResourceGroup = if ($recovery) { $s.Scope.Group } else { '' }
+      $preserveFoundation = $recovery
+      $runtimeRegion = [pscustomobject]@{ Relocated = $false }
       $writes.Clear()
       foreach ($variable in @('imagesSubscriptionDeploymentArguments', 'platformWorkloadLinksDeploymentArguments', 'monitoringDeploymentArguments')) {
         . (Get-TestDeploymentBlock $variable)
@@ -991,6 +993,9 @@ try {
     function Invoke-AzNoOutput { param([string[]]$Arguments) $writes.Add($Arguments) }
     $EnvironmentName = 'dev'
     $RecoverRetiredResourceGroup = $s.Scope.Group
+    $preserveFoundation = $true
+    $configuration = [pscustomobject]@{ organizationShortName = 'acme'; workloadShortName = 'los'; primaryRegionShortName = 'cus' }
+    $foundationResourceGroupName = $s.Scope.FoundationGroup
     $resolvedSubscriptionId = $s.Scope.Subscription
     $resourceGroupName = $s.Scope.Group
     $resourceGroupStackName = $s.Scope.RetainedStack
@@ -1008,6 +1013,8 @@ try {
   $tests['recovery refuses missing monitoring and never syncs retained workbooks'] = {
     function Invoke-AzNoOutput { throw 'Unexpected retained monitoring write' }
     $RecoverRetiredResourceGroup = $s.Scope.Group
+    $preserveFoundation = $true
+    $runtimeRegion = [pscustomobject]@{ Relocated = $false }
     $platformMonitoringStackName = 'fixture-monitor-stack'
     $monitoringStacks = @([pscustomobject]@{ name = $platformMonitoringStackName })
     . (Get-TestDeploymentBlock 'monitoringBootstrapArguments')
