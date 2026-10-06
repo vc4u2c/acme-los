@@ -23,6 +23,8 @@ param workloadShortName string = 'los'
 param regionShortName string = 'cus'
 param retainedRegionShortName string = regionShortName
 param retainedResourceGroupName string = resourceGroup().name
+@description('Stable name for the global ACS resource when its resource group moves regions.')
+param globalCommunicationServicesName string = toLower('acs-${organizationShortName}-${workloadShortName}-${environmentName}-${retainedRegionShortName}-${instanceNumber}')
 param instanceNumber string = '01'
 param uniqueShortSuffix string = 'v42c'
 param ownerTag string = 'vc4u2c'
@@ -62,7 +64,7 @@ var resolvedRedisDatabaseName = 'default'
 var resolvedContainerAppEnvironmentName = toLower('cae-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedContainerAppEnvironmentInfrastructureResourceGroupName = toLower('rg-${organizationShortName}-${workloadShortName}-cae-infra-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedContainerAppName = toLower('ca-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
-var resolvedCommunicationServicesName = toLower('acs-${organizationShortName}-${workloadShortName}-${environmentName}-${retainedRegionShortName}-${instanceNumber}')
+var resolvedCommunicationServicesName = globalCommunicationServicesName
 var resolvedUserAssignedIdentityName = toLower('id-${organizationShortName}-${workloadShortName}-web-${environmentName}-${retainedRegionShortName}-${instanceNumber}')
 var resolvedVirtualNetworkName = toLower('vnet-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedAppSubnetName = toLower('snet-${organizationShortName}-${workloadShortName}-app-${environmentName}-${regionShortName}-${instanceNumber}')
@@ -236,6 +238,9 @@ resource keyVaultSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignme
     principalType: 'ServicePrincipal'
     roleDefinitionId: keyVaultSecretsUserRoleDefinitionId
   }
+  dependsOn: [
+    keyVault
+  ]
 }
 
 module acrPullRoleAssignment './modules/shared/acr-pull-role-assignment.bicep' = if (deployRetained) {

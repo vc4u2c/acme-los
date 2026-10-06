@@ -45,15 +45,16 @@ What is solid now:
 
 What is true operationally today:
 
-- `dev` is offline. Following Central US capacity failures, the approved
-  October 6, 2026 East US 2 recovery created an ACA environment, but Azure
-  rejected Redis creation for this subscription/region. Neither app started.
-  Cleanup completed: dev is `retired`, the regional runtime RG is empty, and
-  retained identity/secret metadata is unchanged.
-  The source now separates East US 2 runtime resources from retained Central US
-  secrets and identities, and preflights Redis availability before provisioning.
-  See the [lifecycle status](../operations/azure-bootstrap-and-teardown.md#recoverable-dev-retirement)
-  for cleanup evidence and recovery gates.
+- `dev` is live at `https://apply-dev.los.avanai.net` after the approved
+  October 6, 2026 full East US rebuild. The new regional resources include
+  Key Vault, runtime identity, registry, networking, and monitoring. It supersedes the
+  unsuccessful East US 2 runtime-only attempt. Global DNS, ACS/phone, Okta,
+  and deployment identities remain; other applications are outside the scope.
+  See the [full regional rebuild runbook](../operations/azure-bootstrap-and-teardown.md#full-regional-dev-rebuild)
+  for current evidence and recovery gates. Old Central US regional resources
+  have been removed. HTTPS health and
+  anonymous browser/IDX checks passed; authenticated OTP journeys have not
+  been retested after the rebuild.
 - `Key Vault` and `Azure Managed Redis` are private-only in the current Azure design
 - the public web app and internal BFF container app deploy together from
   the web deployable, with BFF scale following the environment runtime scale by

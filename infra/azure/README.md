@@ -19,9 +19,9 @@ Previously verified platform capabilities:
 - the landing-zone governance hierarchy exists
 - the target `platform`, `nonprod`, `prod`, and `sandbox` subscriptions exist
 - the persistent platform network foundation is deployed
-- `dev` has run on `Azure Container Apps` in `sub-acme-nonprod-online`; it is
-  currently offline: the October 6 East US 2 recovery passed ACA creation but
-  was blocked by Redis SKU access for this subscription/region
+- `dev` runs on `Azure Container Apps` in East US in `sub-acme-nonprod-online`;
+  the October 6 full regional rebuild passed HTTPS health and anonymous IDX
+  browser checks at `https://apply-dev.los.avanai.net`
 - `Key Vault` and `Azure Managed Redis` are private-only
 - the repo has a staged, source-supported ACS SMS MFA path for Okta; `dev`
   has purchased toll-free sender `+18772244103`, while real carrier SMS remains
@@ -62,6 +62,8 @@ What is here now:
 - `bicep/main.entra.service-auth.rg.bicep`
   - Microsoft Graph Bicep entrypoint for the BFF API app registration,
     enterprise application, and managed-identity app role assignment
+- `bicep/main.web.monitoring.sub.bicep`
+  - regional platform monitoring resource-group scaffold, separate from the retained global DNS hub
 - `bicep/main.web.monitoring.rg.bicep`
   - platform-owned Log Analytics, Application Insights, workbook, action group,
     and alert entrypoint
@@ -97,17 +99,24 @@ See the [recoverable retirement runbook](../../docs/operations/azure-bootstrap-a
 for ownership migration, explicit data-loss confirmation, and pinned-image
 recovery. Retirement passed, but rebuilding hit Central US capacity exhaustion;
 a bounded retry was canceled and its partial resources were fully retired.
-The approved East US 2 relocation preserves Central US Key Vault, identities,
+The earlier East US 2 relocation preserved Central US Key Vault, identities,
 ACS, images, and shared platform resources. Its ACA environment was created,
 but the provider rejected Redis B0; validation-only probes also rejected B1,
 B3, B5, and B10. The source now checks Redis provider availability before paid
 regional provisioning and never selects a larger tier automatically.
-Its partial runtime has been fully retired; retained identity/secret metadata
-is unchanged. See the runbook for the cleanup evidence. New-environment HTTPS and
-real sign-in checks have not passed. Ordinary pause
+That attempt's partial runtime was fully retired with retained identity/secret
+metadata unchanged. See the runbook for historical evidence. Ordinary pause
 remains the existing private-endpoint hibernation
 path until the complete cycle is proven. Keep automatic CD disabled while dev
-is retired and preserve the delegated DNS zone and its deletion lock.
+source promotion is pending, and preserve the delegated DNS zone and its deletion lock.
+
+The October 6 full rebuild supersedes that runtime-only attempt. The source
+now targets East US for the complete regional foundation and runtime, with
+global DNS and ACS/phone preserved. The new apps are running, and old-region
+cleanup completed with zero active ACME LOS Central US regional resources left.
+Authenticated OTP journeys remain unverified. Use the guarded
+[full regional rebuild procedure](../../docs/operations/azure-bootstrap-and-teardown.md#full-regional-dev-rebuild),
+not a subscription-wide delete or a relaxed ordinary teardown command.
 
 ## Bootstrap Scripts
 

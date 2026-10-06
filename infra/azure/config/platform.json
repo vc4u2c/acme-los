@@ -4,11 +4,13 @@
   "workloadName": "ACME LOS",
   "workloadShortName": "los",
   "projectName": "acme-los",
-  "primaryLocation": "centralus",
-  "primaryRegionShortName": "cus",
+  "primaryLocation": "eastus",
+  "primaryRegionShortName": "eus",
   "resourceNameSuffix": "v42c",
   "platformResources": {
-    "monitorResourceGroupName": "rg-acme-hub-monitor-cus-01",
+    "hubLocation": "centralus",
+    "hubRegionShortName": "cus",
+    "monitorResourceGroupName": "rg-acme-hub-monitor-eus-01",
     "networkResourceGroupName": "rg-acme-hub-network-cus-01",
     "publicDnsResourceGroupName": "rg-acme-los-dns-cus-01",
     "privateDnsZones": {
@@ -34,10 +36,6 @@
       "subscriptionRole": "nonprod",
       "appEnvironmentName": "dev",
       "oktaEnvironmentName": "dev",
-      "runtimeRegion": {
-        "location": "eastus2",
-        "shortName": "eus2"
-      },
       "publicDomain": {
         "enabled": true,
         "hostname": "apply-dev.los.avanai.net",
@@ -52,6 +50,7 @@
         "maxReplicas": 2
       },
       "smsMfa": {
+        "resourceName": "acs-acme-los-dev-cus-01",
         "enabled": true,
         "provider": "mock",
         "enableMockOtp": true,

@@ -29,7 +29,7 @@ function Get-WebRuntimeResourceGroupName {
 function Assert-RegionalRedisPreflight {
   param($Configuration, [string]$EnvironmentName, [string]$SubscriptionId, [string]$ResourceGroupName, $WebTemplate, $Parameters)
   $region = Get-WebRuntimeRegion $Configuration $EnvironmentName
-  if (-not $region.Relocated) { return }
+  if (-not $region.Relocated -and $region.Location -cne 'eastus') { return }
   if ($ResourceGroupName -cne (Get-WebRuntimeResourceGroupName $Configuration $EnvironmentName)) { throw 'Redis preflight requires the configured regional runtime group.' }
   $arguments = @('deployment', 'group', 'validate', '--subscription', $SubscriptionId, '--resource-group', $ResourceGroupName,
     '--name', "validate-regional-redis-$EnvironmentName", '--validation-level', 'Provider',

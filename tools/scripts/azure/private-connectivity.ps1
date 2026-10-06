@@ -14,7 +14,9 @@ function Assert-WebEnvironmentNotHibernated {
   $runtimeRegion = if ($null -ne $group.tags) { $group.tags.PSObject.Properties['acme:runtime-region'] } else { $null }
   if ($ExpectedRuntimeRegion -and $runtimeRegion -and $runtimeRegion.Value -cne $ExpectedRuntimeRegion) { throw 'Runtime region differs from the recorded lifecycle; regional failback requires explicit review.' }
   if ($RecoverRetired) {
-    if ($ResourceGroupName -cne 'rg-acme-los-web-dev-cus-01' -or -not $retirement -or $retirement.Value -cne 'rebuilding') { throw 'Use the dev retirement lifecycle command to start recovery.' }
+    if ($ResourceGroupName -cnotin @('rg-acme-los-web-dev-cus-01', 'rg-acme-los-web-dev-eus-01') -or
+      ($ResourceGroupName -ceq 'rg-acme-los-web-dev-eus-01' -and ($ExpectedRuntimeRegion -cne 'eus' -or -not $runtimeRegion)) -or
+      -not $retirement -or $retirement.Value -cne 'rebuilding') { throw 'Use the dev retirement lifecycle command to start recovery.' }
     return
   }
   if ($retirement -and $retirement.Value -ne 'active') { throw 'This environment is retired or recovery is incomplete. Use the dev retirement rebuild command.' }

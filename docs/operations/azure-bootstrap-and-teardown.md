@@ -665,7 +665,102 @@ This is stack-scoped deletion, not a guarantee that the environment RG is empty
 or all charges have stopped. See Microsoft's
 [deletion modes](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/deployment-stacks#control-detachment-and-deletion).
 
+### Full Regional Dev Rebuild
+
+The October 6, 2026 approved full rebuild replaces the Central US regional
+foundation as well as the runtime. `platform.json` now targets `eastus` / `eus`
+without a separate `dev.runtimeRegion` override. The rebuilt environment uses one
+region for Key Vault, runtime identity, ACR, VNet, monitoring, ACA, Redis, and
+private endpoints. Higher environments remain demo-only deployment gates; this
+operation creates no QA, staging, or production runtime.
+
+This supersedes the earlier East US 2 runtime-only recovery below. East US,
+South Central US, and West US 2 passed validation-only Redis B0 checks. East US
+was selected; provider validation does not reserve physical capacity.
+
+Global public/private DNS stays in its existing platform groups. Their `cus`
+names do not make DNS a Central US service. The global ACS resource moves to
+the new workload RG while retaining its name, immutable identity, endpoint,
+and phone. Namecheap NS records, Okta domains, and stable callbacks do not change.
+`platformResources.hubLocation` / `hubRegionShortName` keep the retained global
+DNS scaffold separate from the regional workload defaults. Platform bootstrap
+creates East US monitoring through its own subscription-scope template, rather
+than attempting to relocate an existing hub group.
+The old purge-protected vault may remain soft-deleted for 90 days; the new vault
+has a different name. The rebuild never attempts to purge it or weaken its
+protection.
+
+Run the read-only plan before applying either explicit phase:
+
+```powershell
+$rebuild = 'tools/scripts/azure/invoke-full-regional-rebuild.ps1'
+& $rebuild -Action plan
+& $rebuild -Action prepare -Apply -ConfirmWorkload acme-los-dev-centralus-to-eastus
+```
+
+Preparation checks exact inventories, subscription/tenant scope, target stack
+ownership, DNS delegation, and the approved image digests. It validates the ACS
+move before detaching its old ownership stack, copies pinned images through
+Azure RBAC, then moves that same global ACS resource. Retries accept only the
+recorded immutable ACS identity and image digests, never a look-alike replacement.
+
+Deploy through `deploy-web-environment.ps1` with `-EnvironmentName dev`, both
+explicit subscription IDs, `-ReuseExistingImages`, the plan's image tag and
+digests, `-BffVersion 0.0.23`, `-SyncPublicDns`, and
+`-ConfirmDnsZone los.avanai.net`. This is a fresh deployment, **not**
+`-RecoverRetiredResourceGroup`. Supply the existing Okta signing key and
+telephony authorization through the process environment, never command-line
+values or committed files. The signing key must match the live Okta client.
+New session and proxy secrets are generated securely into the new vault;
+sessions and demo Redis data are not restored.
+
+After the private services, pinned images, internal BFF, stable DNS, and HTTPS
+build checks pass, explicitly remove the old regional resources:
+
+```powershell
+& $rebuild -Action cleanup -Apply -ConfirmWorkload acme-los-dev-centralus-to-eastus
+```
+
+Cleanup deletes only the enumerated old workload/image groups, the empty East
+US 2 runtime group, and ACME-owned monitoring/link resources. It never deletes
+shared platform groups, global DNS, the phone, Network Watchers, or the unrelated
+tax-audit application. Unknown resources or incomplete target readiness stop
+the operation. Keep automatic CD disabled until these scripts and GitHub dev
+variables are promoted together. Infrastructure health is not proof that live
+customer sign-in, OTP, funding, or account changes have passed.
+
+October 6 execution: East US foundation, runtime, monitoring, managed certificate,
+and stable HTTPS health checks passed. Both apps run the pinned `2519e1dd`
+release (web `1.12.44`, BFF `0.0.23`). The new vault is private-only with RBAC and
+purge protection; Redis and Next-to-BFF auth use the new managed identity.
+Guarded old-region cleanup completed. Final inventories in the workload and
+platform subscriptions found zero active ACME LOS Central US regional resources.
+The old workload/image groups and the failed East US 2 group are absent, as are
+the old monitoring resources, workbook, DNS links, and ownership stacks. The
+unrelated tax-audit identity directory, shared DNS, and global ACS remain.
+The old vault is a purge-protected deleted recovery record, with scheduled
+purge on January 4, 2027; no purge bypass was attempted.
+
+Headless Chromium checks passed for the home page, live IDX start, registration,
+password-recovery and unlock links back to sign-in, and mobile sign-in without
+horizontal overflow. The read-only Okta audit passed all 51 checks, including
+stable callback and telephony-hook URLs. No email, password, or OTP was submitted;
+authenticated funding and account-change journeys remain unverified.
+
+Local formatting, lint/tests, web production build, Bicep compilation, and
+regional safety tests passed. Fresh Key Vault secret probing now preserves
+typed ARM not-found errors despite PowerShell stderr wrapping; authorization
+and transient failures still stop deployment. Regression tests cover that path
+and fresh/repeated split platform bootstrap. Dev-only GitHub settings sync
+preserved QA/staging/production approvals and reused the existing deployment
+identity. Automatic CD remains disabled pending source promotion. Existing
+critical dependency advisories remain a separate promotion blocker; this
+regional rebuild does not remediate them.
+
 ### Recoverable Dev Retirement
+
+The following evidence records the superseded Central US and East US 2
+attempts. For the current full East US rebuild, use the preceding section.
 
 `set-dev-retirement-state.ps1` is the separate, dev-only long-break command.
 The approved October 6, 2026 recovery moves only the disposable dev runtime to
@@ -786,7 +881,7 @@ $dev = @{
   SubscriptionId = '7df9ce70-48a3-4495-9361-4ca7b2637748'
   PlatformSubscriptionId = 'b582269b-60ff-4bb0-b30b-6fb2796edf11'
 }
-$confirmed = @{ ConfirmResourceGroup = 'rg-acme-los-web-dev-eus2-01' }
+$confirmed = @{ ConfirmResourceGroup = 'rg-acme-los-web-dev-eus-01' }
 & tools/scripts/azure/set-dev-retirement-state.ps1 @dev -Action show-plan
 & tools/scripts/azure/set-dev-retirement-state.ps1 @dev @confirmed -Action prepare
 & tools/scripts/azure/set-dev-retirement-state.ps1 @dev @confirmed -Action retire -DiscardDemoData

@@ -3,7 +3,9 @@ Set-StrictMode -Version Latest
 
 function Get-DevRetirementScope {
   param($Configuration, [string]$SubscriptionId, [string]$PlatformSubscriptionId)
-  if ($Configuration.projectName -cne 'acme-los' -or $Configuration.primaryRegionShortName -cne 'cus' -or
+  $foundationShort = [string]$Configuration.primaryRegionShortName
+  $foundationLocation = if ($Configuration.PSObject.Properties['primaryLocation']) { [string]$Configuration.primaryLocation } else { 'centralus' }
+  if ($Configuration.projectName -cne 'acme-los' -or "$foundationShort/$foundationLocation" -cnotin @('cus/centralus', 'eus/eastus') -or
     $Configuration.environments.dev.subscriptionRole -cne 'nonprod' -or $SubscriptionId -eq $PlatformSubscriptionId) {
     throw 'Retirement is restricted to the ACME LOS dev non-production workload.'
   }
@@ -14,20 +16,26 @@ function Get-DevRetirementScope {
   $short = $region.ShortName
   $group = "rg-acme-los-web-dev-$short-01"
   $scope = "/subscriptions/$SubscriptionId/resourceGroups/$group"
-  $foundationGroup = 'rg-acme-los-web-dev-cus-01'
+  $foundationGroup = "rg-acme-los-web-dev-$foundationShort-01"
   $foundation = "/subscriptions/$SubscriptionId/resourceGroups/$foundationGroup"
+  $acsName = "acs-acme-los-dev-$foundationShort-01"
+  $sms = $Configuration.environments.dev.PSObject.Properties['smsMfa']
+  if ($sms -and $sms.Value.PSObject.Properties['resourceName']) {
+    $acsName = [string]$sms.Value.resourceName
+    if ($acsName -cnotin @('acs-acme-los-dev-cus-01', 'acs-acme-los-dev-eus-01')) { throw 'Unreviewed global ACS name.' }
+  }
   return [pscustomobject]@{
     Subscription = $SubscriptionId; PlatformSubscription = $PlatformSubscriptionId; Group = $group; Id = $scope
-    FoundationGroup = $foundationGroup; FoundationId = $foundation; Region = $short; Location = $region.Location; Relocated = $region.Relocated
-    RetainedStack = 'stk-acme-los-web-app-dev-cus-01'; DisposableStack = "stk-acme-los-web-disposable-dev-$short-01"
+    FoundationGroup = $foundationGroup; FoundationId = $foundation; FoundationRegion = $foundationShort; Region = $short; Location = $region.Location; Relocated = $region.Relocated
+    RetainedStack = "stk-acme-los-web-app-dev-$foundationShort-01"; DisposableStack = "stk-acme-los-web-disposable-dev-$short-01"
     EnvironmentId = "$scope/providers/Microsoft.App/managedEnvironments/cae-acme-los-dev-$short-01"
     RedisId = "$scope/providers/Microsoft.Cache/redisEnterprise/redis-acme-los-dev-$short-01"
-    VaultId = "$foundation/providers/Microsoft.KeyVault/vaults/kvacmelosdevcus01v42c"
-    IdentityId = "$foundation/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-acme-los-web-dev-cus-01"
-    AcsId = "$foundation/providers/Microsoft.Communication/communicationServices/acs-acme-los-dev-cus-01"
+    VaultId = "$foundation/providers/Microsoft.KeyVault/vaults/kvacmelosdev${foundationShort}01v42c"
+    IdentityId = "$foundation/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-acme-los-web-dev-$foundationShort-01"
+    AcsId = "$foundation/providers/Microsoft.Communication/communicationServices/$acsName"
     InfrastructureGroup = "rg-acme-los-cae-infra-dev-$short-01"
-    Registry = 'acracmelosnonprodcus01v42c'
-    RegistryId = "/subscriptions/$SubscriptionId/resourceGroups/rg-acme-los-images-nonprod-cus-01/providers/Microsoft.ContainerRegistry/registries/acracmelosnonprodcus01v42c"
+    Registry = "acracmelosnonprod${foundationShort}01v42c"
+    RegistryId = "/subscriptions/$SubscriptionId/resourceGroups/rg-acme-los-images-nonprod-$foundationShort-01/providers/Microsoft.ContainerRegistry/registries/acracmelosnonprod${foundationShort}01v42c"
     AppNames = @("ca-acme-los-web-dev-$short-01", "ca-acme-los-bff-dev-$short-01")
   }
 }
@@ -57,12 +65,12 @@ function Get-RetirementResourceClass {
   param($Scope, [string]$Id)
   $disposable = @(Get-DevDisposableResourceIds $Scope)
   if ($disposable -contains $Id -or $Id -match ('^' + [regex]::Escape($Scope.RedisId) + '/databases/default/accessPolicyAssignments/aparedis[a-z0-9]+$')) { return 'disposable' }
-  $network = "$($Scope.FoundationId)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-cus-01"
+  $network = "$($Scope.FoundationId)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-$($Scope.FoundationRegion)-01"
   $retained = @($Scope.VaultId, $Scope.IdentityId, $Scope.AcsId, $network,
-    "$network/subnets/snet-acme-los-app-dev-cus-01", "$network/subnets/snet-acme-los-data-dev-cus-01",
-    "$($Scope.FoundationId)/providers/Microsoft.Network/networkSecurityGroups/nsg-acme-los-app-dev-cus-01",
-    "$($Scope.FoundationId)/providers/Microsoft.Network/networkSecurityGroups/nsg-acme-los-data-dev-cus-01",
-    "$($Scope.VaultId)/providers/Microsoft.Insights/diagnosticSettings/diag-acme-los-kv-dev-cus-01")
+    "$network/subnets/snet-acme-los-app-dev-$($Scope.FoundationRegion)-01", "$network/subnets/snet-acme-los-data-dev-$($Scope.FoundationRegion)-01",
+    "$($Scope.FoundationId)/providers/Microsoft.Network/networkSecurityGroups/nsg-acme-los-app-dev-$($Scope.FoundationRegion)-01",
+    "$($Scope.FoundationId)/providers/Microsoft.Network/networkSecurityGroups/nsg-acme-los-data-dev-$($Scope.FoundationRegion)-01",
+    "$($Scope.VaultId)/providers/Microsoft.Insights/diagnosticSettings/diag-acme-los-kv-dev-$($Scope.FoundationRegion)-01")
   if ($retained -contains $Id) { return 'retained' }
   foreach ($parent in @($Scope.VaultId, $Scope.AcsId, $Scope.RegistryId)) {
     if ($Id -match ('^' + [regex]::Escape($parent) + '/providers/Microsoft.Authorization/roleAssignments/[a-f0-9-]{36}$')) { return 'retained' }
@@ -96,7 +104,7 @@ function Assert-RetirementStack {
     if ($policies.Count -ne 1) { throw 'Exactly one source-owned Redis identity policy must belong to the disposable stack.' }
   }
   if (-not $AllowPartial -and $Phase -in @('all', 'retained')) {
-    foreach ($required in @($Scope.VaultId, $Scope.IdentityId, $Scope.AcsId, "$($Scope.FoundationId)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-cus-01")) {
+    foreach ($required in @($Scope.VaultId, $Scope.IdentityId, $Scope.AcsId, "$($Scope.FoundationId)/providers/Microsoft.Network/virtualNetworks/vnet-acme-los-web-dev-$($Scope.FoundationRegion)-01")) {
       if ($ids -notcontains $required) { throw "Incomplete retained ownership: '$required' is missing." }
     }
     foreach ($parent in @($Scope.VaultId, $Scope.AcsId, $Scope.RegistryId)) {
@@ -104,7 +112,7 @@ function Assert-RetirementStack {
       if ($roles.Count -ne 1) { throw 'Each retained service must retain its single source-owned identity role assignment.' }
     }
   }
-  $region = if ($Phase -eq 'disposable') { $Scope.Region } else { 'cus' }
+  $region = if ($Phase -eq 'disposable') { $Scope.Region } else { $Scope.FoundationRegion }
   foreach ($pair in @(@('environmentName', 'dev'), @('organizationShortName', 'acme'), @('workloadShortName', 'los'), @('regionShortName', $region), @('instanceNumber', '01'), @('uniqueShortSuffix', 'v42c'), @('stateStoreMode', 'redis'), @('platformSubscriptionId', $Scope.PlatformSubscription))) {
     $property = $Stack.parameters.PSObject.Properties[$pair[0]]
     if (-not $property -or $property.Value.value -cne $pair[1]) { throw "Unexpected stack parameter $($pair[0])." }
@@ -266,7 +274,7 @@ function Set-RetirementTags {
 function Set-RetirementAlerts {
   param($Scope, $Configuration, [bool]$Enabled)
   foreach ($kind in @('failed-requests', 'exceptions', 'auth-failures', 'system-errors')) {
-    $id = "/subscriptions/$($Scope.PlatformSubscription)/resourceGroups/$($Configuration.platformResources.monitorResourceGroupName)/providers/Microsoft.Insights/scheduledQueryRules/alrt-acme-los-$kind-dev-cus-01"
+    $id = "/subscriptions/$($Scope.PlatformSubscription)/resourceGroups/$($Configuration.platformResources.monitorResourceGroupName)/providers/Microsoft.Insights/scheduledQueryRules/alrt-acme-los-$kind-dev-$($Scope.FoundationRegion)-01"
     $current = Get-ConnectivityResource $id '2023-12-01'
     if (-not $current) { throw 'All four source-owned dev alert rules must exist.' }
     if ([bool]$current.properties.enabled -ne $Enabled) {

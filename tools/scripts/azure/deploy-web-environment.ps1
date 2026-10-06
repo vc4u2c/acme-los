@@ -248,7 +248,10 @@ function Invoke-AzJson {
     } finally { $ErrorActionPreference = $previousErrorPreference }
     if ($exitCode -ne 0) {
       $errorMessage = [string]::Join([Environment]::NewLine, @($commandOutput)) + [IO.File]::ReadAllText($stderrPath)
-      throw "Azure CLI command failed: az $($Arguments -join ' ')`n$errorMessage"
+      $failure = [InvalidOperationException]::new("Azure CLI command failed: az $($Arguments -join ' ')`n$errorMessage")
+      # PowerShell 5 wraps native stderr with stack traces, so preserve the ARM code before throwing.
+      $failure.Data['AzureResourceNotFound'] = $errorMessage -match '\((ResourceNotFound|ParentResourceNotFound|ResourceGroupNotFound)\)|"code"\s*:\s*"(ResourceNotFound|ParentResourceNotFound|ResourceGroupNotFound)"'
+      throw $failure
     }
     if ($null -eq $commandOutput) { return $null }
     $jsonPayload = [string]::Join([Environment]::NewLine, $commandOutput)
@@ -1050,7 +1053,7 @@ $imagesSubscriptionDeploymentArguments = @(
   '--name', $imagesSubscriptionStackName,
   '--location', $configuration.primaryLocation,
   '--template-file', $ImagesSubscriptionTemplateFile,
-  '--parameters', "subscriptionRole=$imagesSubscriptionRole", "location=$($configuration.primaryLocation)",
+  '--parameters', "subscriptionRole=$imagesSubscriptionRole", "location=$($configuration.primaryLocation)", "regionShortName=$($configuration.primaryRegionShortName)",
   '--action-on-unmanage', 'detachAll',
   '--deny-settings-mode', 'none',
   '--description', "ACME LOS subscription-scope stack for $imagesSubscriptionRole shared images infrastructure",
@@ -1063,7 +1066,7 @@ $imagesResourceGroupDeploymentArguments = @(
   '--name', $imagesResourceGroupStackName,
   '--resource-group', $imagesResourceGroupName,
   '--template-file', $ImagesResourceTemplateFile,
-  '--parameters', "subscriptionRole=$imagesSubscriptionRole", "location=$($configuration.primaryLocation)",
+  '--parameters', "subscriptionRole=$imagesSubscriptionRole", "location=$($configuration.primaryLocation)", "regionShortName=$($configuration.primaryRegionShortName)",
   '--action-on-unmanage', 'detachAll',
   '--deny-settings-mode', 'none',
   '--description', "ACME LOS shared $imagesSubscriptionRole ACR stack",
@@ -1094,6 +1097,11 @@ $webDeploymentArguments = @(
 $runtimeDeploymentArguments = @()
 
 $webDeploymentArguments += @('--parameters', "stateStoreMode=$resolvedStateStoreMode", "location=$Location", "regionShortName=$($runtimeRegion.ShortName)", "retainedRegionShortName=$($configuration.primaryRegionShortName)", "retainedResourceGroupName=$foundationResourceGroupName")
+$communicationServicesNameOverride = Get-OptionalPropertyValue (Get-OptionalPropertyValue $environmentConfiguration 'smsMfa') 'resourceName'
+if ($communicationServicesNameOverride) {
+  if ($communicationServicesNameOverride -cnotmatch '^acs-acme-los-dev-(cus|eus)-01$' -or $EnvironmentName -cne 'dev') { throw 'Unreviewed global ACS resource name override.' }
+  $webDeploymentArguments += @('--parameters', "globalCommunicationServicesName=$communicationServicesNameOverride")
+}
 
 if ($ReuseExistingImages) {
   if (-not $ImageTag -or -not $BffVersion -or -not $resolvedBffDeploymentEnabled) { throw 'Recovery requires an explicit existing image tag, BFF version, and both apps.' }
@@ -1109,7 +1117,7 @@ $existingGroups = @(ConvertTo-ObjectArray (Invoke-AzJson -Arguments @('group', '
 if (-not ($existingGroups | Where-Object { $_.name -eq $resourceGroupName })) {
   Invoke-AzNoOutput -Arguments $subscriptionDeploymentArguments
 }
-if ($runtimeRegion.Relocated -and $resolvedStateStoreMode -eq 'redis') {
+if (($runtimeRegion.Relocated -or $configuration.primaryLocation -ceq 'eastus') -and $resolvedStateStoreMode -eq 'redis') {
   $preflightTemplate = Invoke-AzJson -Arguments @('bicep', 'build', '--file', $WebTemplateFile, '--stdout')
   $preflightParameters = (Get-Content -LiteralPath $compiledParameterFile -Raw | ConvertFrom-Json).parameters
   Assert-RegionalRedisPreflight $configuration $EnvironmentName $resolvedSubscriptionId $resourceGroupName $preflightTemplate $preflightParameters

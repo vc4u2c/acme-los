@@ -4,6 +4,9 @@ $ErrorActionPreference = 'Stop'
 $lifecycleScript = Join-Path $PSScriptRoot '../set-web-environment-state.ps1'
 $testConfiguration = Get-Content (Join-Path $PSScriptRoot '../../../../infra/azure/config/platform.json') -Raw | ConvertFrom-Json
 $testConfiguration.environments.dev.PSObject.Properties.Remove('runtimeRegion')
+$testConfiguration.primaryLocation = 'centralus'
+$testConfiguration.primaryRegionShortName = 'cus'
+$testConfiguration.platformResources.monitorResourceGroupName = 'rg-acme-hub-monitor-cus-01'
 $testConfigurationPath = [IO.Path]::GetTempFileName()
 $testConfiguration | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $testConfigurationPath -Encoding UTF8
 $global:testSub = '11111111-1111-1111-1111-111111111111'

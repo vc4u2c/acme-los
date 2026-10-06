@@ -4,6 +4,10 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot '../private-connectivity.ps1')
 . (Join-Path $PSScriptRoot '../dev-retirement.ps1')
 $configuration = Get-Content (Join-Path $PSScriptRoot '../../../../infra/azure/config/platform.json') -Raw | ConvertFrom-Json
+# Keep the previous split-region contract covered independently of the current deployment target.
+$configuration.primaryLocation = 'centralus'
+$configuration.primaryRegionShortName = 'cus'
+$configuration.environments.dev | Add-Member -Force runtimeRegion ([pscustomobject]@{ location = 'eastus2'; shortName = 'eus2' })
 $sub = '11111111-1111-1111-1111-111111111111'
 $platform = '22222222-2222-2222-2222-222222222222'
 $scope = Get-DevRetirementScope $configuration $sub $platform

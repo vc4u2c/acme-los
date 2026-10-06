@@ -88,6 +88,16 @@ jobs:
         shell: pwsh
         run: ./tools/scripts/azure/tests/runtime-region.tests.ps1
 
+      - name: Test full regional rebuild safety
+        shell: pwsh
+        run: |
+          ./tools/scripts/azure/tests/full-regional-rebuild.tests.ps1
+          ./tools/scripts/azure/tests/full-rebuild-orchestration.tests.ps1
+          ./tools/scripts/azure/tests/full-rebuild-prepare.tests.ps1
+          ./tools/scripts/azure/tests/scoped-delivery-sync.tests.ps1
+          ./tools/scripts/azure/tests/deployment-secret-probe.tests.ps1
+          ./tools/scripts/azure/tests/platform-bootstrap-region.tests.ps1
+
       - name: Test DNS and custom-domain recovery safety
         shell: pwsh
         run: ./tools/scripts/azure/tests/dns-recovery.tests.ps1
@@ -104,6 +114,8 @@ jobs:
         run: |
           az bicep build --file infra/azure/bicep/main.web.rg.bicep --stdout > $null
           if ($LASTEXITCODE -ne 0) { throw 'Infrastructure Bicep compilation failed.' }
+          az bicep build --file infra/azure/bicep/main.web.monitoring.sub.bicep --stdout > $null
+          if ($LASTEXITCODE -ne 0) { throw 'Monitoring resource-group Bicep compilation failed.' }
           az bicep build --file infra/azure/bicep/main.web.runtime.rg.bicep --stdout > $null
           if ($LASTEXITCODE -ne 0) { throw 'Runtime Bicep compilation failed.' }
           az bicep build --file infra/azure/bicep/main.web.certificate.rg.bicep --stdout > $null

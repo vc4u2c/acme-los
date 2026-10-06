@@ -4,6 +4,9 @@ param(
   [string]$Mode = 'show-plan',
 
   [string]$ConfigurationPath,
+  [ValidateSet('dev', 'qa', 'stg', 'prod')]
+  [string]$TargetEnvironment,
+  [switch]$SyncPlatformMonitorAccess,
   [string]$GitHubOrganizationName,
   [string]$GitHubRepositoryName,
   [string]$AzureTenantId,
@@ -18,6 +21,8 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+if ($TargetEnvironment -and $Mode -notin @('show-plan', 'sync-environments')) { throw 'TargetEnvironment is restricted to read-only planning or existing-environment synchronization.' }
+if ($SyncPlatformMonitorAccess -and ($Mode -cne 'sync-environments' -or $TargetEnvironment -cne 'dev')) { throw 'Regional monitor access synchronization requires explicit dev-only sync-environments.' }
 . (Join-Path $PSScriptRoot 'runtime-region.ps1')
 
 $microsoftGraphAppId = '00000003-0000-0000-c000-000000000000'
@@ -611,6 +616,7 @@ function Ensure-RoleAssignment {
   )
 
   $existingAssignments = ConvertTo-ObjectArray (az role assignment list --assignee $PrincipalAppId --scope $scope --output json | ConvertFrom-Json)
+  Assert-NativeCommandSucceeded -CommandName 'az role assignment list' -Action 'inspect the existing scoped deployment access'
   $existing = @(
     $existingAssignments |
       Where-Object {
@@ -625,6 +631,10 @@ function Ensure-RoleAssignment {
 
   if ($PSCmdlet.ShouldProcess("$RoleName role on $scope", 'Assign')) {
     az role assignment create --assignee $PrincipalAppId --role $RoleName --scope $scope --output none
+    Assert-NativeCommandSucceeded -CommandName 'az role assignment create' -Action 'grant scoped deployment access'
+    $verified = ConvertTo-ObjectArray (az role assignment list --assignee $PrincipalAppId --scope $scope --output json | ConvertFrom-Json)
+    Assert-NativeCommandSucceeded -CommandName 'az role assignment list' -Action 'verify scoped deployment access'
+    if (-not @($verified | Where-Object { $_.roleDefinitionName -eq $RoleName -and $_.scope -ieq $Scope })) { throw 'The scoped deployment role assignment did not persist.' }
   }
 }
 
@@ -821,7 +831,8 @@ function Write-PlanSummary {
   param(
     $Configuration,
     $AzureContext,
-    $GitHubContext
+    $GitHubContext,
+    [string]$SelectedEnvironment
   )
 
   Write-Section 'Azure / GitHub environment plan'
@@ -834,6 +845,7 @@ function Write-PlanSummary {
   Write-Host 'Environments:'
 
   foreach ($environmentName in (Get-EnvironmentNames -Configuration $Configuration)) {
+    if ($SelectedEnvironment -and $environmentName -cne $SelectedEnvironment) { continue }
     $environmentVariables = Get-EnvironmentVariables -Configuration $Configuration -AzureContext $AzureContext -EnvironmentName $environmentName -AzureClientId '<created-by-bootstrap>'
     Write-Host "  - $environmentName"
     Write-Host "    subscription: $($environmentVariables.AZURE_SUBSCRIPTION_ID)"
@@ -856,6 +868,10 @@ $configuration = Get-JsonFile -Path $ConfigurationPath
 $gitHubContext = Resolve-GitHubContext -Owner $GitHubOrganizationName -RepositoryName $GitHubRepositoryName
 $azureContext = Resolve-AzureContext -Configuration $configuration -TenantId $AzureTenantId -PlatformSubscription $PlatformSubscriptionId -NonProdSubscription $NonProdSubscriptionId -ProdSubscription $ProdSubscriptionId
 $environmentNames = Get-EnvironmentNames -Configuration $configuration
+if ($TargetEnvironment) {
+  if ($TargetEnvironment -notin $environmentNames) { throw 'Selected environment is not configured.' }
+  $environmentNames = @($TargetEnvironment)
+}
 $oktaManagementPrivateKeySecretName = 'ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM'
 $oktaManagementPrivateKeySecretTargetEnvironments = @()
 $oktaManagementPrivateKeyPemFile = $null
@@ -900,7 +916,7 @@ if ($Mode -in @('bootstrap-platform', 'bootstrap-automation')) {
   }
 }
 
-Write-PlanSummary -Configuration $configuration -AzureContext $azureContext -GitHubContext $gitHubContext
+Write-PlanSummary -Configuration $configuration -AzureContext $azureContext -GitHubContext $gitHubContext -SelectedEnvironment $TargetEnvironment
 
 if ($SyncOktaManagementPrivateKeySecret.IsPresent) {
   Write-Host "Okta management private key secret sync: $($oktaManagementPrivateKeySecretTargetEnvironments -join ', ')"
@@ -934,11 +950,17 @@ $repoVariables = [ordered]@{
 Write-Section "Running mode '$Mode'"
 
 foreach ($pair in $repoVariables.GetEnumerator()) {
+  if ($TargetEnvironment) { continue }
   Set-GitHubRepositoryVariable -RepositoryUrl $gitHubContext.RepositoryUrl -Name $pair.Key -Value $pair.Value
 }
 
 foreach ($environmentName in $environmentNames) {
-  Ensure-GitHubEnvironment -Owner $gitHubContext.Owner -RepositoryName $gitHubContext.RepositoryName -EnvironmentName $environmentName
+  if ($TargetEnvironment) {
+    gh api "repos/$($gitHubContext.RepositoryUrl)/environments/$environmentName" --silent
+    Assert-NativeCommandSucceeded -CommandName 'gh api' -Action 'verify the existing environment without modifying protection rules'
+  } else {
+    Ensure-GitHubEnvironment -Owner $gitHubContext.Owner -RepositoryName $gitHubContext.RepositoryName -EnvironmentName $environmentName
+  }
 
   $appId = ''
   $displayName = "gha-$($configuration.projectName)-$environmentName"
@@ -973,6 +995,16 @@ foreach ($environmentName in $environmentNames) {
     if ($application) {
       $appId = $application.appId
     }
+  }
+
+  if ($SyncPlatformMonitorAccess) {
+    if (-not $appId) { throw 'An existing deployment identity is required; scoped sync never creates one.' }
+    $currentClientVariable = gh variable get AZURE_CLIENT_ID --env $environmentName --repo $gitHubContext.RepositoryUrl --json value
+    Assert-NativeCommandSucceeded -CommandName 'gh variable get' -Action 'verify the existing dev deployment identity'
+    $currentClientId = ($currentClientVariable | ConvertFrom-Json).value
+    if ([string]$currentClientId -cne $appId) { throw 'GitHub and Entra deployment identity do not match.' }
+    $monitorScope = "/subscriptions/$($azureContext.PlatformSubscriptionId)/resourceGroups/$(Get-PlatformMonitorResourceGroupName -Configuration $configuration)"
+    Ensure-RoleAssignment -PrincipalAppId $appId -RoleName 'Contributor' -Scope $monitorScope
   }
 
   $environmentVariables = Get-EnvironmentVariables -Configuration $configuration -AzureContext $azureContext -EnvironmentName $environmentName -AzureClientId $appId
