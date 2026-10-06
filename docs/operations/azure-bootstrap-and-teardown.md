@@ -699,6 +699,19 @@ with the provider before allocating the regional runtime; a failed validation
 stops without trying alternative tiers. Successful validation is not a capacity
 reservation or a guarantee that later creation will succeed.
 
+Cleanup subsequently completed through the retirement script. The first CLI
+wait returned an error even though Azure finished environment deletion; an
+idempotent rerun removed the remaining regional network stack. The East US 2
+runtime RG is empty, its disposable stack and ACA-managed infrastructure RG are
+absent, and the lifecycle marker is `retired`. The retained fingerprint is
+unchanged, app CNAME is parked, delegation is unchanged, and all four dev alerts
+and automatic CD remain disabled. Retained services still incur their normal
+charges. A validation-only B0 probe in Central US returned HTTP 200 with no
+provider error; nothing was provisioned there. Using Central US Redis with
+East US 2 apps requires a separate approved placement change and verification.
+The new source-owned regional preflight also failed closed against live Azure
+without creating resources.
+
 Local verification passed the production build, affected lint/tests, 57 browser
 tests across Chromium/Firefox/WebKit using local fixtures, 83 regional safety
 assertions, and the existing lifecycle/DNS safety suites. The live read-only

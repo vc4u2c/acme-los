@@ -48,6 +48,8 @@ What is true operationally today:
 - `dev` is offline. Following Central US capacity failures, the approved
   October 6, 2026 East US 2 recovery created an ACA environment, but Azure
   rejected Redis creation for this subscription/region. Neither app started.
+  Cleanup completed: dev is `retired`, the regional runtime RG is empty, and
+  retained identity/secret metadata is unchanged.
   The source now separates East US 2 runtime resources from retained Central US
   secrets and identities, and preflights Redis availability before provisioning.
   See the [lifecycle status](../operations/azure-bootstrap-and-teardown.md#recoverable-dev-retirement)

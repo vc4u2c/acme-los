@@ -102,7 +102,8 @@ ACS, images, and shared platform resources. Its ACA environment was created,
 but the provider rejected Redis B0; validation-only probes also rejected B1,
 B3, B5, and B10. The source now checks Redis provider availability before paid
 regional provisioning and never selects a larger tier automatically.
-See the runbook for the latest cleanup evidence. New-environment HTTPS and
+Its partial runtime has been fully retired; retained identity/secret metadata
+is unchanged. See the runbook for the cleanup evidence. New-environment HTTPS and
 real sign-in checks have not passed. Ordinary pause
 remains the existing private-endpoint hibernation
 path until the complete cycle is proven. Keep automatic CD disabled while dev
