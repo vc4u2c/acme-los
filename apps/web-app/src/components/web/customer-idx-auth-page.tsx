@@ -479,12 +479,14 @@ export function CustomerIdxAuthPage({
           return;
         }
 
-        // Step mode's nextStep may be generic; availableSteps exposes the SDK's
-        // typed password/OTP inputs and their supported submission mappings.
+        // Keep nextStep's capabilities while adopting the SDK's typed inputs.
         const selectedStep = nextTransaction.nextStep
-          ? (nextTransaction.availableSteps?.find(
-              (step) => step.name === nextTransaction.nextStep?.name,
-            ) ?? nextTransaction.nextStep)
+          ? {
+              ...nextTransaction.nextStep,
+              ...nextTransaction.availableSteps?.find(
+                (step) => step.name === nextTransaction.nextStep?.name,
+              ),
+            }
           : selectInitialIdxStep(nextTransaction.availableSteps, flow);
         const isInitialStepModeResponse =
           !nextTransaction.nextStep && Boolean(nextTransaction.availableSteps);

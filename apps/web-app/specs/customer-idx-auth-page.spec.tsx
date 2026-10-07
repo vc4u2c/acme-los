@@ -145,6 +145,71 @@ describe('CustomerIdxAuthPage', () => {
     },
   );
 
+  it('preserves SDK resend and optional skip capabilities after a typed challenge transition', async () => {
+    const client = createIdxAuthClient(idxFixtureConfig);
+    const challenge = idxChallenge();
+    if (!challenge.currentAuthenticator)
+      throw new Error('Missing fixture authenticator');
+    const withActions = {
+      ...challenge,
+      remediation: {
+        ...challenge.remediation,
+        value: [
+          ...challenge.remediation.value,
+          ...idxForm('skip', []).remediation.value,
+        ],
+      },
+      currentAuthenticator: {
+        ...challenge.currentAuthenticator,
+        value: {
+          ...challenge.currentAuthenticator.value,
+          resend: idxForm('resend', []).remediation.value[0],
+        },
+      },
+    };
+    const identify = idxForm('identify', [
+      { name: 'identifier', required: true },
+    ]);
+    const request = stubIdxTransport(client, [
+      identify,
+      withActions,
+      withActions,
+      identify,
+    ]);
+    authClientFactory.mockReturnValue(client);
+    startIdx.mockResolvedValue({
+      ...idxFixtureConfig,
+      returnTo: '/apply/personal-info',
+    });
+    render(
+      <CustomerIdxAuthPage
+        returnTo="/apply/personal-info"
+        minimumAssuranceLevel="aal1"
+        flow="authenticate"
+      />,
+    );
+    fireEvent.change(await screen.findByLabelText(/^email$/i), {
+      target: { value: 'fixture@example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    expect(await screen.findByLabelText(/verification code/i)).toBeTruthy();
+    const resend = screen.getByRole('button', { name: /send another code/i });
+    expect(screen.getByRole('button', { name: /do this later/i })).toBeTruthy();
+    expect(
+      request.mock.calls.filter(([, url]) => url.endsWith('/resend')),
+    ).toHaveLength(0);
+    fireEvent.click(resend);
+    await waitFor(() => expect(resend.hasAttribute('disabled')).toBe(false));
+    expect(
+      request.mock.calls.filter(([, url]) => url.endsWith('/resend')),
+    ).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: /do this later/i }));
+    expect(await screen.findByLabelText(/^email$/i)).toBeTruthy();
+    expect(
+      request.mock.calls.filter(([, url]) => url.endsWith('/skip')),
+    ).toHaveLength(1);
+  });
+
   it('starts registration with real SDK structural steps that have no action callback', async () => {
     const client = createIdxAuthClient(idxFixtureConfig);
     const request = stubIdxTransport(client, [
