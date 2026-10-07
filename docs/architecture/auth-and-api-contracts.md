@@ -56,6 +56,20 @@ Important rule:
 - the client warning modal is UX only; the server-side idle expiry is the
   enforcement point
 
+### Auth JS Step Mode
+
+The app uses Auth JS 8 step mode. Structural transitions such as
+`select-enroll-profile` may have no action callback; advance them with
+`idx.proceed({ step })`. Render the matching typed `availableSteps` entry
+instead of the generic nested objects that may appear in `nextStep`.
+Only structural transitions advance automatically, never OTP send actions.
+
+Pass the server-generated state and PKCE challenge to the Auth JS constructor.
+Keep transaction metadata in memory, disable browser token exchange, and retain
+the PKCE verifier only in the BFF. Pass `maxAge` as a string so a required
+zero-age challenge is not omitted by the SDK. Tests exercise the installed SDK
+with stubbed HTTP transport and assert both form rendering and request payloads.
+
 ## Mobile Auth Direction
 
 The mobile app is still earlier in its auth evolution than the web app.

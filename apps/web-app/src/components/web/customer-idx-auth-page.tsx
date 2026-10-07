@@ -31,6 +31,7 @@ import {
   filterAuthenticatorOptions,
   getIdxJourneyContent,
   isRememberPreferenceInput,
+  normalizeIdxSelectInput,
   selectInitialIdxStep,
   shouldAutoAdvanceInitialIdxStep,
   type IdxJourneyFlow,
@@ -173,6 +174,7 @@ function getInputLabel(input: IdxInput): string {
     identifier: 'Email',
     username: 'Email',
     password: 'Password',
+    passcode: 'Password',
     verificationCode: 'Verification code',
     answer: 'Security answer',
     questionKey: 'Security question',
@@ -210,6 +212,9 @@ function getInputType(input: IdxInput): React.HTMLInputTypeAttribute {
 }
 
 function getAutoComplete(input: IdxInput): string {
+  if (input.name === 'passcode' && input.secret) {
+    return 'new-password';
+  }
   if (input.name === 'identifier' || input.name === 'username') {
     return 'username';
   }
@@ -474,9 +479,13 @@ export function CustomerIdxAuthPage({
           return;
         }
 
-        const selectedStep =
-          nextTransaction.nextStep ??
-          selectInitialIdxStep(nextTransaction.availableSteps, flow);
+        // Step mode's nextStep may be generic; availableSteps exposes the SDK's
+        // typed password/OTP inputs and their supported submission mappings.
+        const selectedStep = nextTransaction.nextStep
+          ? (nextTransaction.availableSteps?.find(
+              (step) => step.name === nextTransaction.nextStep?.name,
+            ) ?? nextTransaction.nextStep)
+          : selectInitialIdxStep(nextTransaction.availableSteps, flow);
         const isInitialStepModeResponse =
           !nextTransaction.nextStep && Boolean(nextTransaction.availableSteps);
 
@@ -485,17 +494,30 @@ export function CustomerIdxAuthPage({
           isInitialStepModeResponse &&
           shouldAutoAdvanceInitialIdxStep(selectedStep)
         ) {
-          if (!selectedStep.action) {
-            throw new Error(
-              `Okta did not provide an action for ${selectedStep.name}.`,
-            );
+          const client = oktaAuthRef.current;
+          if (!client) {
+            throw new Error('The verification transaction is unavailable.');
           }
-
-          nextTransaction = await selectedStep.action();
+          nextTransaction = selectedStep.action
+            ? await selectedStep.action()
+            : await client.idx.proceed({ step: selectedStep.name });
           continue;
         }
 
-        setCurrentStep(selectedStep ?? null);
+        if (selectedStep?.inputs?.some((input) => input.type === 'object')) {
+          throw new Error(
+            'This verification method is not supported. Contact support.',
+          );
+        }
+
+        setCurrentStep(
+          selectedStep
+            ? {
+                ...selectedStep,
+                inputs: selectedStep.inputs?.map(normalizeIdxSelectInput),
+              }
+            : null,
+        );
         if (!selectedStep) {
           setClientError(
             'Okta did not provide the next verification step. Start again or contact support.',
@@ -532,12 +554,7 @@ export function CustomerIdxAuthPage({
 
       const nextTransaction = await oktaAuth.idx.start({
         flow: getFlowIdentifier(flow),
-        state: response.state,
         nonce: response.nonce,
-        codeChallenge: response.codeChallenge,
-        codeChallengeMethod: response.codeChallengeMethod,
-        acrValues: response.acrValues ?? undefined,
-        maxAge: response.maxAgeSeconds ?? undefined,
         exchangeCodeForTokens: false,
         withCredentials: true,
       });
@@ -874,6 +891,7 @@ export function CustomerIdxAuthPage({
                           >
                             {getInputLabel(input)}
                             <select
+                              name={input.name}
                               required
                               disabled={isBusy}
                               value={typeof value === 'string' ? value : ''}
@@ -937,6 +955,7 @@ export function CustomerIdxAuthPage({
                           >
                             {getInputLabel(input)}
                             <select
+                              name={input.name}
                               required={input.required}
                               disabled={isBusy}
                               value={typeof value === 'string' ? value : ''}

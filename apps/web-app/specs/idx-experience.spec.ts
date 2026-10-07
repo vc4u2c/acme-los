@@ -2,6 +2,7 @@ import {
   filterAuthenticatorOptions,
   getIdxJourneyContent,
   isRememberPreferenceInput,
+  normalizeIdxSelectInput,
   selectInitialIdxStep,
   shouldAutoAdvanceInitialIdxStep,
 } from '../src/lib/idx-experience';
@@ -14,6 +15,28 @@ const authenticatorOptions = [
 ];
 
 describe('IDX experience rules', () => {
+  it('preserves simple choices and leaves authenticator selection to the SDK', () => {
+    const input = {
+      name: 'methodType',
+      options: [{ label: 'SMS', value: 'sms' }],
+    };
+    expect(normalizeIdxSelectInput(input)).toEqual(input);
+    const authenticator = {
+      name: 'authenticator',
+      options: [{ label: 'Email', value: { id: 'fixture-authenticator' } }],
+    };
+    expect(normalizeIdxSelectInput(authenticator)).toBe(authenticator);
+  });
+
+  it('rejects unsupported object choices instead of submitting object strings', () => {
+    expect(() =>
+      normalizeIdxSelectInput({
+        name: 'acmeState',
+        options: [{ label: 'Unknown', value: { anything: 'TX' } }],
+      }),
+    ).toThrow('not supported');
+  });
+
   it('offers email or SMS for funding and excludes password', () => {
     expect(
       filterAuthenticatorOptions(authenticatorOptions, 'funding').map(
