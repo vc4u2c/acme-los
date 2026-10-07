@@ -757,6 +757,26 @@ identity. Automatic CD remains disabled pending source promotion. Existing
 critical dependency advisories remain a separate promotion blocker; this
 regional rebuild does not remediate them.
 
+October 7 (UTC) IDX follow-up: the earlier registration smoke checked links,
+not form readiness. Real registration failed on an Auth JS 8 structural step
+without an action callback. Commits `4123164` and `c699729` correct that
+SDK contract, preserve resend/skip capabilities, and pass server PKCE through
+constructor options. The normal East US deployment script deployed build
+`c6997299` (web `1.12.45`, BFF `0.0.23`) successfully with existing Key
+Vault references and managed identities. No Okta policy changes were required.
+
+Verification passed: formatting, repository lint/tests (120 web unit tests),
+production build, and all 84 cross-browser tests. Live checks at 1440px and
+390px confirmed registration's email/name/state/password fields, masked
+password input, sign-in/recovery/unlock forms, both registration Sign in
+links, no horizontal overflow, and the server's PKCE/state/nonce on the real
+Okta interact request. Rapid repeated tests reached the existing 12-starts
+per-minute limit (HTTP 429); paced checks passed without weakening that limit.
+The UI currently uses its generic startup error for this throttling case.
+No live credentials or OTPs were submitted. Full registration completion,
+funding, and account-change journeys still need an assisted verification pass.
+These commits remain local to the recovery branch; automatic CD remains disabled.
+
 ### Recoverable Dev Retirement
 
 The following evidence records the superseded Central US and East US 2

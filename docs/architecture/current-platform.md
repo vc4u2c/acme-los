@@ -52,9 +52,10 @@ What is true operationally today:
   and deployment identities remain; other applications are outside the scope.
   See the [full regional rebuild runbook](../operations/azure-bootstrap-and-teardown.md#full-regional-dev-rebuild)
   for current evidence and recovery gates. Old Central US regional resources
-  have been removed. HTTPS health and
-  anonymous browser/IDX checks passed; authenticated OTP journeys have not
-  been retested after the rebuild.
+  have been removed. Dev now serves web `1.12.45`, build `c6997299`, with
+  the Auth JS 8 registration/typed-input and server-PKCE fixes. Live desktop
+  and mobile entry forms and registration Sign in links passed verification
+  on October 7 (UTC). Authenticated OTP journeys have not been retested.
 - `Key Vault` and `Azure Managed Redis` are private-only in the current Azure design
 - the public web app and internal BFF container app deploy together from
   the web deployable, with BFF scale following the environment runtime scale by
