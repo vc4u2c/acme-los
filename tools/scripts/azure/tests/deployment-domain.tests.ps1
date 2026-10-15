@@ -13,7 +13,7 @@ foreach ($name in @('Invoke-AzJson', 'ConvertTo-ObjectArray')) {
 }
 . (Join-Path $PSScriptRoot '../public-domain.ps1')
 . (Join-Path $PSScriptRoot '../azure-dns.ps1')
-$global:nativeNode = (Get-Command node -CommandType Application).Source
+$global:nativeNode = (Get-Command node -CommandType Application | Select-Object -First 1).Source
 $global:nativeFixture = Join-Path $PSScriptRoot 'fixtures/native-command.mjs'
 
 function Assert-True($Value, [string]$Message) {

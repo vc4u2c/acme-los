@@ -14,10 +14,13 @@ if (-not $ConfigurationPath) { $ConfigurationPath = Join-Path $PSScriptRoot '../
 . (Join-Path $PSScriptRoot 'azure-dns.ps1')
 
 $configuration = Get-Content -Raw -LiteralPath $ConfigurationPath | ConvertFrom-Json
+$hubLocationProperty = $configuration.platformResources.PSObject.Properties['hubLocation']
+$dnsLocation = if ($hubLocationProperty) { [string]$hubLocationProperty.Value } else { [string]$configuration.primaryLocation }
 $dns = Get-AzureWebDnsConfiguration $configuration 'dev' $PlatformSubscriptionId
 $plan = [ordered]@{
   subscriptionId = $dns.SubscriptionId
   resourceGroup = $dns.ResourceGroup
+  location = $dnsLocation
   zone = $dns.Zone
   hostname = $dns.Hostname
   retention = 'Persistent platform zone; protected from deletion and outside workload stacks.'
@@ -46,9 +49,9 @@ if ($existing -and $publicNs.Count -gt 0) { Assert-AzureWebDnsDelegation $dns $e
 
 $deployment = Invoke-AzureDnsJson @(
   'deployment', 'sub', 'create', '--subscription', $dns.SubscriptionId,
-  '--location', $configuration.primaryLocation, '--name', 'acme-los-public-dns',
+  '--location', $dnsLocation, '--name', 'acme-los-public-dns',
   '--template-file', (Join-Path $PSScriptRoot '../../../infra/azure/bicep/main.public-dns.sub.bicep'),
-  '--parameters', "location=$($configuration.primaryLocation)", "resourceGroupName=$($dns.ResourceGroup)",
+  '--parameters', "location=$dnsLocation", "resourceGroupName=$($dns.ResourceGroup)",
   "zoneName=$($dns.Zone)", "deploymentPrincipalId=$DeploymentPrincipalId"
 )
 if ($deployment.properties.provisioningState -ne 'Succeeded') { throw 'Azure public DNS bootstrap did not succeed.' }

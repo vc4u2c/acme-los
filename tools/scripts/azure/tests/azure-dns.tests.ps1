@@ -181,6 +181,57 @@ $tests = [ordered]@{
     Assert-True ($LASTEXITCODE -eq 0) 'bootstrap starts without caller-scope variables'
     $plan = $output | ConvertFrom-Json
     Assert-True ($plan.zone -eq 'los.avanai.net' -and $plan.hostname -eq 'apply-dev.los.avanai.net') 'planned child zone and hostname'
+    Assert-True ($plan.location -ceq 'centralus') 'retained DNS location, not the East US workload region'
+  }
+  'bootstrap preserves the retained region on first and repeated mixed-region deployment' = {
+    $global:bootstrapConfig = Get-Content -Raw (Join-Path $PSScriptRoot '../../../../infra/azure/config/platform.json') | ConvertFrom-Json
+    $global:bootstrapDns = Get-AzureWebDnsConfiguration $global:bootstrapConfig 'dev' '11111111-1111-1111-1111-111111111111'
+    $global:bootstrapDeployments = [Collections.Generic.List[object]]::new()
+    $global:bootstrapExists = $false
+    function az {
+      $a = [string[]]$args
+      $global:LASTEXITCODE = 0
+      if (($a[0..1] -join ' ') -eq 'account show') {
+        return @{ name = $global:bootstrapConfig.subscriptions.platform } | ConvertTo-Json
+      }
+      if (($a[0..2] -join ' ') -eq 'ad sp show') {
+        return @{ id = '22222222-2222-2222-2222-222222222222'; displayName = 'gha-acme-los-dev' } | ConvertTo-Json
+      }
+      if (($a[0..2] -join ' ') -eq 'deployment sub create') {
+        $global:bootstrapDeployments.Add($a)
+        $global:bootstrapExists = $true
+        return '{"properties":{"provisioningState":"Succeeded"}}'
+      }
+      if ($a[0] -eq 'rest') {
+        Assert-True ($a[[array]::IndexOf($a, '--method') + 1] -eq 'get') 'preflight is read-only'
+        if (-not $global:bootstrapExists) {
+          $global:LASTEXITCODE = 1
+          return '{"error":{"code":"ResourceNotFound"}}'
+        }
+        $uri = $a[[array]::IndexOf($a, '--uri') + 1]
+        if ($uri -like '*providers/Microsoft.Network/dnsZones/*') {
+          return @{ id=$global:bootstrapDns.ZoneId; tags=@{acmeApplication='acme-los'; acmeLifecycle='retain'}; properties=@{zoneType='Public'; nameServers=$global:publicNs} } | ConvertTo-Json -Depth 5
+        }
+        return '{"location":"centralus","tags":{"acme:application":"acme-los","acme:lifecycle":"retain"}}'
+      }
+      throw 'Unexpected Azure command in public DNS bootstrap test'
+    }
+    function node {
+      $global:LASTEXITCODE = 0
+      return @{ zone=$global:bootstrapDns.Zone; nameServers=@(if ($global:bootstrapExists) { $global:publicNs }) } | ConvertTo-Json
+    }
+    foreach ($phase in @('fresh', 'repeat')) {
+      $plan = & (Join-Path $PSScriptRoot '../bootstrap-public-dns.ps1') -Action apply `
+        -PlatformSubscriptionId $global:bootstrapDns.SubscriptionId -ConfirmDnsZone $global:bootstrapDns.Zone `
+        -DeploymentPrincipalId '22222222-2222-2222-2222-222222222222' | ConvertFrom-Json
+      Assert-True ($plan.location -ceq 'centralus') "$phase plan retains DNS region"
+    }
+    Assert-True ($global:bootstrapDeployments.Count -eq 2) 'fresh and repeated deployments are exercised'
+    foreach ($a in $global:bootstrapDeployments) {
+      Assert-True ($a[[array]::IndexOf($a, '--location') + 1] -ceq 'centralus') 'fixed deployment name retains its original region'
+      Assert-True ($a -contains 'location=centralus' -and $a -notcontains 'location=eastus') 'resource group is never relocated'
+      Assert-True ($a -contains 'resourceGroupName=rg-acme-los-dns-cus-01') 'retained group is reused'
+    }
   }
 }
 foreach ($test in $tests.GetEnumerator()) {

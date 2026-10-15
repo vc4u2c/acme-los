@@ -777,6 +777,30 @@ No live credentials or OTPs were submitted. Full registration completion,
 funding, and account-change journeys still need an assisted verification pass.
 These commits remain local to the recovery branch; automatic CD remains disabled.
 
+### October 15 Promotion Check
+
+Promotion and the requested post-verification retirement are blocked. The
+Node dependency gate reports 98 vulnerable packages: 4 critical, 80 high, and
+14 moderate. Critical findings include `next`, `proxy-addr`, `handlebars`, and
+`shell-quote`. Do not suppress findings or extend expired exceptions to promote
+this branch. Dependency remediation and a fresh audit are required first.
+
+Local formatting, harness verification, repository lint/tests (Nx cache),
+a fresh web production build, all 84 cross-browser tests, five deployment
+Bicep compilations, offline Azure safety suites, and the NuGet audit passed.
+The Windows native-command test now selects the first Node executable on PATH
+instead of combining multiple installed paths. Independent review also found
+that public DNS bootstrap inherited the relocated workload region. It now
+retains the configured hub location for both deployment metadata and the DNS
+resource group, covered by mocked first/repeat bootstrap tests. These checks do
+not prove live signed-in registration, funding, or account-change journeys.
+
+The live East US web and BFF health checks still report build `c6997299`, with
+both apps running. No new deployment, Okta mutation, or resource deletion was
+performed during this check. Automatic CD remains disabled. The recovery
+implementation is intended for a draft PR, not merge or deployment approval;
+the separate dirty root checkout is outside this promotion scope.
+
 ### Recoverable Dev Retirement
 
 The following evidence records the superseded Central US and East US 2
