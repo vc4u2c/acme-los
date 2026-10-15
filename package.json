@@ -72,15 +72,6 @@
     "@nx/workspace": {
       "picomatch": "^4.0.4"
     },
-    "@module-federation/dts-plugin@2.4.0": {
-      "ws": "8.21.0"
-    },
-    "@module-federation/dts-plugin@2.8.2": {
-      "adm-zip": "0.6.1"
-    },
-    "@module-federation/dts-plugin": {
-      "undici": "7.29.0"
-    },
     "@expo/cli": {
       "ws": "8.21.0"
     },
@@ -88,19 +79,6 @@
     "@expo/metro-config": {
       "ws": "7.5.11"
     },
-    "@azure/monitor-opentelemetry": {
-      "@opentelemetry/core": "2.10.0",
-      "@opentelemetry/instrumentation-http": "0.220.0",
-      "@opentelemetry/resources": "2.10.0",
-      "@opentelemetry/sdk-logs": "0.220.0"
-    },
-    "@azure/monitor-opentelemetry-exporter": {
-      "@opentelemetry/core": "2.10.0",
-      "@opentelemetry/resources": "2.10.0",
-      "@opentelemetry/sdk-logs": "0.220.0"
-    },
-    "@opentelemetry/exporter-prometheus": "0.220.0",
-    "@opentelemetry/sdk-node": "0.220.0",
     "@opentelemetry/otlp-transformer": {
       "protobufjs": "8.6.3"
     },
@@ -123,11 +101,11 @@
     "js-yaml": "4.3.2",
     "koa": "^3.1.2",
     "minimatch@10": {
-      "brace-expansion": "5.0.9"
+      "brace-expansion": "5.0.12"
     },
-    "nx@22.7.8": {
-      "brace-expansion": "5.0.9",
-      "smol-toml": "1.8.0"
+    "nx@22.7.10": {
+      "brace-expansion": "5.0.12",
+      "smol-toml": "1.9.1"
     },
     "launch-editor": "2.14.1",
     "metro": {
@@ -170,18 +148,18 @@
     "@commitlint/config-conventional": "^20.5.0",
     "@eslint/js": "^9.8.0",
     "@expo/cli": "~55.0.18",
-    "@next/eslint-plugin-next": "^16.3.4",
-    "@nx/devkit": "22.7.8",
-    "@nx/dotnet": "22.7.8",
-    "@nx/eslint": "22.7.8",
-    "@nx/eslint-plugin": "22.7.8",
-    "@nx/expo": "22.7.8",
-    "@nx/jest": "22.7.8",
-    "@nx/js": "22.7.8",
-    "@nx/next": "22.7.8",
-    "@nx/playwright": "22.7.8",
-    "@nx/react": "22.7.8",
-    "@nx/workspace": "22.7.8",
+    "@next/eslint-plugin-next": "~16.3.8",
+    "@nx/devkit": "22.7.10",
+    "@nx/dotnet": "22.7.10",
+    "@nx/eslint": "22.7.10",
+    "@nx/eslint-plugin": "22.7.10",
+    "@nx/expo": "22.7.10",
+    "@nx/jest": "22.7.10",
+    "@nx/js": "22.7.10",
+    "@nx/next": "22.7.10",
+    "@nx/playwright": "22.7.10",
+    "@nx/react": "22.7.10",
+    "@nx/workspace": "22.7.10",
     "@playwright/test": "^1.36.0",
     "@swc-node/register": "~1.11.1",
     "@swc/core": "~1.15.5",
@@ -196,9 +174,9 @@
     "audit-ci": "7.1.0",
     "babel-jest": "30.4.1",
     "babel-preset-expo": "~55.0.20",
-    "brace-expansion": "5.0.9",
+    "brace-expansion": "5.0.12",
     "eslint": "^9.8.0",
-    "eslint-config-next": "^16.3.4",
+    "eslint-config-next": "~16.3.8",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
@@ -210,7 +188,7 @@
     "jest-environment-jsdom": "30.4.1",
     "jest-expo": "~55.0.18",
     "lint-staged": "^16.4.0",
-    "nx": "22.7.8",
+    "nx": "22.7.10",
     "postcss": "^8.5.14",
     "prettier": "~3.8.1",
     "react-refresh": "^0.18.0",
@@ -227,7 +205,7 @@
     "@azure/communication-phone-numbers": "^1.5.0",
     "@azure/communication-sms": "^1.1.0",
     "@azure/identity": "^4.13.1",
-    "@azure/monitor-opentelemetry": "^1.18.1",
+    "@azure/monitor-opentelemetry": "^1.20.1",
     "@expo/metro-runtime": "~55.0.10",
     "@gluestack-ui/core": "^3.0.13",
     "@gluestack-ui/nativewind-utils": "^1.0.28",
@@ -235,7 +213,7 @@
     "@gluestack-ui/toast": "^1.0.9",
     "@gluestack-ui/utils": "^3.0.15",
     "@okta/okta-auth-js": "^8.0.0",
-    "@opentelemetry/api-logs": "^0.220.0",
+    "@opentelemetry/api-logs": "^0.221.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-select": "^2.2.6",
@@ -255,7 +233,7 @@
     "expo-system-ui": "~55.0.16",
     "lucide-react": "^0.577.0",
     "nativewind": "^4.2.6",
-    "next": "~16.3.4",
+    "next": "~16.3.8",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.10",
@@ -274,7 +252,7 @@
     "@parcel/watcher@2.6.0": true,
     "@swc/core@1.15.47": true,
     "fsevents@2.3.2 || 2.3.3": true,
-    "nx@22.7.8": true,
+    "nx@22.7.10": true,
     "unrs-resolver@1.12.2": true,
     "less": false,
     "protobufjs": false
