@@ -67,6 +67,9 @@ jobs:
       - name: Validate agent harness
         run: npm run agents:verify
 
+      - name: Test CSS toolchain compatibility
+        run: node --test tools/scripts/dependencies/tests/css-toolchain.test.mjs
+
       - name: Audit and restore .NET dependencies
         run: npm run dotnet:audit:ci
 
@@ -83,6 +86,45 @@ jobs:
       - name: Test Azure teardown safety
         shell: pwsh
         run: ./tools/scripts/azure/tests/teardown-safety.tests.ps1
+
+      - name: Test mixed-region runtime safety
+        shell: pwsh
+        run: ./tools/scripts/azure/tests/runtime-region.tests.ps1
+
+      - name: Test full regional rebuild safety
+        shell: pwsh
+        run: |
+          ./tools/scripts/azure/tests/full-regional-rebuild.tests.ps1
+          ./tools/scripts/azure/tests/full-rebuild-orchestration.tests.ps1
+          ./tools/scripts/azure/tests/full-rebuild-prepare.tests.ps1
+          ./tools/scripts/azure/tests/scoped-delivery-sync.tests.ps1
+          ./tools/scripts/azure/tests/deployment-secret-probe.tests.ps1
+          ./tools/scripts/azure/tests/platform-bootstrap-region.tests.ps1
+
+      - name: Test DNS and custom-domain recovery safety
+        shell: pwsh
+        run: ./tools/scripts/azure/tests/dns-recovery.tests.ps1
+
+      - name: Test recoverable dev retirement safety
+        shell: pwsh
+        run: ./tools/scripts/azure/tests/dev-retirement.tests.ps1
+
+      - name: Test deployment workflow compatibility
+        run: node --test tools/scripts/azure/tests/deployment-workflow.test.mjs
+
+      - name: Compile custom-domain Bicep
+        shell: pwsh
+        run: |
+          az bicep build --file infra/azure/bicep/main.web.rg.bicep --stdout > $null
+          if ($LASTEXITCODE -ne 0) { throw 'Infrastructure Bicep compilation failed.' }
+          az bicep build --file infra/azure/bicep/main.web.monitoring.sub.bicep --stdout > $null
+          if ($LASTEXITCODE -ne 0) { throw 'Monitoring resource-group Bicep compilation failed.' }
+          az bicep build --file infra/azure/bicep/main.web.runtime.rg.bicep --stdout > $null
+          if ($LASTEXITCODE -ne 0) { throw 'Runtime Bicep compilation failed.' }
+          az bicep build --file infra/azure/bicep/main.web.certificate.rg.bicep --stdout > $null
+          if ($LASTEXITCODE -ne 0) { throw 'Certificate Bicep compilation failed.' }
+          az bicep build --file infra/azure/bicep/main.public-dns.sub.bicep --stdout > $null
+          if ($LASTEXITCODE -ne 0) { throw 'Public DNS Bicep compilation failed.' }
 
       - name: Lint affected projects
         run: npx nx affected -t lint

@@ -195,8 +195,8 @@ to show the full platform surface, not just the visible web pages.
 - rate limiting and auth audit logging on sensitive paths
 - `leadId` tracking is separated from customer identity and session concerns
 - hosted Okta light/dark mode is persisted with the non-sensitive
-  `acme_theme` preference; cross-redirect continuity activates once the app is
-  live at the prepared sibling hostname `apply-dev.avanai.net`
+  `acme_theme` preference; the active app hostname is `apply-dev.los.avanai.net`
+  and no authentication cookies are shared across hosts
 
 ### Funding Step-Up And Assurance
 
@@ -436,7 +436,7 @@ to show the full platform surface, not just the visible web pages.
 - customer and application persistence are still transitional server-side state,
   not the final durable backend record
 - `qa` promotion proof, real alert receivers, durable persistence, Front Door,
-  WAF, activation of the prepared branded app hostname, private-origin
+  WAF, full signed-in testing on the branded app hostname, private-origin
   production edge hardening, and regional resilience remain next phases
 - server-side GA4 Measurement Protocol emission is not implemented yet; browser
   GA/GTM runtime is the current product analytics path
@@ -447,11 +447,11 @@ to show the full platform surface, not just the visible web pages.
 ## Refresh Before The Demo
 
 The `dev` ACA public hostname can change when the environment is rebuilt.
-The stable customer-facing hostname `apply-dev.avanai.net` is prepared in
-source but should not be used as the demo URL until DNS validation,
-Bicep-managed certificate binding, and Okta redirect URI cutover have completed.
+Use `https://apply-dev.los.avanai.net` for demos. DNS, managed HTTPS, Okta
+callbacks, and real browser IDX initialization were verified October 1, 2026.
+Complete a password/OTP sign-in before presenting signed-in journeys.
 
-Run this before the demo if you want to confirm the current URL:
+Use this only to inspect the underlying generated ACA endpoint:
 
 ```powershell
 $ingressFqdn = az containerapp show `
@@ -466,11 +466,11 @@ $ingressFqdn = az containerapp show `
 
 Current known `dev` site:
 
-- `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io`
+- `https://apply-dev.los.avanai.net`
 
 Current health endpoint:
 
-- `https://ca-acme-los-web-dev-cus-01.delightfuldune-52ae35d1.centralus.azurecontainerapps.io/api/health`
+- `https://apply-dev.los.avanai.net/api/health`
 
 ## Azure Portal Walkthrough
 

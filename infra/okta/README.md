@@ -511,10 +511,11 @@ That means:
 - the current dev org uses `https://integrator-9373984.okta.com` as the
   source-controlled Okta Admin API origin; customer account changes never link
   to the Okta end-user settings application
-- the `dev` manifest prepares `https://apply-dev.avanai.net` as an allowed
-  origin, but theme continuity from app to Okta is not live until that hostname
-  is DNS-validated, enabled through the Bicep-managed web custom-domain
-  deployment, and made the deployed web base URL
+- the `dev` deployed origin is `https://apply-dev.los.avanai.net`, activated with
+  managed HTTPS and matching Okta/runtime callbacks on October 1, 2026. The
+  generated ACA hostname is no longer an OAuth callback. Localhost remains
+  supported. Full signed-in and OTP journey verification is still separate from
+  the verified desktop/mobile IDX initialization checks.
 
 Current target auth shape in this repo (apply bootstrap and deploy the web/BFF
 artifacts before treating this as live tenant state):

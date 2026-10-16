@@ -342,7 +342,7 @@ Current runtime secret wiring:
 - the container app stays public for now so the workload can be validated before
   Front Door is introduced
 
-Current proven state:
+Previously verified running configuration (see the retirement status below):
 
 - the `dev` environment is deployed in `sub-acme-nonprod-online`
 - the web workload is running in `Azure Container Apps`
@@ -357,10 +357,10 @@ Current proven state:
   Next facade for manual checks unless you are inside the ACA environment or a
   private-network diagnostic context
 
-Branded web-hostname activation is source-owned but intentionally separate from
-base deployment because Azure managed-certificate issuance depends on public
-DNS validation. The helper reads Azure verification values and checks DNS; the
-certificate and hostname binding remain Bicep-owned:
+Branded web-hostname activation uses staged Bicep deployments because managed
+certificate issuance requires public DNS and a registered app hostname. The
+helper reads current Azure verification values; never retain a generated ACA
+hostname as an assumed constant across environment recreation:
 
 ```powershell
 npm run azure:custom-domain:web -- -EnvironmentName dev -Action show-plan
@@ -368,29 +368,207 @@ npm run azure:custom-domain:web -- -EnvironmentName dev -Action show-plan
 npm run azure:custom-domain:web -- -EnvironmentName dev -Action verify-dns
 ```
 
-Only after DNS verification succeeds should
-`environments.dev.publicDomain.enabled` be set to `true` and the web runtime
-be deployed through Bicep while Okta redirect URIs still use the ACA hostname. After
-`https://apply-dev.avanai.net/api/health` succeeds, change the Okta `dev`
-deployed base URL to `https://apply-dev.avanai.net`, run `okta:bootstrap`, and
-deploy the web runtime again. This enables round-trip light/dark preference
+For an existing healthy dev deployment, set
+`environments.dev.publicDomain.enabled` to `true` and use the focused activation
+script while Okta redirect URIs still use the current ACA hostname:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/activate-web-custom-domain.ps1 -Action show-plan -SubscriptionId 7df9ce70-48a3-4495-9361-4ca7b2637748 -PlatformSubscriptionId b582269b-60ff-4bb0-b30b-6fb2796edf11
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/activate-web-custom-domain.ps1 -Action apply -ConfirmHostname apply-dev.los.avanai.net -SubscriptionId 7df9ce70-48a3-4495-9361-4ca7b2637748 -PlatformSubscriptionId b582269b-60ff-4bb0-b30b-6fb2796edf11
+```
+
+This synchronizes the two DNS records, registers the hostname with the supported
+Azure CLI command, deploys the Bicep-managed certificate, waits for issuance,
+and binds it. It verifies that app images, runtime configuration, secret
+references, and identities remain unchanged. It does not deploy infrastructure
+stacks or write Key Vault secrets. Do not run lifecycle or deployment operations
+concurrently. New environments still use the full staged deployment path below.
+
+After `https://apply-dev.los.avanai.net/api/health` succeeds, change the Okta `dev`
+deployed base URL to `https://apply-dev.los.avanai.net`, run `okta:bootstrap`,
+verify its redirect, trusted-origin, and telephony-hook configuration, then run:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/activate-web-custom-domain.ps1 -Action sync-auth-origin -ConfirmHostname apply-dev.los.avanai.net -SubscriptionId 7df9ce70-48a3-4495-9361-4ca7b2637748 -PlatformSubscriptionId b582269b-60ff-4bb0-b30b-6fb2796edf11
+```
+
+The origin step changes only the two public Okta callback environment variables
+on each existing app, checks preservation of the remaining runtime state, and
+waits for replica readiness before proceeding to the next app.
+It does not rotate secrets or rebuild images. Run it only after the Okta
+configuration has been applied and verified. This enables light/dark preference
 continuity with `auth.avanai.net` through a non-sensitive parent-domain cookie;
 auth/session cookies remain host-scoped.
+
+### Automated Stable-Hostname Recovery
+
+The source-supported target is `apply-dev.los.avanai.net`. Keep the domain
+registered at Namecheap and delegate only `los.avanai.net` to Azure DNS. This
+requires no Namecheap API access, API key, or static-IP runner. Do not change
+the root domain's nameservers, mail records, or `auth.avanai.net`.
+
+Dev's `publicDomain.enabled` is now `true`; stable-host HTTPS and Okta origin
+activation were verified October 1, 2026. Adding a DNS zone does not start apps
+or enable CD. Resource retirement passed October 2, but the subsequent rebuild
+was blocked by Central US capacity before app creation. A new-environment
+DNS/HTTPS recovery and signed-in journeys remain unverified.
+
+#### Retained Zone Bootstrap
+
+`main.public-dns.sub.bicep` creates a dedicated platform resource group,
+`rg-acme-los-dns-cus-01`, and a public child zone protected by a
+`CanNotDelete` lock. These resources are outside all workload deployment stacks,
+pause operations, and environment teardown. Retain the actual zone: recreating
+it can change its assigned nameservers and require another manual delegation.
+The DNS zone uses alphanumeric tag names (`acmeApplication`, `acmeLifecycle`,
+and matching metadata); its resource group retains the shared colon-prefixed
+convention. Post-deployment verification requires the expected ownership tags;
+missing ownership never authorizes adopting an unrelated zone.
+
+The administrator-run bootstrap grants the existing `gha-acme-los-dev` service
+principal `DNS Zone Contributor` only on this child zone. It does not grant
+access to the root domain, other platform zones, or subscription-wide resources.
+This role can edit all records in the child zone; only dev uses it currently.
+Review record-level permissions before sharing this zone with other environments.
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/bootstrap-public-dns.ps1 -Action show-plan
+# Use the existing dev service principal OBJECT ID, not the OAuth client ID.
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/bootstrap-public-dns.ps1 -Action apply -DeploymentPrincipalId <dev-service-principal-object-id> -ConfirmDnsZone los.avanai.net
+```
+
+The script validates platform subscription and identity, refuses unrelated
+existing resources or delegation, and returns four actual Azure nameservers.
+In Namecheap, open **Domain List > Manage avanai.net > Advanced DNS > Host Records**.
+Add four **NS Record** entries, each with **Host: los**, one returned nameserver
+as **Value**, and **TTL: Automatic**. Save all changes. Do not change the parent
+domain's Nameservers setting or enter `@` as the host.
+
+Observed September 15, 2026: the retained zone, deletion lock, and zone-scoped
+dev permission are deployed. The DNS plan confirms exactly two pending app
+records; neither had been written then. On October 1, 2026, Namecheap delegation
+was verified through both Cloudflare and Google, both apps were resumed with
+private connectivity and healthy build `2519e1dd`, and the app CNAME/TXT were
+published and publicly verified. Managed HTTPS and Okta origin activation then
+completed using the focused operation above. The stable URL is now
+`https://apply-dev.los.avanai.net`. Web revision `0000091` and BFF revision
+`0000062` retain the original images; no Key Vault secrets were rotated.
+Automatic CD remains disabled. Apps are running and normal runtime charges
+have resumed.
+
+Desktop and mobile browser checks verified `/api/auth/idx/start`, Okta
+`/v1/interact`, and `/idp/idx/introspect` return 200 with the stable callback,
+and auth transaction/CSRF cookies are Secure, HttpOnly, and host-scoped.
+Full password/OTP sign-in, signed-in logout, funding, and account changes still
+require a user-assisted live test. This is not a completed teardown/rebuild test.
+
+The currently assigned nameservers for the **los** NS records are:
+
+- `ns1-06.azure-dns.com`
+- `ns2-06.azure-dns.net`
+- `ns3-06.azure-dns.org`
+- `ns4-06.azure-dns.info`
+
+Read the bootstrap output again if the zone is ever deliberately replaced;
+these values are not portable to a newly created zone.
+
+As verified September 15, 2026, public DNS retail pricing is $0.50 per zone/month
+for the first 25 zones plus $0.40 per million queries for the first billion.
+One zone and one million queries is approximately $0.90/month before tax,
+separate from retained application services. No Private Resolver or paid edge
+service is provisioned. See [Azure DNS pricing](https://azure.microsoft.com/en-us/pricing/details/dns/)
+and [Microsoft's retail price feed](https://prices.azure.com/api/retail/prices?$filter=serviceName%20eq%20%27Azure%20DNS%27&currencyCode=%27USD%27).
+
+#### Record Updates And HTTPS
+
+After delegation propagates, these commands plan or update only the app CNAME
+and ownership TXT in Azure. `plan-dns` is read-only; `sync-dns` requires exact
+zone confirmation and verifies all four delegated nameservers before writing.
+
+```powershell
+npm run azure:custom-domain:web -- -EnvironmentName dev -Action plan-dns
+npm run azure:custom-domain:web -- -EnvironmentName dev -Action sync-dns -ConfirmDnsZone los.avanai.net -DnsAttempts 30
+```
+
+The updater uses Azure CLI's authenticated identity and the Azure DNS record-set
+API. New records use `If-None-Match: *`; updates require the observed ETag in
+`If-Match`. Only source-owned app records can be replaced, and existing TTL and
+metadata are retained. Both records are checked before either write. Conditional
+failures stop without blind retries or rollback. The two PUTs are not atomic;
+an explicit rerun observes current state and finishes only the remaining changes.
+There is no whole-zone replacement and no Namecheap API code or credentials.
+
+Once the hostname is enabled, opt in to DNS updates during deployment:
+
+```powershell
+# Resume hibernation first using the normal lifecycle command.
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/deploy-web-environment.ps1 -EnvironmentName dev -SyncPublicDns -ConfirmDnsZone los.avanai.net
+```
+
+The deployment sequence is:
+
+1. Validate DNS configuration, retained zone, and delegation before provisioning.
+   Hibernation continues to block normal deployment.
+2. Deploy the environment and app; read the actual generated hostname and
+   subscription verification ID.
+3. Conditionally update the CNAME and verification TXT, then verify public DNS.
+4. Register the hostname with a `Disabled` certificate binding, issue the managed
+   certificate through `main.web.certificate.rg.bicep`, then bind it with the
+   full runtime template using `SniEnabled`.
+5. Require valid HTTPS and matching web/BFF build identities at `/api/health`.
+   Live sign-in, funding, and account-security tests are still required.
+
+Already-bound hostnames are never deliberately downgraded during redeployment.
+Unrelated domain or certificate bindings block the operation. The runtime
+template's `none`, `register`, and `bind` phases are orchestration controls, not
+standalone partial-PATCH templates. Use the deployment script so full settings,
+Key Vault references, identities, and ingress are retained at every phase.
+
+For GitHub deployment, set protected dev environment variables
+`AZURE_SYNC_PUBLIC_DNS=true` and `AZURE_PUBLIC_DNS_ZONE=los.avanai.net` only after
+first activation is reviewed. Standard hosted runners use existing Azure OIDC;
+there are no DNS-specific secrets. Do not enable CD while dev is hibernated.
+
+Offline verification:
+
+```powershell
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/tests/dns-recovery.tests.ps1
+az bicep build --file infra/azure/bicep/main.public-dns.sub.bicep
+az bicep build --file infra/azure/bicep/main.web.runtime.rg.bicep
+az bicep build --file infra/azure/bicep/main.web.certificate.rg.bicep
+```
+
+Public verification uses Cloudflare and Google recursive DNS with bounded
+timeouts; transient lookup failures never mean the zone is unused. Certificate
+issuance and renewal still need a running reachable app and any applicable CAA
+policy must permit DigiCert. A retained DNS zone does not keep a certificate
+renewed while the app is stopped; verify HTTPS and certificate state on resume.
+
+Before deeper retirement, prove a real record update and new-environment
+certificate/rebind cycle without deleting retained dev data. The initial Okta
+origin migration remains a separate reviewed bootstrap after stable-host HTTPS
+works. DNS synchronization does not change Okta redirect URLs or user data.
+
+Sources: [Namecheap NS delegation](https://www.namecheap.com/support/knowledgebase/article.aspx/579/2237/which-record-type-option-should-i-choose-for-the-information-im-about-to-enter/),
+[Azure delegation](https://learn.microsoft.com/en-us/azure/dns/dns-delegate-domain-azure-dns),
+[Azure DNS access and locks](https://learn.microsoft.com/en-us/azure/dns/dns-protect-zones-recordsets),
+[conditional record updates](https://learn.microsoft.com/en-us/rest/api/dns/record-sets/create-or-update?view=rest-dns-2018-05-01),
+and [ACA managed certificates](https://learn.microsoft.com/en-us/azure/container-apps/custom-domains-managed-certificates).
 
 Practical smoke-check path after a deploy:
 
 ```powershell
 az containerapp show `
   --subscription 7df9ce70-48a3-4495-9361-4ca7b2637748 `
-  --resource-group rg-acme-los-web-dev-cus-01 `
-  --name ca-acme-los-web-dev-cus-01 `
+  --resource-group rg-acme-los-web-dev-eus2-01 `
+  --name ca-acme-los-web-dev-eus2-01 `
   --query "{runningStatus:properties.runningStatus,latestReadyRevisionName:properties.latestReadyRevisionName,ingressFqdn:properties.configuration.ingress.fqdn}" `
   --output json
 
 $ingressFqdn = az containerapp show `
   --subscription 7df9ce70-48a3-4495-9361-4ca7b2637748 `
-  --resource-group rg-acme-los-web-dev-cus-01 `
-  --name ca-acme-los-web-dev-cus-01 `
+  --resource-group rg-acme-los-web-dev-eus2-01 `
+  --name ca-acme-los-web-dev-eus2-01 `
   --query 'properties.configuration.ingress.fqdn' `
   --output tsv
 
@@ -434,6 +612,9 @@ The teardown command is a permanent environment destruction operation, not the
 reversible pause/resume path. It removes Redis business data and workload
 resources. Keep using hibernation until a long-break rebuild has been proven.
 It does not delete the shared container registry or the shared DNS zones.
+This command unconditionally refuses permanent dev destruction, even if its
+foundation stack is missing. Use recoverable dev retirement below; permanent removal
+of retained secrets and identities requires a separately reviewed operation.
 
 Show the target environment without deleting anything (the default):
 
@@ -441,10 +622,10 @@ Show the target environment without deleting anything (the default):
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -Action show-plan
 ```
 
-Only after explicitly accepting data loss, destroy `dev`:
+For another non-production environment, only after explicitly accepting data loss:
 
 ```powershell
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName dev -Action destroy -ConfirmResourceGroup rg-acme-los-web-dev-cus-01 -WaitForDeletion
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/teardown-web-environment.ps1 -EnvironmentName qa -Action destroy -ConfirmResourceGroup rg-acme-los-web-qa-cus-01 -WaitForDeletion
 ```
 
 Teardown behavior:
@@ -484,50 +665,389 @@ This is stack-scoped deletion, not a guarantee that the environment RG is empty
 or all charges have stopped. See Microsoft's
 [deletion modes](https://learn.microsoft.com/en-us/azure/azure-resource-manager/bicep/deployment-stacks#control-detachment-and-deletion).
 
-### Long-Break Rebuild Readiness
+### Full Regional Dev Rebuild
 
-Long-break runtime retirement/recreation is not yet enabled or live-proven.
-The September 10, 2026 read-only check found no custom hostname bound to dev and
-no DNS record for `apply-dev.avanai.net`. The current Okta deployed origin still
-uses the generated ACA hostname, which must not be assumed reusable after
-environment recreation.
+The October 6, 2026 approved full rebuild replaces the Central US regional
+foundation as well as the runtime. `platform.json` now targets `eastus` / `eus`
+without a separate `dev.runtimeRegion` override. The rebuilt environment uses one
+region for Key Vault, runtime identity, ACR, VNet, monitoring, ACA, Redis, and
+private endpoints. Higher environments remain demo-only deployment gates; this
+operation creates no QA, staging, or production runtime.
+
+This supersedes the earlier East US 2 runtime-only recovery below. East US,
+South Central US, and West US 2 passed validation-only Redis B0 checks. East US
+was selected; provider validation does not reserve physical capacity.
+
+Global public/private DNS stays in its existing platform groups. Their `cus`
+names do not make DNS a Central US service. The global ACS resource moves to
+the new workload RG while retaining its name, immutable identity, endpoint,
+and phone. Namecheap NS records, Okta domains, and stable callbacks do not change.
+`platformResources.hubLocation` / `hubRegionShortName` keep the retained global
+DNS scaffold separate from the regional workload defaults. Platform bootstrap
+creates East US monitoring through its own subscription-scope template, rather
+than attempting to relocate an existing hub group.
+The old purge-protected vault may remain soft-deleted for 90 days; the new vault
+has a different name. The rebuild never attempts to purge it or weaken its
+protection.
+
+Run the read-only plan before applying either explicit phase:
+
+```powershell
+$rebuild = 'tools/scripts/azure/invoke-full-regional-rebuild.ps1'
+& $rebuild -Action plan
+& $rebuild -Action prepare -Apply -ConfirmWorkload acme-los-dev-centralus-to-eastus
+```
+
+Preparation checks exact inventories, subscription/tenant scope, target stack
+ownership, DNS delegation, and the approved image digests. It validates the ACS
+move before detaching its old ownership stack, copies pinned images through
+Azure RBAC, then moves that same global ACS resource. Retries accept only the
+recorded immutable ACS identity and image digests, never a look-alike replacement.
+
+Deploy through `deploy-web-environment.ps1` with `-EnvironmentName dev`, both
+explicit subscription IDs, `-ReuseExistingImages`, the plan's image tag and
+digests, `-BffVersion 0.0.23`, `-SyncPublicDns`, and
+`-ConfirmDnsZone los.avanai.net`. This is a fresh deployment, **not**
+`-RecoverRetiredResourceGroup`. Supply the existing Okta signing key and
+telephony authorization through the process environment, never command-line
+values or committed files. The signing key must match the live Okta client.
+New session and proxy secrets are generated securely into the new vault;
+sessions and demo Redis data are not restored.
+
+After the private services, pinned images, internal BFF, stable DNS, and HTTPS
+build checks pass, explicitly remove the old regional resources:
+
+```powershell
+& $rebuild -Action cleanup -Apply -ConfirmWorkload acme-los-dev-centralus-to-eastus
+```
+
+Cleanup deletes only the enumerated old workload/image groups, the empty East
+US 2 runtime group, and ACME-owned monitoring/link resources. It never deletes
+shared platform groups, global DNS, the phone, Network Watchers, or the unrelated
+tax-audit application. Unknown resources or incomplete target readiness stop
+the operation. Keep automatic CD disabled until these scripts and GitHub dev
+variables are promoted together. Infrastructure health is not proof that live
+customer sign-in, OTP, funding, or account changes have passed.
+
+October 6 execution: East US foundation, runtime, monitoring, managed certificate,
+and stable HTTPS health checks passed. Both apps run the pinned `2519e1dd`
+release (web `1.12.44`, BFF `0.0.23`). The new vault is private-only with RBAC and
+purge protection; Redis and Next-to-BFF auth use the new managed identity.
+Guarded old-region cleanup completed. Final inventories in the workload and
+platform subscriptions found zero active ACME LOS Central US regional resources.
+The old workload/image groups and the failed East US 2 group are absent, as are
+the old monitoring resources, workbook, DNS links, and ownership stacks. The
+unrelated tax-audit identity directory, shared DNS, and global ACS remain.
+The old vault is a purge-protected deleted recovery record, with scheduled
+purge on January 4, 2027; no purge bypass was attempted.
+
+Headless Chromium checks passed for the home page, live IDX start, registration,
+password-recovery and unlock links back to sign-in, and mobile sign-in without
+horizontal overflow. The read-only Okta audit passed all 51 checks, including
+stable callback and telephony-hook URLs. No email, password, or OTP was submitted;
+authenticated funding and account-change journeys remain unverified.
+
+Local formatting, lint/tests, web production build, Bicep compilation, and
+regional safety tests passed. Fresh Key Vault secret probing now preserves
+typed ARM not-found errors despite PowerShell stderr wrapping; authorization
+and transient failures still stop deployment. Regression tests cover that path
+and fresh/repeated split platform bootstrap. Dev-only GitHub settings sync
+preserved QA/staging/production approvals and reused the existing deployment
+identity. Automatic CD remains disabled pending source promotion. Existing
+critical dependency advisories remain a separate promotion blocker; this
+regional rebuild does not remediate them.
+
+October 7 (UTC) IDX follow-up: the earlier registration smoke checked links,
+not form readiness. Real registration failed on an Auth JS 8 structural step
+without an action callback. Commits `4123164` and `c699729` correct that
+SDK contract, preserve resend/skip capabilities, and pass server PKCE through
+constructor options. The normal East US deployment script deployed build
+`c6997299` (web `1.12.45`, BFF `0.0.23`) successfully with existing Key
+Vault references and managed identities. No Okta policy changes were required.
+
+Verification passed: formatting, repository lint/tests (120 web unit tests),
+production build, and all 84 cross-browser tests. Live checks at 1440px and
+390px confirmed registration's email/name/state/password fields, masked
+password input, sign-in/recovery/unlock forms, both registration Sign in
+links, no horizontal overflow, and the server's PKCE/state/nonce on the real
+Okta interact request. Rapid repeated tests reached the existing 12-starts
+per-minute limit (HTTP 429); paced checks passed without weakening that limit.
+The UI currently uses its generic startup error for this throttling case.
+No live credentials or OTPs were submitted. Full registration completion,
+funding, and account-change journeys still need an assisted verification pass.
+These commits remain local to the recovery branch; automatic CD remains disabled.
+
+### October 15 Promotion Check
+
+Promotion and the requested post-verification retirement are blocked. The
+Node dependency gate reports 98 vulnerable packages: 4 critical, 80 high, and
+14 moderate. Critical findings include `next`, `proxy-addr`, `handlebars`, and
+`shell-quote`. Do not suppress findings or extend expired exceptions to promote
+this branch. Dependency remediation and a fresh audit are required first.
+
+Local formatting, harness verification, repository lint/tests (Nx cache),
+a fresh web production build, all 84 cross-browser tests, five deployment
+Bicep compilations, offline Azure safety suites, and the NuGet audit passed.
+The Windows native-command test now selects the first Node executable on PATH
+instead of combining multiple installed paths. Independent review also found
+that public DNS bootstrap inherited the relocated workload region. It now
+retains the configured hub location for both deployment metadata and the DNS
+resource group, covered by mocked first/repeat bootstrap tests. These checks do
+not prove live signed-in registration, funding, or account-change journeys.
+
+The live East US web and BFF health checks still report build `c6997299`, with
+both apps running. No new deployment, Okta mutation, or resource deletion was
+performed during this check. Automatic CD remains disabled. The recovery
+implementation is intended for a draft PR, not merge or deployment approval;
+the separate dirty root checkout is outside this promotion scope.
+
+### Recoverable Dev Retirement
+
+The following evidence records the superseded Central US and East US 2
+attempts. For the current full East US rebuild, use the preceding section.
+
+`set-dev-retirement-state.ps1` is the separate, dev-only long-break command.
+The approved October 6, 2026 recovery moves only the disposable dev runtime to
+East US 2. `platform.json` declares `dev.runtimeRegion` as `eastus2` / `eus2`;
+global platform and retained resource naming remain `centralus` / `cus`.
+The new runtime is `rg-acme-los-web-dev-eus2-01`, with the ACA environment,
+apps, empty Redis, private endpoints, and a separate `10.24.0.0/24` VNet.
+Key Vault, runtime identity, ACS, and recovery metadata remain in
+`rg-acme-los-web-dev-cus-01`. Registry images, shared monitoring, DNS zones,
+delegation, and Okta also remain unchanged. No Namecheap changes are needed.
+
+Regional recovery requires the old named Central US services to be absent,
+the target RG inventory to contain only approved runtime resources, and the
+retained identity to allow cross-region use. It does not weaken identity
+isolation automatically. A recorded runtime-region marker prevents an older
+Central US deployment path from silently rebuilding a second runtime.
+ACA environment creation precedes Redis and private endpoints so a capacity
+failure does not unnecessarily allocate those services. Alerts stay disabled
+until private connectivity, HTTPS/build identity, and retained metadata checks
+pass. Automatic CD remains disabled during recovery and until the reviewed
+regional scripts and GitHub environment variables are promoted together.
+
+The October 6 attempt created the ACA environment successfully in East US 2,
+but Redis provider validation rejected `Balanced_B0` for this subscription and
+region (tracking ID `d74e0817-cab4-42e5-9ea2-b8d0cb025a4c`). Separate validation-only
+checks also rejected B1, B3, B5, and B10. No larger tier was deployed, no cache
+was created, and neither app started. This is not a successful rebuild.
+Obtain Azure SKU access or approve a separately reviewed placement change
+before retrying. The deployment script now validates the configured Redis SKU
+with the provider before allocating the regional runtime; a failed validation
+stops without trying alternative tiers. Successful validation is not a capacity
+reservation or a guarantee that later creation will succeed.
+
+Cleanup subsequently completed through the retirement script. The first CLI
+wait returned an error even though Azure finished environment deletion; an
+idempotent rerun removed the remaining regional network stack. The East US 2
+runtime RG is empty, its disposable stack and ACA-managed infrastructure RG are
+absent, and the lifecycle marker is `retired`. The retained fingerprint is
+unchanged, app CNAME is parked, delegation is unchanged, and all four dev alerts
+and automatic CD remain disabled. Retained services still incur their normal
+charges. A validation-only B0 probe in Central US returned HTTP 200 with no
+provider error; nothing was provisioned there. Using Central US Redis with
+East US 2 apps requires a separate approved placement change and verification.
+The new source-owned regional preflight also failed closed against live Azure
+without creating resources.
+
+Local verification passed the production build, affected lint/tests, 57 browser
+tests across Chromium/Firefox/WebKit using local fixtures, 83 regional safety
+assertions, and the existing lifecycle/DNS safety suites. The live read-only
+Okta audit passed 51 checks with no warnings or failures. These are not live
+signed-in customer-journey tests. The dependency audit also reported critical
+findings in existing `next` and `proxy-addr` packages; package remediation and
+fresh security gates remain required before promotion. No dependencies were
+upgraded as part of the region change.
+
+Historical Central US rehearsal evidence follows; it is not evidence that the
+new East US 2 runtime or its signed-in journeys have passed verification.
+
+Do not use permanent `destroy` for this operation. The first live retirement
+passed October 2, 2026, preserving retained identity and secret-version metadata.
+The subsequent rebuild failed with regional capacity exhaustion; one retry was
+canceled after 30 minutes of environment provisioning. The full cycle has not
+passed and is not the default for ordinary pause.
+
+The canceled attempt was subsequently retired successfully through the same
+script. Final October 2 verification found no container apps, ACA environment,
+Redis, private endpoints, endpoint NICs, disposable stack, or ACA-managed
+infrastructure group. The marker is `retired`; the retained stack is succeeded
+with 12 resources, and its identity / secret-version fingerprint is unchanged.
+The public DNS zone, four nameservers, deletion lock, and verification TXT remain;
+the app CNAME has no target. All four dev alerts and automatic CD remain disabled.
+Key Vault, identities, ACS, registry images, shared monitoring, and networking
+remain retained, so retirement does not mean zero Azure charges.
+
+Verification included 146 mocked retirement safety tests, the existing DNS and
+lifecycle suites, four Bicep entrypoint builds, BFF tests, and full repository
+formatting. The live read-only Okta audit reported 51 passes and no failures or
+warnings. No rebuilt-browser or authenticated journey checks were possible:
+the new apps never started. Retry recovery only when needed; do not re-enable
+automatic deployment or announce demo readiness based on these offline checks.
+
+An approved retry on October 3, 2026 (UTC) reached the same Central US capacity
+failure in about two minutes of ACA provisioning. It never created the web or
+BFF app; waiting for Redis to finish allowed the deployment to reach a terminal
+failed state before cleanup. No region, network exposure, secret, or Okta setting
+was changed to bypass the failure. A further retry is not a proven remedy;
+regional relocation requires a separately reviewed infrastructure plan.
+The retry's cleanup subsequently completed: zero disposable workload resources
+or ACA-managed infrastructure remained, the marker returned to `retired`, and
+the retained fingerprint was unchanged. DNS protection, disabled dev alerts,
+and disabled automatic CD were preserved. The repeat local sweep passed 287
+infrastructure/workflow tests and four Bicep builds; the read-only Okta audit
+again passed 51 checks. These results still do not verify live customer journeys.
+
+Full retirement gives up the running environment's capacity allocation. Rebuild
+can be blocked by regional capacity even when names, images, DNS, and secrets
+are valid. The October 2, 2026 Central US rehearsal encountered
+`ManagedEnvironmentCapacityHeavyUsageError` after successful retirement.
+Do not promise instant recovery or silently change region/network exposure.
+Retry only after the current deployment reaches a terminal state, or retire the
+partial rebuild to stop disposable-resource charges. Near a scheduled demo,
+retain the environment through ordinary hibernation instead. The provider's
+error points to Microsoft's
+[regional capacity guidance](https://learn.microsoft.com/en-us/troubleshoot/azure/azure-kubernetes/error-codes/akscapacityheavyusage-error).
+
+For a bounded recovery attempt, inspect the disposable stack's current
+`deploymentId` and nested deployment operations before canceling anything.
+Use the supported `az deployment group cancel` command only for the verified
+running recovery deployments. Wait for both ARM deployments and the stack to
+reach terminal states, then use `retire -DiscardDemoData` to remove the recorded
+partial resources. Cancellation alone is not cleanup: already-started service
+operations can continue. Never rewrite provisioning states, remove the DNS lock,
+or independently delete managed networking to force progress. See Microsoft's
+[deployment cancellation contract](https://learn.microsoft.com/en-us/rest/api/resources/deployments/cancel?view=rest-resources-2025-04-01).
+
+```powershell
+$dev = @{
+  SubscriptionId = '7df9ce70-48a3-4495-9361-4ca7b2637748'
+  PlatformSubscriptionId = 'b582269b-60ff-4bb0-b30b-6fb2796edf11'
+}
+$confirmed = @{ ConfirmResourceGroup = 'rg-acme-los-web-dev-eus-01' }
+& tools/scripts/azure/set-dev-retirement-state.ps1 @dev -Action show-plan
+& tools/scripts/azure/set-dev-retirement-state.ps1 @dev @confirmed -Action prepare
+& tools/scripts/azure/set-dev-retirement-state.ps1 @dev @confirmed -Action retire -DiscardDemoData
+& tools/scripts/azure/set-dev-retirement-state.ps1 @dev @confirmed -Action rebuild
+```
+
+The original Central US preparation changed ownership, not resource IDs. It validated the Bicep phases,
+updates `stk-acme-los-web-app-dev-cus-01` to the retained phase with `detachAll`,
+and adopts only the approved disposable IDs in
+`stk-acme-los-web-disposable-dev-cus-01`. Both stacks use the same source template;
+the `all` phase remains the default for other environments. Unknown IDs and
+unexpected subscriptions, parameters, or deny settings fail closed.
+After relocation, `prepare` only refreshes the recorded runtime image metadata;
+it does not redeploy or reassign the retained Central US foundation. The runtime
+stack is `stk-acme-los-web-disposable-dev-eus2-01`; the retained stack remains
+`stk-acme-los-web-app-dev-cus-01` in the retained RG.
+
+Retirement suppresses the four dev alerts, conditionally clears only the owned
+app CNAME target, deletes the two apps, private endpoints, Redis, then the
+remaining disposable stack, and checks that Azure
+has released the ACA-managed networking. It never independently deletes the
+managed load balancer or public IP. The zone, delegation, verification TXT,
+Key Vault, identities, ACS phone, registry, shared monitoring, and free workload
+Central US VNet/NSGs remain. The relocated East US 2 VNet/subnets/NSGs are
+disposable: retirement first removes only the exact regional private DNS link
+stack, then deletes the disposable network through its owning stack. It checks
+that the runtime RG is empty. Shared zones and Central US links are not deleted.
+An empty runtime RG and its subscription-scope scaffold can remain.
+The public URL is intentionally unavailable while retired.
+The empty CNAME record set retains its metadata, TTL, and zone deletion lock;
+Azure does not publish empty record sets. Rebuild fills that same owned record
+set using an ETag-guarded update. See Microsoft's
+[DNS lock and empty-record behavior](https://learn.microsoft.com/en-us/azure/dns/dns-protect-zones-recordsets).
+Endpoint and Redis parent deletions are sequenced explicitly: the live cycle
+exposed conflicting parent/child deletes when the stack tried to remove them
+concurrently. Each parent must be absent before stack cleanup continues.
+The environment is also removed through its owning service before stack cleanup.
+Terminal recovery validates both managed and failed-resource IDs against the
+same allowlist: Azure can record a partially created environment only in
+`failedResources`. An unrecorded environment or unexpected network cannot be
+implicitly deleted during cleanup.
+
+Recovery metadata contains only public image tags, immutable digests, version,
+and a hash of retained identity / secret-version metadata in retained RG tags.
+There is no secret-value export, local backup dependency, or session restore.
+Recovery refuses missing or changed image manifests and missing retained
+secrets. It recreates private Redis with an empty dataset, restores endpoints
+and managed-identity access, then deploys the existing images by digest and
+reissues TLS after updating the app CNAME and verification TXT from actual ACA
+outputs. Okta callbacks stay on `https://apply-dev.los.avanai.net`.
+
+Ordinary deployment is blocked while `acme:retirement` is `preparing`,
+`retiring`, `retired`, or `rebuilding`. Failed operations retain their marker.
+Do not run lifecycle and deployment operations concurrently; these tags are
+interlocks, not distributed locks. Keep automatic CD disabled during this cycle.
+Normal deployment creates shared runtime secrets only when confirmed absent;
+rebuild never creates or rotates secrets. Monitoring bootstrap now preserves an
+existing monitoring stack instead of dropping its operations pack.
+
+After rebuild, verify real password/OTP sign-in, signed-in logout, funding with
+one email or phone OTP, and account-security changes. Infrastructure health is
+not proof of these journeys. Repeat `retire -DiscardDemoData` only after the
+intended verification cycle, or explicitly to return a failed demo to idle.
+
+### Long-Break Acceptance Gates
+
+Long-break retirement is source-supported and live-verified; full recreation is
+not yet live-proven and must not be treated as a reliable quick-resume path.
+The owner approved discarding dev demo data on September 15, 2026, including
+Redis-backed application drafts, customer profiles, and authentication state.
+Redis retention is no longer a prerequisite for the planned dev rebuild mode.
+This approval does not replace the recovery checks below.
+The `los.avanai.net` delegation, stable-host HTTPS, and Okta origin activation
+were verified October 1, 2026. The remaining gates include a successful
+new-environment rebuild and full signed-in journeys. A generated ACA hostname
+must not be assumed reusable after environment recreation.
 
 Before deleting the ACA environment:
 
-1. Establish the stable hostname with Namecheap DNS, Bicep-managed HTTPS, and
+1. Establish the stable hostname with delegated Azure DNS, Bicep-managed HTTPS, and
    matching Okta redirect/logout origins. Use `azure:custom-domain:web` to obtain
    the current CNAME and verification TXT records; update only those records.
 2. Verify the deployed image versions remain available in the retained registry.
-3. Keep Key Vault, user-assigned identity, ACS phone-number ownership, and
-   required data outside the deletion set. Do not delete managed load-balancer
-   resources independently of their owning ACA environment.
+3. Separate retained resources from disposable resources in the source-owned
+   deployment stacks. Keep Key Vault, user-assigned identity, ACS phone-number
+   ownership, shared DNS, and the image registry outside the deletion set. Dev
+   Redis is disposable under the approved policy below. Do not delete managed
+   load-balancer resources independently of their owning ACA environment.
 4. Prove the source-owned rebuild, private connectivity, HTTPS, sign-in,
    funding, and account-security journeys before adopting deeper retirement
    as a pause default. A successful health response alone is not this proof.
 
-The supported recovery boundary must also distinguish business data from auth:
+#### Approved Dev Demo Data Policy
 
-- BFF application drafts expire eight hours after writing and profiles after
-  thirty days. Retaining Redis does not stop those TTLs.
-- No archive or isolated business-data restore has been verified. Until the
-  owner explicitly accepts a dev-data reset, Redis must remain allocated.
-- Any future business-data archive needs an explicit retention policy and
-  restore verification. Exclude auth sessions, transactions, OTPs, and one-use
-  step-up grants; require fresh sign-in after recreation.
-- Managed Redis persistence is not a backup that survives deleting the
-  instance. Current native export/import uses SAS-backed storage and does not
-  support storage firewalls/private links, so it is not the private,
-  managed-identity archive path this application requires.
+- Scope: ACME LOS `dev` only. Do not apply this decision to `qa`, `stg`, `prod`,
+  another solution, or future real customer data.
+- The explicit long-break mode may delete the dev Redis instance and its private
+  endpoint, then recreate an empty instance through Bicep. No demo-data archive
+  or restore is required; previous drafts and app profiles are intentionally lost.
+- Authentication sessions, transactions, OTPs, and one-use step-up grants must
+  not be restored. Require fresh sign-in and verify that existing Okta users can
+  start new applications without stale customer or lead state.
+- Preserve the Okta directory and app registrations, Key Vault secrets,
+  deployment/runtime identities, ACS phone-number ownership, image registry,
+  DNS zone, and delegation. Approval to discard Redis data is not approval to
+  delete those resources or purge Key Vault.
+- Recreate Redis with the existing private networking and managed-identity
+  authorization, then verify readiness before starting app traffic. A disposable
+  demo dataset does not relax authentication, authorization, or secret handling.
+- The current `pause`/`resume` commands still retain Redis and remove/recreate
+  only the two workload private endpoints. Do not use permanent `destroy` as a
+  substitute for the separate secret-preserving retirement command.
 
-Namecheap API automation requires an API-enabled account and an allowlisted
-caller IP. Its `setHosts` operation replaces the record set: never call it with
-only the new ACME records, because that would delete unrelated records.
+The existing eight-hour draft and thirty-day profile TTLs remain unchanged
+while Redis is allocated. A future requirement to preserve business data needs
+a separate durable-storage and restore design; this demo reset approval must
+not silently carry over to that requirement.
 
-References: [ACA recreation](https://learn.microsoft.com/en-us/azure/container-apps/relocate-region),
-[Managed Redis import/export](https://learn.microsoft.com/en-us/azure/redis/how-to-import-export-data),
-[Redis backup limitations](https://learn.microsoft.com/en-us/azure/reliability/reliability-managed-redis#backup-and-restore),
-[Namecheap API access](https://www.namecheap.com/support/api/intro/),
-and [Namecheap DNS replacement semantics](https://www.namecheap.com/support/api/methods/domains-dns/set-hosts/).
+Azure DNS remains allocated in the platform subscription during workload
+retirement. Keep the one-time Namecheap child-zone delegation intact.
+
+Reference: [ACA recreation](https://learn.microsoft.com/en-us/azure/container-apps/relocate-region).
 
 ## Cost Discipline
 

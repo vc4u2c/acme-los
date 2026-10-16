@@ -157,6 +157,9 @@ Use GitHub environment variables for non-secret values that differ by environmen
 - `AZURE_CLIENT_ID`
 - `AZURE_SUBSCRIPTION_ID`
 - `AZURE_RESOURCE_GROUP_NAME`
+- `AZURE_RETAINED_RESOURCE_GROUP_NAME`
+- `AZURE_LOCATION_PRIMARY` (environment override for the runtime location)
+- `AZURE_RUNTIME_REGION_SHORT`
 - `AZURE_ENVIRONMENT_NAME`
 - `APP_ENVIRONMENT_NAME`
 - `OKTA_ENVIRONMENT_NAME`
@@ -176,6 +179,34 @@ Use GitHub environment variables for non-secret values that differ by environmen
 - `AZURE_WEB_IMAGE_REPOSITORY`
 - `AZURE_BICEP_PARAMETER_FILE`
 - `AZURE_WEB_DEPLOY_TEMPLATE`
+
+The full dev regional rebuild uses `eastus` / `eus` for both runtime and
+foundation: Key Vault, runtime identity, registry, networking, and monitoring.
+Global DNS and the existing global ACS resource are retained. The setup script
+derives names from `platform.json`; dev environment variables override the older
+repository defaults without modifying QA, staging, or production settings.
+Keep automatic CD disabled until the regional implementation is merged and a
+matching deployment artifact is available. An older artifact must not recover
+or redeploy the rebuilt dev environment.
+
+For a dev-only settings refresh, use the existing deployment identity:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/scripts/azure/setup-github-azure-environments.ps1 `
+  -Mode sync-environments -TargetEnvironment dev -SyncPlatformMonitorAccess `
+  -GitHubOrganizationName vc4u2c -GitHubRepositoryName acme-los `
+  -AzureTenantId 73521cbe-9858-4230-996d-319b8074e103 `
+  -PlatformSubscriptionId b582269b-60ff-4bb0-b30b-6fb2796edf11 `
+  -NonProdSubscriptionId 7df9ce70-48a3-4495-9361-4ca7b2637748 `
+  -ProdSubscriptionId b85326eb-4485-480a-9849-40669d306e44
+```
+
+This mode verifies that the existing Entra application matches dev's configured
+client ID, updates only dev variables, and grants Contributor on the configured
+platform monitoring resource group. It does not create identities, change
+repository variables, or rewrite environment approval rules. Omit
+`-SyncPlatformMonitorAccess` for variables only; use `-WhatIf` to inspect the
+planned updates without applying them.
 
 Recommendation:
 

@@ -3,8 +3,10 @@ $ErrorActionPreference = 'Stop'
 $scriptPath = Join-Path $PSScriptRoot '../teardown-web-environment.ps1'
 $sub = '11111111-1111-1111-1111-111111111111'
 $platform = '22222222-2222-2222-2222-222222222222'
-$group = 'rg-acme-los-web-dev-cus-01'
-$vault = 'kvacmelosdevcus01v42c'
+$configuration = Get-Content (Join-Path $PSScriptRoot '../../../../infra/azure/config/platform.json') -Raw | ConvertFrom-Json
+$region = $configuration.primaryRegionShortName
+$group = "rg-acme-los-web-qa-$region-01"
+$vault = "kvacmelosqa${region}01v42c"
 
 function Assert-True($Value, [string]$Message) {
   if (-not $Value) { throw "Assertion failed: $Message" }
@@ -23,6 +25,7 @@ function global:az {
   $command = $a -join ' '
   $global:teardownCalls.Add($command)
   if ($command -match '^stack .+ show') {
+    if ($global:teardownFailure -eq 'retained') { return 'retained' }
     if ($global:teardownFailure -eq 'permission') {
       $global:LASTEXITCODE = 1
       return 'ERROR: (AuthorizationFailed) Access denied'
@@ -42,13 +45,13 @@ function global:az {
   }
   if ($command -match '^group exists') { return $global:teardownGroupExists }
   if ($command -match '^keyvault list-deleted') {
-    return '[{"name":"kvacmelosdevcus01v42c","location":"centralus"}]'
+    return ConvertTo-Json -InputObject @(@{ name = $vault; location = $configuration.primaryLocation }) -Compress
   }
   if ($command -match '^keyvault purge') { return }
   throw "Unexpected command: $command"
 }
 function Invoke-TestTeardown([hashtable]$Extra = @{}) {
-  & $scriptPath -EnvironmentName dev -SubscriptionId $sub -PlatformSubscriptionId $platform @Extra | ConvertFrom-Json
+  & $scriptPath -EnvironmentName qa -SubscriptionId $sub -PlatformSubscriptionId $platform @Extra | ConvertFrom-Json
 }
 $tests = [ordered]@{
   'default is a read-only plan without Azure mutations' = {
@@ -72,15 +75,20 @@ $tests = [ordered]@{
     Assert-True (@($global:teardownCalls | Where-Object { $_ -match '^keyvault' }).Count -eq 0) 'no vault purge commands'
     $deletes = @($global:teardownCalls | Where-Object { $_ -match '^stack .+ delete' })
     $expected = @(
-      "stack group delete --subscription $sub --name stk-acme-los-web-app-dev-cus-01 --resource-group $group --action-on-unmanage deleteResources --yes --output none --only-show-errors"
-      "stack group delete --subscription $platform --name stk-acme-los-dns-links-dev-cus-01 --resource-group rg-acme-hub-network-cus-01 --action-on-unmanage deleteResources --yes --output none --only-show-errors"
-      "stack group delete --subscription $platform --name stk-acme-los-monitor-dev-cus-01 --resource-group rg-acme-hub-monitor-cus-01 --action-on-unmanage deleteResources --yes --output none --only-show-errors"
-      "stack sub delete --subscription $sub --name stk-acme-los-web-dev-cus-01 --action-on-unmanage deleteResources --yes --output none --only-show-errors"
+      "stack group delete --subscription $sub --name stk-acme-los-web-app-qa-$region-01 --resource-group $group --action-on-unmanage deleteResources --yes --output none --only-show-errors"
+      "stack group delete --subscription $platform --name stk-acme-los-dns-links-qa-$region-01 --resource-group $($configuration.platformResources.networkResourceGroupName) --action-on-unmanage deleteResources --yes --output none --only-show-errors"
+      "stack group delete --subscription $platform --name stk-acme-los-monitor-qa-$region-01 --resource-group $($configuration.platformResources.monitorResourceGroupName) --action-on-unmanage deleteResources --yes --output none --only-show-errors"
+      "stack sub delete --subscription $sub --name stk-acme-los-web-qa-$region-01 --action-on-unmanage deleteResources --yes --output none --only-show-errors"
     )
     Assert-True ($deletes.Count -eq $expected.Count) 'only four explicitly scoped stacks'
     for ($i = 0; $i -lt $expected.Count; $i++) {
       Assert-True ($deletes[$i] -ceq $expected[$i]) "exact subscription, scope, name, and deletion mode for stack $i"
     }
+  }
+  'permanent destroy cannot delete the separated retained foundation' = {
+    $global:teardownFailure = 'retained'
+    Assert-Fails { Invoke-TestTeardown @{ Action = 'destroy'; ConfirmResourceGroup = $group } } 'retained dev foundation'
+    Assert-True (@($global:teardownCalls | Where-Object { $_ -match '^stack .+ delete' }).Count -eq 0) 'no retained or platform stack deletions'
   }
   'retained resource group is reported without polling or broader deletion' = {
     $global:teardownGroupExists = 'true'
@@ -112,9 +120,20 @@ $tests = [ordered]@{
     }
   }
   'production requires its additional guard' = {
-    Assert-Fails { & $scriptPath -EnvironmentName prod -Action destroy -ConfirmResourceGroup 'rg-acme-los-web-prod-cus-01' -SubscriptionId $sub -PlatformSubscriptionId $platform } 'Production teardown is blocked'
+    Assert-Fails { & $scriptPath -EnvironmentName prod -Action destroy -ConfirmResourceGroup "rg-acme-los-web-prod-$region-01" -SubscriptionId $sub -PlatformSubscriptionId $platform } 'Production teardown is blocked'
     Assert-True ($global:teardownCalls.Count -eq 0) 'no Azure calls'
   }
+}
+$tests['dev permanent destroy is blocked even with absent or unreadable foundation'] = {
+  foreach ($failure in @('missing', 'permission', 'retained', '')) {
+    $global:teardownFailure = $failure
+    Assert-Fails { & $scriptPath -EnvironmentName dev -Action destroy -ConfirmResourceGroup "rg-acme-los-web-dev-$region-01" -SubscriptionId $sub -PlatformSubscriptionId $platform } 'Permanent destroy is blocked'
+    Assert-True ($global:teardownCalls.Count -eq 0) 'dev rejects before inspecting or deleting any stack'
+  }
+}
+$tests['dev purge approval cannot bypass protected foundation'] = {
+  Assert-Fails { & $scriptPath -EnvironmentName dev -Action destroy -ConfirmResourceGroup "rg-acme-los-web-dev-$region-01" -PurgeDeletedKeyVault -ConfirmKeyVaultPurge "kvacmelosdev${region}01v42c" -SubscriptionId $sub -PlatformSubscriptionId $platform } 'Permanent destroy is blocked'
+  Assert-True ($global:teardownCalls.Count -eq 0) 'no dev purge or deletion'
 }
 foreach ($test in $tests.GetEnumerator()) {
   $global:teardownCalls = [Collections.Generic.List[string]]::new()

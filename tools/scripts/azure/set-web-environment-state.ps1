@@ -17,6 +17,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'runtime-region.ps1')
 
 $requestedAction = $Action
 if ($Action -eq 'pause' -and $EnvironmentName -eq 'dev') {
@@ -129,7 +130,7 @@ function Get-WorkloadResourceGroupName {
     [string]$EnvironmentName
   )
 
-  return "rg-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return Get-WebRuntimeResourceGroupName $Configuration $EnvironmentName
 }
 
 function Get-ContainerAppName {
@@ -138,7 +139,7 @@ function Get-ContainerAppName {
     [string]$EnvironmentName
   )
 
-  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-BffContainerAppName {
@@ -147,7 +148,7 @@ function Get-BffContainerAppName {
     [string]$EnvironmentName
   )
 
-  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-bff-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-bff-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-PlatformMonitorResourceGroupName {

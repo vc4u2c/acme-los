@@ -102,6 +102,29 @@ jobs:
           ref: ${{ steps.inspect_deploy_artifact.outputs.commit_sha }}
           fetch-depth: 0
 
+      - name: Validate deployment script compatibility
+        shell: pwsh
+        env:
+          ACME_SYNC_PUBLIC_DNS: ${{ vars.AZURE_SYNC_PUBLIC_DNS }}
+          ACME_DNS_ZONE: ${{ vars.AZURE_PUBLIC_DNS_ZONE }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $syncPublicDns = [string]$env:ACME_SYNC_PUBLIC_DNS
+          if ($syncPublicDns -cnotin @('', 'true', 'false')) {
+            throw 'AZURE_SYNC_PUBLIC_DNS must be empty, true, or false.'
+          }
+          if ($syncPublicDns -ceq 'true') {
+            $command = Get-Command ./tools/scripts/azure/deploy-web-environment.ps1 -ErrorAction Stop
+            foreach ($parameter in @('SyncPublicDns', 'ConfirmDnsZone')) {
+              if (-not $command.Parameters.ContainsKey($parameter)) {
+                throw 'This artifact predates the public DNS deployment contract. Select a compatible build; DNS synchronization cannot be skipped.'
+              }
+            }
+            if ([string]::IsNullOrWhiteSpace($env:ACME_DNS_ZONE)) {
+              throw 'AZURE_PUBLIC_DNS_ZONE is required when DNS synchronization is enabled.'
+            }
+          }
+
       - name: Azure login
         uses: azure/login@v3
         with:
@@ -146,6 +169,8 @@ jobs:
         env:
           ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM: ${{ secrets.ACME_OKTA_MANAGEMENT_PRIVATE_KEY_PEM }}
           ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION: ${{ secrets.ACME_OKTA_TELEPHONY_HOOK_AUTHORIZATION }}
+          ACME_SYNC_PUBLIC_DNS: ${{ vars.AZURE_SYNC_PUBLIC_DNS }}
+          ACME_DNS_ZONE: ${{ vars.AZURE_PUBLIC_DNS_ZONE }}
         run: |
           $webImageRepository = '${{ vars.AZURE_WEB_IMAGE_REPOSITORY }}'
           if ([string]::IsNullOrWhiteSpace($webImageRepository)) {
@@ -162,6 +187,12 @@ jobs:
             $bffDeploymentMode = 'auto'
           }
 
+          $dnsArguments = @{}
+          if ($env:ACME_SYNC_PUBLIC_DNS -ceq 'true') {
+            $dnsArguments.SyncPublicDns = $true
+            $dnsArguments.ConfirmDnsZone = $env:ACME_DNS_ZONE
+          }
+
           $deploymentResult = ./tools/scripts/azure/deploy-web-environment.ps1 `
             -EnvironmentName '${{ inputs.environment_name }}' `
             -TenantId '${{ vars.AZURE_TENANT_ID }}' `
@@ -172,7 +203,8 @@ jobs:
             -BffImageRepository $bffImageRepository `
             -BffVersion '${{ steps.inspect_deploy_artifact.outputs.bff_version }}' `
             -BffDeploymentMode $bffDeploymentMode `
-            -ParameterFile '${{ inputs.bicep_parameter_file }}'
+            -ParameterFile '${{ inputs.bicep_parameter_file }}' `
+            @dnsArguments
 
           $deploymentResult | Set-Content -Path deployment-result.json -Encoding utf8
           Get-Content deployment-result.json

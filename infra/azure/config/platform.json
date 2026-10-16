@@ -4,12 +4,15 @@
   "workloadName": "ACME LOS",
   "workloadShortName": "los",
   "projectName": "acme-los",
-  "primaryLocation": "centralus",
-  "primaryRegionShortName": "cus",
+  "primaryLocation": "eastus",
+  "primaryRegionShortName": "eus",
   "resourceNameSuffix": "v42c",
   "platformResources": {
-    "monitorResourceGroupName": "rg-acme-hub-monitor-cus-01",
+    "hubLocation": "centralus",
+    "hubRegionShortName": "cus",
+    "monitorResourceGroupName": "rg-acme-hub-monitor-eus-01",
     "networkResourceGroupName": "rg-acme-hub-network-cus-01",
+    "publicDnsResourceGroupName": "rg-acme-los-dns-cus-01",
     "privateDnsZones": {
       "keyVault": "privatelink.vaultcore.azure.net",
       "managedRedis": "privatelink.redis.azure.net"
@@ -34,15 +37,20 @@
       "appEnvironmentName": "dev",
       "oktaEnvironmentName": "dev",
       "publicDomain": {
-        "enabled": false,
-        "hostname": "apply-dev.avanai.net",
-        "managedCertificateValidationMethod": "CNAME"
+        "enabled": true,
+        "hostname": "apply-dev.los.avanai.net",
+        "managedCertificateValidationMethod": "CNAME",
+        "dns": {
+          "provider": "azure",
+          "zone": "los.avanai.net"
+        }
       },
       "runtime": {
         "minReplicas": 2,
         "maxReplicas": 2
       },
       "smsMfa": {
+        "resourceName": "acs-acme-los-dev-cus-01",
         "enabled": true,
         "provider": "mock",
         "enableMockOtp": true,
@@ -63,9 +71,9 @@
         }
       },
       "network": {
-        "workloadVnetAddressSpace": "10.20.0.0/24",
-        "acaInfrastructureSubnetAddressPrefix": "10.20.0.0/27",
-        "privateEndpointSubnetAddressPrefix": "10.20.0.32/27"
+        "workloadVnetAddressSpace": "10.24.0.0/24",
+        "acaInfrastructureSubnetAddressPrefix": "10.24.0.0/27",
+        "privateEndpointSubnetAddressPrefix": "10.24.0.32/27"
       }
     },
     "qa": {
