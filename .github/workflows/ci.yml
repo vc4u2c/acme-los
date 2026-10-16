@@ -67,6 +67,9 @@ jobs:
       - name: Validate agent harness
         run: npm run agents:verify
 
+      - name: Test CSS toolchain compatibility
+        run: node --test tools/scripts/dependencies/tests/css-toolchain.test.mjs
+
       - name: Audit and restore .NET dependencies
         run: npm run dotnet:audit:ci
 

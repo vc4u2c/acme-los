@@ -101,21 +101,51 @@ the patched dependency.
 
 The October 15 scan falls from 98 affected packages (4 critical, 80 high,
 14 moderate) to 52 (0 critical, 50 high, 2 moderate). These are package counts,
-including vulnerable dependents, not 52 distinct root advisories. The remaining
-three root advisories still block `npm run audit:node` and promotion:
+including vulnerable dependents, not 52 distinct root advisories. At that point,
+three root advisories blocked `npm run audit:node` and promotion:
 
 | Package                         | Dependency path                                          | Remaining blocker                                                                                                                            |
 | ------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `braces@3.0.3`                  | micromatch/chokidar through build, test, and CSS tooling | [GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm), high; no patched npm release published at verification time        |
 | `node-forge@1.4.0`              | Expo CLI and `@expo/code-signing-certificates`           | [GHSA-86w9-cpqp-85rv](https://github.com/advisories/GHSA-86w9-cpqp-85rv), high; no patched npm release published at verification time        |
-| `postcss-selector-parser@6.1.2` | Tailwind `3.4.19` and postcss-nested `6.2.0`             | [GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf), moderate; patched `7.1.6` is outside both owners' supported ranges |
+| `postcss-selector-parser@6.1.4` | Tailwind `3.4.19` and postcss-nested `6.2.0`             | [GHSA-rj75-hqrm-r3gf](https://github.com/advisories/GHSA-rj75-hqrm-r3gf), moderate; patched `7.1.6` is outside both owners' supported ranges |
 
-Parser 7 changes iteration semantics; forcing it into Tailwind 3 is not treated
-as a patch-level fix. Resolve this through an upstream backport or a separately
-verified Tailwind/NativeWind migration. No new security exception, relaxed
-severity threshold, or audit bypass is included. These are source changes, not
-evidence of an Azure deployment; deployment and teardown remain gated on green
-checks.
+Parser 7 changes iteration semantics and is not treated as an unverified
+patch-level fix. The focused compatibility work below addresses this path.
+
+## October 16 CSS parser compatibility
+
+Two exact-owner overrides select the published `postcss-selector-parser@7.1.6`
+release under `tailwindcss@3.4.19` and `postcss-nested@6.2.0`. This is an
+application-verified compatibility override outside the vendors' declared
+parser ranges, not a vendor endorsement or a Tailwind/NativeWind framework
+upgrade. The prior installed copies were `6.1.4`; the earlier note identifying
+them as `6.1.2` confused the dependency range minimum with the resolved version.
+
+[Parser 7's iteration change](https://github.com/postcss/postcss-selector-parser/releases/tag/v7.0.0)
+affects insertion during walks, used by
+[Tailwind variant finalization](https://github.com/tailwindlabs/tailwindcss/blob/v3.4.19/src/util/formatVariantSelector.js).
+The CI `Test CSS toolchain compatibility` step exercises actual installed
+packages for variant merging, escaped selectors, pseudo-element ordering,
+`@apply`, nested selector lists and parent cloning, media bubbling, and
+NativeWind's CSS-to-native conversion. It verifies each owner's resolved parser
+version and bounds large/malformed selector probes in a child process.
+
+A clean `npm ci` resolves both owners to `7.1.6`. Full application stylesheet
+comparisons before/after the change are byte-identical for web, mobile web,
+Android, and iOS; this checks output and rule ordering beyond isolated samples.
+
+When upgrading either owner or changing the pin, rerun these contracts plus
+web/mobile builds and browser tests. Remove the corresponding override when
+the owner adopts a patched parser itself. No package source is patched or
+forked, and no new dependency lifecycle script is approved.
+
+The refreshed scan reports 50 affected packages, all high severity, from only
+the two root advisories in `braces` and `node-forge`. Both registries and
+advisories still report no published patched release as of October 16. The
+audit allowlist stays empty; the moderate-or-higher gate still blocks promotion.
+Do not replace the remaining packages with incompatible APIs or suppress the
+findings just to turn CI green. Deployment and teardown remain on hold.
 
 ## Retired upstream security exception
 

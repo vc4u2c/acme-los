@@ -10,6 +10,7 @@ This repo uses Nx Release plus GitHub Actions for CI/CD.
   - enables the BFF NuGet audit policy from `apps/bff-api/Directory.Build.props`
     only for the CI audit command
   - validates project tags, lint, and tests
+  - verifies the scoped CSS parser overrides against Tailwind and NativeWind contracts
   - on `main` pushes, also performs app release work and creates the deployable
     artifact
 - `.github/workflows/cd.yml`
