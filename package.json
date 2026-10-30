@@ -225,7 +225,7 @@
   "dependencies": {
     "@azure/communication-phone-numbers": "^1.5.0",
     "@azure/communication-sms": "^1.1.0",
-    "@azure/identity": "^4.13.1",
+    "@azure/identity": "^4.14.1",
     "@azure/monitor-opentelemetry": "^1.18.1",
     "@expo/metro-runtime": "~55.0.10",
     "@gluestack-ui/core": "^3.0.13",
