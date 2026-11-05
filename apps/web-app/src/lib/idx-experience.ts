@@ -1,5 +1,38 @@
 import type { WebAuthStepUpReason } from '@acme-los/api/contracts';
-import type { NextStep } from '@okta/okta-auth-js';
+import type { Input, NextStep } from '@okta/okta-auth-js';
+import { z } from 'zod';
+
+const selectOptionsSchema = z
+  .array(z.object({ label: z.string(), value: z.string() }))
+  .nonempty();
+const displaySelectSchema = z.tuple([
+  z.object({
+    label: z.literal('display'),
+    value: z.object({
+      type: z.literal('object'),
+      value: z.object({
+        inputType: z.literal('select'),
+        options: selectOptionsSchema,
+      }),
+    }),
+  }),
+]);
+
+export function normalizeIdxSelectInput(input: Input): Input {
+  if (input.name === 'authenticator' || !input.options?.length) return input;
+
+  // Profile enrollment can expose select choices inside ION display metadata.
+  const display = displaySelectSchema.safeParse(input.options);
+  const options = selectOptionsSchema.safeParse(
+    display.success ? display.data[0].value.value.options : input.options,
+  );
+  if (!options.success) {
+    throw new Error(
+      'This verification field is not supported. Contact support.',
+    );
+  }
+  return { ...input, options: options.data };
+}
 
 export type IdxJourneyFlow =
   | 'authenticate'

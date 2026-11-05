@@ -16,6 +16,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'runtime-region.ps1')
 
 if (-not $ConfigurationPath) {
   $ConfigurationPath = Join-Path $PSScriptRoot '..\..\..\infra\azure\config\platform.json'
@@ -152,7 +153,7 @@ function Get-WorkloadResourceGroupName {
     [string]$EnvironmentName
   )
 
-  return "rg-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return Get-WebRuntimeResourceGroupName $Configuration $EnvironmentName
 }
 
 function Get-ContainerAppName {
@@ -161,7 +162,7 @@ function Get-ContainerAppName {
     [string]$EnvironmentName
   )
 
-  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$($Configuration.primaryRegionShortName)-01".ToLowerInvariant()
+  return "ca-$($Configuration.organizationShortName)-$($Configuration.workloadShortName)-web-$EnvironmentName-$((Get-WebRuntimeRegion $Configuration $EnvironmentName).ShortName)-01".ToLowerInvariant()
 }
 
 function Get-ContainerAppBaseUrl {

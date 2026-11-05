@@ -10,6 +10,7 @@ This repo uses Nx Release plus GitHub Actions for CI/CD.
   - enables the BFF NuGet audit policy from `apps/bff-api/Directory.Build.props`
     only for the CI audit command
   - validates project tags, lint, and tests
+  - verifies the scoped CSS parser overrides against Tailwind and NativeWind contracts
   - on `main` pushes, also performs app release work and creates the deployable
     artifact
 - `.github/workflows/cd.yml`
@@ -34,6 +35,15 @@ This repo uses Nx Release plus GitHub Actions for CI/CD.
 - `.github/workflows/teardown-web-environment.yml`
   - manual teardown workflow for non-production, with explicit destructive
     confirmation required for `prod`
+
+The reusable web workflow validates the selected artifact's deployment-script
+parameters before Azure login when `AZURE_SYNC_PUBLIC_DNS=true`. An artifact
+without the DNS contract, an invalid flag, or a missing zone fails before Azure
+access; requested DNS synchronization is never silently skipped. When DNS sync
+is disabled, the optional DNS arguments are omitted so older script signatures
+remain compatible. This is argument compatibility, not permission to use old
+infrastructure against migrated dev: retired dev still requires the current
+retirement/rebuild script and automatic CD must stay disabled during that cycle.
 
 Related docs:
 

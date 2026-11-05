@@ -79,16 +79,18 @@ function resolveCommunicationServicesEndpoint(configuration, environment) {
     throw new Error(`Unknown Azure environment "${environment}".`);
   }
 
-  const resourceName = [
-    'acs',
-    configuration.organizationShortName,
-    configuration.workloadShortName,
-    environment,
-    configuration.primaryRegionShortName,
-    '01',
-  ]
-    .join('-')
-    .toLowerCase();
+  const resourceName =
+    environmentConfiguration.smsMfa?.resourceName ??
+    [
+      'acs',
+      configuration.organizationShortName,
+      configuration.workloadShortName,
+      environment,
+      configuration.primaryRegionShortName,
+      '01',
+    ]
+      .join('-')
+      .toLowerCase();
 
   return `https://${resourceName}.communication.azure.com`;
 }
