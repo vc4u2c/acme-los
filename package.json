@@ -91,7 +91,7 @@
     "detox": {
       "ws": "7.5.11"
     },
-    "decode-uri-component": "0.5.0",
+    "decode-uri-component": "0.5.1",
     "@tootallnate/once": "^3.0.1",
     "axios": "^1.16.0",
     "flatted": "^3.4.2",
@@ -105,6 +105,7 @@
     },
     "nx@22.7.10": {
       "brace-expansion": "5.0.12",
+      "follow-redirects": "1.16.2",
       "smol-toml": "1.9.1"
     },
     "tailwindcss@3.4.19": {
@@ -113,7 +114,7 @@
     "postcss-nested@6.2.0": {
       "postcss-selector-parser": "7.1.6"
     },
-    "launch-editor": "2.14.1",
+    "launch-editor": "2.14.2",
     "metro": {
       ".": "0.83.8",
       "ws": "7.5.11"
@@ -126,7 +127,7 @@
     "node-forge": "^1.4.0",
     "patch-package": "^8.0.1",
     "postcss": "^8.5.14",
-    "qs": "6.16.0",
+    "qs": "6.16.2",
     "query-string": "9.5.1",
     "react-devtools-core": {
       "ws": "7.5.11"
@@ -154,7 +155,7 @@
     "@commitlint/config-conventional": "^20.5.0",
     "@eslint/js": "^9.8.0",
     "@expo/cli": "~55.0.18",
-    "@next/eslint-plugin-next": "~16.3.8",
+    "@next/eslint-plugin-next": "~16.4.5",
     "@nx/devkit": "22.7.10",
     "@nx/dotnet": "22.7.10",
     "@nx/eslint": "22.7.10",
@@ -182,7 +183,7 @@
     "babel-preset-expo": "~55.0.20",
     "brace-expansion": "5.0.12",
     "eslint": "^9.8.0",
-    "eslint-config-next": "~16.3.8",
+    "eslint-config-next": "~16.4.5",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-import": "^2.32.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
@@ -239,7 +240,7 @@
     "expo-system-ui": "~55.0.16",
     "lucide-react": "^0.577.0",
     "nativewind": "^4.2.6",
-    "next": "~16.3.8",
+    "next": "~16.4.5",
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "react-native": "0.83.10",

@@ -11,7 +11,7 @@ until the relevant compatibility matrix and repository verification pass.
 | Node.js             | 24.19.0                       | Krypton LTS                         | `.nvmrc` and `package.json`             |
 | npm                 | 11.17.0                       | Node 24 bundled stable              | `package.json#packageManager`           |
 | .NET / ASP.NET Core | 10.0.10 packages on `net10.0` | LTS through November 2028           | `apps/bff-api/Directory.Packages.props` |
-| Next.js             | 16.3.8                        | Stable                              | `package-lock.json`                     |
+| Next.js             | 16.4.5                        | Stable                              | `package-lock.json`                     |
 | React               | 19.2.0                        | Stable, aligned to Expo SDK 55      | `package-lock.json`                     |
 | TypeScript          | 5.9.3                         | Stable                              | `package-lock.json`                     |
 | Nx                  | 22.7.10                       | Stable                              | `package-lock.json`                     |
@@ -19,7 +19,7 @@ until the relevant compatibility matrix and repository verification pass.
 | React Native        | 0.83.10                       | Expo SDK 55 train                   | `package-lock.json`                     |
 | Tailwind CSS        | 3.4.19                        | Stable NativeWind 4-compatible line | `package-lock.json`                     |
 | NativeWind          | 4.2.6                         | Stable                              | `package-lock.json`                     |
-| shadcn CLI          | 4.16.2                        | Stable; generated UI is app-owned   | `package-lock.json`                     |
+| shadcn CLI          | 4.23.0                        | Stable; generated UI is app-owned   | `package-lock.json`                     |
 
 Run `npm run sources:show` for the complete version-aware map to official docs
 and upstream repositories.
@@ -145,7 +145,69 @@ the two root advisories in `braces` and `node-forge`. Both registries and
 advisories still report no published patched release as of October 16. The
 audit allowlist stays empty; the moderate-or-higher gate still blocks promotion.
 Do not replace the remaining packages with incompatible APIs or suppress the
-findings just to turn CI green. Deployment and teardown remain on hold.
+findings just to turn CI green. Promotion remained blocked at that checkpoint;
+the later cost-saving retirement is recorded in the Azure lifecycle runbook.
+
+## November 4 security servicing
+
+This increment is CI-only. It does not merge or deploy the branch, rebuild Azure,
+or change the moderate-or-higher audit gate. The audit allowlist remains empty.
+
+Compatible updates include Next.js and its ESLint packages `16.4.5`, Azure
+Identity `4.14.1` with its supported MSAL Node `7.1.2`, Forge `1.4.3`, Zod
+`4.6.7` for the app, and shadcn `4.23.0`. Module Federation updates through its
+declared owner ranges to `2.9.3`, which requests patched Undici `7.30.1`.
+The existing decode-uri-component, launch-editor, and qs pins advance to
+`0.5.1`, `2.14.2`, and `6.16.2`; compatible lockfile updates also cover
+body-parser, fast-uri, serialize-javascript, and systeminformation.
+
+Nx `22.7.10` still pins vulnerable `follow-redirects@1.16.0`, so an exact-owner
+override selects the published `1.16.2` patch. No framework migration, package
+source patch, lifecycle-script approval, or security exception is introduced.
+The Forge compatibility tests exercise Expo's actual certificate-signing owner,
+valid and modified payloads, and rejection of extra nested DigestAlgorithm
+elements. CI runs these alongside the existing CSS toolchain contracts.
+
+The earlier braces advisory was
+[withdrawn upstream on October 23](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm).
+Forge's [upstream changelog](https://github.com/digitalbazaar/forge/blob/v1.4.3/CHANGELOG.md)
+documents the RSA fix in `1.4.1` and subsequent security fixes in `1.4.3`.
+These changes do not justify suppressing other findings.
+
+Remaining dependency constraints require separate compatibility work or upstream
+releases before the audit can pass:
+
+| Dependency               | Constraint                                                                                                                                                                                                                 |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `minimatch@9/10`         | [Patched 11.0.1+](https://github.com/advisories/GHSA-g3hv-75wg-m249) removes `makeRe`, which Nx calls for project selection, generators, and release tag matching. A global major override would break real tooling paths. |
+| `glob@10/13`             | [Patched 14.0.2+](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) is outside Jest and Expo's declared ranges and changes matching, ignore, and internal walker behavior.                                                |
+| Expo CLI's `zod@3.25.76` | [Patched 4.6.6+](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) is a major API migration outside Expo 55's declared range. Updating the app's Zod does not remove this separate copy.                                  |
+| `deepmerge@4.3.1`        | [Low-severity prototype poisoning](https://github.com/advisories/GHSA-gcqx-w48m-w2h4) has no published patched version. The existing CI threshold does not block low findings, but this remains unresolved.                |
+
+These packages are not automatically considered dev-only: the web Docker runner
+installs root production dependencies in addition to the standalone output, and
+Expo/NativeWind dependencies can therefore be installed in that image. Runtime
+package isolation is a separate change, not a reason to omit dependencies from
+the CI audit. Azure remains retired with automatic CD disabled.
+
+The November 4 audit dropped from 83 affected packages (1 critical, 16 high,
+59 moderate, 7 low) to 57 (0 critical, 3 high, 47 moderate, 7 low). These are
+affected dependency counts, not distinct advisories: the four advisories above
+account for the remaining transitive findings. `npm run audit:node` still fails
+as intended; this branch is not ready to merge under the existing security gate.
+
+Local verification with Node `24.19.0` and npm `11.17.0` passed:
+
+- Clean `npm ci --no-audit` with the existing strict lifecycle-script allowlist.
+- NuGet audit policy and the full vulnerable-package inventory: no findings.
+- Prettier, agent harness validation, project tags, and lint/test across all
+  22 targeted projects, including 120 web, 1 mobile, 91 BFF unit, and 11 BFF
+  integration tests.
+- Eight dependency compatibility tests and 14 deployment-workflow contract
+  tests; no live Azure operations are part of these checks.
+- Next.js production build, 84 web browser tests across Chromium, Firefox, and
+  WebKit, and two mobile browser smoke tests. Browser checks use local fixtures,
+  not live Okta accounts or an Azure deployment.
 
 ## Retired upstream security exception
 
