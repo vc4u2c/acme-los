@@ -10,7 +10,8 @@ This repo uses Nx Release plus GitHub Actions for CI/CD.
   - enables the BFF NuGet audit policy from `apps/bff-api/Directory.Build.props`
     only for the CI audit command
   - validates project tags, lint, and tests
-  - verifies the scoped CSS parser overrides against Tailwind and NativeWind contracts
+  - runs dependency compatibility contracts for CSS parser and Glob overrides,
+    Expo discovery, Istanbul coverage, and Expo certificate signing
   - on `main` pushes, also performs app release work and creates the deployable
     artifact
 - `.github/workflows/cd.yml`
@@ -47,6 +48,7 @@ retirement/rebuild script and automatic CD must stay disabled during that cycle.
 
 Related docs:
 
+- [Dependency security implementation guide](./dependency-security-implementation-guide.md)
 - [GitHub and Azure environments](./github-azure-environments.md)
 - [Azure bootstrap and teardown](./azure-bootstrap-and-teardown.md)
 - [Pipeline portability](./pipeline-portability.md)

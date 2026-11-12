@@ -75,6 +75,11 @@
     "@expo/cli": {
       "ws": "8.21.0"
     },
+    "glob@>=9 <14": "14.0.5",
+    "test-exclude@7.0.2": {
+      "glob": "14.0.5",
+      "minimatch": "11.0.8"
+    },
     "@expo/metro": "55.1.1",
     "@expo/metro-config": {
       "ws": "7.5.11"
@@ -179,7 +184,7 @@
     "@types/react-dom": "~19.1.7",
     "autoprefixer": "^10.4.27",
     "audit-ci": "7.1.0",
-    "babel-jest": "30.4.1",
+    "babel-jest": "30.5.2",
     "babel-preset-expo": "~55.0.20",
     "brace-expansion": "5.0.12",
     "eslint": "^9.8.0",
@@ -191,8 +196,8 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "5.0.0",
     "husky": "^9.1.7",
-    "jest": "30.4.1",
-    "jest-environment-jsdom": "30.4.1",
+    "jest": "30.5.2",
+    "jest-environment-jsdom": "30.5.2",
     "jest-expo": "~55.0.18",
     "lint-staged": "^16.4.0",
     "nx": "22.7.10",
