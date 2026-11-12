@@ -8,11 +8,23 @@ targetScope = 'resourceGroup'
 ])
 param environmentName string
 
+@description('Dev splits retained services from disposable runtime without changing their resource IDs.')
+@allowed([
+  'all'
+  'retained'
+  'disposable'
+])
+param resourcePhase string = 'all'
+
 param location string = resourceGroup().location
 param tenantId string
 param organizationShortName string = 'acme'
 param workloadShortName string = 'los'
 param regionShortName string = 'cus'
+param retainedRegionShortName string = regionShortName
+param retainedResourceGroupName string = resourceGroup().name
+@description('Stable name for the global ACS resource when its resource group moves regions.')
+param globalCommunicationServicesName string = toLower('acs-${organizationShortName}-${workloadShortName}-${environmentName}-${retainedRegionShortName}-${instanceNumber}')
 param instanceNumber string = '01'
 param uniqueShortSuffix string = 'v42c'
 param ownerTag string = 'vc4u2c'
@@ -41,14 +53,19 @@ param keyVaultPrivateDnsZoneName string = 'privatelink.vaultcore.azure.net'
 param managedRedisPrivateDnsZoneName string = 'privatelink.redis.azure.net'
 param extraTags object = {}
 
-var resolvedKeyVaultName = toLower('kv${organizationShortName}${workloadShortName}${environmentName}${regionShortName}${instanceNumber}${uniqueShortSuffix}')
+var deployRetained = resourcePhase != 'disposable'
+var deployRegionalNetwork = resourcePhase == 'disposable' && retainedResourceGroupName != resourceGroup().name
+var deployDisposable = resourcePhase != 'retained'
+var deployRedis = deployDisposable && stateStoreMode == 'redis'
+
+var resolvedKeyVaultName = toLower('kv${organizationShortName}${workloadShortName}${environmentName}${retainedRegionShortName}${instanceNumber}${uniqueShortSuffix}')
 var resolvedRedisClusterName = toLower('redis-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedRedisDatabaseName = 'default'
 var resolvedContainerAppEnvironmentName = toLower('cae-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedContainerAppEnvironmentInfrastructureResourceGroupName = toLower('rg-${organizationShortName}-${workloadShortName}-cae-infra-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedContainerAppName = toLower('ca-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
-var resolvedCommunicationServicesName = toLower('acs-${organizationShortName}-${workloadShortName}-${environmentName}-${regionShortName}-${instanceNumber}')
-var resolvedUserAssignedIdentityName = toLower('id-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
+var resolvedCommunicationServicesName = globalCommunicationServicesName
+var resolvedUserAssignedIdentityName = toLower('id-${organizationShortName}-${workloadShortName}-web-${environmentName}-${retainedRegionShortName}-${instanceNumber}')
 var resolvedVirtualNetworkName = toLower('vnet-${organizationShortName}-${workloadShortName}-web-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedAppSubnetName = toLower('snet-${organizationShortName}-${workloadShortName}-app-${environmentName}-${regionShortName}-${instanceNumber}')
 var resolvedDataSubnetName = toLower('snet-${organizationShortName}-${workloadShortName}-data-${environmentName}-${regionShortName}-${instanceNumber}')
@@ -62,8 +79,8 @@ var resolvedManagedRedisAccessPolicyAssignmentName = take(
   'aparedis${uniqueString(resolvedRedisClusterName, resolvedUserAssignedIdentityName)}',
   60
 )
-var resolvedRedisHostName = stateStoreMode == 'redis' ? redis!.outputs.hostName : ''
-var resolvedRedisPort = stateStoreMode == 'redis' ? redis!.outputs.port : 0
+var resolvedRedisHostName = deployRedis ? redis!.outputs.hostName : ''
+var resolvedRedisPort = deployRedis ? redis!.outputs.port : 0
 var resolvedManagedRedisPrivateDnsZoneId = resourceId(
   platformSubscriptionId,
   platformNetworkResourceGroupName,
@@ -103,7 +120,7 @@ module tags './modules/foundation/tags.bicep' = {
   }
 }
 
-module workloadSpokeNetwork './modules/network/workload-spoke-network.bicep' = {
+module workloadSpokeNetwork './modules/network/workload-spoke-network.bicep' = if (deployRetained || deployRegionalNetwork) {
   name: 'network-${environmentName}'
   params: {
     name: resolvedVirtualNetworkName
@@ -121,7 +138,7 @@ module workloadSpokeNetwork './modules/network/workload-spoke-network.bicep' = {
   }
 }
 
-module keyVault './modules/security/key-vault.bicep' = {
+module keyVault './modules/security/key-vault.bicep' = if (deployRetained) {
   name: 'kv-${environmentName}'
   params: {
     name: resolvedKeyVaultName
@@ -138,7 +155,7 @@ resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
   name: resolvedKeyVaultName
 }
 
-module redis './modules/state/managed-redis.bicep' = if (stateStoreMode == 'redis') {
+module redis './modules/state/managed-redis.bicep' = if (deployRedis) {
   name: 'redis-${environmentName}'
   params: {
     name: resolvedRedisClusterName
@@ -149,9 +166,13 @@ module redis './modules/state/managed-redis.bicep' = if (stateStoreMode == 'redi
     clusteringPolicy: redisClusteringPolicy
     publicNetworkAccess: 'Disabled'
   }
+  // Allocate the capacity-sensitive ACA environment before the paid state service.
+  dependsOn: [
+    containerAppEnvironment
+  ]
 }
 
-module userAssignedIdentity './modules/web/user-assigned-identity.bicep' = {
+module userAssignedIdentity './modules/web/user-assigned-identity.bicep' = if (deployRetained) {
   name: 'id-${environmentName}'
   params: {
     name: resolvedUserAssignedIdentityName
@@ -160,7 +181,7 @@ module userAssignedIdentity './modules/web/user-assigned-identity.bicep' = {
   }
 }
 
-module communicationServices './modules/communication/communication-services.bicep' = {
+module communicationServices './modules/communication/communication-services.bicep' = if (deployRetained) {
   name: 'acs-${environmentName}'
   params: {
     name: resolvedCommunicationServicesName
@@ -172,11 +193,35 @@ resource communicationServicesResource 'Microsoft.Communication/communicationSer
   name: resolvedCommunicationServicesName
 }
 
-resource communicationServicesContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource retainedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' existing = {
+  scope: resourceGroup(retainedResourceGroupName)
+  name: resolvedUserAssignedIdentityName
+}
+
+resource runtimeKeyVault 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
+  scope: resourceGroup(retainedResourceGroupName)
+  name: resolvedKeyVaultName
+}
+
+resource runtimeCommunicationServices 'Microsoft.Communication/communicationServices@2025-09-01' existing = {
+  scope: resourceGroup(retainedResourceGroupName)
+  name: resolvedCommunicationServicesName
+}
+
+resource retainedNetwork 'Microsoft.Network/virtualNetworks@2024-05-01' existing = {
+  name: resolvedVirtualNetworkName
+}
+
+var identityPrincipalId = deployRetained ? userAssignedIdentity!.outputs.principalId : retainedIdentity.properties.principalId
+var identityClientId = deployRetained ? userAssignedIdentity!.outputs.clientId : retainedIdentity.properties.clientId
+var appSubnetId = deployRetained || deployRegionalNetwork ? workloadSpokeNetwork!.outputs.appSubnetId : '${retainedNetwork.id}/subnets/${resolvedAppSubnetName}'
+var dataSubnetId = deployRetained || deployRegionalNetwork ? workloadSpokeNetwork!.outputs.dataSubnetId : '${retainedNetwork.id}/subnets/${resolvedDataSubnetName}'
+
+resource communicationServicesContributorRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployRetained) {
   name: guid(communicationServicesResource.id, resolvedUserAssignedIdentityName, 'communication-services-contributor')
   scope: communicationServicesResource
   properties: {
-    principalId: userAssignedIdentity.outputs.principalId
+    principalId: identityPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: contributorRoleDefinitionId
   }
@@ -185,34 +230,37 @@ resource communicationServicesContributorRoleAssignment 'Microsoft.Authorization
   ]
 }
 
-resource keyVaultSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+resource keyVaultSecretsUserRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = if (deployRetained) {
   name: guid(keyVaultResource.id, resolvedUserAssignedIdentityName, 'key-vault-secrets-user')
   scope: keyVaultResource
   properties: {
-    principalId: userAssignedIdentity.outputs.principalId
+    principalId: identityPrincipalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: keyVaultSecretsUserRoleDefinitionId
   }
+  dependsOn: [
+    keyVault
+  ]
 }
 
-module acrPullRoleAssignment './modules/shared/acr-pull-role-assignment.bicep' = {
+module acrPullRoleAssignment './modules/shared/acr-pull-role-assignment.bicep' = if (deployRetained) {
   name: 'acr-pull-${environmentName}'
   scope: resourceGroup(subscription().subscriptionId, containerRegistryResourceGroupName)
   params: {
     registryName: containerRegistryName
-    principalId: userAssignedIdentity.outputs.principalId
+    principalId: identityPrincipalId
     principalNameSeed: resolvedUserAssignedIdentityName
   }
 }
 
 #disable-next-line no-unnecessary-dependson
-module containerAppEnvironment './modules/web/container-app-environment.bicep' = {
+module containerAppEnvironment './modules/web/container-app-environment.bicep' = if (deployDisposable) {
   name: 'cae-${environmentName}'
   params: {
     name: resolvedContainerAppEnvironmentName
     location: location
     tags: tags.outputs.tags
-    infrastructureSubnetId: workloadSpokeNetwork.outputs.appSubnetId
+    infrastructureSubnetId: appSubnetId
     logAnalyticsWorkspaceCustomerId: platformLogAnalyticsWorkspace.properties.customerId
     logAnalyticsWorkspaceSharedKey: platformLogAnalyticsWorkspace.listKeys().primarySharedKey
     workloadProfileName: acaWorkloadProfileName
@@ -228,7 +276,7 @@ resource managedEnvironmentResource 'Microsoft.App/managedEnvironments@2025-01-0
 }
 
 #disable-next-line no-unnecessary-dependson
-resource keyVaultDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+resource keyVaultDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (deployRetained) {
   name: resolvedKeyVaultDiagnosticSettingsName
   scope: keyVaultResource
   dependsOn: [
@@ -252,7 +300,7 @@ resource keyVaultDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-
 }
 
 #disable-next-line no-unnecessary-dependson
-resource managedEnvironmentDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+resource managedEnvironmentDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (deployDisposable) {
   name: resolvedManagedEnvironmentDiagnosticSettingsName
   scope: managedEnvironmentResource
   dependsOn: [
@@ -276,7 +324,7 @@ resource managedEnvironmentDiagnosticSettings 'Microsoft.Insights/diagnosticSett
 }
 
 #disable-next-line no-unnecessary-dependson
-resource managedRedisDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (stateStoreMode == 'redis') {
+resource managedRedisDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = if (deployRedis) {
   name: resolvedManagedRedisDiagnosticSettingsName
   scope: redisEnterpriseResource
   dependsOn: [
@@ -293,14 +341,14 @@ resource managedRedisDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2
   }
 }
 
-module keyVaultPrivateEndpoint './modules/network/private-endpoint.bicep' = {
+module keyVaultPrivateEndpoint './modules/network/private-endpoint.bicep' = if (deployDisposable) {
   name: 'pep-kv-${environmentName}'
   params: {
     name: resolvedKeyVaultPrivateEndpointName
     location: location
     tags: tags.outputs.tags
-    subnetId: workloadSpokeNetwork.outputs.dataSubnetId
-    privateLinkServiceId: keyVault.outputs.id
+    subnetId: dataSubnetId
+    privateLinkServiceId: deployRetained ? keyVault!.outputs.id : runtimeKeyVault.id
     groupIds: [
       'vault'
     ]
@@ -310,15 +358,18 @@ module keyVaultPrivateEndpoint './modules/network/private-endpoint.bicep' = {
       keyVaultPrivateDnsZone.id
     ]
   }
+  dependsOn: [
+    containerAppEnvironment
+  ]
 }
 
-module managedRedisPrivateEndpoint './modules/network/private-endpoint.bicep' = if (stateStoreMode == 'redis') {
+module managedRedisPrivateEndpoint './modules/network/private-endpoint.bicep' = if (deployRedis) {
   name: 'pep-redis-${environmentName}'
   params: {
     name: resolvedManagedRedisPrivateEndpointName
     location: location
     tags: tags.outputs.tags
-    subnetId: workloadSpokeNetwork.outputs.dataSubnetId
+    subnetId: dataSubnetId
     privateLinkServiceId: redis!.outputs.id
     groupIds: [
       'redisEnterprise'
@@ -331,16 +382,16 @@ module managedRedisPrivateEndpoint './modules/network/private-endpoint.bicep' = 
   }
 }
 
-resource redisEnterpriseResource 'Microsoft.Cache/redisEnterprise@2025-07-01' existing = if (stateStoreMode == 'redis') {
+resource redisEnterpriseResource 'Microsoft.Cache/redisEnterprise@2025-07-01' existing = if (deployRedis) {
   name: resolvedRedisClusterName
 }
 
-resource redisDatabaseAccessPolicyAssignment 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01' = if (stateStoreMode == 'redis') {
+resource redisDatabaseAccessPolicyAssignment 'Microsoft.Cache/redisEnterprise/databases/accessPolicyAssignments@2025-07-01' = if (deployRedis) {
   name: '${resolvedRedisClusterName}/${resolvedRedisDatabaseName}/${resolvedManagedRedisAccessPolicyAssignmentName}'
   properties: {
     accessPolicyName: 'default'
     user: {
-      objectId: userAssignedIdentity.outputs.principalId
+      objectId: identityPrincipalId
     }
   }
   dependsOn: [
@@ -348,45 +399,46 @@ resource redisDatabaseAccessPolicyAssignment 'Microsoft.Cache/redisEnterprise/da
   ]
 }
 
-output containerAppEnvironmentName string = containerAppEnvironment.outputs.name
-output containerAppEnvironmentId string = containerAppEnvironment.outputs.id
+output resourcePhase string = resourcePhase
+output containerAppEnvironmentName string = deployDisposable ? containerAppEnvironment!.outputs.name : ''
+output containerAppEnvironmentId string = deployDisposable ? containerAppEnvironment!.outputs.id : ''
 output containerAppEnvironmentInfrastructureResourceGroupName string = resolvedContainerAppEnvironmentInfrastructureResourceGroupName
 output containerAppName string = resolvedContainerAppName
 output containerAppLatestRevisionFqdn string = ''
-output userAssignedIdentityName string = userAssignedIdentity.outputs.name
-output userAssignedIdentityClientId string = userAssignedIdentity.outputs.clientId
-output userAssignedIdentityPrincipalId string = userAssignedIdentity.outputs.principalId
-output userAssignedIdentityResourceId string = userAssignedIdentity.outputs.id
-output workloadVirtualNetworkName string = workloadSpokeNetwork.outputs.name
-output workloadVirtualNetworkId string = workloadSpokeNetwork.outputs.id
-output appSubnetName string = workloadSpokeNetwork.outputs.appSubnetName
-output dataSubnetName string = workloadSpokeNetwork.outputs.dataSubnetName
-output appNetworkSecurityGroupName string = workloadSpokeNetwork.outputs.appNetworkSecurityGroupName
-output dataNetworkSecurityGroupName string = workloadSpokeNetwork.outputs.dataNetworkSecurityGroupName
-output acaInfrastructureSubnetName string = workloadSpokeNetwork.outputs.appSubnetName
-output privateEndpointSubnetName string = workloadSpokeNetwork.outputs.dataSubnetName
-output keyVaultName string = keyVault.outputs.name
-output keyVaultId string = keyVault.outputs.id
-output keyVaultUri string = keyVault.outputs.vaultUri
-output keyVaultPrivateEndpointName string = keyVaultPrivateEndpoint.outputs.name
+output userAssignedIdentityName string = resolvedUserAssignedIdentityName
+output userAssignedIdentityClientId string = identityClientId
+output userAssignedIdentityPrincipalId string = identityPrincipalId
+output userAssignedIdentityResourceId string = retainedIdentity.id
+output workloadVirtualNetworkName string = resolvedVirtualNetworkName
+output workloadVirtualNetworkId string = retainedNetwork.id
+output appSubnetName string = resolvedAppSubnetName
+output dataSubnetName string = resolvedDataSubnetName
+output appNetworkSecurityGroupName string = resolvedAppNetworkSecurityGroupName
+output dataNetworkSecurityGroupName string = resolvedDataNetworkSecurityGroupName
+output acaInfrastructureSubnetName string = resolvedAppSubnetName
+output privateEndpointSubnetName string = resolvedDataSubnetName
+output keyVaultName string = resolvedKeyVaultName
+output keyVaultId string = runtimeKeyVault.id
+output keyVaultUri string = deployRetained ? keyVault!.outputs.vaultUri : runtimeKeyVault.properties.vaultUri
+output keyVaultPrivateEndpointName string = deployDisposable ? keyVaultPrivateEndpoint!.outputs.name : ''
 output keyVaultPrivateEndpointNetworkInterfaceName string = resolvedKeyVaultPrivateEndpointNetworkInterfaceName
-output communicationServicesName string = communicationServices.outputs.name
-output communicationServicesId string = communicationServices.outputs.id
-output communicationServicesEndpoint string = communicationServices.outputs.endpoint
+output communicationServicesName string = resolvedCommunicationServicesName
+output communicationServicesId string = runtimeCommunicationServices.id
+output communicationServicesEndpoint string = 'https://${resolvedCommunicationServicesName}.communication.azure.com'
 output logAnalyticsWorkspaceName string = platformLogAnalyticsWorkspace.name
 output logAnalyticsWorkspaceId string = platformLogAnalyticsWorkspace.id
 output containerRegistryName string = containerRegistryName
 output containerRegistryResourceGroupName string = containerRegistryResourceGroupName
-output redisClusterName string = stateStoreMode == 'redis' ? resolvedRedisClusterName : ''
-output redisClusterId string = stateStoreMode == 'redis' ? redis!.outputs.id : ''
-output redisDatabaseName string = stateStoreMode == 'redis' ? resolvedRedisDatabaseName : ''
-output redisDatabaseId string = stateStoreMode == 'redis' ? redis!.outputs.databaseId : ''
-output redisHostName string = stateStoreMode == 'redis' ? resolvedRedisHostName : ''
-output redisPort int = stateStoreMode == 'redis' ? resolvedRedisPort : 0
-output redisAccessPolicyAssignmentName string = stateStoreMode == 'redis'
+output redisClusterName string = deployRedis ? resolvedRedisClusterName : ''
+output redisClusterId string = deployRedis ? redis!.outputs.id : ''
+output redisDatabaseName string = deployRedis ? resolvedRedisDatabaseName : ''
+output redisDatabaseId string = deployRedis ? redis!.outputs.databaseId : ''
+output redisHostName string = resolvedRedisHostName
+output redisPort int = resolvedRedisPort
+output redisAccessPolicyAssignmentName string = deployRedis
   ? resolvedManagedRedisAccessPolicyAssignmentName
   : ''
-output managedRedisPrivateEndpointName string = stateStoreMode == 'redis' ? resolvedManagedRedisPrivateEndpointName : ''
-output managedRedisPrivateEndpointNetworkInterfaceName string = stateStoreMode == 'redis'
+output managedRedisPrivateEndpointName string = deployRedis ? resolvedManagedRedisPrivateEndpointName : ''
+output managedRedisPrivateEndpointNetworkInterfaceName string = deployRedis
   ? resolvedManagedRedisPrivateEndpointNetworkInterfaceName
   : ''

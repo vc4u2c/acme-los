@@ -2,10 +2,20 @@ import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { IdxStatus } from '@okta/okta-auth-js';
 import { CustomerIdxAuthPage } from '../src/components/web/customer-idx-auth-page';
+import {
+  idxChallenge,
+  idxFixtureConfig,
+  idxForm,
+  idxRegistration,
+  stubIdxTransport,
+} from './support/idx-sdk-fixture';
 
 const startIdx = jest.fn();
 const proceed = jest.fn();
 const start = jest.fn();
+const authClientFactory = jest.fn();
+const { createIdxAuthClient } =
+  jest.requireActual<typeof import('@acme-los/auth/web')>('@acme-los/auth/web');
 
 jest.mock('@acme-los/api/web-client', () => ({
   createWebApiClient: () => ({
@@ -17,12 +27,7 @@ jest.mock('@acme-los/api/web-client', () => ({
 }));
 
 jest.mock('@acme-los/auth/web', () => ({
-  createIdxAuthClient: () => ({
-    idx: {
-      proceed,
-      start,
-    },
-  }),
+  createIdxAuthClient: (...args: unknown[]) => authClientFactory(...args),
   getStoredLeadId: () => null,
 }));
 
@@ -41,6 +46,7 @@ jest.mock('next/link', () => {
 describe('CustomerIdxAuthPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    authClientFactory.mockReturnValue({ idx: { proceed, start } });
     startIdx.mockResolvedValue({
       issuer: 'https://example.okta.com/oauth2/default',
       clientId: 'client-id',
@@ -78,6 +84,228 @@ describe('CustomerIdxAuthPage', () => {
         ],
       },
     });
+  });
+
+  it.each(['okta_email', 'okta_password'])(
+    'renders the actual SDK %s challenge after identify without resending',
+    async (key) => {
+      const client = createIdxAuthClient(idxFixtureConfig);
+      const challenge = idxChallenge(key);
+      const request = stubIdxTransport(client, [
+        idxForm('identify', [{ name: 'identifier', required: true }]),
+        challenge,
+        challenge,
+      ]);
+      authClientFactory.mockReturnValue(client);
+      startIdx.mockResolvedValue({
+        ...idxFixtureConfig,
+        returnTo: '/apply/personal-info',
+      });
+      render(
+        <CustomerIdxAuthPage
+          returnTo="/apply/personal-info"
+          minimumAssuranceLevel="aal1"
+          flow="authenticate"
+        />,
+      );
+      fireEvent.change(await screen.findByLabelText(/^email$/i), {
+        target: { value: 'fixture@example.com' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+      const label =
+        key === 'okta_password' ? /^password$/i : /verification code/i;
+      const input = await screen.findByLabelText(label);
+      expect(input.getAttribute('type')).toBe(
+        key === 'okta_password' ? 'password' : 'text',
+      );
+      expect(
+        screen.queryByRole('button', { name: /send email code/i }),
+      ).toBeNull();
+      expect(
+        request.mock.calls.filter(([, url]) =>
+          url.endsWith('/challenge-authenticator'),
+        ),
+      ).toHaveLength(0);
+      fireEvent.change(input, { target: { value: 'fixture-value' } });
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: key === 'okta_password' ? /verify password/i : /verify code/i,
+        }),
+      );
+      await waitFor(() =>
+        expect(
+          request.mock.calls.filter(([, url]) =>
+            url.endsWith('/challenge-authenticator'),
+          ),
+        ).toHaveLength(1),
+      );
+      expect(
+        JSON.parse(request.mock.calls.at(-1)?.[2].data as string).credentials,
+      ).toEqual({ passcode: 'fixture-value' });
+    },
+  );
+
+  it('preserves SDK resend and optional skip capabilities after a typed challenge transition', async () => {
+    const client = createIdxAuthClient(idxFixtureConfig);
+    const challenge = idxChallenge();
+    if (!challenge.currentAuthenticator)
+      throw new Error('Missing fixture authenticator');
+    const withActions = {
+      ...challenge,
+      remediation: {
+        ...challenge.remediation,
+        value: [
+          ...challenge.remediation.value,
+          ...idxForm('skip', []).remediation.value,
+        ],
+      },
+      currentAuthenticator: {
+        ...challenge.currentAuthenticator,
+        value: {
+          ...challenge.currentAuthenticator.value,
+          resend: idxForm('resend', []).remediation.value[0],
+        },
+      },
+    };
+    const identify = idxForm('identify', [
+      { name: 'identifier', required: true },
+    ]);
+    const request = stubIdxTransport(client, [
+      identify,
+      withActions,
+      withActions,
+      identify,
+    ]);
+    authClientFactory.mockReturnValue(client);
+    startIdx.mockResolvedValue({
+      ...idxFixtureConfig,
+      returnTo: '/apply/personal-info',
+    });
+    render(
+      <CustomerIdxAuthPage
+        returnTo="/apply/personal-info"
+        minimumAssuranceLevel="aal1"
+        flow="authenticate"
+      />,
+    );
+    fireEvent.change(await screen.findByLabelText(/^email$/i), {
+      target: { value: 'fixture@example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /continue/i }));
+    expect(await screen.findByLabelText(/verification code/i)).toBeTruthy();
+    const resend = screen.getByRole('button', { name: /send another code/i });
+    expect(screen.getByRole('button', { name: /do this later/i })).toBeTruthy();
+    expect(
+      request.mock.calls.filter(([, url]) => url.endsWith('/resend')),
+    ).toHaveLength(0);
+    fireEvent.click(resend);
+    await waitFor(() => expect(resend.hasAttribute('disabled')).toBe(false));
+    expect(
+      request.mock.calls.filter(([, url]) => url.endsWith('/resend')),
+    ).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: /do this later/i }));
+    expect(await screen.findByLabelText(/^email$/i)).toBeTruthy();
+    expect(
+      request.mock.calls.filter(([, url]) => url.endsWith('/skip')),
+    ).toHaveLength(1);
+  });
+
+  it('starts registration with real SDK structural steps that have no action callback', async () => {
+    const client = createIdxAuthClient(idxFixtureConfig);
+    const request = stubIdxTransport(client, [
+      idxForm('select-enroll-profile', []),
+      idxForm('enroll-profile', [
+        {
+          name: 'userProfile',
+          type: 'object',
+          form: {
+            value: [
+              { name: 'email', required: true },
+              { name: 'firstName', required: true },
+            ],
+          },
+        },
+      ]),
+    ]);
+    authClientFactory.mockReturnValue(client);
+    startIdx.mockResolvedValue({
+      ...idxFixtureConfig,
+      returnTo: '/apply/personal-info',
+    });
+    render(
+      <CustomerIdxAuthPage
+        returnTo="/apply/personal-info"
+        minimumAssuranceLevel="aal1"
+        flow="register"
+      />,
+    );
+    expect(await screen.findByLabelText(/first name/i)).toBeTruthy();
+    expect(
+      request.mock.calls.filter(([, url]) =>
+        url.endsWith('/select-enroll-profile'),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('submits registration display choices and a masked password through the real SDK', async () => {
+    const client = createIdxAuthClient(idxFixtureConfig);
+    const request = stubIdxTransport(client, [
+      idxForm('select-enroll-profile', []),
+      idxRegistration(),
+      idxChallenge(),
+    ]);
+    authClientFactory.mockReturnValue(client);
+    startIdx.mockResolvedValue({
+      ...idxFixtureConfig,
+      returnTo: '/apply/personal-info',
+    });
+    render(
+      <CustomerIdxAuthPage
+        returnTo="/apply/personal-info"
+        minimumAssuranceLevel="aal1"
+        flow="register"
+      />,
+    );
+    const email = await screen.findByLabelText(/^email$/i);
+    fireEvent.change(email, { target: { value: 'fixture@example.com' } });
+    fireEvent.change(screen.getByLabelText(/^first name$/i), {
+      target: { value: 'Test' },
+    });
+    fireEvent.change(screen.getByLabelText(/^last name$/i), {
+      target: { value: 'Customer' },
+    });
+    const state = screen.getByRole('combobox', { name: /^state$/i });
+    expect(state.getAttribute('name')).toBe('acmeState');
+    expect(
+      screen.getByRole('option', { name: 'Texas' }).getAttribute('value'),
+    ).toBe('TX');
+    expect(
+      screen.getByRole('option', { name: 'Missouri' }).getAttribute('value'),
+    ).toBe('MO');
+    expect(screen.queryByRole('option', { name: 'display' })).toBeNull();
+    fireEvent.change(state, { target: { value: 'TX' } });
+    const password = screen.getByLabelText(/^password$/i);
+    expect(password.getAttribute('type')).toBe('password');
+    expect(password.getAttribute('autocomplete')).toBe('new-password');
+    fireEvent.change(password, { target: { value: 'fixture-value' } });
+    fireEvent.click(screen.getByRole('button', { name: /create account/i }));
+    expect(await screen.findByLabelText(/verification code/i)).toBeTruthy();
+    const submission = JSON.parse(
+      request.mock.calls.at(-1)?.[2].data as string,
+    );
+    expect(submission.userProfile).toEqual({
+      email: 'fixture@example.com',
+      firstName: 'Test',
+      lastName: 'Customer',
+      acmeState: 'TX',
+    });
+    expect(submission.credentials).toEqual({ passcode: 'fixture-value' });
+    expect(
+      request.mock.calls.filter(([, url]) => url.endsWith('/enroll-profile')),
+    ).toHaveLength(1);
+    expect(
+      screen.queryByRole('button', { name: /send email code/i }),
+    ).toBeNull();
   });
 
   it('renders the initial identify remediation returned by Auth JS 8 step mode', async () => {

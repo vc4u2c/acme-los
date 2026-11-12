@@ -4,6 +4,7 @@ import { defineConfig, devices } from '@playwright/test';
 const baseURL = process.env['BASE_URL'] || 'http://127.0.0.1:4200';
 const bffBaseURL =
   process.env['ACME_E2E_BFF_BASE_URL'] || 'http://127.0.0.1:7206';
+const oktaIssuer = 'https://okta.fixture.test/oauth2/default';
 const sharedWebSessionSecret =
   process.env['ACME_WEB_SESSION_SECRET'] || 'acme-los-web-e2e-session-secret';
 const trustedBffProxySecret =
@@ -24,6 +25,7 @@ const localWebServers = process.env['BASE_URL']
           ...process.env,
           HOSTNAME: localBffUrl.hostname,
           PORT: localBffUrl.port || '7206',
+          ACME_OKTA_ISSUER: oktaIssuer,
         },
       },
       {
@@ -37,12 +39,12 @@ const localWebServers = process.env['BASE_URL']
           ACME_BFF_TRUSTED_PROXY_SECRET: trustedBffProxySecret,
           ACME_ENABLE_SECURITY_INSPECTOR: 'true',
           ACME_OKTA_CLIENT_ID: 'e2e-client',
-          ACME_OKTA_ISSUER: `${bffBaseURL}/oauth2/default`,
+          ACME_OKTA_ISSUER: oktaIssuer,
           ACME_OKTA_POST_LOGOUT_REDIRECT_URI: `${baseURL}/`,
           ACME_OKTA_REDIRECT_URI: `${baseURL}/account/sign-in`,
           ACME_WEB_SESSION_SECRET: sharedWebSessionSecret,
           HOSTNAME: localWebUrl.hostname,
-          NEXT_PUBLIC_OKTA_ISSUER: `${bffBaseURL}/oauth2/default`,
+          NEXT_PUBLIC_OKTA_ISSUER: oktaIssuer,
           PORT: localWebUrl.port || '4200',
         },
       },

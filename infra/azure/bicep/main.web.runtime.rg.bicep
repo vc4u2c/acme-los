@@ -43,9 +43,11 @@ param themeCookieDomain string = ''
 param customDomainEnabled bool = false
 param customDomainHostname string = ''
 @allowed([
-  'CNAME'
+  'none'
+  'register'
+  'bind'
 ])
-param customDomainValidationMethod string = 'CNAME'
+param customDomainPhase string = customDomainEnabled ? 'bind' : 'none'
 param analyticsEnabled bool = false
 param analyticsEnvironmentName string = environmentName
 param gtmContainerId string = ''
@@ -82,8 +84,6 @@ param bffContainerImage string = ''
 param bffBaseUrl string = ''
 param bffVersion string = '0.0.0'
 param bffTrustedProxySecretName string = 'sec-acme-los-bff-trusted-proxy-secret'
-@secure()
-param bffTrustedProxySecretValue string = ''
 @allowed([
   ''
   'disabled'
@@ -97,11 +97,8 @@ param bffServiceAuthAllowedClientIds string = ''
 param bffServiceAuthAllowedObjectIds string = ''
 param applicationInsightsConnectionString string
 param logAnalyticsWorkspaceId string
-param keyVaultName string
 param keyVaultUri string
 param sessionSecretName string = 'sec-acme-los-web-session-secret'
-@secure()
-param sessionSecretValue string
 param redisHostName string = ''
 param redisPort int = 0
 param containerTargetPort int = 3000
@@ -135,34 +132,10 @@ resource managedEnvironmentResource 'Microsoft.App/managedEnvironments@2025-01-0
   name: last(split(managedEnvironmentId, '/'))
 }
 
-resource customDomainCertificate 'Microsoft.App/managedEnvironments/managedCertificates@2025-01-01' = if (customDomainEnabled) {
+// Issued by main.web.certificate.rg.bicep after DNS and hostname registration.
+resource customDomainCertificate 'Microsoft.App/managedEnvironments/managedCertificates@2025-01-01' existing = if (customDomainEnabled && customDomainPhase == 'bind') {
   parent: managedEnvironmentResource
   name: customDomainCertificateName
-  location: location
-  properties: {
-    subjectName: customDomainHostname
-    domainControlValidation: customDomainValidationMethod
-  }
-}
-
-resource keyVaultResource 'Microsoft.KeyVault/vaults@2023-07-01' existing = {
-  name: keyVaultName
-}
-
-resource sessionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
-  parent: keyVaultResource
-  name: sessionSecretName
-  properties: {
-    value: sessionSecretValue
-  }
-}
-
-resource bffTrustedProxySecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (deployBff) {
-  parent: keyVaultResource
-  name: bffTrustedProxySecretName
-  properties: {
-    value: bffTrustedProxySecretValue
-  }
 }
 
 module tags './modules/foundation/tags.bicep' = {
@@ -198,12 +171,15 @@ module containerApp './modules/web/container-app.bicep' = {
     oktaFundingStepUpMethod: oktaFundingStepUpMethod
     oktaFundingStepUpRequiresPassword: oktaFundingStepUpRequiresPassword
     themeCookieDomain: themeCookieDomain
-    customDomains: customDomainEnabled
+    customDomains: customDomainEnabled && customDomainPhase != 'none'
       ? [
-          {
+          customDomainPhase == 'bind' ? {
             name: customDomainHostname
             bindingType: 'SniEnabled'
             certificateId: customDomainCertificate!.id
+          } : {
+            name: customDomainHostname
+            bindingType: 'Disabled'
           }
         ]
       : []
@@ -249,14 +225,6 @@ module containerApp './modules/web/container-app.bicep' = {
     sessionIdleTimeoutSeconds: sessionIdleTimeoutSeconds
     sessionWarningSeconds: sessionWarningSeconds
   }
-  dependsOn: deployBff
-    ? [
-        sessionSecret
-        bffTrustedProxySecret
-      ]
-    : [
-        sessionSecret
-      ]
 }
 
 module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
@@ -312,10 +280,6 @@ module bffContainerApp './modules/bff/container-app.bicep' = if (deployBff) {
     minReplicas: bffMinReplicas
     maxReplicas: bffMaxReplicas
   }
-  dependsOn: [
-    sessionSecret
-    bffTrustedProxySecret
-  ]
 }
 
 resource containerAppResource 'Microsoft.App/containerApps@2025-01-01' existing = {

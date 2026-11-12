@@ -45,13 +45,24 @@ What is solid now:
 
 What is true operationally today:
 
-- `dev` is proven live in Azure on `Azure Container Apps`
+- `dev` is live at `https://apply-dev.los.avanai.net` after the approved
+  October 6, 2026 full East US rebuild. The new regional resources include
+  Key Vault, runtime identity, registry, networking, and monitoring. It supersedes the
+  unsuccessful East US 2 runtime-only attempt. Global DNS, ACS/phone, Okta,
+  and deployment identities remain; other applications are outside the scope.
+  See the [full regional rebuild runbook](../operations/azure-bootstrap-and-teardown.md#full-regional-dev-rebuild)
+  for current evidence and recovery gates. Old Central US regional resources
+  have been removed. Dev now serves web `1.12.45`, build `c6997299`, with
+  the Auth JS 8 registration/typed-input and server-PKCE fixes. Live desktop
+  and mobile entry forms and registration Sign in links passed verification
+  on October 7 (UTC). Authenticated OTP journeys have not been retested.
 - `Key Vault` and `Azure Managed Redis` are private-only in the current Azure design
-- the public web app and internal BFF container app are deployed together from
+- the public web app and internal BFF container app deploy together from
   the web deployable, with BFF scale following the environment runtime scale by
   default
 - Redis managed-identity auth is proven live in `dev` as of April 19, 2026
-- main CI currently triggers CD into `dev`
+- main CI is wired to CD into `dev`; automatic `CD` is manually disabled during
+  the current cost-saving lifecycle validation
 - the reusable web deployment wrappers for `qa`, `stg`, and `prod` exist, but
   chained promotion beyond `dev` is still a next step
 
@@ -239,9 +250,9 @@ Still temporary by design:
 
 The web platform is now beyond prototype quality and into a credible pre-production cloud posture, but it is not yet fully battle-hardened production edge infrastructure.
 
-What is already strong:
+Previously verified running configuration:
 
-- `dev` is live on Azure Container Apps with multiple replicas instead of a single-instance-only runtime
+- `dev` has run on Azure Container Apps with multiple replicas instead of a single-instance-only runtime
 - the internal BFF ACA app follows the configured environment replica settings
   by default, so `dev` keeps the BFF warm when the web app is warm
 - the workload runs inside a spoke VNet with separate app and data subnets
@@ -252,14 +263,18 @@ What is already strong:
 - auth and session state are server-side and Redis-backed in Azure instead of browser-backed or in-memory only
 - Application Insights, Log Analytics, alerts, and a workbook provide a real operations surface
 - deployment stacks, budgets, and pause or resume controls are in place for cost-aware lifecycle management
+- `https://apply-dev.los.avanai.net` is the stable dev origin with delegated Azure
+  DNS, a Bicep-managed certificate, and matching Okta callbacks as of October 1,
+  2026; desktop/mobile browser checks verified real IDX initialization before
+  retirement. The hostname intentionally has no app target while dev is retired.
 
 What is not fully hardened yet:
 
-- the app is still directly reachable on the ACA hostname
-- `apply-dev.avanai.net` is source-configured as the Bicep-managed branded
-  web-hostname activation path, but it is not a proven live endpoint until DNS
-  validation, managed-certificate deployment, and Okta redirect URI cutover are
-  complete
+- when running, the app is also directly reachable on the ACA hostname
+- stable-host activation and secret-preserving retirement are proven, but the
+  subsequent rebuilds encountered regional capacity/SKU restrictions. New-environment
+  HTTPS recovery and signed-in journeys remain outstanding gates; full teardown
+  must not be advertised as an immediately recoverable pause
 - Front Door, WAF, and private-only ACA ingress are still later phases
 - the environment model is proven in `dev`, but still needs the same repeatability proven in `qa`
 - regional failover and broader production resilience controls are not in place yet
@@ -273,8 +288,8 @@ Current practical reading:
 
 Theme continuity across the hosted-auth round trip is intentionally limited to
 the display-only `acme_theme=light|dark` preference. Okta at
-`auth.avanai.net` can share that cookie with the planned
-`apply-dev.avanai.net` web hostname after activation; opaque app-session,
+`auth.avanai.net` can share that cookie with the active
+`apply-dev.los.avanai.net` web hostname; opaque app-session,
 anti-CSRF, and authorization state cookies remain isolated to their owning
 hosts.
 

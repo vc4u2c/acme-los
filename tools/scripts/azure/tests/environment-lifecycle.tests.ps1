@@ -2,6 +2,13 @@
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $lifecycleScript = Join-Path $PSScriptRoot '../set-web-environment-state.ps1'
+$testConfiguration = Get-Content (Join-Path $PSScriptRoot '../../../../infra/azure/config/platform.json') -Raw | ConvertFrom-Json
+$testConfiguration.environments.dev.PSObject.Properties.Remove('runtimeRegion')
+$testConfiguration.primaryLocation = 'centralus'
+$testConfiguration.primaryRegionShortName = 'cus'
+$testConfiguration.platformResources.monitorResourceGroupName = 'rg-acme-hub-monitor-cus-01'
+$testConfigurationPath = [IO.Path]::GetTempFileName()
+$testConfiguration | ConvertTo-Json -Depth 30 | Set-Content -LiteralPath $testConfigurationPath -Encoding UTF8
 $global:testSub = '11111111-1111-1111-1111-111111111111'
 $global:testPlatform = '22222222-2222-2222-2222-222222222222'
 $global:testGroup = 'rg-acme-los-web-dev-cus-01'
@@ -49,6 +56,7 @@ function Reset-TestState {
   $global:calls = [Collections.Generic.List[string]]::new()
   $global:resources = @{}
   $global:failure = ''
+  $global:retainedStack = $null
   $global:marker = 'false'
   $global:testKv = "$testScope/providers/Microsoft.KeyVault/vaults/kvacmelosdevcus01v42c"
   $global:testRedis = "$testScope/providers/Microsoft.Cache/redisEnterprise/redis-acme-los-dev-cus-01"
@@ -93,7 +101,9 @@ function global:az {
       $global:marker = $value.Split('=')[1]
       $global:calls.Add("marker:$global:marker")
     }
-    'stack group show' { $result = $global:stack }
+    'stack group show' {
+      $result = if ($global:retainedStack -and (Get-Argument $a '--name') -like '*-web-app-*') { $global:retainedStack } else { $global:stack }
+    }
     'bicep build *' {
       $result = @{ resources = @(@{ type = 'Microsoft.Network/privateEndpoints' }, @{ type = 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups' }) }
     }
@@ -180,7 +190,7 @@ function global:Invoke-WebRequest {
 }
 
 function Invoke-TestLifecycle([string]$Action, [hashtable]$Extra = @{}) {
-  & $lifecycleScript -EnvironmentName dev -Action $Action -SubscriptionId $testSub -PlatformSubscriptionId $testPlatform @Extra | ConvertFrom-Json
+  & $lifecycleScript -ConfigurationPath $testConfigurationPath -EnvironmentName dev -Action $Action -SubscriptionId $testSub -PlatformSubscriptionId $testPlatform @Extra | ConvertFrom-Json
 }
 
 function Assert-Fails([scriptblock]$Body, [string]$Pattern) {
@@ -363,7 +373,28 @@ foreach ($scenario in @('restore', 'pending', 'dns', 'readiness', 'health')) {
   }
 }
 
+$tests['split stacks preserve hibernate and resume with Key Vault owned by retained foundation'] = {
+  $global:retainedStack = $global:stack | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+  $global:retainedStack | Add-Member -NotePropertyName parameters -NotePropertyValue @{ resourcePhase = @{ value = 'retained' } }
+  $global:retainedStack.resources = @(@{ id = $testKv })
+  $global:stack.parameters = @{ resourcePhase = @{ value = 'disposable' } }
+  $global:stack.resources = @($global:stack.resources | Where-Object { $_.id -ne $testKv })
+  Invoke-TestLifecycle 'hibernate' | Out-Null
+  Invoke-TestLifecycle 'resume' | Out-Null
+  Assert-True ($global:marker -eq 'false') 'split stack recovery completes'
+  Assert-True ($global:resources.ContainsKey($testKv)) 'retained vault is preserved'
+}
+$tests['split ownership rejects a vault missing from its retained foundation'] = {
+  $global:retainedStack = $global:stack | ConvertTo-Json -Depth 20 | ConvertFrom-Json
+  $global:retainedStack | Add-Member -NotePropertyName parameters -NotePropertyValue @{ resourcePhase = @{ value = 'retained' } }
+  $global:retainedStack.resources = @()
+  $global:stack.parameters = @{ resourcePhase = @{ value = 'disposable' } }
+  Assert-Fails { Invoke-TestLifecycle 'hibernate' } 'does not own'
+  Assert-True ($global:calls.Count -eq 0) 'no mutations before ownership proof'
+}
+
 $passed = 0
+try {
 foreach ($test in $tests.GetEnumerator()) {
   Reset-TestState
   try { & $test.Value $testArguments[$test.Key] } catch { throw "FAIL $($test.Key): $($_.Exception.Message)`n$($_.ScriptStackTrace)" }
@@ -371,3 +402,4 @@ foreach ($test in $tests.GetEnumerator()) {
   Write-Host "PASS $($test.Key)"
 }
 Write-Host "$passed lifecycle tests passed. No Azure calls were made."
+} finally { Remove-Item -LiteralPath $testConfigurationPath -Force }

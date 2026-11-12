@@ -193,7 +193,8 @@ const server = createServer(async (request, response) => {
   if (url.pathname === '/bff/auth/idx/start' && request.method === 'POST') {
     const payload = await readJson(request);
     json(response, 200, {
-      issuer: `http://${host}:${port}/oauth2/default`,
+      issuer:
+        process.env.ACME_OKTA_ISSUER || `http://${host}:${port}/oauth2/default`,
       clientId: 'e2e-client',
       redirectUri: 'http://127.0.0.1:4200/account/sign-in',
       scopes: ['openid', 'profile', 'email'],

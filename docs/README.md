@@ -57,6 +57,7 @@ path:
 
 - [Agent harness and context engineering](./architecture/agent-harness.md)
 - [Change safety workflow](./architecture/change-safety-workflow.md)
+- [Technology lifecycle baseline](./architecture/technology-lifecycle.md)
 - [Web visual design system](./architecture/visual-design-system.md)
 - [Reference architecture demo report](./architecture/reference-architecture-demo-report.md)
 - [Current platform architecture](./architecture/current-platform.md)
@@ -73,6 +74,7 @@ path:
 ## Operations
 
 - [Release and delivery](./operations/release-and-delivery.md)
+- [Dependency security implementation guide](./operations/dependency-security-implementation-guide.md)
 - [Azure and website demo runbook](./operations/azure-and-website-demo-runbook.md)
 - [Azure platform plan](./operations/azure-platform-plan.md)
 - [Azure governance and lifecycle](./operations/azure-governance-and-lifecycle.md)
